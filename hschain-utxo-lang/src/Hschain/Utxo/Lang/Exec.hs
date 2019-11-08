@@ -5,8 +5,6 @@ module Hschain.Utxo.Lang.Exec(
   , Error(..)
 ) where
 
-import Debug.Trace
-
 import Hex.Common.Text
 
 import Control.Applicative
@@ -154,7 +152,7 @@ execLang' (Fix x) = case x of
         TupleAt n   -> fromTupleAt n x'
       where
         fromNot expr = case expr of
-          Fix (PrimE (PrimBool b)) -> prim $ PrimBool $ traceFun "NOT" not b
+          Fix (PrimE (PrimBool b)) -> prim $ PrimBool $ not b
           _                        -> toError $ ThisShouldNotHappen x
 
         fromNeg expr = case expr of
@@ -394,6 +392,8 @@ execLang' (Fix x) = case x of
         Height   -> prim . PrimInt =<< getHeight
         Input  (Fix (PrimE (PrimInt n))) -> toBox n =<< getInputs
         Output (Fix (PrimE (PrimInt n))) -> toBox n =<< getOutputs
+        Inputs  -> fmap toBoxes getInputs
+        Outputs -> fmap toBoxes getOutputs
         GetVar (Fix (PrimE (PrimString argName))) -> do
           args <- getUserArgs
           case M.lookup argName args of
@@ -402,6 +402,7 @@ execLang' (Fix x) = case x of
         _      -> return $ Fix $ GetEnv idx
       where
         toBox n v = maybe (outOfBound $ Fix $ GetEnv idx) (pure . Fix . BoxE . PrimBox) $ v V.!? n
+        toBoxes vs = Fix $ VecE $ NewVec $ fmap (Fix . BoxE . PrimBox) vs
 
     fromBoxField (Fix x) field = case x of
       GetEnv (Input n)  -> getBoxField field
@@ -481,19 +482,14 @@ execLang' (Fix x) = case x of
           PrimString t    -> t
           PrimBool b      -> showt b
 
-    traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
-    traceFun name f x =
-      let res = f x
-      in  trace (mconcat ["\n\nTRACE: " , name, "(", show x, ") = ", show res]) (f x)
-
     sha256 (Fix x) = case x of
-      PrimE (PrimString t) -> Just $ traceFun "sha256" hashText t
+      PrimE (PrimString t) -> Just $ hashText t
       _                    -> Nothing
       where
         hashText = showt . hashWith SHA256 . T.encodeUtf8
 
     blake2b256 (Fix x) = case x of
-      PrimE (PrimString t) -> Just $ traceFun "blake256" hashText t
+      PrimE (PrimString t) -> Just $ hashText t
       _                    -> Nothing
       where
         hashText = showt . hashWith Blake2b_256 . T.encodeUtf8
@@ -522,6 +518,7 @@ execLang' (Fix x) = case x of
       BoxE box                             -> Fix $ BoxE $ fmap rec box
       LamList vs a                         -> rec $ unfoldLamList vs a
       LetArg name args a b                 -> rec $ unfoldLetArg name args a b
+      Trace a b                            -> Fix $ Trace (rec a) (rec b)
       where
         rec x = subst x varName sub
 
@@ -580,3 +577,11 @@ txPreservesValue tx@TxArg{..}
 
 app2 :: Lang -> Lang -> Fix E -> Lang
 app2 f a b = Fix (App (Fix (App f a)) b)
+
+
+{-
+traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
+traceFun name f x =
+  let res = f x
+  in  trace (mconcat ["\n\nTRACE: " , name, "(", show x, ") = ", show res]) (f x)
+-}

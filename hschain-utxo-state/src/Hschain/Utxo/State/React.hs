@@ -2,6 +2,7 @@ module Hschain.Utxo.State.React(
   react
 ) where
 
+import Data.Monoid
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang
@@ -25,7 +26,7 @@ react tx bch
 updateBoxChain :: Tx -> BoxChain -> BoxChain
 updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
   where
-    removeInputs = updateBoxes (foldMap M.delete tx'inputs)
+    removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete) tx'inputs)
 
     insertOutputs = updateBoxes (foldMap (\box -> M.insert (box'id box) box) tx'outputs)
 

@@ -45,7 +45,7 @@ halfGameScript fullGameScriptHash =
   "bobDeadline"    =: getBoxArg out bobDeadlineField   $ \bobDeadline ->
   "validBobInput"  =: (b ==* 0 ||* b ==* 1)            $ \validBobInput ->
       validBobInput
-  &&* (trace (unl ["DEBUG", showScript $ getBoxScript out, blake2b256 $ showScript $ getBoxScript out, fullGameScriptHash]) $ blake2b256 (showScript $ getBoxScript out) ==* fullGameScriptHash)
+  &&* (blake2b256 (showScript $ getBoxScript out) ==* fullGameScriptHash)
   &&* (lengthVec getOutputs ==* 1 ||* lengthVec getOutputs ==* 2)
   &&* (bobDeadline >=* getHeight + 30)
   &&* (getBoxValue out >=* 2 * getBoxValue getSelf )
@@ -84,8 +84,8 @@ data GameResult = GameResult
 xorGame :: C.ClientSpec -> IO ()
 xorGame client = do
   scene <- initUsers client
-  res <- xorGameRound scene (Game (Guess 0 1) 1) client
-  print $ res == Just (GameResult False True)
+  res <- xorGameRound scene (Game (Guess 0 0) 1) client
+  print $ res == Just (GameResult True False)
 
 xorGameRound :: Scene -> Game -> C.ClientSpec -> IO (Maybe GameResult)
 xorGameRound Scene{..} Game{..} client = do
@@ -106,7 +106,7 @@ xorGameRound Scene{..} Game{..} client = do
   where
     getAliceScript guess wallet@Wallet{..} box = do
       (k, s) <- makeAliceSecret guess
-      let fullScriptHash = blake256 $ showt $ toScript $ fullGameScript (text k) (text wallet'publicKey)
+      let fullScriptHash = scriptBlake256 $ toScript $ fullGameScript (text k) (text wallet'publicKey)
           aliceScript = halfGameScript $ text $ fullScriptHash
       (tx, scriptAddr, backAddr) <- makeAliceTx game'amount aliceScript wallet box
       eTx <- postTxDebug "Alice posts half game script" wallet'client tx
@@ -221,6 +221,8 @@ xorGameRound Scene{..} Game{..} client = do
 
     blake256 :: Text -> Text
     blake256 txt = showt $ C.hashWith C.Blake2b_256 $ T.encodeUtf8 txt
+
+    scriptBlake256 = hashScript C.Blake2b_256
 
 postTxDebug :: Text -> C.ClientSpec -> Tx -> IO (Either Text TxHash)
 postTxDebug msg client tx = do

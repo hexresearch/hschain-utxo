@@ -236,11 +236,27 @@ ifExprLang cond t e = Fix $ If cond t e
 -------------------------------------------------
 -- numeric
 
-instance Num a => Num (Expr a) where
+instance Num (Expr Int) where
   (+) = op2 (BinOpE Plus)
   (*) = op2 (BinOpE Times)
   negate = op1 (UnOpE Neg)
   fromInteger n = primExpr $ PrimInt $ fromIntegral n
+  abs = error "abs is not defined for Expr"
+  signum = error "signum is not defined for Expr"
+
+instance Num (Expr Double) where
+  (+) = op2 (BinOpE Plus)
+  (*) = op2 (BinOpE Times)
+  negate = op1 (UnOpE Neg)
+  fromInteger n = primExpr $ PrimDouble $ fromIntegral n
+  abs = error "abs is not defined for Expr"
+  signum = error "signum is not defined for Expr"
+
+instance Num (Expr Money) where
+  (+) = op2 (BinOpE Plus)
+  (*) = op2 (BinOpE Times)
+  negate = op1 (UnOpE Neg)
+  fromInteger n = primExpr $ PrimMoney $ fromIntegral n
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
 
