@@ -1,10 +1,14 @@
 module Main where
 
-import qualified Hschain.Utxo.API.Client as C
+import Test.Hspec
+import Control.Timeout
+
+import Hschain.Utxo.Test.Client.Proc
 import Hschain.Utxo.Test.Client.Scripts.PayForCofee
 
-client = C.ClientSpec "127.0.0.1" 8181 False
-
 main :: IO ()
-main = payForCofeeAlice client
+main = do
+  t1 <- runTestProc payForCofeeBob
+  t2 <- runTestProc payForCofeeAlice
+  hspec $ t1 >> t2
 

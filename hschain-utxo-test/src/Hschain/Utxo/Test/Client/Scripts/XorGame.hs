@@ -4,6 +4,7 @@ import Prelude hiding ((<*))
 import Hex.Common.Text
 
 import Control.Monad
+import Control.Monad.IO.Class
 import Control.Timeout
 
 import Data.Fix
@@ -17,10 +18,11 @@ import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
+import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
-import qualified Hschain.Utxo.API.Client as C
+import qualified Hschain.Utxo.Test.Client.Monad as M
 
 import qualified Crypto.Hash as C
 import qualified Data.List as L
@@ -81,40 +83,47 @@ data GameResult = GameResult
   , gameResult'bobWins   :: !Bool
   } deriving (Show, Eq)
 
-xorGame :: C.ClientSpec -> IO ()
-xorGame client = do
-  scene <- initUsers client
-  res <- xorGameRound scene (Game (Guess 0 0) 1) client
-  print $ res == Just (GameResult True False)
+isAliceWin :: Game -> Bool
+isAliceWin Game{..} =  guess'alice game'guess == guess'bob game'guess
 
-xorGameRound :: Scene -> Game -> C.ClientSpec -> IO (Maybe GameResult)
-xorGameRound Scene{..} Game{..} client = do
+isBobWin :: Game -> Bool
+isBobWin Game{..} =  guess'alice game'guess /= guess'bob game'guess
+
+xorGame :: App ()
+xorGame = do
+  scene <- initUsers
+  xorGameRound scene (Game (Guess 0 0) 1)
+
+xorGameRound :: Scene -> Game -> App ()
+xorGameRound Scene{..} game@Game{..} = do
+  testTitle "XOR-game test."
   let alice     = user'wallet scene'alice
       bob       = user'wallet scene'bob
       aliceBox1 = user'box scene'alice
       bobBox1   = user'box scene'bob
   mAliceScript <- getAliceScript (guess'alice game'guess) alice aliceBox1
-  fmap join $ forM mAliceScript $ \(alicePublicHash, scriptBox, aliceBox2, aliceSecret) -> do
+  res <- fmap join $ forM mAliceScript $ \(alicePublicHash, scriptBox, aliceBox2, aliceSecret) -> do
     mBobScript <- getBobScript (guess'bob game'guess) bob alicePublicHash scriptBox (wallet'publicKey alice) bobBox1
     forM mBobScript $ \(gameBox, bobBox2) -> do
-      aliceRes <- triesToWin "Alice" alice gameBox aliceSecret (guess'alice game'guess)
-      bobRes   <- triesToWin "Bob"   bob   gameBox aliceSecret (guess'alice game'guess)
+      aliceRes <- triesToWin (isAliceWin game) "Alice" alice gameBox aliceSecret (guess'alice game'guess)
+      bobRes   <- triesToWin (isBobWin   game) "Bob"   bob   gameBox aliceSecret (guess'alice game'guess)
       return $ GameResult
         { gameResult'aliceWins = aliceRes
         , gameResult'bobWins   = bobRes
         }
+  testCase "Game result is right" $ res == Just (GameResult (isAliceWin game) (isBobWin game))
   where
     getAliceScript guess wallet@Wallet{..} box = do
       (k, s) <- makeAliceSecret guess
       let fullScriptHash = scriptBlake256 $ toScript $ fullGameScript (text k) (text wallet'publicKey)
           aliceScript = halfGameScript $ text $ fullScriptHash
       (tx, scriptAddr, backAddr) <- makeAliceTx game'amount aliceScript wallet box
-      eTx <- postTxDebug "Alice posts half game script" wallet'client tx
+      eTx <- postTxDebug True "Alice posts half game script" tx
       return $ case eTx of
         Right txHash -> Just (k, scriptAddr, backAddr, s)
         Left _       -> Nothing
 
-    makeAliceSecret guess = do
+    makeAliceSecret guess = liftIO $ do
       s <- fmap fromString $ sequence $ replicate 64 randomIO
       let k = blake256 $ s <> showt guess
       return (k, s)
@@ -123,7 +132,7 @@ xorGameRound Scene{..} Game{..} client = do
       backAddr <- allocAddress wallet
       gameAddr <- allocAddress wallet
 
-      total <- fmap (fromMaybe 0) $ getBoxBalance wallet inBox
+      total <- fmap (fromMaybe 0) $ getBoxBalance inBox
 
       let gameBox = if (amount > total)
             then Nothing
@@ -154,14 +163,14 @@ xorGameRound Scene{..} Game{..} client = do
       gameAddr <- allocAddress wallet
       backAddr <- allocAddress wallet
       tx <- makeBobTx gameAddr backAddr
-      eTxHash <- postTxDebug "Bob posts ful game script" (wallet'client wallet) tx
+      eTxHash <- postTxDebug True "Bob posts full game script" tx
       return $ case eTxHash of
         Right txHash -> Just (gameAddr, backAddr)
         Left  _      -> Nothing
       where
         makeBobTx gameAddr backAddr = do
-          total <- fmap (fromMaybe 0) $ getBoxBalance wallet inBox
-          height <- fmap (either (const 0) fromInteger) $ C.call (wallet'client wallet) $ C.getHeight
+          total <- fmap (fromMaybe 0) $ getBoxBalance inBox
+          height <- fmap fromInteger $ M.getHeight
           return $ Tx
               { tx'inputs  = V.fromList [inBox, scriptBox]
               , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
@@ -193,10 +202,10 @@ xorGameRound Scene{..} Game{..} client = do
               , (bobPkField,       PrimString $ wallet'publicKey wallet)
               ]
 
-    triesToWin name wallet gameBox aliceSecret aliceGuess = do
+    triesToWin isSuccess name wallet gameBox aliceSecret aliceGuess = do
       winAddr <- allocAddress wallet
       let tx = winTx gameBox winAddr wallet aliceSecret aliceGuess
-      eTxHash <- postTxDebug (winMsg name) (wallet'client wallet) tx
+      eTxHash <- postTxDebug isSuccess (winMsg name) tx
       return $ either (const False) (const True) eTxHash
       where
         winMsg str = mconcat [str, " tries to win."]
@@ -224,20 +233,20 @@ xorGameRound Scene{..} Game{..} client = do
 
     scriptBlake256 = hashScript C.Blake2b_256
 
-postTxDebug :: Text -> C.ClientSpec -> Tx -> IO (Either Text TxHash)
-postTxDebug msg client tx = do
-  T.putStrLn msg
-  T.putStrLn "Going to post TX:"
-  T.putStrLn $ renderText tx
-  resp <- C.call client $ C.postTx tx
-  mapM_ (print . postTxResponse'value) resp
-  mapM_ (T.putStrLn . postTxResponse'debug) resp
-  st <- C.call client C.getState
-  T.putStrLn $  either (const mempty) renderText st
+postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
+postTxDebug isSuccess msg tx = do
+  logTest msg
+  logTest "Going to post TX:"
+  logTest $ renderText tx
+  resp <- M.postTx tx
+  printTest $ postTxResponse'value resp
+  logTest $ postTxResponse'debug resp
+  st <- M.getState
+  logTest $ renderText st
   wait
-  return $ postTxResponse'value =<< resp
+  testCase msg $ (isJust $ getTxHash resp) == isSuccess
+  return $ postTxResponse'value resp
   where
     wait = sleep 0.25
-
 
 

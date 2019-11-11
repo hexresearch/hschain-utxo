@@ -1,5 +1,7 @@
 module Main where
 
+import Hex.Common.Delay
+
 import Options.Applicative
 
 import Hschain.Utxo.Back.App
@@ -30,6 +32,7 @@ options = Options
 main :: IO ()
 main = do
   app =<< execParser opts
+  waitForever
   where
     opts = info (options <**> helper)
        ( fullDesc
@@ -44,6 +47,6 @@ app opt@Options{..} = do
   case mGenesis of
     Just genesis -> do
       appEnv <- initEnv genesis
-      runApp appEnv cfg
+      void $ runApp appEnv cfg
     Nothing -> error "Failed to read genesis."
 

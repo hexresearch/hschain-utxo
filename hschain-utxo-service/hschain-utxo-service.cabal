@@ -24,6 +24,7 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <4.12
+                     , hex-common
                      , hschain-utxo-api-rest
                      , hschain-utxo-lang
                      , hschain-utxo-state
@@ -51,6 +52,7 @@ library
     TypeFamilies
     OverloadedStrings
     RecordWildCards
+    ScopedTypeVariables
     TemplateHaskell
 
 executable hschain-utxo-service

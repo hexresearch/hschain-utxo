@@ -38,7 +38,7 @@ data PostTxResponse = PostTxResponse
   , postTxResponse'debug :: !Text }
   deriving (Show, Eq)
 
-newtype GetEnvResponse = GetEnvResponse Env
+newtype GetEnvResponse = GetEnvResponse { unGetEnvResponse :: Env }
   deriving (Show, Eq, FromJSON, ToJSON)
 
 instance ToHttpApiData BoxId where

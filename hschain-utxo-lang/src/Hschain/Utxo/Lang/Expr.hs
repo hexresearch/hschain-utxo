@@ -56,7 +56,7 @@ type Lang = Fix E
 data E a
   -- lambda calculus
   = Var VarName
-  | App a a
+  | Apply a a
   | Lam VarName Type a
   | LamList [(VarName, Type)] a
   | Let VarName a a

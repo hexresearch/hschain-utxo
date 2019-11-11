@@ -58,25 +58,25 @@ baseNames =
   ]
 
 all :: Lang -> Lang
-all = letIn "all" (Fix (App (Fix $ App (Fix $ VecE VecFold) f) z))
+all = letIn "all" (Fix (Apply (Fix $ Apply (Fix $ VecE VecFold) f) z))
   where
     f = Fix $ Lam "x" boolTy $ Fix $ Lam "y" boolTy $ Fix $ BinOpE And (Fix $ Var "x") (Fix $ Var "y")
     z = Fix $ PrimE $ PrimBool P.True
 
 any :: Lang -> Lang
-any = letIn "any" (Fix (App (Fix $ App (Fix $ VecE VecFold) f) z))
+any = letIn "any" (Fix (Apply (Fix $ Apply (Fix $ VecE VecFold) f) z))
   where
     f = Fix $ Lam "x" boolTy $ Fix $ Lam "y" boolTy $ Fix $ BinOpE Or (Fix $ Var "x") (Fix $ Var "y")
     z = Fix $ PrimE $ PrimBool P.False
 
 sum :: Lang -> Lang
-sum = letIn "sum" (Fix (App (Fix $ App (Fix $ VecE VecFold) f) z))
+sum = letIn "sum" (Fix (Apply (Fix $ Apply (Fix $ VecE VecFold) f) z))
   where
     f = Fix $ Lam "x" boolTy $ Fix $ Lam "y" boolTy $ Fix $ BinOpE Plus (Fix $ Var "x") (Fix $ Var "y")
     z = Fix $ PrimE $ PrimInt 0
 
 product :: Lang -> Lang
-product = letIn "product" (Fix (App (Fix $ App (Fix $ VecE VecFold) f) z))
+product = letIn "product" (Fix (Apply (Fix $ Apply (Fix $ VecE VecFold) f) z))
   where
     f = Fix $ Lam "x" boolTy $ Fix $ Lam "y" boolTy $ Fix $ BinOpE Times (Fix $ Var "x") (Fix $ Var "y")
     z = Fix $ PrimE $ PrimInt 1
@@ -118,10 +118,10 @@ getBoxArg :: Lang -> Lang
 getBoxArg = letIn "getBoxArg" (Fix $ Lam "arg" textTy $ Fix $ Lam "box" boxTy $ Fix $ BoxE $ BoxAt (Fix $ Var "box") (BoxFieldArg $ Fix $ Var "arg"))
 
 sha256 :: Lang -> Lang
-sha256 = letIn "sha256" (Fix $ Lam "x" textTy $ Fix $ App (Fix $ TextE $ TextHash Sha256) (Fix $ Var "x"))
+sha256 = letIn "sha256" (Fix $ Lam "x" textTy $ Fix $ Apply (Fix $ TextE $ TextHash Sha256) (Fix $ Var "x"))
 
 blake2b256 :: Lang -> Lang
-blake2b256 = letIn "blake2b256" (Fix $ Lam "x" textTy $ Fix $ App (Fix $ TextE $ TextHash Blake2b256) (Fix $ Var "x"))
+blake2b256 = letIn "blake2b256" (Fix $ Lam "x" textTy $ Fix $ Apply (Fix $ TextE $ TextHash Blake2b256) (Fix $ Var "x"))
 
 getVar :: Lang -> Lang
 getVar = letIn "getVar" (Fix $ Lam "x" textTy $ Fix $ GetEnv $ GetVar $ Fix $ Var "x")

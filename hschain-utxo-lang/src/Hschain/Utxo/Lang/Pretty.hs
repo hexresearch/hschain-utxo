@@ -98,7 +98,7 @@ instance Pretty (Expr a) where
 prettyE :: E (Doc ann) -> Doc ann
 prettyE = \case
   Var varName     -> pretty varName
-  App a b         -> hsep [parens a, parens b]
+  Apply a b       -> hsep [parens a, parens b]
   Lam name ty a   -> hsep [hcat ["\\", pretty name, ":", pretty ty], "->", a]
   LamList names a -> hsep [hcat ["\\", hsep $ fmap (\(var, ty) -> parens $ hsep [pretty var, ":", pretty ty]) names], "->", a]
   Let name a b    -> vcat [ hsep ["let", pretty name,  "=", a]

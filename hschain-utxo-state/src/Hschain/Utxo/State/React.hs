@@ -28,7 +28,7 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
   where
     removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete) tx'inputs)
 
-    insertOutputs = updateBoxes (foldMap (\box -> M.insert (box'id box) box) tx'outputs)
+    insertOutputs = updateBoxes $ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
 
     updateBoxes f bch@BoxChain{..} = bch { boxChain'boxes = f boxChain'boxes }
 

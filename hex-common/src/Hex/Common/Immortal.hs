@@ -1,7 +1,10 @@
 {-# LANGUAGE CPP #-}
 module Hex.Common.Immortal(
-  immortalProc
+    immortalProc
+  , immortalProc'
 ) where
+
+import Control.Exception.Base
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -10,7 +13,6 @@ import Control.Monad.IO.Unlift
 #else
 import Control.Monad.Trans.Control
 #endif
-
 import qualified Control.Immortal as Immortal
 
 #if MIN_VERSION_immortal(0,3,0)
@@ -18,8 +20,18 @@ immortalProc :: (MonadIO m, MonadUnliftIO m) => String -> m () -> m ()
 #else
 immortalProc :: (MonadIO m, MonadBaseControl IO m) => String -> m () -> m ()
 #endif
-immortalProc label proc = void . Immortal.createWithLabel label $ const $ Immortal.onFinish echoExit proc
+immortalProc label proc = void $ immortalProc' label proc
+
+#if MIN_VERSION_immortal(0,3,0)
+immortalProc' :: (MonadIO m, MonadUnliftIO m) => String -> m () -> m Immortal.Thread
+#else
+immortalProc' :: (MonadIO m, MonadBaseControl IO m) => String -> m () -> m Immortal.Thread
+#endif
+immortalProc' label proc = Immortal.createWithLabel label $ const $ Immortal.onFinish echoExit proc
   where
-    echoExit e = liftIO $ do
-      putStrLn $ mconcat ["Process ", label, " exits with:"]
-      print e
+    echoExit x = case x of
+      Left se -> case fromException se of
+        Just ThreadKilled -> return ()
+      e ->  liftIO $ do
+        putStrLn $ mconcat ["Process ", label, " exits with:"]
+        print e

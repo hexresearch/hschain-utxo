@@ -10,6 +10,7 @@ module Hschain.Utxo.Test.Client.Wallet(
 ) where
 
 import Control.Concurrent.STM
+import Control.Monad.IO.Class
 
 import Data.Maybe
 import Data.UUID
@@ -18,51 +19,45 @@ import System.Random
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
+import Hschain.Utxo.Test.Client.Monad
+
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
-
-import qualified Hschain.Utxo.API.Client as C
 
 data Wallet = Wallet
   { wallet'user       :: !UserId
   , wallet'publicKey  :: !PubKey
   , wallet'privateKey :: !PrivateKey
   , wallet'utxos      :: !(TVar [BoxId])
-  , wallet'client     :: !C.ClientSpec
   }
 
-newWallet :: UserId -> PrivateKey -> C.ClientSpec -> IO Wallet
-newWallet userId pk client = do
+newWallet :: MonadIO io => UserId -> PrivateKey -> io Wallet
+newWallet userId pk = liftIO $ do
   utxos <- newTVarIO []
-  return $ Wallet userId (unUserId userId) pk utxos client
+  return $ Wallet userId (unUserId userId) pk utxos
 
 -- | Generates address name and saves it to the wallet utxo list
-allocAddress :: Wallet -> IO BoxId
-allocAddress wallet@Wallet{..} = do
+allocAddress :: MonadIO io => Wallet -> io BoxId
+allocAddress wallet@Wallet{..} = liftIO $ do
   addr <- newAddress wallet
   atomically $ modifyTVar' wallet'utxos $ (addr : )
   return addr
 
 
 -- | Generates new address name
-newAddress :: Wallet -> IO BoxId
-newAddress Wallet{..} = do
+newAddress :: MonadIO io => Wallet -> io BoxId
+newAddress Wallet{..} = liftIO $ do
   idx <- fmap (T.pack .show) (randomIO :: IO UUID)
   return $ BoxId $ mconcat [ userId, "-", idx]
   where
     userId = (\(UserId uid) -> uid) wallet'user
 
-getBalance :: Wallet -> IO Money
+getBalance :: Wallet -> App Money
 getBalance wallet@Wallet{..} = do
-  xs <- readTVarIO wallet'utxos
-  fmap (sum . catMaybes) $ mapM (getBoxBalance wallet) xs
-
-getBoxBalance :: Wallet -> BoxId -> IO (Maybe Money)
-getBoxBalance Wallet{..} boxId =
-  fmap (either (const Nothing) id) $ C.call wallet'client (C.getBoxBalance boxId)
-
+  xs <- liftIO $ readTVarIO wallet'utxos
+  fmap (sum . catMaybes) $ mapM getBoxBalance xs
 
 getOwnerProof :: Wallet -> Proof
 getOwnerProof Wallet{..} =
@@ -81,11 +76,11 @@ data SendBack = SendBack
   , sendBack'backBox      :: !BoxId
   }
 
-newSendTx :: Wallet -> Send -> IO Tx
+newSendTx :: Wallet -> Send -> App Tx
 newSendTx wallet send@Send{..} = fmap (toSendTx wallet send) getSendBack
   where
     getSendBack = do
-      totalAmount <- fmap (fromMaybe 0) $ getBoxBalance wallet send'from
+      totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount send'back
 
 toSendTx :: Wallet -> Send -> SendBack -> Tx

@@ -123,7 +123,7 @@ Form : Form '+' Form               { Fix (BinOpE Plus  $1 $3) }
      | Form '<>' Form              { Fix (TextE (TextAppend $1 $3)) }
      | Fact                        { $1 }
 
-Fact : Fact Atom                   { Fix (App $1 $2) }
+Fact : Fact Atom                   { Fix (Apply $1 $2) }
      | Atom                        { $1 }
 
 Atom : '(' Expr ')'                { $2 }

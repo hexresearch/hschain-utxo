@@ -119,7 +119,7 @@ execLang' (Fix x) = case x of
     -- operations
     UnOpE uo x -> fromUnOp uo x
     BinOpE bi a b -> fromBiOp bi a b
-    App a b -> fromApp a b
+    Apply a b -> fromApply a b
     Lam varName a b -> fromLam varName a b
     LamList vars a -> fromLamList vars a
     Let varName a b -> fromLet varName a b
@@ -320,15 +320,15 @@ execLang' (Fix x) = case x of
         PrimE (PrimString pkey) -> prim . PrimBool =<< fmap (checkPubKey pkey) getProof
         _                       -> thisShouldNotHappen x
 
-    fromApp fun arg = case fun of
-      Fix (App (Fix (VecE VecMap)) f) -> do
+    fromApply fun arg = case fun of
+      Fix (Apply (Fix (VecE VecMap)) f) -> do
         Fix f' <- rec f
         Fix vec' <- rec arg
         let errVal = fun
         case vec' of
-          VecE (NewVec vs) -> rec $ Fix $ VecE (NewVec $ fmap (Fix . App (Fix f')) vs)
+          VecE (NewVec vs) -> rec $ Fix $ VecE (NewVec $ fmap (Fix . Apply (Fix f')) vs)
           _ -> thisShouldNotHappen errVal
-      Fix (App (Fix (App (Fix (VecE VecFold)) f)) z) -> do
+      Fix (Apply (Fix (Apply (Fix (VecE VecFold)) f)) z) -> do
         fun' <- rec f
         z'   <- rec z
         Fix vec' <- rec arg
@@ -359,14 +359,14 @@ execLang' (Fix x) = case x of
             rec $ subst body varName arg'
           VecE VecMap -> do
             arg' <- rec arg
-            return $ Fix $ App (Fix (VecE VecMap)) arg'
+            return $ Fix $ Apply (Fix (VecE VecMap)) arg'
           VecE VecFold -> do
             arg' <- rec arg
-            return $ Fix $ App (Fix (VecE VecFold)) arg'
-          App (Fix (VecE VecFold)) a -> do
+            return $ Fix $ Apply (Fix (VecE VecFold)) arg'
+          Apply (Fix (VecE VecFold)) a -> do
             a' <- rec a
             arg' <- rec arg
-            return $ Fix $ App (Fix $ App (Fix (VecE VecFold)) a') arg'
+            return $ Fix $ Apply (Fix $ Apply (Fix (VecE VecFold)) a') arg'
           other              -> Exec $ lift $ Left $ AppliedNonFunction $ Fix other
 
     fromLet v lc1 lc2 = do
@@ -502,7 +502,7 @@ execLang' (Fix x) = case x of
       Ascr lc t                            -> Fix $ Ascr (rec lc) t
       UnOpE uo lc                          -> Fix $ UnOpE uo $ rec lc
       BinOpE bo a b                        -> Fix $ BinOpE bo (rec a) (rec b)
-      App a b                              -> Fix $ App (rec a) (rec b)
+      Apply a b                              -> Fix $ Apply (rec a) (rec b)
       e@(Lam v1 ty body1)  | v1 == varName -> Fix $ e
                            | otherwise     -> Fix $ Lam v1 ty (rec body1)
       If cond t e                          -> Fix $ If (rec cond) (rec t) (rec e)
@@ -576,7 +576,7 @@ txPreservesValue tx@TxArg{..}
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
 app2 :: Lang -> Lang -> Fix E -> Lang
-app2 f a b = Fix (App (Fix (App f a)) b)
+app2 f a b = Fix (Apply (Fix (Apply f a)) b)
 
 
 {-

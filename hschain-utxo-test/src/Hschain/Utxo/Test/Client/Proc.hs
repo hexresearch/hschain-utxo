@@ -1,35 +1,60 @@
 module Hschain.Utxo.Test.Client.Proc(
-    Event(..)
-  , Proc(..)
-  , runProc
+  runTestProc
 ) where
 
+import Control.Concurrent
+
+import Control.Immortal
 import Control.Monad
 import Control.Timeout
 
 import Data.Ord
 
-import qualified Data.List as L
+import Test.Hspec
 
-data Event a = Event
-  { event'time      :: NominalDiffTime
-  , event'content   :: a
+import Hschain.Utxo.Back.App
+import Hschain.Utxo.Back.Config
+import Hschain.Utxo.Back.Env
+import Hschain.Utxo.Test.Client.Monad(App, runTest, toHspec, TestSpec(..))
+
+import qualified Hschain.Utxo.API.Client as C
+
+data Options = Options
+  { configPath  :: !FilePath
+  , genesisPath :: !FilePath
+  }
+  deriving (Show)
+
+defaultServiceOptions :: Options
+defaultServiceOptions = Options
+  { configPath  = "./config/config.yaml"
+  , genesisPath = "./config/genesis.json"
   }
 
-newtype Proc a = Proc [Event a]
+defaultTestSpec :: TestSpec
+defaultTestSpec = TestSpec
+  { testSpec'client  = C.ClientSpec "127.0.0.1" 8181 False
+  , testSpec'verbose = False
+  }
 
-runProc :: (a -> IO ()) -> Proc a -> IO ()
-runProc eval (Proc es) = execEvents . makeDiffTimeList . sortEvents $ es
+app :: Options -> IO Thread
+app opt@Options{..} = do
+  cfg <- loadConfig configPath
+  mGenesis <- loadGenesis  genesisPath
+  putStrLn $ mconcat ["Starts hschain-utxo server on port ", show $ serverConfig'port $ config'server cfg]
+  case mGenesis of
+    Just genesis -> do
+      appEnv <- initEnv genesis
+      runApp appEnv cfg
+    Nothing -> error "Failed to read genesis."
+
+runTestProc :: App () -> IO Spec
+runTestProc testApp = do
+  serviceProc <- app defaultServiceOptions
+  wait
+  test <- runTest defaultTestSpec testApp
+  stop serviceProc
+  return $ toHspec $ test
   where
-    sortEvents = L.sortBy (comparing event'time)
-
-    makeDiffTimeList xs = case xs of
-      []   -> []
-      a:as -> a : zipWith go xs as
-      where
-        go a b = Event (event'time b - event'time a) (event'content b)
-
-    execEvents = mapM_ $ \Event{..} -> do
-      sleep event'time
-      eval event'content
+    wait = sleep 0.25
 

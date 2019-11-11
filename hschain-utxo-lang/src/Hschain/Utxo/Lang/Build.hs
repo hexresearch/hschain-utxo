@@ -89,7 +89,7 @@ lam2 v1 v2  bodyFun =
     Expr body -> Expr $ Fix $ LamList [(v1, Fix UknownType), (v2, Fix UknownType)] body
 
 app :: Expr (a -> b) -> Expr a -> Expr b
-app (Expr fun) (Expr arg) = Expr $ Fix $ App fun arg
+app (Expr fun) (Expr arg) = Expr $ Fix $ Apply fun arg
 
 pair :: Expr a -> Expr b -> Expr (a, b)
 pair (Expr a) (Expr b) = Expr $ Fix $ Tuple $ V.fromList [a, b]
@@ -177,22 +177,22 @@ fromVec :: Vector (Expr a) -> Expr (Vector a)
 fromVec vs = Expr $ Fix $ VecE $ NewVec $ fmap (\(Expr a) -> a) vs
 
 mapVec :: Expr (a -> b) -> Expr (Vector a) -> Expr (Vector b)
-mapVec (Expr f) (Expr v) = Expr $ Fix $ App (Fix $ App (Fix $ VecE VecMap) f) v
+mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply (Fix $ Apply (Fix $ VecE VecMap) f) v
 
 foldVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
-foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ App (Fix $ App (Fix $ App (Fix $ VecE VecFold) f) z) v
+foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply (Fix $ Apply (Fix $ Apply (Fix $ VecE VecFold) f) z) v
 
 lengthVec :: Expr (Vector a) -> Expr Int
-lengthVec (Expr v) = Expr $ Fix $ App (Fix $ VecE VecLength) v
+lengthVec (Expr v) = Expr $ Fix $ Apply (Fix $ VecE VecLength) v
 
 concatVec :: Expr (Vector a) -> Expr (Vector a) -> Expr (Vector a)
 concatVec (Expr a) (Expr b) = Expr $ Fix $ VecE $ VecAppend a b
 
 allVec :: Expr (Vector Bool) -> Expr Bool
-allVec (Expr v) = Expr $ Fix $ App (Fix $ Var "all") v
+allVec (Expr v) = Expr $ Fix $ Apply (Fix $ Var "all") v
 
 anyVec :: Expr (Vector Bool) -> Expr Bool
-anyVec (Expr v) = Expr $ Fix $ App (Fix $ Var "any") v
+anyVec (Expr v) = Expr $ Fix $ Apply (Fix $ Var "any") v
 
 type instance BooleanOf (Expr Bool) = Expr Bool
 type instance BooleanOf (Expr Int) = Expr Bool
@@ -304,19 +304,19 @@ concatText :: Expr Text -> Expr Text -> Expr Text
 concatText (Expr a) (Expr b) = Expr $ Fix $ TextE $ TextAppend a b
 
 lengthText :: Expr Text -> Expr Int
-lengthText (Expr a) = Expr $ Fix $ App (Fix $ TextE TextLength) a
+lengthText (Expr a) = Expr $ Fix $ Apply (Fix $ TextE TextLength) a
 
 showInt :: Expr Int -> Expr Text
-showInt (Expr a) = Expr $ Fix $ App (Fix $ TextE ConvertToText) a
+showInt (Expr a) = Expr $ Fix $ Apply (Fix $ TextE ConvertToText) a
 
 showScript :: Expr Script -> Expr Text
-showScript (Expr a) = Expr $ Fix $ App (Fix $ TextE ConvertToText) a
+showScript (Expr a) = Expr $ Fix $ Apply (Fix $ TextE ConvertToText) a
 
 sha256 :: Expr Text -> Expr Text
-sha256 (Expr a) = Expr $ Fix $ App (Fix $ TextE $ TextHash Sha256) a
+sha256 (Expr a) = Expr $ Fix $ Apply (Fix $ TextE $ TextHash Sha256) a
 
 blake2b256 :: Expr Text -> Expr Text
-blake2b256 (Expr a) = Expr $ Fix $ App (Fix $ TextE $ TextHash Blake2b256) a
+blake2b256 (Expr a) = Expr $ Fix $ Apply (Fix $ TextE $ TextHash Blake2b256) a
 
 -------------------------------
 -- monoids
