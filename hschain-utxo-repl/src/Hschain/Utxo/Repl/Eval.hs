@@ -38,7 +38,9 @@ evalExpr lang = do
   tx       <- fmap replEnv'tx get
   let res = runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
   liftIO $ case res of
-    Right expr -> T.putStrLn $ renderText expr
+    Right (expr, debugTxt) -> do
+      T.putStrLn $ renderText expr
+      when (not $ T.null debugTxt) $ T.putStrLn debugTxt
     Left err   -> T.putStrLn $ renderText err
 
 evalBind :: VarName -> Lang -> Repl ()
@@ -47,7 +49,7 @@ evalBind varName lang = do
   tx      <- fmap replEnv'tx get
   let res = runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
   case res of
-    Right expr -> do
+    Right (expr, _) -> do
       modify' $ \st -> st { replEnv'closure = (\next -> Fix (Let varName expr next)) . closure
                           , replEnv'words   = varName : replEnv'words st }
       return ()
