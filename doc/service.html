@@ -1,0 +1,129 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>Hschain-utxo node &#8212; hschain-utxo  documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="API for hschain-utxo" href="api.html" />
+    <link rel="prev" title="Interpreter for the language" href="repl.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="hschain-utxo-node">
+<h1>Hschain-utxo node<a class="headerlink" href="#hschain-utxo-node" title="Permalink to this headline">¶</a></h1>
+<p>The web-service accepts transactions with API and updates blockchain.</p>
+<p>We can start it with command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">service</span>
+</pre></div>
+</div>
+<p>Be default it reads options and genesis from the directory <cite>config</cite>
+in the top-most level of the hschain-utxo repository.</p>
+<p>We can set the options with flags:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">service</span> <span class="o">--</span> <span class="o">--</span><span class="n">config</span> <span class="n">config</span><span class="o">.</span><span class="n">yaml</span> <span class="o">--</span><span class="n">genesis</span> <span class="n">genesis</span><span class="o">.</span><span class="n">json</span>
+</pre></div>
+</div>
+<p>We can generate test genesis with utility:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">generate</span><span class="o">-</span><span class="n">genesis</span>
+</pre></div>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">hschain-utxo</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lang-quick-start.html">Quick start guide for language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lang.html">Language of smart contracts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="repl.html">Interpreter for the language</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Hschain-utxo node</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API for hschain-utxo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="test.html">Tests for hschain-utxo</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="repl.html" title="previous chapter">Interpreter for the language</a></li>
+      <li>Next: <a href="api.html" title="next chapter">API for hschain-utxo</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, HXR.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/doc/service.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
