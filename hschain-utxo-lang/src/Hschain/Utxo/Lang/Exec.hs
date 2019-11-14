@@ -183,6 +183,7 @@ execLang' (Fix x) = case x of
         GreaterThan -> fromGt a b
         LessThanEquals -> fromLte a b
         GreaterThanEquals -> fromGte a b
+        ComposeFun -> fromComposeFun a b
 
     fromAnd, fromOr :: Lang -> Lang -> Exec Lang
 
@@ -292,6 +293,12 @@ execLang' (Fix x) = case x of
         _ -> err
       where
         err = thisShouldNotHappen $ Fix $ BinOpE GreaterThanEquals (Fix x) (Fix y)
+
+    fromComposeFun (Fix x) (Fix y) = case (x, y) of
+      (Lam v2 t2 f2, Lam v1 t1 f1) -> rec $ Fix $ Lam v1 t1 (Fix $ Apply (Fix $ Lam v2 t2 f2) f1)
+      _ -> err
+      where
+        err = thisShouldNotHappen $ Fix $ BinOpE ComposeFun (Fix x) (Fix y)
 
     fromIf cond t e  = do
       Fix cond' <- rec cond

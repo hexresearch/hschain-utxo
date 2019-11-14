@@ -93,6 +93,7 @@ data UnOp = Not | Neg | TupleAt Int
 data BinOp
   = And | Or | Plus | Minus | Times | Div
   | Equals | NotEquals | LessThan | GreaterThan | LessThanEquals | GreaterThanEquals
+  | ComposeFun
   deriving (Show, Read, Eq)
 
 type Money  = Pico

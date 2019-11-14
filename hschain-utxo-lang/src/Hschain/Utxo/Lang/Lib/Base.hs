@@ -32,6 +32,12 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , sha256
   , blake2b256
   , getVar
+  , trace
+  , lengthText
+  , showInt
+  , showDouble
+  , showMoney
+  , showBool
   ]
 
 baseNames :: [Text]
@@ -55,6 +61,12 @@ baseNames =
   , "sha256"
   , "blake2b256"
   , "getVar"
+  , "trace"
+  , "lengthText"
+  , "showInt"
+  , "showDouble"
+  , "showMoney"
+  , "showBool"
   ]
 
 all :: Lang -> Lang
@@ -126,11 +138,38 @@ blake2b256 = letIn "blake2b256" (Fix $ Lam "x" textTy $ Fix $ Apply (Fix $ TextE
 getVar :: Lang -> Lang
 getVar = letIn "getVar" (Fix $ Lam "x" textTy $ Fix $ GetEnv $ GetVar $ Fix $ Var "x")
 
+trace :: Lang -> Lang
+trace = letIn "trace" (Fix $ Lam "x" textTy $ Fix $ Lam "y" unTy $ Fix $ Trace (Fix $ Var "x") (Fix $ Var "y"))
+
+showInt :: Lang -> Lang
+showInt = letIn "showInt" (Fix $ Lam "x" intTy $ Fix $ Apply (Fix $ TextE ConvertToText) (Fix $ Var "x"))
+
+showDouble :: Lang -> Lang
+showDouble = letIn "showDouble" (Fix $ Lam "x" doubleTy $ Fix $ Apply (Fix $ TextE ConvertToText) (Fix $ Var "x"))
+
+showBool :: Lang -> Lang
+showBool = letIn "showBool" (Fix $ Lam "x" boolTy $ Fix $ Apply (Fix $ TextE ConvertToText) (Fix $ Var "x"))
+
+showMoney :: Lang -> Lang
+showMoney = letIn "showMoney" (Fix $ Lam "x" moneyTy $ Fix $ Apply (Fix $ TextE ConvertToText) (Fix $ Var "x"))
+
+lengthText :: Lang -> Lang
+lengthText = letIn "lengthText" (Fix $ Lam "x" textTy $ Fix $ Apply (Fix $ TextE TextLength) (Fix $ Var "x"))
+
 letIn :: Text -> Lang -> Lang -> Lang
 letIn var body x = Fix $ Let var body x
 
 boxTy :: Type
 boxTy = Fix BoxType
+
+moneyTy :: Type
+moneyTy = Fix BoxType
+
+intTy :: Type
+intTy = Fix IntType
+
+doubleTy :: Type
+doubleTy = Fix DoubleType
 
 textTy :: Type
 textTy = Fix StringType

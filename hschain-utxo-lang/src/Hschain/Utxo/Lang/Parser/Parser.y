@@ -84,6 +84,7 @@ import qualified Data.Vector as V
 %left '<' '>' '<=' '>='
 %left '+' '-'
 %left '*' '/'
+%left '.'
 %%
 
 Expr : let VAR '=' Expr in Expr    { Fix (Let (fromString $2) $4 $6)  }
@@ -121,6 +122,7 @@ Form : Form '+' Form               { Fix (BinOpE Plus  $1 $3) }
      | Form '||' Form              { Fix (BinOpE Or $1 $3) }
      | Form '&&' Form              { Fix (BinOpE And $1 $3) }
      | Form '<>' Form              { Fix (TextE (TextAppend $1 $3)) }
+     | Form '.'  Form              { Fix (BinOpE ComposeFun $1 $3) }
      | Fact                        { $1 }
 
 Fact : Fact Atom                   { Fix (Apply $1 $2) }
