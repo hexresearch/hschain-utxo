@@ -41,6 +41,7 @@ the script is a list of defenitions that ends up with boolean expression.::
    The termination of execution should be guaranteed for our language. 
    So the recursive functions are not allowed.
 
+
 Ownership check - the heart of the language
 ----------------------------------------------------
 
@@ -299,29 +300,68 @@ It contains UTXO identifier, amount of maney as a value, script and arguments.
 The script is written in our language. But to get the final string for transaction we need
 to compile it with compiler ``hschain-utxo-compiler``::
 
-  cabal new-run hschain-utxo-compiler -i script.hs -o out.txt
+  cabal new-run hschain-utxo-compiler -- -i script.hs -o out.txt
 
 if flag ``-o`` is omitted then the result is dumped to stdout. 
 Then paste the output to the output box script field. We can save the TX to file ``tx.json``
 and post the TX with following curl::
 
-  curl -XPOST --data @tx.json service.host/api/post-tx
+  curl -H "Content-Type: application/json"  --data @config/tx-example.json  localhost:8181/api/tx/post
 
 
-How to do it with Haskell
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Send with API in Haskell
+---------------------------------------------------
+
 
 With Haskell we can create transactions and post them with easy to use library.
 We need libriaries ``hschain-utxo-lang`` to create value for transaction 
 and library ``hschain-utxo-api-client`` to post the transaction.
 
 Let's create a transaction and post it.
+The transaction has type::
+
+   data Tx = Tx
+      { tx'inputs  :: !(Vector BoxId)
+      , tx'outputs :: !(Vector Box)
+      , tx'proof   :: !Proof
+      , tx'args    :: !Args
+      }
+
+   data Box = Box
+      { box'id     :: !BoxId
+      , box'value  :: !Money
+      , box'script :: !Script
+      , box'args   :: !Args
+      }
+
+   newtype BoxId = BoxId { unBoxId :: Text }
+
+   newtype Script = Script { unScript :: Text }
+
+We need to create the value of type ``Tx``.
+For creation of script we can use the module ``Hschain.Utxo.Lang.Build``
+from the library ``hschain-utxo-lang`` or we can compile to string with
+``hschain-utxo-compiler`` as in previous section and wrap result with ``Script``
+constructor. In the latter case we can write script in text file.
+
+Let's post it with the client. We can use the library ``hschain-utxo-api-client``.
+We need method ``postTx``::
+
+   import Hschain.Utxo.API.Client
+
+   spec = ClientSpec
+               { clientSpec'host     = "127.0.0.1"
+               , clientSpec'port     = 8181
+               , clientSpec'https    = False
+               }
+
+   call spec (postTx tx)
 
 
-Let's post it with the client.
+The answer is either error or structure with TX hash and debug-message::
 
-
-
-
+   data PostTxResponse = PostTxResponse
+      { postTxResponse'value :: !(Either Text TxHash )
+      , postTxResponse'debug :: !Text }
 
 

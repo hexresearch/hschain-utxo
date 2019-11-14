@@ -363,7 +363,7 @@ Compilation
 To use script in transaction JSON-object we have to compile it. To do it we invoke
 compailer ``hschain-utxo-compiler``::
 
-   cabal new-run hschain-compiler -i script.hs -o out.txt
+   cabal new-run hschain-utxo-compiler -- -i script.hs -o out.txt
 
 If flag ``-o`` is omitted the result is dumped to stdout.
 

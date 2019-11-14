@@ -27,7 +27,7 @@ type GetBoxBalanceEndpoint = "box-balance" :> Summary "Gets the balance inside U
   :> Get '[JSON] (Maybe Money)
 
 type GetEnvEndpoint = "env"
-  :> Post '[JSON] GetEnvResponse
+  :> Get '[JSON] GetEnvResponse
 
 -- debug api method
 type GetStateEndpoint = "debug" :> "state" :> Summary "Gets the state of box-chain" :> "get"

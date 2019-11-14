@@ -1,0 +1,19 @@
+   {
+        "proof": ["master"],
+        "args": {},
+        "inputs": ["master:box-0"],
+        "outputs": [
+            {
+                "script": "Expr (Fix (Pk (Fix (PrimE (PrimString \"alice\")))))",
+                "args": {},
+                "value": 1,
+                "id": "alice:box-0"
+            } ,
+            {
+                "script": "Expr (Fix (Pk (Fix (PrimE (PrimString \"master\")))))",
+                "args": {},
+                "value": 999999,
+                "id": "master:box-1"
+            }
+        ]
+    }

@@ -302,22 +302,65 @@ List of inputs should be non-empty.</p>
 <p>It contains UTXO identifier, amount of maney as a value, script and arguments.
 The script is written in our language. But to get the final string for transaction we need
 to compile it with compiler <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">-</span><span class="n">i</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">-</span><span class="n">o</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="o">-</span><span class="n">i</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">-</span><span class="n">o</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
 </pre></div>
 </div>
 <p>if flag <code class="docutils literal notranslate"><span class="pre">-o</span></code> is omitted then the result is dumped to stdout.
 Then paste the output to the output box script field. We can save the TX to file <code class="docutils literal notranslate"><span class="pre">tx.json</span></code>
 and post the TX with following curl:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="o">-</span><span class="n">XPOST</span> <span class="o">--</span><span class="n">data</span> <span class="nd">@tx</span><span class="o">.</span><span class="n">json</span> <span class="n">service</span><span class="o">.</span><span class="n">host</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">post</span><span class="o">-</span><span class="n">tx</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="o">-</span><span class="n">H</span> <span class="s2">&quot;Content-Type: application/json&quot;</span>  <span class="o">--</span><span class="n">data</span> <span class="nd">@config</span><span class="o">/</span><span class="n">tx</span><span class="o">-</span><span class="n">example</span><span class="o">.</span><span class="n">json</span>  <span class="n">localhost</span><span class="p">:</span><span class="mi">8181</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">tx</span><span class="o">/</span><span class="n">post</span>
 </pre></div>
 </div>
-<div class="section" id="how-to-do-it-with-haskell">
-<h3>How to do it with Haskell<a class="headerlink" href="#how-to-do-it-with-haskell" title="Permalink to this headline">¶</a></h3>
+</div>
+<div class="section" id="send-with-api-in-haskell">
+<h2>Send with API in Haskell<a class="headerlink" href="#send-with-api-in-haskell" title="Permalink to this headline">¶</a></h2>
 <p>With Haskell we can create transactions and post them with easy to use library.
 We need libriaries <code class="docutils literal notranslate"><span class="pre">hschain-utxo-lang</span></code> to create value for transaction
 and library <code class="docutils literal notranslate"><span class="pre">hschain-utxo-api-client</span></code> to post the transaction.</p>
-<p>Let’s create a transaction and post it.</p>
-<p>Let’s post it with the client.</p>
+<p>Let’s create a transaction and post it.
+The transaction has type:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">Tx</span> <span class="o">=</span> <span class="n">Tx</span>
+   <span class="p">{</span> <span class="n">tx</span><span class="s1">&#39;inputs  :: !(Vector BoxId)</span>
+   <span class="p">,</span> <span class="n">tx</span><span class="s1">&#39;outputs :: !(Vector Box)</span>
+   <span class="p">,</span> <span class="n">tx</span><span class="s1">&#39;proof   :: !Proof</span>
+   <span class="p">,</span> <span class="n">tx</span><span class="s1">&#39;args    :: !Args</span>
+   <span class="p">}</span>
+
+<span class="n">data</span> <span class="n">Box</span> <span class="o">=</span> <span class="n">Box</span>
+   <span class="p">{</span> <span class="n">box</span><span class="s1">&#39;id     :: !BoxId</span>
+   <span class="p">,</span> <span class="n">box</span><span class="s1">&#39;value  :: !Money</span>
+   <span class="p">,</span> <span class="n">box</span><span class="s1">&#39;script :: !Script</span>
+   <span class="p">,</span> <span class="n">box</span><span class="s1">&#39;args   :: !Args</span>
+   <span class="p">}</span>
+
+<span class="n">newtype</span> <span class="n">BoxId</span> <span class="o">=</span> <span class="n">BoxId</span> <span class="p">{</span> <span class="n">unBoxId</span> <span class="p">::</span> <span class="n">Text</span> <span class="p">}</span>
+
+<span class="n">newtype</span> <span class="n">Script</span> <span class="o">=</span> <span class="n">Script</span> <span class="p">{</span> <span class="n">unScript</span> <span class="p">::</span> <span class="n">Text</span> <span class="p">}</span>
+</pre></div>
+</div>
+<p>We need to create the value of type <code class="docutils literal notranslate"><span class="pre">Tx</span></code>.
+For creation of script we can use the module <code class="docutils literal notranslate"><span class="pre">Hschain.Utxo.Lang.Build</span></code>
+from the library <code class="docutils literal notranslate"><span class="pre">hschain-utxo-lang</span></code> or we can compile to string with
+<code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code> as in previous section and wrap result with <code class="docutils literal notranslate"><span class="pre">Script</span></code>
+constructor. In the latter case we can write script in text file.</p>
+<p>Let’s post it with the client. We can use the library <code class="docutils literal notranslate"><span class="pre">hschain-utxo-api-client</span></code>.
+We need method <code class="docutils literal notranslate"><span class="pre">postTx</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">Hschain.Utxo.API.Client</span>
+
+<span class="n">spec</span> <span class="o">=</span> <span class="n">ClientSpec</span>
+            <span class="p">{</span> <span class="n">clientSpec</span><span class="s1">&#39;host     = &quot;127.0.0.1&quot;</span>
+            <span class="p">,</span> <span class="n">clientSpec</span><span class="s1">&#39;port     = 8181</span>
+            <span class="p">,</span> <span class="n">clientSpec</span><span class="s1">&#39;https    = False</span>
+            <span class="p">}</span>
+
+<span class="n">call</span> <span class="n">spec</span> <span class="p">(</span><span class="n">postTx</span> <span class="n">tx</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The answer is either error or structure with TX hash and debug-message:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">PostTxResponse</span> <span class="o">=</span> <span class="n">PostTxResponse</span>
+   <span class="p">{</span> <span class="n">postTxResponse</span><span class="s1">&#39;value :: !(Either Text TxHash )</span>
+   <span class="p">,</span> <span class="n">postTxResponse</span><span class="s1">&#39;debug :: !Text }</span>
+</pre></div>
 </div>
 </div>
 </div>
@@ -349,6 +392,7 @@ and library <code class="docutils literal notranslate"><span class="pre">hschain
 <li class="toctree-l2"><a class="reference internal" href="#pay-for-cofee-delayed-exchange">Pay for Cofee - delayed exchange</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#xor-game">XOR-game</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#create-transaction-and-send-it-with-api">Create transaction and send it with API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#send-with-api-in-haskell">Send with API in Haskell</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="lang.html">Language of smart contracts</a></li>

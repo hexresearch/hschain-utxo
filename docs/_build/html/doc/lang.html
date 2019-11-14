@@ -418,6 +418,15 @@ We can use the function <code class="docutils literal notranslate"><span class="
 <p>We can read the debug information in REPL-console. Also the debug is return with
 API call that posts transaction.</p>
 </div>
+<div class="section" id="compilation">
+<h2>Compilation<a class="headerlink" href="#compilation" title="Permalink to this headline">¶</a></h2>
+<p>To use script in transaction JSON-object we have to compile it. To do it we invoke
+compailer <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="o">-</span><span class="n">i</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">-</span><span class="n">o</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
+</pre></div>
+</div>
+<p>If flag <code class="docutils literal notranslate"><span class="pre">-o</span></code> is omitted the result is dumped to stdout.</p>
+</div>
 </div>
 
 
@@ -447,6 +456,7 @@ API call that posts transaction.</p>
 <li class="toctree-l2"><a class="reference internal" href="#compound-types">Compound types</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#environment">Environment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#debugging">Debugging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compilation">Compilation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="repl.html">Interpreter for the language</a></li>

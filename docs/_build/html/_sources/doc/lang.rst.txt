@@ -357,3 +357,15 @@ We can read the debug information in REPL-console. Also the debug is return with
 API call that posts transaction.
 
 
+Compilation
+-----------------------------------
+
+To use script in transaction JSON-object we have to compile it. To do it we invoke
+compailer ``hschain-utxo-compiler``::
+
+   cabal new-run hschain-utxo-compiler -- -i script.hs -o out.txt
+
+If flag ``-o`` is omitted the result is dumped to stdout.
+
+
+
