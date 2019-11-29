@@ -158,21 +158,26 @@ prettyBoxExpr = \case
   PrimBox box   -> pretty box
   BoxAt a field -> hcat [a, dot, prettyBoxField field]
 
+instance Pretty Scheme where
+  pretty (Forall _ ty) = pretty ty
+
 instance Pretty Type where
   pretty = cata prettyTypeExpr
 
 prettyTypeExpr :: TypeExpr (Doc ann) -> Doc ann
 prettyTypeExpr = \case
+  VarType var  -> pretty var
   BoolType     -> "Bool"
   IntType      -> "Int"
   MoneyType    -> "Money"
   DoubleType   -> "Double"
+  ScriptType   -> "Script"
   StringType   -> "String"
   BoxType      -> "Box"
   UknownType   -> "?"
   VectorType a -> hsep ["Vector", parens a]
-  PairType a b -> parens $ hsep [a, comma, b]
-  FunctionType a b -> hsep [a, "->", b]
+  TupleType as -> parens $ hsep $ punctuate comma as
+  FunctionType a b -> parens $ hsep [a, "->", b]
 
 instance Pretty UnOp where
   pretty = \case
@@ -254,5 +259,19 @@ instance Pretty Error where
     NoField txt                    -> err "No field" txt
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
+
+instance Pretty TypeError where
+  pretty = \case
+    UnificationFail t1 t2 expr   -> err "Type mismatch"    (t1, t2, expr)
+    UnificationMismatch ts1 ts2  -> err "Type mismatch"    (ts1, ts2)
+    InfiniteType var ty          -> err "Infinite type"    (var, ty)
+    UnboundVariable varName      -> err "Unbound variable" varName
+    where
+      err msg val = hsep [mconcat [msg, ":"], pretty val]
+
+instance Pretty TypeVar where
+  pretty (TypeVar v) = pretty v
+
+
 
 

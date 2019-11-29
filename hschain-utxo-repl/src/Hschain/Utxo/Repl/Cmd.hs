@@ -117,8 +117,15 @@ reload = do
   mapM_ loadTx     =<< getTxFile
 
 showType :: String -> Repl ()
-showType _ = echo "show type (not implemented yet)"
-
+showType str = case parseExpr str of
+  Right (ParseExpr e) -> onExpr e
+  _                   -> liftIO $ putStrLn "Error: not a valid expression"
+  where
+    onExpr expr = do
+      closure  <- fmap ((. importBase) . replEnv'closure) get
+      liftIO $ T.putStrLn $ case inferExpr mempty $ closure expr of
+        Right scheme -> renderText scheme
+        Left err     -> renderText err
 
 help :: Repl ()
 help = liftIO $ mapM_ putStrLn

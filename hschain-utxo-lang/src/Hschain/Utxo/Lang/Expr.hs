@@ -37,19 +37,43 @@ data Box = Box
   }
   deriving (Show, Read, Eq)
 
+newtype TypeVar = TypeVar Text
+  deriving (Show, Read, Eq, Ord)
 
 data TypeExpr a
-  = UknownType
+  = VarType TypeVar
+  | UknownType
   | BoolType
   | IntType
   | MoneyType
   | DoubleType
+  | ScriptType
   | StringType
   | BoxType
   | VectorType a
-  | PairType a a
+  | TupleType [a]
   | FunctionType a a
-  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable)
+
+data Scheme = Forall [TypeVar] Type
+  deriving (Show, Eq, Ord)
+
+data TypeError
+  = UnificationFail Type Type Lang
+  | UnificationMismatch [Type] [Type]
+  | InfiniteType TypeVar Type
+  | UnboundVariable VarName
+
+instance Semigroup TypeError where
+  UnificationMismatch [] [] <> a = a
+  a <> UnificationMismatch [] [] = a
+  a <> _ = a
+
+instance Monoid TypeError where
+  mempty = UnificationMismatch [] []
+
+
+
 
 type Lang = Fix E
 
@@ -121,6 +145,7 @@ data TextExpr a
 
 data HashAlgo = Sha256 | Blake2b256
   deriving (Eq, Show, Read)
+
 data Prim
   = PrimInt    Int
   | PrimMoney  Money
