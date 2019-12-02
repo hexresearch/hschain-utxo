@@ -35,6 +35,7 @@ import Data.Vector (Vector)
 
 import qualified Data.Vector as V
 
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (toScript)
 
@@ -76,17 +77,17 @@ var name = Expr $ Fix $ Var name
 def :: VarName -> Expr a -> (Expr a -> Expr b) -> Expr b
 def name (Expr a) bodyFun =
   case (bodyFun (var name)) of
-    Expr body -> Expr $ Fix $ Let name a body
+    Expr body -> Expr $ singleLet name a body
 
 lam :: VarName -> (Expr a -> Expr b) -> Expr (a -> b)
 lam name bodyFun =
   case bodyFun (var name) of
-    Expr body -> Expr $ Fix $ Lam name (Fix UknownType) body
+    Expr body -> Expr $ Fix $ Lam name body
 
 lam2 :: VarName -> VarName -> (Expr a -> Expr b -> Expr c) -> Expr (a -> b -> c)
 lam2 v1 v2  bodyFun =
   case bodyFun (var v1) (var v2) of
-    Expr body -> Expr $ Fix $ LamList [(v1, Fix UknownType), (v2, Fix UknownType)] body
+    Expr body -> Expr $ Fix $ LamList [v1, v2] body
 
 app :: Expr (a -> b) -> Expr a -> Expr b
 app (Expr fun) (Expr arg) = Expr $ Fix $ Apply fun arg

@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Exec(
   , Error(..)
 ) where
 
+import Hex.Common.Control
 import Hex.Common.Text
 
 import Control.Applicative
@@ -17,12 +18,13 @@ import Data.Boolean
 import Data.Fix
 import Data.Map.Strict (Map)
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid hiding (Alt)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Build()
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
@@ -120,11 +122,11 @@ execLang' (Fix x) = case x of
     UnOpE uo x -> fromUnOp uo x
     BinOpE bi a b -> fromBiOp bi a b
     Apply a b -> fromApply a b
-    Lam varName a b -> fromLam varName a b
+    Lam varName b -> fromLam varName b
     LamList vars a -> fromLamList vars a
-    Let varName a b -> fromLet varName a b
+    Let varName a -> fromLet varName a
     LetArg varName args a b -> fromLetArg varName args a b
-    LetRec varName a b c -> fromLetRec varName a b c
+    LetRec varName b c -> fromLetRec varName b c
     -- logic
     If a b c -> fromIf a b c
     Pk a -> fromPk a
@@ -295,7 +297,7 @@ execLang' (Fix x) = case x of
         err = thisShouldNotHappen $ Fix $ BinOpE GreaterThanEquals (Fix x) (Fix y)
 
     fromComposeFun (Fix x) (Fix y) = case (x, y) of
-      (Lam v2 t2 f2, Lam v1 t1 f1) -> rec $ Fix $ Lam v1 t1 (Fix $ Apply (Fix $ Lam v2 t2 f2) f1)
+      (Lam v2 f2, Lam v1 f1) -> rec $ Fix $ Lam v1 (Fix $ Apply (Fix $ Lam v2 f2) f1)
       _ -> err
       where
         err = thisShouldNotHappen $ Fix $ BinOpE ComposeFun (Fix x) (Fix y)
@@ -308,10 +310,8 @@ execLang' (Fix x) = case x of
       where
         err = thisShouldNotHappen $ Fix $ If cond t e
 
-    fromLam name a b = return $ Fix $ Lam name a b
+    fromLam name b = return $ Fix $ Lam name b
     fromLamList vars a = rec $ unfoldLamList vars a
-
-    unfoldLamList vars a = L.foldl' (\z a -> z . Fix . uncurry Lam a) id vars a
 
     fromTrace str a = do
       Fix str' <- rec str
@@ -361,7 +361,7 @@ execLang' (Fix x) = case x of
       _ -> do
         Fix fun' <- rec fun
         case fun' of
-          Lam varName _ body -> do
+          Lam varName body -> do
             arg' <- rec arg
             rec $ subst body varName arg'
           VecE VecMap -> do
@@ -376,22 +376,38 @@ execLang' (Fix x) = case x of
             return $ Fix $ Apply (Fix $ Apply (Fix (VecE VecFold)) a') arg'
           other              -> Exec $ lift $ Left $ AppliedNonFunction $ Fix other
 
+{-
     fromLet v lc1 lc2 = do
       lc1' <- rec lc1
       rec $ subst lc2 v lc1'
+-}
+    fromLet bg expr = execDefs defs expr
+      where
+        defs = concat
+          [ fmap explToImpl (bindGroup'expl bg)
+          , concat $ bindGroup'impl bg ]
+
+        execDefs ds e = case ds of
+          [] -> rec e
+          def:rest -> do
+            let v = impl'name def
+            body <- execAlts $ impl'alts def
+            execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
+
+    execAlts :: [Alt Lang] -> Exec Lang
+    execAlts = undefined
+
 
     fromLetArg v args a b = rec $ unfoldLetArg v args a b
 
-    unfoldLetArg v args a b = Fix $ Let v (Fix $ LamList (fmap (, Fix UknownType) args) a) b
-
-    fromLetRec v ty lc1 lc2 = do
+    fromLetRec v lc1 lc2 = do
       insertVar v lc1
       lc1' <- rec lc1
       case lc1' of
-        lam@(Fix (Lam _ _ _)) -> do
+        lam@(Fix (Lam _ _)) -> do
           insertVar v lc1
           rec $ subst lc2 v lam
-        _ -> Exec $ lift $ Left $ IllegalRecursion $ Fix $ LetRec v ty lc1 lc2
+        _ -> Exec $ lift $ Left $ IllegalRecursion $ Fix $ LetRec v lc1 lc2
 
     fromEnv idx = do
       idx' <- mapM rec idx
@@ -510,13 +526,14 @@ execLang' (Fix x) = case x of
       UnOpE uo lc                          -> Fix $ UnOpE uo $ rec lc
       BinOpE bo a b                        -> Fix $ BinOpE bo (rec a) (rec b)
       Apply a b                              -> Fix $ Apply (rec a) (rec b)
-      e@(Lam v1 ty body1)  | v1 == varName -> Fix $ e
-                           | otherwise     -> Fix $ Lam v1 ty (rec body1)
+      e@(Lam v1 body1)     | v1 == varName -> Fix $ e
+                           | otherwise     -> Fix $ Lam v1 (rec body1)
       If cond t e                          -> Fix $ If (rec cond) (rec t) (rec e)
-      Let v1 a1 a2         | v1 == varName -> Fix $ Let v1 a1 (rec a2)
-                           | otherwise     -> Fix $ Let v1 (rec a1) (rec a2)
-      LetRec v1 ty a1 a2   | v1 == varName -> Fix $ LetRec v1 ty a1 (rec a2)
-                           | otherwise     -> Fix $ LetRec v1 ty (rec a1) (rec a2)
+      Let bg e                             -> Fix $ Let (substBindGroup bg) (rec e)
+                        -- | v1 == varName -> Fix $ Let v1 a1 (rec a2)
+                        -- | otherwise     -> Fix $ Let v1 (rec a1) (rec a2)
+      LetRec v1 a1 a2      | v1 == varName -> Fix $ LetRec v1 a1 (rec a2)
+                           | otherwise     -> Fix $ LetRec v1 (rec a1) (rec a2)
       Pk a                                 -> Fix $ Pk $ rec a
       Tuple as                             -> Fix $ Tuple $ fmap rec as
       GetEnv idx                           -> Fix $ GetEnv $ fmap rec idx
@@ -528,6 +545,29 @@ execLang' (Fix x) = case x of
       Trace a b                            -> Fix $ Trace (rec a) (rec b)
       where
         rec x = subst x varName sub
+
+        substBindGroup BindGroup{..} = BindGroup
+          { bindGroup'expl = fmap  substExpl bindGroup'expl
+          , bindGroup'impl = fmap2 substImpl bindGroup'impl
+          }
+
+        substExpl x@Expl{..}
+          | varName == expl'name = x
+          | otherwise            = x { expl'alts = fmap substAlt expl'alts }
+
+        substImpl x@Impl{..}
+          | varName == impl'name = x
+          | otherwise            = x { impl'alts = fmap substAlt impl'alts }
+
+        substAlt x@Alt{..}
+          | isBinded varName alt'pats = x
+          | otherwise                 = x{ alt'expr = rec alt'expr }
+          where
+            isBinded v ps = v `elem` (foldMap getBinds ps)
+
+            getBinds = \case
+              PVar idx -> [idx]
+              _        -> []
 
 prim :: Prim -> Exec Lang
 prim p = return $ Fix $ PrimE p

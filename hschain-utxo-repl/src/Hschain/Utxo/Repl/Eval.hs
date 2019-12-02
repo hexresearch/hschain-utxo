@@ -14,6 +14,7 @@ import Data.Fix
 import Data.String
 
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Lib.Base
 
 import System.Console.Repline
@@ -50,7 +51,7 @@ evalBind varName lang = do
   let res = runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
   case res of
     Right (expr, _) -> do
-      modify' $ \st -> st { replEnv'closure = (\next -> Fix (Let varName expr next)) . closure
+      modify' $ \st -> st { replEnv'closure = (\next -> singleLet varName expr next) . closure
                           , replEnv'words   = varName : replEnv'words st }
       return ()
     Left err   -> liftIO $ T.putStrLn $ renderText err
@@ -61,8 +62,8 @@ parseExpr input = either (Left . fromString) (Right . ParseExpr) $ P.parseExpr i
 parseBind :: String -> Either Text ParseRes
 parseBind input =
   case P.parseExpr $ mconcat ["let ", input, " in undefined"] of
-    Right (Fix (Let varName expr _)) -> Right $ ParseBind varName expr
-    Right (Fix (LetArg varName args expr _)) -> Right $ ParseBind varName (Fix $ LamList (fmap (, Fix UknownType) args) expr)
+    -- Right (Fix (Let varName expr _)) -> Right $ ParseBind varName expr
+    -- Right (Fix (LetArg varName args expr _)) -> Right $ ParseBind varName (Fix $ LamList (fmap (, Fix UknownType) args) expr)
     Left err -> Left $ fromString err
 
 

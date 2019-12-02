@@ -19,8 +19,10 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
+      Hschain.Utxo.Lang.Desugar
       Hschain.Utxo.Lang.Exec
       Hschain.Utxo.Lang.Expr
+      Hschain.Utxo.Lang.Infer
       Hschain.Utxo.Lang.Lib.Base
       Hschain.Utxo.Lang.Parser.Parser
       Hschain.Utxo.Lang.Parser.Lexer
@@ -39,6 +41,7 @@ library
                      , data-fix
                      , deriving-compat
                      , hex-common
+                     , hs-check
                      , mtl
                      , safe
                      , prettyprinter

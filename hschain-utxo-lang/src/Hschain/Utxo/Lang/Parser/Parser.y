@@ -9,6 +9,7 @@ module Hschain.Utxo.Lang.Parser.Parser (
 import Data.Fix
 import Data.String
 
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Lexer
 
@@ -87,9 +88,9 @@ import qualified Data.Vector as V
 %left '.'
 %%
 
-Expr : let VAR '=' Expr in Expr    { Fix (Let (fromString $2) $4 $6)  }
+Expr : let VAR '=' Expr in Expr    { singleLet (fromString $2) $4 $6 }
      | let VAR LetArgs '=' Expr in Expr { Fix (LetArg (fromString $2) (reverse $ fmap fromString $3) $5 $7) }
-     | '\\' LetArgs '->' Expr      { Fix (LamList (fmap ((, Fix BoolType) . fromString) $ reverse $2) $4) }
+     | '\\' LetArgs '->' Expr      { Fix (LamList (fmap fromString $ reverse $2) $4) }
      | pk Expr                     { Fix (Pk $2) } 
      | if Expr then Expr else Expr { Fix (If $2 $4 $6) }
      | Expr '!' Expr               { Fix (VecE (VecAt $1 $3)) }

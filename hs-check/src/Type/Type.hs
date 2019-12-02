@@ -15,32 +15,32 @@ newtype TypeError = TypeError Text
 data Kind
   = Star
   | Kfun Kind Kind
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data Type
   = TVar Tyvar
   | TCon Tycon
   | TAp Type Type
   | TGen Int
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data Tyvar = Tyvar Id Kind
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data Tycon = Tycon Id Kind
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data Qual t = Qual [Pred] t
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data Pred = IsIn Id Type
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data Scheme = Forall [Kind] (Qual Type)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data Assump = Id :>: Scheme
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 --------------------------------
 

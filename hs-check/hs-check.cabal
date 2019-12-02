@@ -24,6 +24,7 @@ library
                        Type.ClassEnv
                        Type.Expr
                        Type.Infer
+                       Type.Pretty
                        Type.Subst
                        Type.Type
   -- other-modules:
@@ -31,6 +32,7 @@ library
   build-depends:       base >=4.11 && <4.12
                      , containers
                      , mtl
+                     , prettyprinter
                      , text
   -- hs-source-dirs:
   default-language:    Haskell2010

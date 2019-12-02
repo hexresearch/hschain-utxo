@@ -3,6 +3,8 @@ module Hschain.Utxo.Lang.Pretty(
   , prettyRecord
 ) where
 
+import Hex.Common.Control
+
 import Data.Fix
 import Data.Functor.Compose
 import Data.Text (Text)
@@ -20,6 +22,9 @@ import qualified Data.Set as S
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Sigma as S
+
+import Type.Type
+import Type.Pretty
 
 renderText :: Pretty a => a -> Text
 renderText = renderStrict . layoutPretty defaultLayoutOptions . pretty
@@ -99,13 +104,14 @@ prettyE :: E (Doc ann) -> Doc ann
 prettyE = \case
   Var varName     -> pretty varName
   Apply a b       -> hsep [parens a, parens b]
-  Lam name ty a   -> hsep [hcat ["\\", pretty name, ":", pretty ty], "->", a]
-  LamList names a -> hsep [hcat ["\\", hsep $ fmap (\(var, ty) -> parens $ hsep [pretty var, ":", pretty ty]) names], "->", a]
-  Let name a b    -> vcat [ hsep ["let", pretty name,  "=", a]
-                          , b ]
+  Lam name a      -> hsep [hcat ["\\", pretty name], "->", a]
+  LamList names a -> hsep [hcat ["\\", hsep $ fmap (\var -> parens $ hsep [pretty var]) names], "->", a]
+  Let bg a        -> vcat [ hsep ["let", indent 4 $ prettyBinds bg ]
+                          , hsep ["in  ", a ]
+                          ]
   LetArg name args a b -> vcat [ hsep ["let", pretty name, hsep $ fmap pretty [args], "=", a]
                                , b ]
-  LetRec name ty a b -> vcat [ hsep ["let rec", pretty name, ":", pretty ty, "=", a]
+  LetRec name a b -> vcat [ hsep ["let rec", pretty name, "=", a]
                           , b ]
   Ascr a ty       -> parens $ hsep [a, ":", pretty ty]
   -- primitives
@@ -131,9 +137,39 @@ prettyE = \case
   -- boxes
   BoxE box        -> prettyBoxExpr box
   -- undef
-  Undef           -> undefined
+  Undef           -> "undefined"
   -- debug
   Trace a b       -> parens $ hsep ["trace", a, b]
+
+prettyBinds :: BindGroup (Doc ann) -> Doc ann
+prettyBinds BindGroup{..} = vcat
+  [ vcat $ fmap prettyExpl bindGroup'expl
+  , vcat $ concat $ fmap2 prettyImpl $ bindGroup'impl]
+  where
+    prettyExpl :: Expl (Doc ann) -> Doc ann
+    prettyExpl Expl{..} = vcat
+      [ prettySignature expl'name expl'type
+      , prettyAlts expl'name expl'alts
+      ]
+
+    prettyImpl :: Impl (Doc ann) -> Doc ann
+    prettyImpl Impl{..} = prettyAlts impl'name impl'alts
+
+    prettySignature :: VarName -> Scheme -> Doc ann
+    prettySignature name scheme = hsep [ pretty name, "::",  pretty scheme]
+
+    prettyAlts :: VarName -> [Alt (Doc ann)] -> Doc ann
+    prettyAlts name as = vcat $ fmap (prettyAlt name) as
+
+    prettyAlt :: VarName -> Alt (Doc ann) -> Doc ann
+    prettyAlt name Alt{..} =
+      hsep [ pretty name, hsep $ fmap pretty alt'pats, "=", alt'expr]
+
+instance Pretty Pat where
+  pretty = \case
+    PVar idx  -> pretty idx
+    PWildcard -> "_"
+    PLit p    -> pretty p
 
 prettyVecExpr :: VecExpr (Doc ann) -> Doc ann
 prettyVecExpr = \case
@@ -157,9 +193,6 @@ prettyBoxExpr :: BoxExpr (Doc ann) -> Doc ann
 prettyBoxExpr = \case
   PrimBox box   -> pretty box
   BoxAt a field -> hcat [a, dot, prettyBoxField field]
-
-instance Pretty Type where
-  pretty = cata prettyTypeExpr
 
 prettyTypeExpr :: TypeExpr (Doc ann) -> Doc ann
 prettyTypeExpr = \case
@@ -211,10 +244,10 @@ removeZeroes = reverse . skipDot . skipZeroes . reverse
     skipZeroes = dropWhile (== '0')
     skipDot    = dropWhile (== '.')
 
-instance Pretty a => Pretty (Id a) where
+instance Pretty a => Pretty (EnvId a) where
   pretty = prettyId . fmap pretty
 
-prettyId :: Id (Doc ann) -> Doc ann
+prettyId :: EnvId (Doc ann) -> Doc ann
 prettyId = \case
     Height -> "HEIGHT"
     Input  a       -> prettyVec "input"  a

@@ -1,5 +1,7 @@
 module Hschain.Utxo.Lang.Expr where
 
+import Hex.Common.Text
+
 import Control.Applicative
 
 import Data.Aeson
@@ -12,14 +14,14 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import Type.Type
+
 import Text.Show.Deriving
 
 newtype Expr a = Expr Lang
   deriving (Show, Read, Eq)
 
 type VarName = Text
-
-type Type = Fix TypeExpr
 
 type Args = Map Text Prim
 
@@ -37,6 +39,37 @@ data Box = Box
   }
   deriving (Show, Read, Eq)
 
+data Pat
+  = PVar Id
+  | PWildcard
+  | PLit Prim
+  deriving (Show, Read, Eq, Ord)
+  -- | PAs Id Pat
+  -- | PNpk Id Integer
+  -- | PCon Assump [Pat]
+
+type Program = [BindGroup Lang]
+
+data Alt a = Alt
+  { alt'pats :: [Pat]
+  , alt'expr :: a
+  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
+
+data BindGroup a = BindGroup
+  { bindGroup'expl :: [Expl a]
+  , bindGroup'impl :: [[Impl a]]
+  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
+
+data Expl a = Expl
+  { expl'name  :: Id
+  , expl'type  :: Scheme
+  , expl'alts  :: [Alt a]
+  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
+
+data Impl a = Impl
+  { impl'name  :: Id
+  , impl'alts  :: [Alt a]
+  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
 
 data TypeExpr a
   = UknownType
@@ -57,11 +90,11 @@ data E a
   -- lambda calculus
   = Var VarName
   | Apply a a
-  | Lam VarName Type a
-  | LamList [(VarName, Type)] a
-  | Let VarName a a
+  | Lam VarName a
+  | LamList [VarName] a
+  | Let (BindGroup a) a
   | LetArg VarName [VarName] a a
-  | LetRec VarName Type a a
+  | LetRec VarName a a
   | Ascr a Type
   -- primitives
   | PrimE Prim
@@ -74,7 +107,7 @@ data E a
   | UnOpE UnOp a
   | BinOpE BinOp a a
   -- environment
-  | GetEnv (Id a)
+  | GetEnv (EnvId a)
   -- vectors
   | VecE (VecExpr a)
   -- text
@@ -121,6 +154,7 @@ data TextExpr a
 
 data HashAlgo = Sha256 | Blake2b256
   deriving (Eq, Show, Read)
+
 data Prim
   = PrimInt    Int
   | PrimMoney  Money
@@ -129,7 +163,7 @@ data Prim
   | PrimBool   Bool
   deriving (Show, Read, Eq, Ord)
 
-data Id a
+data EnvId a
   = Height
   | Input  a
   | Output a
@@ -162,10 +196,44 @@ instance FromJSON Prim where
     <|> fmap PrimBool   (v .: "bool")
 
 $(deriveShow1 ''TypeExpr)
+$(deriveShow1 ''Alt)
+$(deriveShow1 ''Impl)
+$(deriveShow1 ''Expl)
+$(deriveShow1 ''BindGroup)
 $(deriveShow1 ''E)
-$(deriveShow1 ''Id)
+$(deriveShow1 ''EnvId)
 $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
+
+---------------------------------
+-- type constants
+
+boxT :: Type
+boxT = TCon (Tycon "Box" Star)
+
+moneyT :: Type
+moneyT = TCon (Tycon "Money" Star)
+
+textT :: Type
+textT = TCon (Tycon "Text" Star)
+
+boolT :: Type
+boolT = TCon (Tycon "Bool" Star)
+
+scriptT :: Type
+scriptT = TCon (Tycon "Script" Star)
+
+vectorT :: Type -> Type
+vectorT a = TAp (TCon (Tycon "Vector" (Kfun Star Star))) a
+
+tupleT :: [Type] -> Type
+tupleT ts = foldl TAp cons ts
+  where
+    arity = length ts
+
+    kind = foldr1 Kfun $ replicate arity Star
+    cons = TCon $ Tycon (mappend "Tuple" (showt arity)) kind
+
 
