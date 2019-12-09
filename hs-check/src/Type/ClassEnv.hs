@@ -16,6 +16,7 @@ import Control.Monad.Except
 import Data.Either
 import Data.Maybe
 
+import Type.Loc
 import Type.Type
 import Type.Subst
 
@@ -52,7 +53,7 @@ initialEnv = ClassEnv
   { classEnv'classes  = \idx ->
       if idx == "Num"
         then Right numClass
-        else Left $ TypeError "Class not defined"
+        else Left $ singleTypeError (getLoc idx) "Class not defined"
   , classEnv'defaults = [integerT, doubleT]
   }
 
@@ -66,8 +67,8 @@ defined = isRight
 
 addClass :: Id -> [Id] -> EnvTransformer
 addClass idx idxs ce
-  | defined (classEnv'classes ce idx)               = Left $ TypeError "class already defined"
-  | any (not . defined . classEnv'classes ce) idxs  = Left $ TypeError "superclass not defined"
+  | defined (classEnv'classes ce idx)               = Left $ singleTypeError (getLoc idx) "class already defined"
+  | any (not . defined . classEnv'classes ce) idxs  = Left $ singleTypeError (getLoc idx) "superclass not defined"
   | otherwise                                       = return $ (modify ce idx (Class idxs []))
 
 addPreludeClasses :: EnvTransformer
@@ -86,14 +87,14 @@ addNumClasses =
   <:> addClass "Fractional" ["Num"]
 
 addInst :: [Pred] -> Pred -> EnvTransformer
-addInst ps p@(IsIn idx _) ce
-  | not $ defined $ classEnv'classes ce idx = fail "no class for instance"
-  | any (overlap p) qs                      = fail "overlapping instance"
+addInst ps p@(IsIn loc idx _) ce
+  | not $ defined $ classEnv'classes ce idx = Left $ singleTypeError loc "no class for instance"
+  | any (overlap p) qs                      = Left $ singleTypeError loc "overlapping instance"
   | otherwise                               = return $ modify ce idx c
   where
     its = insts ce idx
-    qs  = fmap (\(Qual _ t) -> t) its
-    c   = Class (super ce idx) (Qual ps p : its)
+    qs  = fmap (\(Qual _ _ t) -> t) its
+    c   = Class (super ce idx) (Qual loc ps p : its)
 
 overlap :: Pred -> Pred -> Bool
 overlap p q = defined $ mostGeneralUnifierPred p q
@@ -103,7 +104,7 @@ exampleInsts = addPreludeClasses
   <:> addOrds
   <:> addPair
   where
-    isOrd = IsIn "Ord"
+    isOrd = IsIn noLoc "Ord"
 
     addOrds = foldl1 (<:>) (fmap (\x -> addInst [] (isOrd x)) [unitT, charT, intT, doubleT])
 
@@ -114,13 +115,13 @@ exampleInsts = addPreludeClasses
 
 
 bySuper :: ClassEnv -> Pred -> [Pred]
-bySuper ce p@(IsIn idx ty) =
-  p : concat [ bySuper ce (IsIn idx' ty) | idx' <- super ce idx ]
+bySuper ce p@(IsIn loc idx ty) =
+  p : concat [ bySuper ce (IsIn loc idx' ty) | idx' <- super ce idx ]
 
 byInst :: ClassEnv -> Pred -> Except TypeError [Pred]
-byInst ce p@(IsIn idx t) = foldr (<|>) empty $ fmap tryInst $ insts ce idx
+byInst ce p@(IsIn _ idx t) = foldr (<|>) empty $ fmap tryInst $ insts ce idx
   where
-    tryInst (Qual ps h) = do
+    tryInst (Qual _ ps h) = do
       u <- matchPred h p
       return (map (apply u) ps)
 
@@ -132,12 +133,14 @@ entail ce ps p = cond1 || cond2
 
 
 isHnf :: Pred -> Bool
-isHnf (IsIn _ t) = hnf t
+isHnf (IsIn _ _ t) = hnf t
   where
     hnf = \case
-      TVar v   -> True
-      TCon tc  -> False
-      TAp  t _ -> hnf t
+      TVar _ v   -> True
+      TCon _ tc  -> False
+      TFun _ _ _ -> False
+      TAp  _ t _ -> hnf t
+      _          -> False
 
 toHnfs :: ClassEnv -> [Pred] -> Except TypeError [Pred]
 toHnfs ce ps = fmap concat $ mapM (toHnf ce) ps
@@ -147,7 +150,7 @@ toHnf ce p
   | isHnf p   = return [p]
   | otherwise = catchError (toHnfs ce =<< byInst ce p) (const err)
   where
-    err = throwError $ TypeError "context reduction"
+    err = throwError $ singleTypeError (getLoc p) "context reduction"
 
 simplify :: ClassEnv -> [Pred] -> [Pred]
 simplify ce = loop []
@@ -172,34 +175,36 @@ reduce ce ps = fmap (simplify ce) $ toHnfs ce ps
     scEntail ce ps p = any (p `elem`) (map (bySuper ce) ps)
 
 ambiguities :: [Tyvar] -> [Pred] -> [Ambiguity]
-ambiguities vs ps = [(v , filter (elem v . getVars) ps) | v <- (S.toList $ getVars ps) L.\\ vs]
+ambiguities vs ps = [ Ambiguity v (filter (elem v . getVars) ps) | v <- (S.toList $ getVars ps) L.\\ vs]
 
 candidates :: ClassEnv -> Ambiguity -> [Type]
-candidates ce (v, qs) =
-  [ t' | let is = [ i | IsIn i t <- qs ]
-             ts = [ t | IsIn i t <- qs ],
-         all ((TVar v) == ) ts,
+candidates ce (Ambiguity v qs) =
+  [ t' | let is = [ i | IsIn _ i t <- qs ]
+             ts = [ t | IsIn _ i t <- qs ],
+         all ((TVar noLoc v) == ) ts,
          any (`elem` numClasses) is,
          all (`elem` stdClasses) is,
          t' <- classEnv'defaults ce,
-         all (entail ce []) [IsIn i t' | i <- is]]
+         all (entail ce []) [IsIn (getLoc i) i t' | i <- is]]
 
 withDefaults :: MonadError TypeError m => ([Ambiguity] -> [Type] -> a) -> ClassEnv -> [Tyvar] -> [Pred] -> m a
-withDefaults f ce vs ps
-  | any null tss = throwError $ TypeError "can not resolve ambiguity"
-  | otherwise    = return (f vps (map head tss))
+withDefaults f ce vs ps = case L.find (null . snd) vpTss of
+  Just (vp, _) -> throwError $ singleTypeError (getLoc vp) "can not resolve ambiguity"
+  Nothing      -> return (f vps (map head tss))
   where
     vps = ambiguities vs ps
-    tss = map (candidates ce) vps
+    tss = fmap snd vpTss
+    vpTss = map (\vp -> (vp, candidates ce vp)) vps
+
 
 defaultedPreds :: MonadError TypeError m => ClassEnv -> [Tyvar] -> [Pred] -> m [Pred]
-defaultedPreds = withDefaults (\vps ts -> concat $ map snd vps)
+defaultedPreds = withDefaults (\vps ts -> concat $ map ambiguity'preds vps)
 
 defaultSubst :: MonadError TypeError m => ClassEnv -> [Tyvar] -> [Pred] -> m Subst
-defaultSubst = withDefaults (\vps ts -> Subst $ M.fromList $ zip (map fst vps) ts)
+defaultSubst = withDefaults (\vps ts -> Subst $ M.fromList $ zip (map ambiguity'tyvar vps) ts)
 
 numClass :: Class
 numClass = Class
   { class'supers      = ["Eq", "Show"]
-  , class'instances   = [Qual [] (IsIn "Num" intT), Qual [] (IsIn "Num" doubleT)]
+  , class'instances   = [Qual noLoc [] (IsIn noLoc "Num" intT), Qual noLoc [] (IsIn noLoc "Num" doubleT)]
   }

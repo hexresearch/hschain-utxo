@@ -7,24 +7,25 @@ module Hschain.Utxo.Lang.Desugar(
 
 import Data.Fix
 
+import Type.Type
 import Hschain.Utxo.Lang.Expr
 
 import qualified Data.List as L
 
-unfoldLamList :: [VarName] -> Lang -> Lang
-unfoldLamList vars a = L.foldl' (\z a -> z . Fix . Lam a) id vars a
+unfoldLamList :: Loc -> [VarName] -> Lang -> Lang
+unfoldLamList loc vars a = L.foldl' (\z a -> z . Fix . Lam loc a) id vars a
 
-unfoldLetArg :: VarName -> [VarName] -> Lang -> Lang -> Lang
-unfoldLetArg v args a = singleLet v (Fix $ LamList args a)
+unfoldLetArg :: Loc -> VarName -> [VarName] -> Lang -> Lang -> Lang
+unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc args a)
 
-singleLet :: VarName -> Lang -> Lang -> Lang
-singleLet v body expr = Fix $ Let bg expr
+singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
+singleLet loc v body expr = Fix $ Let loc bg expr
   where
     bg = BindGroup expl impl
 
     expl = []
 
-    impl = [[Impl v [Alt [] body]]]
+    impl = [[Impl (fromVarName v) [Alt [] body]]]
 
 explToImpl :: Expl a -> Impl a
 explToImpl Expl{..} = Impl expl'name expl'alts

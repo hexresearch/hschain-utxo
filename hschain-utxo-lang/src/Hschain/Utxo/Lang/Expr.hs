@@ -8,28 +8,41 @@ import Data.Aeson
 
 import Data.Fix
 import Data.Fixed
+import Data.Function (on)
 import Data.Functor.Classes
 
 import Data.Map.Strict (Map)
+import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import Type.Loc
 import Type.Type
 
 import Text.Show.Deriving
 
 newtype Expr a = Expr Lang
-  deriving (Show, Read, Eq)
+  deriving (Show, Eq)
 
-type VarName = Text
+data VarName = VarName Loc Text
+  deriving (Show)
 
-type Args = Map Text Prim
+instance IsString VarName where
+  fromString = VarName noLoc . fromString
+
+fromVarName :: VarName -> Id
+fromVarName (VarName loc name) = Id loc name
+
+toVarName :: Id -> VarName
+toVarName (Id loc txt) = VarName loc txt
+
+type Args = Map Text (Prim )
 
 newtype BoxId = BoxId { unBoxId :: Text }
-  deriving (Show, Read, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 newtype Script = Script { unScript :: Text }
-  deriving (Show, Read, Eq, Ord, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, ToJSON, FromJSON)
 
 data Box = Box
   { box'id     :: !BoxId
@@ -37,165 +50,271 @@ data Box = Box
   , box'script :: !Script
   , box'args   :: !Args
   }
-  deriving (Show, Read, Eq)
+  deriving (Show, Eq)
 
 data Pat
-  = PVar Id
-  | PWildcard
-  | PLit Prim
-  deriving (Show, Read, Eq, Ord)
+  = PVar Loc Id
+  deriving (Show, Eq, Ord)
+  -- | PWildcard Loc
+  -- | PLit Loc Prim
   -- | PAs Id Pat
   -- | PNpk Id Integer
   -- | PCon Assump [Pat]
 
-type Program = [BindGroup Lang]
+data Module = Module Loc [BindGroup Lang]
 
 data Alt a = Alt
   { alt'pats :: [Pat]
   , alt'expr :: a
-  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 data BindGroup a = BindGroup
   { bindGroup'expl :: [Expl a]
   , bindGroup'impl :: [[Impl a]]
-  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 data Expl a = Expl
   { expl'name  :: Id
   , expl'type  :: Scheme
   , expl'alts  :: [Alt a]
-  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 data Impl a = Impl
   { impl'name  :: Id
   , impl'alts  :: [Alt a]
-  } deriving (Show, Read, Eq, Ord, Functor, Traversable, Foldable)
-
-data TypeExpr a
-  = UknownType
-  | BoolType
-  | IntType
-  | MoneyType
-  | DoubleType
-  | StringType
-  | BoxType
-  | VectorType a
-  | PairType a a
-  | FunctionType a a
-  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 type Lang = Fix E
 
 data E a
   -- lambda calculus
-  = Var VarName
-  | Apply a a
-  | Lam VarName a
-  | LamList [VarName] a
-  | Let (BindGroup a) a
-  | LetArg VarName [VarName] a a
-  | LetRec VarName a a
-  | Ascr a Type
+  = Var Loc VarName
+  | Apply Loc a a
+  | Lam Loc VarName a
+  | LamList Loc [VarName] a
+  | Let Loc (BindGroup a) a
+  | LetRec Loc VarName a a
+  | Ascr Loc a Type
   -- primitives
-  | PrimE Prim
+  | PrimE Loc Prim
   -- logic
-  | If a a a
-  | Pk a
+  | If Loc a a a
+  | Pk Loc a
   -- tuples
-  | Tuple (Vector a)
+  | Tuple Loc (Vector a)
   -- operations
-  | UnOpE UnOp a
-  | BinOpE BinOp a a
+  | UnOpE Loc UnOp a
+  | BinOpE Loc (BinOp ) a a
   -- environment
-  | GetEnv (EnvId a)
+  | GetEnv Loc (EnvId a)
   -- vectors
-  | VecE (VecExpr a)
+  | VecE Loc (VecExpr a)
   -- text
-  | TextE (TextExpr a)
+  | TextE Loc (TextExpr a)
   -- boxes
-  | BoxE (BoxExpr a)
+  | BoxE Loc (BoxExpr a)
   -- undefined
-  | Undef
+  | Undef Loc
   -- debug
-  | Trace a a
-  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+  | Trace Loc a a
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data UnOp = Not | Neg | TupleAt Int
-  deriving (Show, Read, Eq)
+  deriving (Show, Eq)
 
 data BinOp
   = And | Or | Plus | Minus | Times | Div
   | Equals | NotEquals | LessThan | GreaterThan | LessThanEquals | GreaterThanEquals
   | ComposeFun
-  deriving (Show, Read, Eq)
+  deriving (Show, Eq)
 
 type Money  = Pico
 
 data BoxExpr a
-  = PrimBox Box
-  | BoxAt a (BoxField a)
-  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+  = PrimBox Loc Box
+  | BoxAt Loc a (BoxField a)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data VecExpr a
-  = NewVec (Vector a)
-  | VecAppend a a
-  | VecAt a a
-  | VecLength
-  | VecMap
-  | VecFold
-  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+  = NewVec Loc (Vector a)
+  | VecAppend Loc a a
+  | VecAt Loc a a
+  | VecLength Loc
+  | VecMap Loc
+  | VecFold Loc
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data TextExpr a
-  = TextAppend a a
-  | ConvertToText
-  | TextLength
-  | TextHash HashAlgo
-  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+  = TextAppend Loc a a
+  | ConvertToText Loc
+  | TextLength Loc
+  | TextHash Loc HashAlgo
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data HashAlgo = Sha256 | Blake2b256
-  deriving (Eq, Show, Read)
+  deriving (Eq, Show)
 
 data Prim
-  = PrimInt    Int
-  | PrimMoney  Money
-  | PrimDouble Double
-  | PrimString Text
-  | PrimBool   Bool
-  deriving (Show, Read, Eq, Ord)
+  = PrimInt Loc    Int
+  | PrimMoney Loc  Money
+  | PrimDouble Loc Double
+  | PrimString Loc Text
+  | PrimBool Loc   Bool
+  deriving (Show, Eq, Ord)
 
 data EnvId a
-  = Height
-  | Input  a
-  | Output a
-  | Self
-  | Inputs
-  | Outputs
-  | GetVar a
+  = Height Loc
+  | Input Loc  a
+  | Output Loc a
+  | Self Loc
+  | Inputs Loc
+  | Outputs Loc
+  | GetVar Loc a
   -- ^ refers to the box where it's defined
-  deriving (Show, Read, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data BoxField a = BoxFieldId | BoxFieldValue | BoxFieldScript | BoxFieldArg a
-  deriving (Show, Read, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable)
 
-instance ToJSON Prim where
+instance ToJSON (Prim ) where
   toJSON x = object $ pure $ case x of
-    PrimInt n      -> "int"    .= n
-    PrimMoney m    -> "money"  .= m
-    PrimDouble d   -> "double" .= d
-    PrimString txt -> "text"   .= txt
-    PrimBool b     -> "bool"   .= b
+    PrimInt _ n      -> "int"    .= n
+    PrimMoney _ m    -> "money"  .= m
+    PrimDouble _ d   -> "double" .= d
+    PrimString _ txt -> "text"   .= txt
+    PrimBool _ b     -> "bool"   .= b
 
 -- todo: rewrite this instance
 -- to distinguish between numeric types of int, double and money
 instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
-        fmap PrimInt    (v .: "int")
-    <|> fmap PrimMoney  (v .: "money")
-    <|> fmap PrimDouble (v .: "double")
-    <|> fmap PrimString (v .: "text")
-    <|> fmap PrimBool   (v .: "bool")
+        fmap (PrimInt    noLoc) (v .: "int")
+    <|> fmap (PrimMoney  noLoc) (v .: "money")
+    <|> fmap (PrimDouble noLoc) (v .: "double")
+    <|> fmap (PrimString noLoc) (v .: "text")
+    <|> fmap (PrimBool   noLoc) (v .: "bool")
 
-$(deriveShow1 ''TypeExpr)
+
+---------------------------------
+-- type constants
+
+boolT, boxT, scriptT, textT :: Type
+
+boolT = boolT' noLoc
+boxT  = boxT' noLoc
+scriptT = scriptT' noLoc
+textT = textT' noLoc
+
+boxT' :: Loc -> Type
+boxT' loc = TCon loc (Tycon loc (Id loc "Box") (Star loc))
+
+moneyT' :: Loc -> Type
+moneyT' loc = TCon loc (Tycon loc (Id loc "Money") (Star loc))
+
+textT' :: Loc -> Type
+textT' loc = TCon loc (Tycon loc (Id loc "Text") (Star loc))
+
+boolT' :: Loc -> Type
+boolT' loc = TCon loc (Tycon loc (Id loc "Bool") (Star loc))
+
+scriptT' :: Loc -> Type
+scriptT' loc = TCon loc (Tycon loc (Id loc "Script") (Star loc))
+
+vectorT :: Type -> Type
+vectorT = vectorT' noLoc
+
+vectorT' :: Loc -> Type -> Type
+vectorT' loc a = TAp loc (TCon loc (Tycon loc (Id loc "Vector") (Kfun loc (Star loc) (Star loc)))) a
+
+tupleT :: [Type] -> Type
+tupleT = tupleT' noLoc
+
+tupleT' :: Loc -> [Type] -> Type
+tupleT' loc ts = foldl (TAp loc) cons ts
+  where
+    arity = length ts
+
+    kind = foldr1 (Kfun loc) $ replicate arity (Star loc)
+    cons = TCon loc $ Tycon loc (Id loc $ mappend "Tuple" (showt arity)) kind
+
+--------------------------------
+-- instances
+
+instance HasLoc VarName where
+  getLoc (VarName loc _) = loc
+
+instance HasLoc Lang where
+  getLoc (Fix expr) = getLoc expr
+
+instance HasLoc (E a) where
+  getLoc = \case
+    Var loc _ -> loc
+    Apply loc _ _ -> loc
+    Lam loc _ _ -> loc
+    LamList loc _ _ -> loc
+    Let loc _ _ -> loc
+    LetRec loc _ _ _ -> loc
+    Ascr loc _ _ -> loc
+    -- primitives
+    PrimE loc _ -> loc
+    -- logic
+    If loc _ _ _ -> loc
+    Pk loc _ -> loc
+    -- tuples
+    Tuple loc _ -> loc
+    -- operations
+    UnOpE loc _ _ -> loc
+    BinOpE loc _ _ _ -> loc
+    -- environment
+    GetEnv loc _ -> loc
+    -- vectors
+    VecE loc _ -> loc
+    -- text
+    TextE loc _ -> loc
+    -- boxes
+    BoxE loc _ -> loc
+    -- undefined
+    Undef loc -> loc
+    -- debug
+    Trace loc _ _ -> loc
+
+instance HasLoc a => HasLoc (Alt a) where
+  getLoc = getLoc . alt'expr
+
+instance HasLoc (Expl a) where
+  getLoc = getLoc . expl'name
+
+instance HasLoc (Impl a) where
+  getLoc = getLoc . impl'name
+
+instance HasLoc (BindGroup Lang) where
+  getLoc BindGroup{..} = case bindGroup'expl of
+    a:_ -> getLoc $ expl'name a
+    []  -> case bindGroup'impl of
+      iss:_ -> case iss of
+        is:_ -> getLoc $ impl'name is
+        []   -> noLoc
+      []   -> noLoc
+
+-------------------------------------------------------------------
+-- unique instances for Eq and Ord (ingnores source location)
+--
+
+data VarName' = VarName' Text
+  deriving (Eq, Ord)
+
+uniqueVarName :: VarName -> VarName'
+uniqueVarName (VarName _ name) = VarName' name
+
+instance Eq VarName where
+  (==) = (==) `on` uniqueVarName
+
+instance Ord VarName where
+  compare = compare `on` uniqueVarName
+
+
+-------------------------------------------------------------------
+
 $(deriveShow1 ''Alt)
 $(deriveShow1 ''Impl)
 $(deriveShow1 ''Expl)
@@ -206,34 +325,4 @@ $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
-
----------------------------------
--- type constants
-
-boxT :: Type
-boxT = TCon (Tycon "Box" Star)
-
-moneyT :: Type
-moneyT = TCon (Tycon "Money" Star)
-
-textT :: Type
-textT = TCon (Tycon "Text" Star)
-
-boolT :: Type
-boolT = TCon (Tycon "Bool" Star)
-
-scriptT :: Type
-scriptT = TCon (Tycon "Script" Star)
-
-vectorT :: Type -> Type
-vectorT a = TAp (TCon (Tycon "Vector" (Kfun Star Star))) a
-
-tupleT :: [Type] -> Type
-tupleT ts = foldl TAp cons ts
-  where
-    arity = length ts
-
-    kind = foldr1 Kfun $ replicate arity Star
-    cons = TCon $ Tycon (mappend "Tuple" (showt arity)) kind
-
 

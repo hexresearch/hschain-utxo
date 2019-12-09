@@ -6,6 +6,7 @@ import Control.Monad.Except
 import Type.ClassEnv
 import Type.Subst
 import Type.Type
+import Type.Loc
 import Type.Infer
 
 import qualified Data.List as L
@@ -14,52 +15,52 @@ import qualified Data.Set as S
 type Program = [BindGroup]
 
 data Literal
-  = LitInt Integer
-  | LitChar Char
-  | LitRat Rational
-  | LitStr String
+  = LitInt Loc Integer
+  | LitChar Loc Char
+  | LitRat Loc Rational
+  | LitStr Loc String
 
 inferLit :: Literal -> Infer (Qual Type)
 inferLit = \case
-  LitChar _ -> return $ Qual [] charT
-  LitInt _  -> do
-    v <- newTVar Star
-    return $ Qual [IsIn "Num" v] v
-  LitStr _  -> return $ Qual [] stringT
-  LitRat _  -> do
-    v <- newTVar Star
-    return $ Qual [IsIn "Fractional" v] v
+  LitChar loc _ -> return $ Qual loc [] (charT' loc)
+  LitInt loc _  -> do
+    v <- newTVar (Star loc)
+    return $ Qual loc [IsIn loc (Id loc "Num") v] v
+  LitStr loc _  -> return $ Qual loc [] (stringT' loc)
+  LitRat loc _  -> do
+    v <- newTVar (Star loc)
+    return $ Qual loc [IsIn loc (Id loc "Fractional") v] v
 
 data Pat
-  = PVar Id
-  | PWildcard
-  | PAs Id Pat
-  | PLit Literal
-  | PNpk Id Integer
-  | PCon Assump [Pat]
+  = PVar Loc Id
+  | PWildcard Loc
+  | PAs Loc Id Pat
+  | PLit Loc Literal
+  | PNpk Loc Id Integer
+  | PCon Loc Assump [Pat]
 
 inferPat :: Pat -> Infer ([Pred], [Assump], Type)
 inferPat = \case
-  PVar idx -> do
-    v <- newTVar Star
+  PVar loc idx -> do
+    v <- newTVar (Star loc)
     return ([], [idx :>: toScheme v], v)
-  PWildcard -> do
-    v <- newTVar Star
+  PWildcard loc -> do
+    v <- newTVar (Star loc)
     return ([], [], v)
-  PAs idx pat -> do
+  PAs loc idx pat -> do
     (ps, as, t) <- inferPat pat
     return (ps, (idx :>: toScheme t) : as, t)
-  PLit lit -> do
-    (Qual ps t) <- inferLit lit
+  PLit loc lit -> do
+    (Qual _ ps t) <- inferLit lit
     return (ps, [], t)
-  PNpk idx k -> do
-    t <- newTVar Star
-    return ([IsIn "Integral" t], [idx :>: toScheme t], t)
-  PCon (idx :>: sc) pats -> do
+  PNpk loc idx k -> do
+    t <- newTVar (Star loc)
+    return ([IsIn loc "Integral" t], [idx :>: toScheme t], t)
+  PCon loc (idx :>: sc) pats -> do
     (ps, as, ts) <- inferPats pats
-    t' <- newTVar Star
-    Qual qs t <- freshInst sc
-    unify t (foldr fn t' ts)
+    t' <- newTVar (Star loc)
+    Qual _ qs t <- freshInst sc
+    unify t (foldr (fn' loc) t' ts)
     return (ps ++ qs, as, t')
 
 inferPats :: [Pat] -> Infer ([Pred], [Assump], [Type])
@@ -71,14 +72,22 @@ inferPats pats = do
   return (ps, as, ts)
 
 data Expr
-  = Var Id
-  | Lit Literal
-  | Const Assump
-  | Ap Expr Expr
-  | Let BindGroup Expr
+  = Var Loc Id
+  | Lit Loc Literal
+  | Const Loc Assump
+  | Ap Loc Expr Expr
+  | Let Loc BindGroup Expr
+
+instance HasLoc Expr where
+  getLoc = \case
+    Var loc _ -> loc
+    Lit loc _ -> loc
+    Const loc _ -> loc
+    Ap loc _ _ -> loc
+    Let loc _ _ -> loc
 
 lam :: Id -> Expr -> Expr
-lam arg body = Let (BindGroup [] [[Impl "f" [([PVar arg], body)]]]) (Var "f")
+lam arg body = Let (getLoc arg) (BindGroup [] [[Impl "f" [(Alt (getLoc arg) [PVar (getLoc arg) arg] body)]]]) (Var (getLoc body) "f")
 
 data BindGroup = BindGroup
   { bindGroup'expl :: [Expl]
@@ -96,37 +105,46 @@ data Impl = Impl
   , impl'alts  :: [Alt]
   }
 
+instance HasLoc Impl where
+  getLoc = getLoc . impl'name
+
+instance HasLoc Expl where
+  getLoc = getLoc . expl'name
+
 inferExpr :: [Assump] -> Expr -> Infer (Qual Type)
 inferExpr as = \case
-  Var idx -> do
+  Var _ idx -> do
     sc <- findAssump idx as
     freshInst sc
-  Const (idx :>: sc) -> freshInst sc
-  Lit lit -> inferLit lit
-  Ap e f -> do
-    Qual ps te <- inferExpr as e
-    Qual qs tf <- inferExpr as f
-    t <- newTVar Star
-    unify (tf `fn` t) te
-    return $ Qual (ps ++ qs) t
-  Let bg e -> do
+  Const _ (idx :>: sc) -> freshInst sc
+  Lit _ lit -> inferLit lit
+  Ap loc e f -> do
+    Qual _ ps te <- inferExpr as e
+    Qual _ qs tf <- inferExpr as f
+    t <- newTVar (Star loc)
+    unify (fn' loc tf t) te
+    return $ Qual loc (ps ++ qs) t
+  Let loc bg e -> do
     (ps, as') <- inferBindGroup as bg
-    Qual qs t <- inferExpr (as' ++ as) e
-    return $ Qual (ps ++ qs) t
+    Qual _ qs t <- inferExpr (as' ++ as) e
+    return $ Qual loc (ps ++ qs) t
 
-type Alt = ([Pat], Expr)
+data Alt = Alt
+  { alt'loc   :: Loc
+  , alt'pats  :: [Pat]
+  , alt'expr  :: Expr }
 
 inferAlt :: [Assump] -> Alt -> Infer (Qual Type)
-inferAlt as (pats, e) = do
+inferAlt as (Alt loc pats e) = do
   (ps, as', ts) <- inferPats pats
-  Qual qs t <- inferExpr (as' ++ as) e
-  return $ Qual (ps ++ qs) (foldr fn t ts)
+  Qual loc' qs t <- inferExpr (as' ++ as) e
+  return $ Qual loc' (ps ++ qs) (foldr (fn' loc') t ts)
 
 inferAlts :: [Assump] -> [Alt] -> Type -> Infer [Pred]
 inferAlts as alts t = do
   psts <- mapM (inferAlt as) alts
-  mapM_ (unify t) (fmap (\(Qual _ x) -> x) psts)
-  return $ concat $ fmap (\(Qual x _) -> x) psts
+  mapM_ (unify t) (fmap (\(Qual _ _ x) -> x) psts)
+  return $ concat $ fmap (\(Qual _ x _) -> x) psts
 
 split :: [Tyvar] -> [Tyvar] -> [Pred] -> Infer ([Pred], [Pred])
 split fs gs ps = do
@@ -139,31 +157,31 @@ split fs gs ps = do
 inferExpl :: [Assump] -> Expl -> Infer [Pred]
 inferExpl as Expl{..} = do
   ce <- getClassEnv
-  Qual qs t <- freshInst expl'type
+  Qual loc qs t <- freshInst expl'type
   ps <- inferAlts as expl'alts t
   s <- getSubst
   let qs' = apply s qs
       t'  = apply s t
       fs  = getVars (apply s as)
       gs  = getVars t' S.\\ fs
-      sc' = quantify (S.toList gs) (Qual qs' t')
+      sc' = quantify (S.toList gs) (Qual loc qs' t')
       ps' = filter (not . entail ce qs') (apply s ps)
   (ds, rs) <- split (S.toList fs) (S.toList gs) ps'
   if expl'type /= sc'
-    then throwError $ TypeError "Signature too general"
+    then throwError $ singleTypeError loc "Signature too general"
     else if not (null rs)
-            then throwError $ TypeError "context too weak"
+            then throwError $ singleTypeError loc "context too weak"
             else return ds
 
 
 restricted :: [Impl] -> Bool
 restricted bs = any simple bs
   where
-    simple Impl{..} = any (null . fst) impl'alts
+    simple Impl{..} = any (null . alt'pats) impl'alts
 
 inferImpl :: [Assump] -> [Impl] -> Infer ([Pred], [Assump])
 inferImpl as bs = do
-  ts <- mapM (const $ newTVar Star) bs
+  ts <- mapM (newTVar . Star . getLoc) bs
   let is    = fmap impl'name bs
       scs   = fmap toScheme ts
       as'   = zipWith (:>:) is scs ++ as
@@ -180,10 +198,10 @@ inferImpl as bs = do
   if restricted bs
     then
       let gs'  = gs S.\\ getVars rs
-          scs' = fmap (quantify (S.toList gs') . Qual []) ts'
+          scs' = fmap (quantify (S.toList gs') . (\t -> Qual (getLoc t) [] t)) ts'
        in return (ds ++ rs, zipWith (:>:) is scs')
     else
-      let scs' = fmap (quantify (S.toList gs) . Qual []) ts'
+      let scs' = fmap (quantify (S.toList gs) . (\t -> Qual (getLoc t) [] t)) ts'
       in  return (ds, zipWith (:>:) is scs')
 
 inferBindGroup :: [Assump] -> BindGroup -> Infer ([Pred], [Assump])

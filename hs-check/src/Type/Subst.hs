@@ -6,6 +6,7 @@ import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Maybe
 
+import Type.Loc
 import Type.Type
 
 import qualified Data.List as L
@@ -25,10 +26,10 @@ compose subst2@(Subst s2) (Subst s1) = Subst $ M.union s1' s2'
     s1' = fmap (apply subst2) s1
     s2' = M.difference s2 s1
 
-merge :: MonadError TypeError m => Subst -> Subst -> m Subst
+merge :: Subst -> Subst -> Maybe Subst
 merge (Subst s1) (Subst s2)
-  | agree     = return $ Subst $ M.union s1 s2
-  | otherwise = throwError $ TypeError "merge fails"
+  | agree     = Just $ Subst $ M.union s1 s2
+  | otherwise = Nothing
   where
     agree = and $ M.intersectionWith (==) s1 s2
 
@@ -42,15 +43,19 @@ class Types t  where
 instance Types Type where
   apply subst@(Subst s) = \case
 
-    TVar u  -> fromMaybe (TVar u) $ M.lookup u s
-    TAp a b -> TAp (rec a) (rec b)
+    TVar loc u  -> fromMaybe (TVar loc u) $ M.lookup u s
+    TAp loc a b -> TAp loc (rec a) (rec b)
+    TFun loc a b -> TFun loc (rec a) (rec b)
+    TTuple loc as -> TTuple loc (fmap rec as)
     t       -> t
     where
       rec = apply subst
 
   getVars = \case
-    TVar u  -> S.singleton u
-    TAp a b -> mappend (getVars a) (getVars b)
+    TVar _ u  -> S.singleton u
+    TAp _ a b -> mappend (getVars a) (getVars b)
+    TFun _ a b -> mappend (getVars a) (getVars b)
+    TTuple _ as -> foldMap getVars as
     _       -> mempty
 
 instance Types a => Types [a] where
@@ -62,16 +67,16 @@ instance (Ord a, Types a) => Types (Set a) where
   getVars = foldMap getVars
 
 instance Types t => Types (Qual t) where
-  apply s (Qual ps t) = Qual (apply s ps) (apply s t)
-  getVars (Qual ps t) = getVars ps <> getVars t
+  apply s (Qual loc ps t) = Qual loc (apply s ps) (apply s t)
+  getVars (Qual _ ps t) = getVars ps <> getVars t
 
 instance Types Pred where
-  apply s (IsIn name t) = IsIn name (apply s t)
-  getVars (IsIn _ t) = getVars t
+  apply s (IsIn loc name t) = IsIn loc name (apply s t)
+  getVars (IsIn _ _ t) = getVars t
 
 instance Types Scheme where
-  apply s (Forall ks qt) = Forall ks $ apply s qt
-  getVars (Forall _ qt) = getVars qt
+  apply s (Forall loc ks qt) = Forall loc ks $ apply s qt
+  getVars (Forall _ _ qt) = getVars qt
 
 instance Types Assump where
   apply s (idx :>: t) = idx :>: apply s t
@@ -79,32 +84,66 @@ instance Types Assump where
 
 mostGeneralUnifier :: MonadError TypeError m => Type -> Type -> m Subst
 mostGeneralUnifier x y = case (x, y) of
-  (TAp a1 b1, TAp a2 b2) -> do
-    s1 <- mostGeneralUnifier a1 a2
-    s2 <- mostGeneralUnifier b1 b2
-    return $ compose s2 s1
-  (TVar u, t) -> varBind u t
-  (t, TVar u) -> varBind u t
-  (TCon c1, TCon c2) | c1 == c2 -> return nullSubst
-  _  -> throwError $ TypeError "Types do not unify"
+  (TAp _ a1 b1, TAp _ a2 b2) -> uniPair (a1, a2) (b1, b2)
+  (TVar _ u, t) -> varBind u t
+  (t, TVar _ u) -> varBind u t
+  (TFun _ a1 b1, TFun _ a2 b2) -> uniPair (a1, a2) (b1, b2)
+  (TTuple _ as, TTuple _ bs) -> uniList as bs
+  (TCon _ c1, TCon _ c2) | c1 == c2 -> return nullSubst
+  _  -> err x
+  where
+    uniPair (a1, a2) (b1, b2) = do
+      s1 <- mostGeneralUnifier a1 a2
+      s2 <- mostGeneralUnifier b1 b2
+      return $ compose s2 s1
+
+    uniList xs ys = case (xs, ys) of
+      ([], []) -> return nullSubst
+      (a:as, b:bs) -> do
+        s1 <- mostGeneralUnifier a b
+        s2 <- uniList as bs
+        return $ compose s2 s1
+      (a:_, []) -> err a
+      ([], b:_) -> err b
+
+    err a = throwError $ singleTypeError (getLoc a) "Types do not unify"
 
 varBind :: MonadError TypeError m => Tyvar -> Type -> m Subst
 varBind u t
-  | t == TVar u             = return $ nullSubst
-  | u `S.member` getVars t  = throwError $ TypeError "occurs check fails"
-  | kind u /= kind t        = throwError $ TypeError "kinds do not match"
+  | t == TVar noLoc u       = return $ nullSubst
+  | u `S.member` getVars t  = throwError $ singleTypeError (getLoc u) "occurs check fails"
+  | kind u /= kind t        = throwError $ singleTypeError (getLoc u) "kinds do not match"
   | otherwise               = return $ singleton u t
 
 
 match :: MonadError TypeError m => Type -> Type -> m Subst
 match x y = case (x, y) of
-  (TAp a1 b1, TAp a2 b2) -> do
-    s1 <- mostGeneralUnifier a1 a2
-    s2 <- mostGeneralUnifier b1 b2
-    merge s2 s1
-  (TVar u, t) | kind u == kind t -> return $ singleton u t
-  (TCon c1, TCon c2) | c1 == c2 -> return nullSubst
-  _  -> throwError $ TypeError "Types do not match"
+  (TAp _ a1 b1, TAp _ a2 b2) -> uniPair (a1, a2) (b1, b2)
+  (TFun _ a1 b1, TFun _ a2 b2) -> uniPair (a1, a2) (b1, b2)
+  (TTuple _ as, TTuple _ bs) -> uniList as bs
+  (TVar _ u, t) | kind u == kind t -> return $ singleton u t
+  (TCon _ c1, TCon _ c2) | c1 == c2 -> return nullSubst
+  _  -> err x
+  where
+    uniPair (a1, a2) (b1, b2) = do
+      s1 <- mostGeneralUnifier a1 a2
+      s2 <- mostGeneralUnifier b1 b2
+      case merge s2 s1 of
+        Just res -> return res
+        Nothing  -> err x
+
+    uniList xs ys = case (xs, ys) of
+      ([], []) -> return nullSubst
+      (a:as, b:bs) -> do
+        s1 <- mostGeneralUnifier a b
+        s2 <- uniList as bs
+        case merge s2 s1 of
+          Just res -> return res
+          Nothing  -> err x
+      (a:_, []) -> err a
+      ([], b:_) -> err b
+
+    err a = throwError $ singleTypeError (getLoc a) "Types do not match"
 
 mostGeneralUnifierPred :: MonadError TypeError m => Pred -> Pred -> m Subst
 mostGeneralUnifierPred = liftPred mostGeneralUnifier
@@ -113,27 +152,24 @@ matchPred :: MonadError TypeError m => Pred -> Pred -> m Subst
 matchPred = liftPred match
 
 liftPred :: MonadError TypeError m => (Type -> Type -> m Subst) -> Pred -> Pred -> m Subst
-liftPred m (IsIn n1 t1) (IsIn n2 t2)
+liftPred m (IsIn loc n1 t1) (IsIn _ n2 t2)
   | n1 == n2   = m t1 t2
-  | otherwise  = throwError $ TypeError "classes differ"
+  | otherwise  = throwError $ singleTypeError loc "classes differ"
 
 
 quantify :: [Tyvar] -> Qual Type -> Scheme
-quantify vs qt = Forall ks (apply s qt)
+quantify vs qt = Forall (getLoc qt) ks (apply s qt)
   where
     vs' = filter (`elem` vs) $ S.toList $ getVars qt
     ks  = map kind vs'
-    s   = Subst $ M.fromList $ zip vs' $ fmap TGen [0..]
+    s   = Subst $ M.fromList $ zip vs' $ fmap (TGen noLoc) [0..]
 
 toScheme :: Type -> Scheme
-toScheme ty = Forall [] (Qual [] ty)
+toScheme ty = Forall (getLoc ty) [] (Qual (getLoc ty) [] ty)
 
 findAssump :: MonadError TypeError m => Id -> [Assump] -> m Scheme
 findAssump idx as =
   maybe err (pure . (\(_ :>: sc) -> sc)) $ L.find (\(idx' :>: _) -> (idx == idx')) as
   where
-    err = throwError $ TypeError $ mconcat ["unbound identifier ", idx]
-
-
-
+    err = throwError $ singleTypeError (getLoc idx) $ mconcat ["unbound identifier ", id'name idx]
 

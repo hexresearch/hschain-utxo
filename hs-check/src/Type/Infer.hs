@@ -5,6 +5,7 @@ import Control.Monad.RWS
 
 import Data.Text (Text)
 
+import Type.Loc
 import Type.Type
 import Type.ClassEnv (ClassEnv)
 import Type.Subst
@@ -42,20 +43,22 @@ newTVar :: Kind -> Infer Type
 newTVar k = do
   n <- fmap inferSt'count get
   bumpCount
-  return $ TVar $ Tyvar (enumId n) k
+  return $ TVar (getLoc k) $ Tyvar (getLoc k) (enumId (getLoc k) n) k
   where
     bumpCount = modify $ \st -> st { inferSt'count = inferSt'count st + 1 }
 
 freshInst :: Scheme -> Infer (Qual Type)
-freshInst (Forall ks qt) = fmap (\ts -> inst ts qt) $ mapM newTVar ks
+freshInst (Forall _ ks qt) = fmap (\ts -> inst ts qt) $ mapM newTVar ks
 
 class Instantiate t where
   inst :: [Type] -> t -> t
 
 instance Instantiate Type where
   inst ts = \case
-    TAp a b -> TAp (rec a) (rec b)
-    TGen n  -> ts !! n
+    TAp loc a b -> TAp loc (rec a) (rec b)
+    TFun loc a b -> TFun loc (rec a) (rec b)
+    TTuple loc as -> TTuple loc (fmap rec as)
+    TGen _ n  -> ts !! n
     t       -> t
     where
       rec = inst ts
@@ -64,10 +67,10 @@ instance Instantiate a => Instantiate [a] where
   inst ts  = fmap (inst ts)
 
 instance Instantiate t => Instantiate (Qual t) where
-  inst ts (Qual ps t) = Qual (inst ts ps) (inst ts t)
+  inst ts (Qual loc ps t) = Qual loc (inst ts ps) (inst ts t)
 
 instance Instantiate Pred where
-  inst ts (IsIn idx t) = IsIn idx (inst ts t)
+  inst ts (IsIn loc idx t) = IsIn loc idx (inst ts t)
 
 
 

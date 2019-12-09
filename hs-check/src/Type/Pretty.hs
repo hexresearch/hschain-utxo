@@ -14,28 +14,33 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
 instance Pretty Scheme where
-  pretty (Forall _ qual) = pretty qual
+  pretty (Forall _ _ qual) = pretty qual
 
 instance Pretty a => Pretty (Qual a) where
-  pretty (Qual ps ty)
+  pretty (Qual _ ps ty)
     | null ps   = pretty ty
     | otherwise = hsep [parens $ hsep $ punctuate comma $ fmap pretty ps, "=>", pretty ty ]
 
 instance Pretty Pred where
-  pretty (IsIn idx ty) = hsep [pretty idx, pretty ty]
+  pretty (IsIn _ idx ty) = hsep [pretty idx, pretty ty]
+
+instance Pretty Id where
+  pretty (Id _ txt) = pretty txt
 
 instance Pretty Type where
   pretty = go initEnv initCtx
     where
       go env ctx = \case
-        TVar (Tyvar name _) -> pretty name
-        TCon (Tycon name _) -> pretty name
-        TAp  f a            -> fromAp f a
-        TGen n -> hsep ["gen", pretty n]
+        TVar _ (Tyvar _ name _) -> pretty name
+        TCon _ (Tycon _ name _) -> pretty name
+        TFun _ a b              -> fromBin "->" a b
+        TTuple _ as             -> parens $ hsep $ punctuate comma $ fmap pretty as
+        TAp  _ f a            -> fromAp f a
+        TGen _ n -> hsep ["gen", pretty n]
         where
           fromAp f a = case f of
-            TAp (TCon (Tycon op _)) b
-              | env `contains` Op op -> fromBin op b a
+            TAp _ (TCon _ (Tycon _ op _)) b
+              | env `contains` Op (id'name op) -> fromBin (id'name op) b a
             _ -> fromUn f a
 
           fromUn f a =  maybeParens (needsParens env ctx OpFunAp) $ hsep
