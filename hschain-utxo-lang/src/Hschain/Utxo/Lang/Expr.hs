@@ -24,8 +24,10 @@ import Text.Show.Deriving
 newtype Expr a = Expr Lang
   deriving (Show, Eq)
 
-data VarName = VarName Loc Text
-  deriving (Show)
+data VarName = VarName
+  { varName'loc   :: Loc
+  , varName'name  :: Text
+  } deriving (Show)
 
 instance IsString VarName where
   fromString = VarName noLoc . fromString
@@ -104,7 +106,7 @@ data E a
   | Tuple Loc (Vector a)
   -- operations
   | UnOpE Loc UnOp a
-  | BinOpE Loc (BinOp ) a a
+  | BinOpE Loc BinOp a a
   -- environment
   | GetEnv Loc (EnvId a)
   -- vectors
