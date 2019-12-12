@@ -1,6 +1,8 @@
 module Hschain.Utxo.Lang.Parser.Hask.FromHask(
     fromHaskExp
   , fromHaskModule
+  , fromHaskDecl
+  , parseBind
 ) where
 
 import Control.Applicative
@@ -17,6 +19,7 @@ import Language.Haskell.Exts.Pretty
 import Type.Loc
 import Type.Type
 
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
@@ -81,15 +84,22 @@ fromHaskModule = \case
   where
     err = ParseFailed (H.fromSrcInfo noLoc) "Failed to parse module"
 
+fromHaskDecl :: H.Decl Loc -> ParseResult [BindGroup Lang]
+fromHaskDecl d = toBindGroup . return =<< toDecl d
+
 fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
 fromDecls loc ds = fmap (Module loc) $ toBindGroup =<< mapM toDecl ds
 
 toDecl :: H.Decl Loc -> ParseResult Decl
-toDecl = \case
+toDecl x = case x of
   H.TypeSig loc names ty -> liftA2 (TypeSig loc) (mapM toName names) (fromQualType ty)
   H.FunBind loc matches  -> fmap (FunDecl loc) $ mapM fromMatch matches
+  H.PatBind loc pat rhs mBinds -> fromPatBind x loc pat rhs mBinds
   other -> parseFailedBy "Unexpeceted declaration" other
   where
+    fromPatBind m loc pat rhs mBinds = liftA2 (\name alt -> FunDecl loc [(name, alt)])
+        (getPatName pat)
+        (liftA2 (toAlt loc []) (fromRhs rhs) (mapM (fromBinds m) mBinds))
 
     fromMatch = \case
       m@(H.Match loc name pats rhs mBinds) -> liftA2 (,) (toName name) (liftA3 (toAlt loc) (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
@@ -105,6 +115,10 @@ toDecl = \case
     fromRhs = \case
       H.UnGuardedRhs _ exp -> fromHaskExp exp
       other                -> parseFailedBy "Failed to parse function" other
+
+    getPatName = \case
+      H.PVar loc name -> toName name
+      other           -> parseFailedBy "Failed to parse synonym name" other
 
 fromBgs :: Lang -> [BindGroup Lang] -> Lang
 fromBgs rhs bgs = foldr (\a res -> Fix $ Let (getLoc a) a res) rhs bgs
@@ -185,4 +199,18 @@ fromLit = \case
   H.PrimDouble loc val _ -> return $ PrimDouble loc (realToFrac val)
   H.PrimString loc val _ -> return $ PrimString loc (fromString val)
   other                  -> parseFailedBy "Failed to parse literal" other
+
+parseBind :: String -> ParseResult (VarName, Lang)
+parseBind = getBind <=< H.parseDecl
+  where
+    getBind x = do
+      decl <- toDecl x
+      case decl of
+        FunDecl _ binds -> case binds of
+          [(var, alt)] -> return (var, altToExpr alt)
+          _            -> err
+        _ -> err
+
+    err = parseFailed noLoc "Failed to parse bind"
+
 

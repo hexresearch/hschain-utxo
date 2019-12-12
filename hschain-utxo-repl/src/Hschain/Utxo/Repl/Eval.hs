@@ -62,12 +62,10 @@ parseExpr :: String -> Either String ParseRes
 parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp input
 
 parseBind :: String -> Either String ParseRes
-parseBind input = fromParseResult $
-  case P.parseExp $ mconcat ["let ", input, " in undefined"] of
-    -- Right (Fix (Let varName expr _)) -> Right $ ParseBind varName expr
-    -- Right (Fix (LetArg varName args expr _)) -> Right $ ParseBind varName (Fix $ LamList (fmap (, Fix UknownType) args) expr)
-    -- Left err -> Left $ fromString err
-    other -> undefined
+parseBind input =
+  case P.parseBind input of
+    P.ParseOk (var, expr) -> Right $ ParseBind var expr
+    P.ParseFailed _ msg   -> Left msg
 
 fromParseResult :: P.ParseResult a -> Either String a
 fromParseResult = \case

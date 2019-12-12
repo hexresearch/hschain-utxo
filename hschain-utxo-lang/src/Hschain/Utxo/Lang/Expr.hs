@@ -64,6 +64,7 @@ data Pat
   -- | PCon Assump [Pat]
 
 data Module = Module Loc [BindGroup Lang]
+  deriving (Show)
 
 data Alt a = Alt
   { alt'pats :: [Pat]

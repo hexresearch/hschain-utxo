@@ -6,6 +6,7 @@ module Hschain.Utxo.Lang.Desugar(
   , explToImpl
   , app2
   , app3
+  , altToExpr
 ) where
 
 import Data.Fix
@@ -46,4 +47,13 @@ app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
 
 app3 :: Lang -> Lang -> Lang -> Lang -> Lang
 app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
+
+altToExpr :: Alt Lang -> Lang
+altToExpr Alt{..} = case alt'pats of
+  []   -> alt'expr
+  pats -> Fix $ LamList (getLoc alt'expr) (fmap toArg pats) $ alt'expr
+  where
+    toArg (PVar _ var) = toVarName var
+
+
 
