@@ -51,6 +51,7 @@ fromHaskExp topExp = case topExp of
       _       -> parseFailedBy "Failed to parse expression" topExp
   H.List loc es -> fmap (Fix . VecE loc . NewVec loc . V.fromList) (mapM rec es)
   H.InfixApp loc a op b -> fromInfixApp loc op a b
+  H.Paren _ exp         -> rec exp
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
@@ -58,26 +59,8 @@ fromHaskExp topExp = case topExp of
     fromLam loc p body = liftA2  (\x y -> Fix $ Lam loc x y) (fromPatToVar p) (rec body)
     fromLamList loc ps body = liftA2  (\x y -> Fix $ LamList loc x y) (mapM fromPatToVar ps) (rec body)
 
-    fromInfixApp loc op a b = do
-      opCons <- parseOp =<< fromOp op
-      liftA2 (\x y -> Fix $ BinOpE loc opCons x y) (rec a) (rec b)
-
-    parseOp x = case varName'name x of
-      "&&"  -> return And
-      "||"  -> return Or
-      "+"   -> return Plus
-      "-"   -> return Minus
-      "*"   -> return Times
-      "/"   -> return Div
-      "=="  -> return Equals
-      "/="  -> return NotEquals
-      "<"   -> return LessThan
-      "<="  -> return LessThanEquals
-      ">"   -> return GreaterThan
-      ">="  -> return GreaterThanEquals
-      "."   -> return ComposeFun
-      other -> parseFailed (varName'loc x) (T.unpack $ mconcat ["Failed to parse infix operator: ", other])
-
+    fromInfixApp loc op a b =
+      liftA3 (\x v y -> Fix $ InfixApply loc x v y) (rec a) (fromOp op) (rec b)
 
     fromOp = \case
       H.QVarOp loc qname -> fromQName qname
@@ -95,7 +78,7 @@ fromDecls loc ds = fmap (Module loc) $ toBindGroup =<< mapM toDecl ds
 
 toDecl :: H.Decl Loc -> ParseResult Decl
 toDecl = \case
-  H.TypeSig loc names ty -> liftA2 (TypeSig loc) (mapM toName names) (fromType ty)
+  H.TypeSig loc names ty -> liftA2 (TypeSig loc) (mapM toName names) (fromQualType ty)
   H.FunBind loc matches  -> fmap (FunDecl loc) $ mapM fromMatch matches
   other -> parseFailedBy "Unexpeceted declaration" other
   where
@@ -132,17 +115,45 @@ fromPatToVar = \case
 toName' :: H.Name Loc -> ParseResult Id
 toName' = \case
   H.Ident  loc name -> return $ Id loc (fromString name)
-  other             -> parseFailedBy "Symbol names are not allowed" other
+  H.Symbol loc name -> return $ Id loc (fromString name)
 
 toName :: H.Name Loc -> ParseResult VarName
 toName = \case
   H.Ident  loc name -> return $ VarName loc (fromString name)
-  other             -> parseFailedBy "Symbol names are not allowed" other
+  H.Symbol loc name -> return $ VarName loc (fromString name)
 
 fromQName :: H.QName Loc -> ParseResult VarName
 fromQName = \case
   H.UnQual loc name -> toName name
   other             -> parseFailedBy "Unexpected name" other
+
+fromQName' :: H.QName Loc -> ParseResult Id
+fromQName' = \case
+  H.UnQual loc name -> toName' name
+  other             -> parseFailedBy "Unexpected name" other
+
+fromQualType :: H.Type Loc -> ParseResult (Qual Type)
+fromQualType = \case
+  H.TyForall loc Nothing mContext ty -> liftA2 (Qual loc) (fromContext mContext) (fromType ty)
+  ty -> fmap (Qual (H.ann ty) []) $ fromType ty
+
+fromContext :: Maybe (H.Context Loc) -> ParseResult [Pred]
+fromContext = maybe (pure []) (mapM extract . getAssts)
+  where
+    extract x = case x of
+      H.ClassA loc qname ts -> case ts of
+        [t] -> liftA2 (IsIn (H.ann t)) (fromQName' qname) (fromType t)
+        _   -> err
+      _                     -> err
+      where
+        err = parseFailedBy "Failed to parse context" x
+
+
+    getAssts = \case
+      H.CxSingle _ asst -> [asst]
+      H.CxTuple _ assts -> assts
+      _                 -> []
+
 
 fromType :: H.Type Loc -> ParseResult Type
 fromType = \case

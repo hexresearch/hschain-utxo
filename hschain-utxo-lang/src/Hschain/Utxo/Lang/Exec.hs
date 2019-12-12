@@ -125,6 +125,7 @@ execLang' (Fix x) = case x of
     UnOpE loc uo x -> fromUnOp loc uo x
     BinOpE loc bi a b -> fromBiOp loc bi a b
     Apply loc a b -> fromApply loc a b
+    InfixApply loc a v b -> fromInfixApply loc a v b
     Lam loc varName b -> fromLam loc varName b
     LamList loc vars a -> fromLamList loc vars a
     Let loc varName a -> fromLet loc varName a
@@ -329,6 +330,8 @@ execLang' (Fix x) = case x of
         PrimE loc1 (PrimString loc2 pkey) -> prim loc1 . PrimBool loc2 =<< fmap (checkPubKey pkey) getProof
         _                                 -> thisShouldNotHappen x
 
+    fromInfixApply loc a v b = rec $ unfoldInfixApply loc a v b
+
     fromApply loc fun arg = case fun of
       Fix (Apply _ (Fix (VecE _ (VecMap _))) f) -> do
         Fix f' <- rec f
@@ -377,6 +380,8 @@ execLang' (Fix x) = case x of
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix $ Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a') arg'
           other              -> Exec $ lift $ Left $ AppliedNonFunction $ Fix other
+
+
 
     fromLet loc bg expr = execDefs defs expr
       where
@@ -525,6 +530,7 @@ execLang' (Fix x) = case x of
       UnOpE loc uo lc                          -> Fix $ UnOpE loc uo $ rec lc
       BinOpE loc bo a b                        -> Fix $ BinOpE loc bo (rec a) (rec b)
       Apply loc a b                            -> Fix $ Apply loc (rec a) (rec b)
+      InfixApply loc a v b                     -> Fix $ InfixApply loc (rec a) v (rec b)
       e@(Lam loc v1 body1)     | v1 == varName -> Fix $ e
                                | otherwise     -> Fix $ Lam loc v1 (rec body1)
       If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)

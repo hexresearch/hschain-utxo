@@ -30,6 +30,7 @@ toHaskExp :: Lang -> H.Exp Loc
 toHaskExp (Fix expr) = case expr of
   Var loc name -> toVar loc name
   Apply loc a b -> H.App loc (rec a) (rec b)
+  InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (getLoc v) $ toSymbolQName' v) (rec b)
   Lam loc name a -> H.Lambda loc [H.PVar (getLoc name) $ toIdentName' name] (rec a)
   LamList loc vs a -> H.Lambda loc (fmap (\v -> H.PVar (getLoc v) $ toIdentName' v) vs) (rec a)
   Let loc bg a -> undefined
@@ -189,6 +190,13 @@ toIdentName Id{..} = H.Ident id'loc (T.unpack id'name)
 toIdentName' :: VarName -> H.Name Loc
 toIdentName' (VarName loc name) = H.Ident loc (T.unpack name)
 
+toSymbolName :: Id -> H.Name Loc
+toSymbolName Id{..} = H.Symbol id'loc (T.unpack id'name)
+
+toSymbolName' :: VarName -> H.Name Loc
+toSymbolName' (VarName loc name) = H.Symbol loc (T.unpack name)
+
+
 toType :: Scheme -> H.Type Loc
 toType (Forall loc _ (Qual _ ps ty)) = case ps of
   [] -> noPreds ty
@@ -218,5 +226,12 @@ toQName x = H.UnQual (getLoc x) $ toIdentName x
 
 toQName' :: VarName -> H.QName Loc
 toQName' x@(VarName loc _) = H.UnQual loc $ toIdentName' x
+
+toSymbolQName :: Id -> H.QName Loc
+toSymbolQName x = H.UnQual (getLoc x) $ toSymbolName x
+
+toSymbolQName' :: VarName -> H.QName Loc
+toSymbolQName' x@(VarName loc _) = H.UnQual loc $ toSymbolName' x
+
 
 

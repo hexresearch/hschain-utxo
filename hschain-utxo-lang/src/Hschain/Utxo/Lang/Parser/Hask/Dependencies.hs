@@ -17,31 +17,33 @@ import Data.Text (Text)
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
 
+import Type.Loc
 import Type.Type
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Utils
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.List as L
 import qualified Data.Vector as V
 
 
-type TypeMap  = Map VarName Scheme
+type TypeMap  = Map VarName (Qual Type)
 type FunMap   = Map VarName (Alt Lang)
 type Deps     = Map VarName [VarName]
 type FunOrder = [VarName]
 
 data Decl
   = FunDecl Loc [(VarName, Alt Lang)]
-  | TypeSig Loc [VarName] Scheme
+  | TypeSig Loc [VarName] (Qual Type)
 
 toBindGroup :: [Decl] -> ParseResult [BindGroup Lang]
 toBindGroup ds = do
   typeMap  <- getTypeMap ds
   funMap   <- getFunMap ds
-  funOrder <- orderDeps funMap typeMap (getDeps funMap)
+  funOrder <- orderDeps (getDeps funMap)
   renderToBinds funMap typeMap funOrder
 
 getTypeMap :: [Decl] -> ParseResult TypeMap
@@ -97,8 +99,32 @@ getDeps = fmap (freeVars . alt'expr)
     freeVarsBg = fold
 
 
-orderDeps :: FunMap -> TypeMap -> Deps -> ParseResult FunOrder
-orderDeps = undefined
+orderDeps :: Deps -> ParseResult FunOrder
+orderDeps deps
+  | null noDeps = if null deps
+                    then return []
+                    else recursiveFail
+  | otherwise   = do
+      next <- orderDeps (removeDeps withDeps)
+      return $ mconcat [noDepKeys, next]
+  where
+    (noDeps, withDeps) = Map.partition null deps
+    noDepKeys = Map.keys noDeps
+
+    removeDeps = fmap (filter (not . flip Set.member blackList))
+      where
+        blackList = Set.fromList noDepKeys
+
+    recursiveFail
+      | not $ null noDef = let var = head noDef
+                           in  parseFailed (getLoc var) $ Text.unpack $ mconcat ["No defenition for variable: ", varName'name var]
+      | otherwise        = parseFailed noLoc "Recursive definitions not allowed" -- todo: find cycles here
+                                                                                 --       to say wich vars are recursive
+      where
+        rhs = fold deps
+        lhs = Map.keys deps
+
+        noDef = Set.toList $ Set.difference (Set.fromList lhs) (Set.fromList rhs)
 
 renderToBinds :: FunMap -> TypeMap -> FunOrder -> ParseResult [BindGroup Lang]
 renderToBinds funs tys names = mapM toGroup names
@@ -107,14 +133,10 @@ renderToBinds funs tys names = mapM toGroup names
       Nothing  -> parseFailedVar "Undefined variable" name
       Just f   -> return $ case Map.lookup name tys of
                     Nothing  -> implGroup name f
-                    Just ty  -> explGroup name f ty
+                    Just ty  -> explGroup name f $ Forall (getLoc ty) [] ty
 
 
     implGroup name f = BindGroup [] [[Impl (fromVarName name) [f]]]
 
     explGroup name f ty = BindGroup [Expl (fromVarName name) ty [f]] []
-
-
-
-
 

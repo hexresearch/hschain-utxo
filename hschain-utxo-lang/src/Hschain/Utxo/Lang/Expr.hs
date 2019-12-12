@@ -92,6 +92,7 @@ data E a
   -- lambda calculus
   = Var Loc VarName
   | Apply Loc a a
+  | InfixApply Loc a VarName a
   | Lam Loc VarName a
   | LamList Loc [VarName] a
   | Let Loc (BindGroup a) a

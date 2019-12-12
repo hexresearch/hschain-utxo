@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Desugar(
     unfoldLamList
   , unfoldLetArg
+  , unfoldInfixApply
   , singleLet
   , explToImpl
 ) where
@@ -29,4 +30,7 @@ singleLet loc v body expr = Fix $ Let loc bg expr
 
 explToImpl :: Expl a -> Impl a
 explToImpl Expl{..} = Impl expl'name expl'alts
+
+unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
+unfoldInfixApply loc a v b = Fix $ Apply loc (Fix (Apply loc (Fix $ Var loc v) a)) b
 

@@ -38,6 +38,7 @@ inferExpr :: [Assump] -> Lang -> Infer (Qual Type)
 inferExpr as (Fix x) = case x of
   Var loc varName        -> fromVar loc as varName
   Apply loc a b          -> fromApply loc as a b
+  InfixApply loc a v b   -> inferExpr as $ unfoldInfixApply loc a v b
   Lam loc varName a      -> fromLam loc as varName a
   LamList loc vars a     -> fromLamList loc as vars a
   Let loc varName a      -> fromLet loc as varName a
