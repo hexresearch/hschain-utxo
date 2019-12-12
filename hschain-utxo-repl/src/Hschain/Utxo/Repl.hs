@@ -38,11 +38,9 @@ evalInput = \case
 
 parseInput :: String -> Either String ParseRes
 parseInput input =
-      strLeft (parseCmd input)
-  <|> strLeft (parseExpr input)
-  <|> strLeft (parseBind input)
-  where
-      strLeft = either (Left . T.unpack) Right
+      parseCmd input
+  <|> parseExpr input
+  <|> parseBind input
 
 -- Tab Completion: return a completion for partial words entered
 completer :: WordCompleter ReplM

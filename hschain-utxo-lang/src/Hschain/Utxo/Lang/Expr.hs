@@ -75,6 +75,7 @@ data BindGroup a = BindGroup
   , bindGroup'impl :: [[Impl a]]
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
+
 data Expl a = Expl
   { expl'name  :: Id
   , expl'type  :: Scheme

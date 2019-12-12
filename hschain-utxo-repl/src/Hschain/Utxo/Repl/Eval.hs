@@ -17,6 +17,8 @@ import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Lib.Base
 
+import Type.Type
+
 import System.Console.Repline
 import System.Console.Haskeline.MonadException
 import System.Process
@@ -30,7 +32,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
-import qualified Hschain.Utxo.Lang.Parser.Parser as P
+import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
 
 evalExpr :: Lang -> Repl ()
@@ -45,26 +47,34 @@ evalExpr lang = do
     Left err   -> T.putStrLn $ renderText err
 
 evalBind :: VarName -> Lang -> Repl ()
-evalBind varName lang = do
+evalBind var lang = do
   closure <- fmap replEnv'closure get
   tx      <- fmap replEnv'tx get
   let res = runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
   case res of
     Right (expr, _) -> do
-      modify' $ \st -> st { replEnv'closure = (\next -> singleLet varName expr next) . closure
-                          , replEnv'words   = varName : replEnv'words st }
+      modify' $ \st -> st { replEnv'closure = (\next -> singleLet noLoc var expr next) . closure
+                          , replEnv'words   = varName'name var : replEnv'words st }
       return ()
     Left err   -> liftIO $ T.putStrLn $ renderText err
 
-parseExpr :: String -> Either Text ParseRes
-parseExpr input = either (Left . fromString) (Right . ParseExpr) $ P.parseExpr input
+parseExpr :: String -> Either String ParseRes
+parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp input
 
-parseBind :: String -> Either Text ParseRes
-parseBind input =
-  case P.parseExpr $ mconcat ["let ", input, " in undefined"] of
+parseBind :: String -> Either String ParseRes
+parseBind input = fromParseResult $
+  case P.parseExp $ mconcat ["let ", input, " in undefined"] of
     -- Right (Fix (Let varName expr _)) -> Right $ ParseBind varName expr
     -- Right (Fix (LetArg varName args expr _)) -> Right $ ParseBind varName (Fix $ LamList (fmap (, Fix UknownType) args) expr)
-    Left err -> Left $ fromString err
+    -- Left err -> Left $ fromString err
+    other -> undefined
+
+fromParseResult :: P.ParseResult a -> Either String a
+fromParseResult = \case
+  P.ParseOk a           -> Right a
+  P.ParseFailed loc err -> Left $ toError loc err
+  where
+    toError _ msg = msg
 
 
 

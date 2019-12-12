@@ -21,6 +21,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
 import Type.Type
@@ -29,8 +30,9 @@ import Type.Pretty
 renderText :: Pretty a => a -> Text
 renderText = renderStrict . layoutPretty defaultLayoutOptions . pretty
 
+
 instance Pretty Lang where
-  pretty = cata prettyE
+  pretty = pretty . P.prettyExp
 
 instance Pretty BoxId where
   pretty (BoxId txt) = pretty txt

@@ -52,9 +52,17 @@ fromHaskExp topExp = case topExp of
   H.List loc es -> fmap (Fix . VecE loc . NewVec loc . V.fromList) (mapM rec es)
   H.InfixApp loc a op b -> fromInfixApp loc op a b
   H.Paren _ exp         -> rec exp
+  H.LeftSection loc a op  -> rec $ unfoldLeftSection loc a op
+  H.RightSection loc op a -> rec $ unfoldRightSection loc op a
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
+
+    unfoldLeftSection loc a op = H.Lambda loc [H.PVar loc x] (H.InfixApp loc a op (H.Var loc $ H.UnQual loc x))
+      where x = H.Ident loc "x"
+
+    unfoldRightSection loc op a = H.Lambda loc [H.PVar loc x] (H.InfixApp loc (H.Var loc $ H.UnQual loc x) op a)
+      where x = H.Ident loc "x"
 
     fromLam loc p body = liftA2  (\x y -> Fix $ Lam loc x y) (fromPatToVar p) (rec body)
     fromLamList loc ps body = liftA2  (\x y -> Fix $ LamList loc x y) (mapM fromPatToVar ps) (rec body)

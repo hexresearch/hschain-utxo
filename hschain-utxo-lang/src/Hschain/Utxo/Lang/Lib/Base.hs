@@ -40,6 +40,16 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , showDouble
   , showMoney
   , showBool
+  , plus
+  , times
+  , minus
+  , division
+  , appendText
+  , appendVec
+  , mapVec
+  , foldVec
+  , pk
+  , atVec
   ]
 
 baseNames :: [Text]
@@ -69,6 +79,17 @@ baseNames =
   , "showDouble"
   , "showMoney"
   , "showBool"
+  , "+"
+  , "*"
+  , "-"
+  , "/"
+  , "<>"
+  , "++"
+  , "map"
+  , "fold"
+  , "length"
+  , "pk"
+  , "!!"
   ]
 
 all :: Lang -> Lang
@@ -158,6 +179,44 @@ showMoney = letIn "showMoney" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ Te
 lengthText :: Lang -> Lang
 lengthText = letIn "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))
 
+plus :: Lang -> Lang
+plus = letIn "+" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Plus x y)
+
+times :: Lang -> Lang
+times = letIn "*" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Times x y)
+
+minus :: Lang -> Lang
+minus = letIn "-" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Minus x y)
+
+division :: Lang -> Lang
+division = letIn "/" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Div x y)
+
+mapVec :: Lang -> Lang
+mapVec = letIn "map" (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
+
+foldVec :: Lang -> Lang
+foldVec = letIn "fold" (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) f x y)
+
+appendVec :: Lang -> Lang
+appendVec = letIn "++" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)
+
+appendText :: Lang -> Lang
+appendText = letIn "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
+
+atVec :: Lang -> Lang
+atVec = letIn "!!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
+
+pk :: Lang -> Lang
+pk = letIn "pk" (Fix $ Lam noLoc "x" $ Fix $ Pk noLoc x)
+
+f, x, y :: Lang
+
+f = Fix $ Var noLoc "f"
+x = Fix $ Var noLoc "x"
+y = Fix $ Var noLoc "y"
+
 letIn :: Text -> Lang -> Lang -> Lang
 letIn var body x = singleLet noLoc (VarName noLoc var) body x
+
+
 

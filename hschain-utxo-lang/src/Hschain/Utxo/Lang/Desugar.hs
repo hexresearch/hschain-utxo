@@ -4,10 +4,13 @@ module Hschain.Utxo.Lang.Desugar(
   , unfoldInfixApply
   , singleLet
   , explToImpl
+  , app2
+  , app3
 ) where
 
 import Data.Fix
 
+import Type.Loc
 import Type.Type
 import Hschain.Utxo.Lang.Expr
 
@@ -32,5 +35,15 @@ explToImpl :: Expl a -> Impl a
 explToImpl Expl{..} = Impl expl'name expl'alts
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
-unfoldInfixApply loc a v b = Fix $ Apply loc (Fix (Apply loc (Fix $ Var loc v) a)) b
+unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
+-- Fix $ Apply loc (Fix (Apply loc (Fix $ Var loc v) a)) b
+
+moduleToMainExpr :: Module -> Lang
+moduleToMainExpr = undefined
+
+app2 :: Lang -> Lang -> Lang -> Lang
+app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
+
+app3 :: Lang -> Lang -> Lang -> Lang -> Lang
+app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 

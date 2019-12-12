@@ -530,7 +530,8 @@ execLang' (Fix x) = case x of
       UnOpE loc uo lc                          -> Fix $ UnOpE loc uo $ rec lc
       BinOpE loc bo a b                        -> Fix $ BinOpE loc bo (rec a) (rec b)
       Apply loc a b                            -> Fix $ Apply loc (rec a) (rec b)
-      InfixApply loc a v b                     -> Fix $ InfixApply loc (rec a) v (rec b)
+      InfixApply loc a v b     | v == varName  -> subInfix loc sub a b
+      InfixApply loc a v b     | otherwise     -> Fix $ InfixApply loc (rec a) v (rec b)
       e@(Lam loc v1 body1)     | v1 == varName -> Fix $ e
                                | otherwise     -> Fix $ Lam loc v1 (rec body1)
       If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
@@ -548,6 +549,8 @@ execLang' (Fix x) = case x of
       LamList loc vs a                         -> rec $ unfoldLamList loc vs a
       Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
       where
+        subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
+
         rec x = subst x varName sub
 
         substBindGroup BindGroup{..} = BindGroup
@@ -625,9 +628,6 @@ txPreservesValue tx@TxArg{..}
   | otherwise       = toSum txArg'inputs == toSum txArg'outputs
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
-
-app2 :: Lang -> Lang -> Fix E -> Lang
-app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
 
 
 {-
