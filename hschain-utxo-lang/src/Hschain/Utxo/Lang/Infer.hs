@@ -437,3 +437,37 @@ inferPat = \case
     return (ps, [], t)
   -}
 
+-------------------------------------------
+--
+
+runInferExpr :: [Assump] -> Lang -> Either TypeError (Qual Type)
+runInferExpr as expr = do
+  ce <- defaultClassEnv
+  runInfer (inferExpr as expr) ce
+
+defaultClassEnv :: Either TypeError ClassEnv
+defaultClassEnv = addCoreClasses initialEnv
+
+addCoreClasses :: EnvTransformer
+addCoreClasses =
+      addClass "Eq" [] eqInsts
+  <:> addClass "Ord" ["Eq"] ordInsts
+  <:> addClass "Show" [] showInsts
+  <:> addClass "Num" [] numInsts
+  where
+    eqInsts = instBy eq
+      where eq = qual "Eq"
+
+    ordInsts = instBy ord
+      where ord = qual "Ord"
+
+    instBy f = fmap f [boolT, textT, intT, doubleT, moneyT]
+
+    numInsts = fmap num [intT, doubleT, moneyT]
+      where num = qual "Num"
+
+    showInsts = fmap sh [intT, doubleT, moneyT, textT, boolT]
+      where sh = qual "Show"
+
+    qual idx ty = Qual noLoc [] (IsIn noLoc idx ty)
+

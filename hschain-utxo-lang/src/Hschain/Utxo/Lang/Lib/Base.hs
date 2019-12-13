@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Lib.Base(
     importBase
   , baseNames
+  , baseTypeAssump
 ) where
 
 import qualified Prelude as P
@@ -8,9 +9,10 @@ import Prelude (($))
 import Data.Text (Text)
 
 import Type.Type
-import Data.Fix
+import Data.Fix hiding ((~>))
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Infer
 
 -- | Prelude functions
 importBase :: Lang -> Lang
@@ -50,6 +52,9 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , foldVec
   , pk
   , atVec
+  , andB
+  , orB
+  , notB
   ]
 
 baseNames :: [Text]
@@ -90,7 +95,54 @@ baseNames =
   , "length"
   , "pk"
   , "!!"
+  , "&&"
+  , "||"
+  , "not"
   ]
+
+baseTypeAssump :: [Assump]
+baseTypeAssump =
+  [ assumpType  "all" (vectorT boolT ~> boolT)
+  , assumpType  "any" (vectorT boolT ~> boolT)
+  , assumpType' "sum"      "Num" aT (vectorT aT ~> aT)
+  , assumpType' "product"  "Num" aT (vectorT aT ~> aT)
+  , assumpType  "id"  ((bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
+  , assumpType "const" (aT ~> bT ~> aT)
+  , assumpType "getHeight" intT
+  , assumpType "getSelf" boxT
+  , assumpType "getOutput" (intT ~> boxT)
+  , assumpType "getInput"  (intT ~> boxT)
+  , assumpType "getOutputs" (vectorT boxT)
+  , assumpType "getInputs" (vectorT boxT)
+  , assumpType "getBoxId" (boxT ~> textT)
+  , assumpType "getBoxValue" (boxT ~> moneyT)
+  , assumpType "getBoxScript" (boxT ~> scriptT)
+  , assumpType "getBoxArg" (boxT ~> textT ~> aT)
+  , assumpType "sha256" (textT ~> textT)
+  , assumpType "blake2b256" (textT ~> textT)
+  , assumpType "getVar" (textT ~> aT)
+  , assumpType "trace" (textT ~> aT ~> aT)
+  , assumpType "lengthText" (textT ~> intT)
+  , assumpType "showInt" (intT ~> textT)
+  , assumpType "showDouble" (doubleT ~> textT)
+  , assumpType "showMoney" (moneyT ~> textT)
+  , assumpType "showBool" (boolT ~> textT)
+  , assumpType "&&" (boolT ~> boolT ~> boolT)
+  , assumpType "||" (boolT ~> boolT ~> boolT)
+  , assumpType "not" (boolT ~> boolT)
+  , assumpType' "+" "Num" aT (aT ~> aT ~> aT)
+  , assumpType' "-" "Num" aT (aT ~> aT ~> aT)
+  , assumpType' "*" "Num" aT (aT ~> aT ~> aT)
+  , assumpType' "/" "Num" aT (aT ~> aT ~> aT)
+  , assumpType "++" (vectorT aT ~> vectorT aT ~> vectorT aT)
+  , assumpType "<>" (textT ~> textT ~> textT)
+  , assumpType "map" ((aT ~> bT) ~> vectorT aT ~> vectorT bT)
+  , assumpType "fold" ((aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
+  , assumpType "length" (vectorT aT ~> intT)
+  , assumpType "pk" (textT ~> textT)
+  , assumpType "!!" (vectorT aT ~> intT ~> aT)
+  ]
+
 
 all :: Lang -> Lang
 all = letIn "all" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
@@ -179,17 +231,29 @@ showMoney = letIn "showMoney" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ Te
 lengthText :: Lang -> Lang
 lengthText = letIn "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))
 
+biOp name op = letIn name (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc op x y)
+unOp name op = letIn name (Fix $ Lam noLoc "x" $ Fix $ UnOpE noLoc op x)
+
+andB :: Lang -> Lang
+andB = biOp "&&" And
+
+orB :: Lang -> Lang
+orB = biOp "||" Or
+
+notB :: Lang -> Lang
+notB = unOp "not" Not
+
 plus :: Lang -> Lang
-plus = letIn "+" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Plus x y)
+plus = biOp "+" Plus
 
 times :: Lang -> Lang
-times = letIn "*" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Times x y)
+times = biOp "*" Times
 
 minus :: Lang -> Lang
-minus = letIn "-" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Minus x y)
+minus = biOp "-" Minus
 
 division :: Lang -> Lang
-division = letIn "/" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Div x y)
+division = biOp "/" Div
 
 mapVec :: Lang -> Lang
 mapVec = letIn "map" (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
@@ -215,8 +279,19 @@ f = Fix $ Var noLoc "f"
 x = Fix $ Var noLoc "x"
 y = Fix $ Var noLoc "y"
 
+aT, bT, cT :: Type
+fT :: Type -> Type
+
+aT = var "a"
+bT = var "b"
+cT = var "c"
+fT ty = TAp noLoc (TVar noLoc (Tyvar noLoc "f" (Kfun noLoc (Star noLoc) (Star noLoc)))) ty
+
 letIn :: Text -> Lang -> Lang -> Lang
 letIn var body x = singleLet noLoc (VarName noLoc var) body x
 
+assumpType :: Id -> Type -> Assump
+assumpType idx ty = idx :>: (Forall noLoc [Star noLoc] $ Qual noLoc [] ty)
 
-
+assumpType' :: Id -> Id -> Type -> Type -> Assump
+assumpType' idx cls var ty = idx :>: (Forall noLoc [Star noLoc] $ Qual noLoc [IsIn noLoc cls var] ty)

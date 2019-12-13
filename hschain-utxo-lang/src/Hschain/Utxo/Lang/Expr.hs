@@ -203,12 +203,13 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-boolT, boxT, scriptT, textT :: Type
+boolT, boxT, scriptT, textT, moneyT :: Type
 
 boolT = boolT' noLoc
 boxT  = boxT' noLoc
 scriptT = scriptT' noLoc
 textT = textT' noLoc
+moneyT = moneyT' noLoc
 
 boxT' :: Loc -> Type
 boxT' loc = TCon loc (Tycon loc (Id loc "Box") (Star loc))

@@ -7,6 +7,9 @@ module Type.ClassEnv(
   , defaultSubst
   , defaultedPreds
   , entail
+  , EnvTransformer
+  , addClass
+  , (<:>)
 ) where
 
 import Control.Applicative
@@ -50,10 +53,7 @@ modify ce i c = ce { classEnv'classes = \j ->
 
 initialEnv :: ClassEnv
 initialEnv = ClassEnv
-  { classEnv'classes  = \idx ->
-      if idx == "Num"
-        then Right numClass
-        else Left $ singleTypeError (getLoc idx) "Class not defined"
+  { classEnv'classes  = \idx -> Left $ singleTypeError (getLoc idx) "Class not defined"
   , classEnv'defaults = [integerT, doubleT]
   }
 
@@ -65,26 +65,26 @@ type EnvTransformer = ClassEnv -> Either TypeError ClassEnv
 defined :: Either TypeError a -> Bool
 defined = isRight
 
-addClass :: Id -> [Id] -> EnvTransformer
-addClass idx idxs ce
+addClass :: Id -> [Id] -> [Inst] -> EnvTransformer
+addClass idx idxs insts ce
   | defined (classEnv'classes ce idx)               = Left $ singleTypeError (getLoc idx) "class already defined"
   | any (not . defined . classEnv'classes ce) idxs  = Left $ singleTypeError (getLoc idx) "superclass not defined"
-  | otherwise                                       = return $ (modify ce idx (Class idxs []))
+  | otherwise                                       = return $ (modify ce idx (Class idxs insts))
 
 addPreludeClasses :: EnvTransformer
 addPreludeClasses = addCoreClasses <:> addNumClasses
 
 addCoreClasses :: EnvTransformer
 addCoreClasses = classes ["Eq", "Show", "Read", "Enum", "Bounded", "Functor", "Monad"]
-  <:> addClass "Ord" ["Eq"]
+  <:> addClass "Ord" ["Eq"] []
   where
-    classes xs = foldl1 (<:>) (fmap (\x -> addClass x []) xs)
+    classes xs = foldl1 (<:>) (fmap (\x -> addClass x [] []) xs)
 
 addNumClasses :: EnvTransformer
 addNumClasses =
-      addClass "Num" ["Eq", "Show"]
-  <:> addClass "Real" ["Num", "Ord"]
-  <:> addClass "Fractional" ["Num"]
+      addClass "Num" ["Eq", "Show"] []
+  <:> addClass "Real" ["Num", "Ord"] []
+  <:> addClass "Fractional" ["Num"] []
 
 addInst :: [Pred] -> Pred -> EnvTransformer
 addInst ps p@(IsIn loc idx _) ce
