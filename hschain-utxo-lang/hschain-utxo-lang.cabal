@@ -19,11 +19,16 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
+      Hschain.Utxo.Lang.Desugar
       Hschain.Utxo.Lang.Exec
       Hschain.Utxo.Lang.Expr
+      Hschain.Utxo.Lang.Infer
       Hschain.Utxo.Lang.Lib.Base
-      Hschain.Utxo.Lang.Parser.Parser
-      Hschain.Utxo.Lang.Parser.Lexer
+      Hschain.Utxo.Lang.Parser.Hask
+      Hschain.Utxo.Lang.Parser.Hask.Dependencies
+      Hschain.Utxo.Lang.Parser.Hask.FromHask
+      Hschain.Utxo.Lang.Parser.Hask.ToHask
+      Hschain.Utxo.Lang.Parser.Hask.Utils
       Hschain.Utxo.Lang.Pretty
       Hschain.Utxo.Lang.Sigma
       Hschain.Utxo.Lang.Types
@@ -38,7 +43,9 @@ library
                      , cryptonite
                      , data-fix
                      , deriving-compat
+                     , haskell-src-exts
                      , hex-common
+                     , hs-check
                      , mtl
                      , safe
                      , prettyprinter

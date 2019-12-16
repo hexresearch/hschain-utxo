@@ -3,6 +3,8 @@ module Hschain.Utxo.Lang.Pretty(
   , prettyRecord
 ) where
 
+import Hex.Common.Control
+
 import Data.Fix
 import Data.Functor.Compose
 import Data.Text (Text)
@@ -19,13 +21,18 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
+
+import Type.Type
+import Type.Pretty
 
 renderText :: Pretty a => a -> Text
 renderText = renderStrict . layoutPretty defaultLayoutOptions . pretty
 
+
 instance Pretty Lang where
-  pretty = cata prettyE
+  pretty = pretty . P.prettyExp
 
 instance Pretty BoxId where
   pretty (BoxId txt) = pretty txt
@@ -95,84 +102,100 @@ fun3 name a b c = parens $ hsep [name, a, b, c]
 instance Pretty (Expr a) where
   pretty (Expr a) = cata prettyE a
 
+instance Pretty VarName where
+  pretty (VarName _ txt) = pretty txt
+
 prettyE :: E (Doc ann) -> Doc ann
 prettyE = \case
-  Var varName     -> pretty varName
-  Apply a b       -> hsep [parens a, parens b]
-  Lam name ty a   -> hsep [hcat ["\\", pretty name, ":", pretty ty], "->", a]
-  LamList names a -> hsep [hcat ["\\", hsep $ fmap (\(var, ty) -> parens $ hsep [pretty var, ":", pretty ty]) names], "->", a]
-  Let name a b    -> vcat [ hsep ["let", pretty name,  "=", a]
-                          , b ]
-  LetArg name args a b -> vcat [ hsep ["let", pretty name, hsep $ fmap pretty [args], "=", a]
-                               , b ]
-  LetRec name ty a b -> vcat [ hsep ["let rec", pretty name, ":", pretty ty, "=", a]
-                          , b ]
-  Ascr a ty       -> parens $ hsep [a, ":", pretty ty]
+  Var _ varName     -> pretty varName
+  Apply _ a b       -> hsep [parens a, parens b]
+  Lam _ name a      -> hsep [hcat ["\\", pretty name], "->", a]
+  LamList _ names a -> hsep [hcat ["\\", hsep $ fmap (\var -> parens $ hsep [pretty var]) names], "->", a]
+  Let _ bg a        -> vcat [ hsep ["let", indent 4 $ prettyBinds bg ]
+                            , hsep ["in  ", a ]
+                            ]
+  LetRec _ name a b -> vcat [ hsep ["let rec", pretty name, "=", a]
+                            , b ]
+  Ascr _ a ty       -> parens $ hsep [a, ":", pretty ty]
   -- primitives
-  PrimE   p       -> pretty p
+  PrimE _   p       -> pretty p
   -- logic
-  If cond t e     -> vcat [ hsep ["if", cond]
-                          , indent 2 $ vcat [ hsep ["then", t]
-                                            , hsep ["else", e]
-                                            ]
-                          ]
-  Pk a            -> op1 "pk" a
+  If _ cond t e     -> vcat [ hsep ["if", cond]
+                            , indent 2 $ vcat [ hsep ["then", t]
+                                              , hsep ["else", e]
+                                              ]
+                            ]
+  Pk _ a            -> op1 "pk" a
   -- tuples
-  Tuple as        -> parens $ hsep $ punctuate comma $ V.toList as
+  Tuple _ as        -> parens $ hsep $ punctuate comma $ V.toList as
   -- operations
-  UnOpE uo a      -> op1 (pretty uo) a
-  BinOpE bo a b   -> op2 (pretty bo) a b
+  UnOpE _ uo a      -> op1 (pretty uo) a
+  BinOpE _ bo a b   -> op2 (pretty bo) a b
   -- environment
-  GetEnv idx      -> prettyId idx
+  GetEnv _ idx      -> prettyId idx
   -- vectors
-  VecE v          -> prettyVecExpr v
+  VecE _ v          -> prettyVecExpr v
   -- text
-  TextE txt       -> prettyTextExpr txt
+  TextE _ txt       -> prettyTextExpr txt
   -- boxes
-  BoxE box        -> prettyBoxExpr box
+  BoxE _ box        -> prettyBoxExpr box
   -- undef
-  Undef           -> undefined
+  Undef _           -> "undefined"
   -- debug
-  Trace a b       -> parens $ hsep ["trace", a, b]
+  Trace _ a b       -> parens $ hsep ["trace", a, b]
+
+prettyBinds :: BindGroup (Doc ann) -> Doc ann
+prettyBinds BindGroup{..} = vcat
+  [ vcat $ fmap prettyExpl bindGroup'expl
+  , vcat $ concat $ fmap2 prettyImpl $ bindGroup'impl]
+  where
+    prettyExpl :: Expl (Doc ann) -> Doc ann
+    prettyExpl Expl{..} = vcat
+      [ prettySignature (toVarName expl'name) expl'type
+      , prettyAlts (toVarName expl'name) expl'alts
+      ]
+
+    prettyImpl :: Impl (Doc ann) -> Doc ann
+    prettyImpl Impl{..} = prettyAlts (toVarName impl'name) impl'alts
+
+    prettySignature :: VarName -> Scheme -> Doc ann
+    prettySignature name scheme = hsep [ pretty name, "::",  pretty scheme]
+
+    prettyAlts :: VarName -> [Alt (Doc ann)] -> Doc ann
+    prettyAlts name as = vcat $ fmap (prettyAlt name) as
+
+    prettyAlt :: VarName -> Alt (Doc ann) -> Doc ann
+    prettyAlt name Alt{..} =
+      hsep [ pretty name, hsep $ fmap pretty alt'pats, "=", alt'expr]
+
+instance Pretty Pat where
+  pretty = \case
+    PVar _ idx  -> pretty idx
+    -- PWildcard _ -> "_"
+    -- PLit _ p    -> pretty p
 
 prettyVecExpr :: VecExpr (Doc ann) -> Doc ann
 prettyVecExpr = \case
-  NewVec vec     -> brackets $ hsep $ punctuate comma $ V.toList vec
-  VecAppend a b  -> op2 "++" a b
-  VecLength      -> "length"
-  VecAt a n      -> op2 "!" a n
-  VecMap         -> "map"
-  VecFold        -> "fold"
+  NewVec _ vec     -> brackets $ hsep $ punctuate comma $ V.toList vec
+  VecAppend _ a b  -> op2 "++" a b
+  VecLength _      -> "length"
+  VecAt _ a n      -> op2 "!" a n
+  VecMap _         -> "map"
+  VecFold _        -> "fold"
 
 prettyTextExpr :: TextExpr (Doc ann) -> Doc ann
 prettyTextExpr = \case
-  TextAppend a b  -> op2 "++" a b
-  TextLength      -> "length"
-  ConvertToText   -> "show"
-  TextHash alg    -> case alg of
+  TextAppend _ a b  -> op2 "++" a b
+  TextLength _      -> "length"
+  ConvertToText _   -> "show"
+  TextHash _ alg    -> case alg of
     Sha256     -> "sha256"
     Blake2b256 -> "blake2b256"
 
 prettyBoxExpr :: BoxExpr (Doc ann) -> Doc ann
 prettyBoxExpr = \case
-  PrimBox box   -> pretty box
-  BoxAt a field -> hcat [a, dot, prettyBoxField field]
-
-instance Pretty Type where
-  pretty = cata prettyTypeExpr
-
-prettyTypeExpr :: TypeExpr (Doc ann) -> Doc ann
-prettyTypeExpr = \case
-  BoolType     -> "Bool"
-  IntType      -> "Int"
-  MoneyType    -> "Money"
-  DoubleType   -> "Double"
-  StringType   -> "String"
-  BoxType      -> "Box"
-  UknownType   -> "?"
-  VectorType a -> hsep ["Vector", parens a]
-  PairType a b -> parens $ hsep [a, comma, b]
-  FunctionType a b -> hsep [a, "->", b]
+  PrimBox _ box   -> pretty box
+  BoxAt _ a field -> hcat [a, dot, prettyBoxField field]
 
 instance Pretty UnOp where
   pretty = \case
@@ -197,11 +220,11 @@ instance Pretty BinOp where
 
 instance Pretty Prim where
   pretty = \case
-    PrimInt     n -> pretty n
-    PrimDouble  d -> pretty d
-    PrimMoney   m -> pretty m
-    PrimBool    b -> pretty b
-    PrimString  s -> hcat [dquote, pretty s, dquote]
+    PrimInt _     n -> pretty n
+    PrimDouble _  d -> pretty d
+    PrimMoney _   m -> pretty m
+    PrimBool _    b -> pretty b
+    PrimString _  s -> hcat [dquote, pretty s, dquote]
 
 instance Pretty Money where
   pretty m = pretty $ removeZeroes $ show m
@@ -211,18 +234,18 @@ removeZeroes = reverse . skipDot . skipZeroes . reverse
     skipZeroes = dropWhile (== '0')
     skipDot    = dropWhile (== '.')
 
-instance Pretty a => Pretty (Id a) where
+instance Pretty a => Pretty (EnvId a) where
   pretty = prettyId . fmap pretty
 
-prettyId :: Id (Doc ann) -> Doc ann
+prettyId :: EnvId (Doc ann) -> Doc ann
 prettyId = \case
-    Height -> "HEIGHT"
-    Input  a       -> prettyVec "input"  a
-    Output a       -> prettyVec "output" a
-    Inputs         -> "INPUTS"
-    Outputs        -> "OUTPUTS"
-    Self           -> hcat ["SELF"]
-    GetVar a       -> op1 "getVar" a
+    Height _ -> "HEIGHT"
+    Input _  a       -> prettyVec "input"  a
+    Output _ a       -> prettyVec "output" a
+    Inputs _         -> "INPUTS"
+    Outputs _        -> "OUTPUTS"
+    Self _           -> hcat ["SELF"]
+    GetVar _ a       -> op1 "getVar" a
 
 prettyVec :: Doc ann -> Doc ann -> Doc ann
 prettyVec name n = hcat [name, brackets n]
@@ -239,7 +262,7 @@ prettyBoxField = \case
 
 instance Pretty Error where
   pretty = \case
-    ParseError txt                 -> err "Parse error" txt
+    ParseError _ txt               -> err "Parse error" txt
     AppliedNonFunction lang        -> err "Applied non-function" lang
     PoorlyTypedApplication lang    -> err "Poorly typed application" lang
     UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]

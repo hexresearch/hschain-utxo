@@ -50,8 +50,11 @@ data Env = Env
 
 --------------------------------------------
 
+parseScript :: Text -> Maybe (Expr Bool)
+parseScript = undefined
+
 fromScript :: Script -> Maybe (Expr Bool)
-fromScript (Script txt )= readMay $ T.unpack txt
+fromScript (Script txt )= parseScript txt
 
 toScript :: Expr Bool -> Script
 toScript = Script . T.pack . show

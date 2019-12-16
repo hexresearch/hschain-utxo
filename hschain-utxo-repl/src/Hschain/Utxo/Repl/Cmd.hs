@@ -20,11 +20,12 @@ import System.Exit
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Lib.Base
+import Hschain.Utxo.Lang.Infer
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import qualified Hschain.Utxo.Lang.Parser.Parser as P
+import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
 evalCmd :: String -> String -> Repl ()
 evalCmd x args = case x of
@@ -80,9 +81,11 @@ loadScript file = do
   resetEvalCtx
   saveScriptFile file
   str <- liftIO $ readFile file
-  either showErr evalExpr $ P.parseExpr str
+  case P.parseExp str of
+    P.ParseOk expr       -> evalExpr expr
+    P.ParseFailed loc err -> showErr loc err
   where
-    showErr msg = liftIO $ putStrLn $ unlines
+    showErr _ msg = liftIO $ putStrLn $ unlines
       [ mconcat ["Failed to load script ", file]
       , "Parsing exited with error:"
       , msg
@@ -117,7 +120,13 @@ reload = do
   mapM_ loadTx     =<< getTxFile
 
 showType :: String -> Repl ()
-showType _ = echo "show type (not implemented yet)"
+showType str = case P.parseExp str of
+  P.ParseOk expr      -> do
+    closure  <- fmap replEnv'closure get
+    liftIO $ case runInferExpr baseTypeAssump $ closure expr of
+      Right ty -> T.putStrLn $ renderText ty
+      Left err -> T.putStrLn $ renderText err
+  P.ParseFailed _ msg -> liftIO $ putStrLn msg
 
 
 help :: Repl ()
@@ -139,7 +148,7 @@ uknownOption cmd = echo $ mconcat ["Error: Uknown command ", cmd, "."]
 -----------------------------------------
 -- parsing
 
-parseCmd :: String -> Either Text ParseRes
+parseCmd :: String -> Either String ParseRes
 parseCmd input =
   case input of
     ':' : rest ->

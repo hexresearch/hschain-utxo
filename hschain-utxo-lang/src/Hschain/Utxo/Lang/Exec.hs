@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Exec(
   , Error(..)
 ) where
 
+import Hex.Common.Control
 import Hex.Common.Text
 
 import Control.Applicative
@@ -17,12 +18,16 @@ import Data.Boolean
 import Data.Fix
 import Data.Map.Strict (Map)
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid hiding (Alt)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import Type.Loc
+import Type.Type
+
 import Hschain.Utxo.Lang.Build()
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
@@ -37,11 +42,11 @@ import qualified Data.Vector as V
 
 removeAscr :: Lang -> Lang
 removeAscr = cata $ \case
-  Ascr a _ -> a
-  other    -> Fix other
+  Ascr _ a _ -> a
+  other      -> Fix other
 
 data Error
-  = ParseError Text
+  = ParseError Loc Text
   | AppliedNonFunction Lang
   | PoorlyTypedApplication Lang
   | UnboundVariables [VarName]
@@ -53,7 +58,7 @@ data Error
   | BadTypeAscription Lang
   | IllegalRecursion Lang
   | OutOfBound Lang
-  | NoField Text
+  | NoField VarName
   deriving (Show)
 
 data Ctx = Ctx
@@ -104,47 +109,47 @@ exec tx@TxArg{..} =
   where
     execExpr (Expr x) =
       case runExec txArg'proof txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE (PrimBool b)), msg) -> (b, msg)
-        Left err                              -> (False, showt err)
+        Right (Fix (PrimE _ (PrimBool _ b)), msg) -> (b, msg)
+        Left err                                  -> (False, showt err)
 
 execLang :: Lang -> Exec Lang
 execLang = execLang' . importBase
 
 execLang' :: Lang -> Exec Lang
 execLang' (Fix x) = case x of
-    Var name -> getVar name
-    PrimE p  -> pure $ Fix $ PrimE p
-    Tuple as -> Fix . Tuple <$> mapM rec as
-    Ascr a t -> fmap (\x -> Fix $ Ascr x t) $ rec a
+    Var loc name -> getVar loc name
+    PrimE loc p  -> pure $ Fix $ PrimE loc p
+    Tuple loc as -> Fix . Tuple loc <$> mapM rec as
+    Ascr loc a t -> fmap (\x -> Fix $ Ascr loc x t) $ rec a
     -- operations
-    UnOpE uo x -> fromUnOp uo x
-    BinOpE bi a b -> fromBiOp bi a b
-    Apply a b -> fromApply a b
-    Lam varName a b -> fromLam varName a b
-    LamList vars a -> fromLamList vars a
-    Let varName a b -> fromLet varName a b
-    LetArg varName args a b -> fromLetArg varName args a b
-    LetRec varName a b c -> fromLetRec varName a b c
+    UnOpE loc uo x -> fromUnOp loc uo x
+    BinOpE loc bi a b -> fromBiOp loc bi a b
+    Apply loc a b -> fromApply loc a b
+    InfixApply loc a v b -> fromInfixApply loc a v b
+    Lam loc varName b -> fromLam loc varName b
+    LamList loc vars a -> fromLamList loc vars a
+    Let loc varName a -> fromLet loc varName a
+    LetRec loc varName b c -> fromLetRec loc varName b c
     -- logic
-    If a b c -> fromIf a b c
-    Pk a -> fromPk a
+    If loc a b c -> fromIf loc a b c
+    Pk loc a -> fromPk loc a
     -- environment
-    GetEnv idx -> fromEnv idx
-    BoxE box -> fromBoxExpr box
-    VecE vec -> fromVec vec
-    TextE txt -> fromText txt
-    Trace str a -> fromTrace str a
+    GetEnv loc idx -> fromEnv loc idx
+    BoxE loc box -> fromBoxExpr loc box
+    VecE loc vec -> fromVec loc vec
+    TextE loc txt -> fromText loc txt
+    Trace loc str a -> fromTrace loc str a
   where
     rec = execLang'
 
-    getVar :: VarName -> Exec Lang
-    getVar name = do
+    getVar :: Loc -> VarName -> Exec Lang
+    getVar loc name = do
       vars <- fmap ctx'vars get
       case M.lookup name vars of
         Just res -> return res
         Nothing  -> Exec $ lift $ Left $ UnboundVariables [name]
 
-    fromUnOp uo x = do
+    fromUnOp loc uo x = do
       x' <- rec x
       case uo of
         Not         -> fromNot x'
@@ -152,385 +157,427 @@ execLang' (Fix x) = case x of
         TupleAt n   -> fromTupleAt n x'
       where
         fromNot expr = case expr of
-          Fix (PrimE (PrimBool b)) -> prim $ PrimBool $ not b
-          _                        -> toError $ ThisShouldNotHappen x
+          Fix (PrimE loc1 (PrimBool loc2 b)) -> prim loc1 $ PrimBool loc2 $ not b
+          _                                  -> thisShouldNotHappen x
 
         fromNeg expr = case expr of
-          Fix (PrimE a) -> case a of
-            PrimInt n    -> prim $ PrimInt $ negate n
-            PrimDouble d -> prim $ PrimDouble $ negate d
-            PrimMoney m  -> prim $ PrimMoney $ negate m
-            other        -> thisShouldNotHappen $ Fix $ PrimE other
+          Fix (PrimE loc1 a) -> case a of
+            PrimInt loc2 n    -> prim loc1 $ PrimInt loc2 $ negate n
+            PrimDouble loc2 d -> prim loc1 $ PrimDouble loc2 $ negate d
+            PrimMoney loc2 m  -> prim loc1 $ PrimMoney loc2 $ negate m
+            other             -> thisShouldNotHappen $ Fix $ PrimE loc1 other
           _             -> thisShouldNotHappen x
 
         fromTupleAt n expr = case expr of
-          Fix (Tuple as) -> maybe (outOfBound x) return $ as V.!? n
-          _              -> thisShouldNotHappen x
+          Fix (Tuple loc1 as) -> maybe (outOfBound x) return $ as V.!? n
+          _                   -> thisShouldNotHappen x
 
-    fromBiOp bi x y = do
+    fromBiOp loc bi x y = do
       a <- rec x
       b <- rec y
       case bi of
         And       -> fromAnd a b
         Or        -> fromOr a b
-        Plus      -> fromPlus a b
-        Minus     -> fromMinus a b
-        Times     -> fromTimes a b
-        Div       -> fromDiv a b
-        Equals    -> fromEq a b
-        NotEquals -> fromNotEq a b
-        LessThan  -> fromLt a b
-        GreaterThan -> fromGt a b
-        LessThanEquals -> fromLte a b
-        GreaterThanEquals -> fromGte a b
-        ComposeFun -> fromComposeFun a b
+        Plus      -> fromPlus loc a b
+        Minus     -> fromMinus loc a b
+        Times     -> fromTimes loc a b
+        Div       -> fromDiv loc a b
+        Equals    -> fromEq loc a b
+        NotEquals -> fromNotEq loc a b
+        LessThan  -> fromLt loc a b
+        GreaterThan -> fromGt loc a b
+        LessThanEquals -> fromLte loc a b
+        GreaterThanEquals -> fromGte loc a b
+        ComposeFun -> fromComposeFun loc a b
 
     fromAnd, fromOr :: Lang -> Lang -> Exec Lang
 
 
     fromAnd (Fix x) (Fix y) = case x of
-      PrimE (PrimBool a) ->
+      PrimE locX1 (PrimBool locX2 a) ->
         if a
           then case y of
-                  PrimE (PrimBool b) -> return $ Fix y
-                  _                  -> thisShouldNotHappen $ Fix y
-          else prim $ PrimBool False
+                  PrimE locY1 (PrimBool locY2 b) -> return $ Fix y
+                  _                              -> thisShouldNotHappen $ Fix y
+          else prim locX1 $ PrimBool locX2 False
       _                 -> thisShouldNotHappen $ Fix x
 
     fromOr (Fix x) (Fix y) = case x of
-      PrimE (PrimBool a) ->
+      PrimE locX1 (PrimBool locX2 a) ->
         if a
-          then prim $ PrimBool True
+          then prim locX1 $ PrimBool locX2 True
           else case y of
-                  PrimE (PrimBool b) -> prim $ PrimBool b
-                  _                  -> thisShouldNotHappen $ Fix y
+                  PrimE locY1 (PrimBool locY2 b) -> prim locY1 $ PrimBool locY2 b
+                  _                              -> thisShouldNotHappen $ Fix y
       _                  -> thisShouldNotHappen $ Fix x
 
-    fromPlus  = fromNumOp2 Plus  (NumOp2 (+) (+) (+))
-    fromMinus = fromNumOp2 Minus (NumOp2 (\x y -> x - y) (\x y -> x - y) (\x y -> x - y))
-    fromTimes = fromNumOp2 Times (NumOp2 (*) (*) (*))
-    fromDiv   = fromNumOp2 Div   (NumOp2 (/) div (/))
+    fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+) (+) (+))
+    fromMinus loc = fromNumOp2 loc Minus (NumOp2 (\x y -> x - y) (\x y -> x - y) (\x y -> x - y))
+    fromTimes loc = fromNumOp2 loc Times (NumOp2 (*) (*) (*))
+    fromDiv   loc = fromNumOp2 loc Div   (NumOp2 (/) div (/))
 
-    fromNumOp2 op NumOp2{..} (Fix x) (Fix y) = case (x, y) of
-      (PrimE a, PrimE b) -> case (a, b) of
-        (PrimInt m, PrimInt n) -> prim $ PrimInt $ numOp2'int m n
-        (PrimDouble m, PrimDouble n) -> prim $ PrimDouble $ numOp2'double m n
-        (PrimMoney m, PrimMoney n) -> prim $ PrimMoney $ numOp2'money m n
+    fromNumOp2 loc op NumOp2{..} (Fix x) (Fix y) = case (x, y) of
+      (PrimE locA1 a, PrimE locB1 b) -> case (a, b) of
+        (PrimInt locA2 m, PrimInt _ n) -> prim locA1 $ PrimInt locA2 $ numOp2'int m n
+        (PrimDouble locA2 m, PrimDouble _ n) -> prim locA1 $ PrimDouble locA2 $ numOp2'double m n
+        (PrimMoney locA2 m, PrimMoney _ n) -> prim locA1 $ PrimMoney locA2 $ numOp2'money m n
         _ -> err
       _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE op (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc op (Fix x) (Fix y)
 
 
-    fromEq (Fix x) (Fix y) = case (x, y) of
-        (PrimE a, PrimE b) -> case (a, b) of
-          (PrimBool a1, PrimBool a2)     -> prim $ PrimBool $ a1 == a2
-          (PrimInt a1, PrimInt a2)       -> prim $ PrimBool $ a1 == a2
-          (PrimDouble a1, PrimDouble a2) -> prim $ PrimBool $ a1 == a2
-          (PrimMoney a1, PrimMoney a2)   -> prim $ PrimBool $ a1 == a2
-          (PrimString a1, PrimString a2) -> prim $ PrimBool $ a1 == a2
+    fromEq loc (Fix x) (Fix y) = case (x, y) of
+        (PrimE locA1 a, PrimE _ b) -> case (a, b) of
+          (PrimBool locA2 a1, PrimBool _ a2)     -> prim locA1 $ PrimBool locA2 $ a1 == a2
+          (PrimInt locA2 a1, PrimInt _ a2)       -> prim locA1 $ PrimBool locA2 $ a1 == a2
+          (PrimDouble locA2 a1, PrimDouble _ a2) -> prim locA1 $ PrimBool locA2 $ a1 == a2
+          (PrimMoney locA2 a1, PrimMoney _ a2)   -> prim locA1 $ PrimBool locA2 $ a1 == a2
+          (PrimString locA2 a1, PrimString _ a2) -> prim locA1 $ PrimBool locA2 $ a1 == a2
           _ -> err
         _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE Equals (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc Equals (Fix x) (Fix y)
 
-    fromNotEq (Fix x) (Fix y) = case (x, y) of
-        (PrimE a, PrimE b) -> case (a, b) of
-          (PrimBool a1, PrimBool a2)     -> prim $ PrimBool $ a1 /= a2
-          (PrimInt a1, PrimInt a2)       -> prim $ PrimBool $ a1 /= a2
-          (PrimDouble a1, PrimDouble a2) -> prim $ PrimBool $ a1 /= a2
-          (PrimMoney a1, PrimMoney a2)   -> prim $ PrimBool $ a1 /= a2
-          (PrimString a1, PrimString a2) -> prim $ PrimBool $ a1 /= a2
+    fromNotEq loc (Fix x) (Fix y) = case (x, y) of
+        (PrimE locA1 a, PrimE _ b) -> case (a, b) of
+          (PrimBool locA2 a1, PrimBool _ a2)     -> prim locA1 $ PrimBool locA2 $ a1 /= a2
+          (PrimInt locA2 a1, PrimInt _ a2)       -> prim locA1 $ PrimBool locA2 $ a1 /= a2
+          (PrimDouble locA2 a1, PrimDouble _ a2) -> prim locA1 $ PrimBool locA2 $ a1 /= a2
+          (PrimMoney locA2 a1, PrimMoney _ a2)   -> prim locA1 $ PrimBool locA2 $ a1 /= a2
+          (PrimString locA2 a1, PrimString _ a2) -> prim locA1 $ PrimBool locA2 $ a1 /= a2
           _ -> err
         _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE NotEquals (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc NotEquals (Fix x) (Fix y)
 
-    fromLt (Fix x) (Fix y) = case (x, y) of
-        (PrimE a, PrimE b) -> case (a, b) of
-          (PrimBool a1, PrimBool a2)     -> prim $ PrimBool $ a1 < a2
-          (PrimInt a1, PrimInt a2)       -> prim $ PrimBool $ a1 < a2
-          (PrimDouble a1, PrimDouble a2) -> prim $ PrimBool $ a1 < a2
-          (PrimMoney a1, PrimMoney a2)   -> prim $ PrimBool $ a1 < a2
-          (PrimString a1, PrimString a2) -> prim $ PrimBool $ a1 < a2
+    fromLt loc (Fix x) (Fix y) = case (x, y) of
+        (PrimE locA1 a, PrimE _ b) -> case (a, b) of
+          (PrimBool locaA2 a1, PrimBool _ a2)     -> prim locA1 $ PrimBool locaA2 $ a1 < a2
+          (PrimInt locaA2 a1, PrimInt _ a2)       -> prim locA1 $ PrimBool locaA2 $ a1 < a2
+          (PrimDouble locaA2 a1, PrimDouble _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 < a2
+          (PrimMoney locaA2 a1, PrimMoney _ a2)   -> prim locA1 $ PrimBool locaA2 $ a1 < a2
+          (PrimString locaA2 a1, PrimString _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 < a2
           _ -> err
         _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE LessThan (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc LessThan (Fix x) (Fix y)
 
-    fromGt (Fix x) (Fix y) = case (x, y) of
-        (PrimE a, PrimE b) -> case (a, b) of
-          (PrimBool a1, PrimBool a2)     -> prim $ PrimBool $ a1 > a2
-          (PrimInt a1, PrimInt a2)       -> prim $ PrimBool $ a1 > a2
-          (PrimDouble a1, PrimDouble a2) -> prim $ PrimBool $ a1 > a2
-          (PrimMoney a1, PrimMoney a2)   -> prim $ PrimBool $ a1 > a2
-          (PrimString a1, PrimString a2) -> prim $ PrimBool $ a1 > a2
+    fromGt loc (Fix x) (Fix y) = case (x, y) of
+        (PrimE locA1 a, PrimE _ b) -> case (a, b) of
+          (PrimBool locaA2 a1, PrimBool _ a2)     -> prim locA1 $ PrimBool locaA2 $ a1 > a2
+          (PrimInt locaA2 a1, PrimInt _ a2)       -> prim locA1 $ PrimBool locaA2 $ a1 > a2
+          (PrimDouble locaA2 a1, PrimDouble _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 > a2
+          (PrimMoney locaA2 a1, PrimMoney _ a2)   -> prim locA1 $ PrimBool locaA2 $ a1 > a2
+          (PrimString locaA2 a1, PrimString _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 > a2
           _ -> err
         _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE GreaterThan (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc GreaterThan (Fix x) (Fix y)
 
-    fromLte (Fix x) (Fix y) = case (x, y) of
-        (PrimE a, PrimE b) -> case (a, b) of
-          (PrimBool a1, PrimBool a2)     -> prim $ PrimBool $ a1 <= a2
-          (PrimInt a1, PrimInt a2)       -> prim $ PrimBool $ a1 <= a2
-          (PrimDouble a1, PrimDouble a2) -> prim $ PrimBool $ a1 <= a2
-          (PrimMoney a1, PrimMoney a2)   -> prim $ PrimBool $ a1 <= a2
-          (PrimString a1, PrimString a2) -> prim $ PrimBool $ a1 <= a2
+    fromLte loc (Fix x) (Fix y) = case (x, y) of
+        (PrimE locA1 a, PrimE _ b) -> case (a, b) of
+          (PrimBool locaA2 a1, PrimBool _ a2)     -> prim locA1 $ PrimBool locaA2 $ a1 <= a2
+          (PrimInt locaA2 a1, PrimInt _ a2)       -> prim locA1 $ PrimBool locaA2 $ a1 <= a2
+          (PrimDouble locaA2 a1, PrimDouble _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 <= a2
+          (PrimMoney locaA2 a1, PrimMoney _ a2)   -> prim locA1 $ PrimBool locaA2 $ a1 <= a2
+          (PrimString locaA2 a1, PrimString _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 <= a2
           _ -> err
         _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE LessThanEquals (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc LessThanEquals (Fix x) (Fix y)
 
-    fromGte (Fix x) (Fix y) = case (x, y) of
-        (PrimE a, PrimE b) -> case (a, b) of
-          (PrimBool a1, PrimBool a2)     -> prim $ PrimBool $ a1 >= a2
-          (PrimInt a1, PrimInt a2)       -> prim $ PrimBool $ a1 >= a2
-          (PrimDouble a1, PrimDouble a2) -> prim $ PrimBool $ a1 >= a2
-          (PrimMoney a1, PrimMoney a2)   -> prim $ PrimBool $ a1 >= a2
-          (PrimString a1, PrimString a2) -> prim $ PrimBool $ a1 >= a2
+    fromGte loc (Fix x) (Fix y) = case (x, y) of
+        (PrimE locA1 a, PrimE _ b) -> case (a, b) of
+          (PrimBool locaA2 a1, PrimBool _ a2)     -> prim locA1 $ PrimBool locaA2 $ a1 >= a2
+          (PrimInt locaA2 a1, PrimInt _ a2)       -> prim locA1 $ PrimBool locaA2 $ a1 >= a2
+          (PrimDouble locaA2 a1, PrimDouble _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 >= a2
+          (PrimMoney locaA2 a1, PrimMoney _ a2)   -> prim locA1 $ PrimBool locaA2 $ a1 >= a2
+          (PrimString locaA2 a1, PrimString _ a2) -> prim locA1 $ PrimBool locaA2 $ a1 >= a2
           _ -> err
         _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE GreaterThanEquals (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc GreaterThanEquals (Fix x) (Fix y)
 
-    fromComposeFun (Fix x) (Fix y) = case (x, y) of
-      (Lam v2 t2 f2, Lam v1 t1 f1) -> rec $ Fix $ Lam v1 t1 (Fix $ Apply (Fix $ Lam v2 t2 f2) f1)
+    fromComposeFun loc (Fix x) (Fix y) = case (x, y) of
+      (Lam loc1 v2 f2, Lam loc2 v1 f1) -> rec $ Fix $ Lam loc v1 (Fix $ Apply loc1 (Fix $ Lam loc2 v2 f2) f1)
       _ -> err
       where
-        err = thisShouldNotHappen $ Fix $ BinOpE ComposeFun (Fix x) (Fix y)
+        err = thisShouldNotHappen $ Fix $ BinOpE loc ComposeFun (Fix x) (Fix y)
 
-    fromIf cond t e  = do
+    fromIf loc cond t e  = do
       Fix cond' <- rec cond
       case cond' of
-        PrimE (PrimBool b) -> if b then rec t else rec e
-        _                  -> err
+        PrimE _ (PrimBool _ b) -> if b then rec t else rec e
+        _                      -> err
       where
-        err = thisShouldNotHappen $ Fix $ If cond t e
+        err = thisShouldNotHappen $ Fix $ If loc cond t e
 
-    fromLam name a b = return $ Fix $ Lam name a b
-    fromLamList vars a = rec $ unfoldLamList vars a
+    fromLam loc name b = return $ Fix $ Lam loc name b
+    fromLamList loc vars a = rec $ unfoldLamList loc vars a
 
-    unfoldLamList vars a = L.foldl' (\z a -> z . Fix . uncurry Lam a) id vars a
-
-    fromTrace str a = do
+    fromTrace _ str a = do
       Fix str' <- rec str
       case str' of
-        PrimE (PrimString msg) -> do
+        PrimE _ (PrimString _ msg) -> do
           saveTrace msg
           rec a
         _ -> thisShouldNotHappen $ Fix str'
 
-    fromPk x = do
+    fromPk _ x = do
       Fix x' <- rec x
       case x' of
-        PrimE (PrimString pkey) -> prim . PrimBool =<< fmap (checkPubKey pkey) getProof
-        _                       -> thisShouldNotHappen x
+        PrimE loc1 (PrimString loc2 pkey) -> prim loc1 . PrimBool loc2 =<< fmap (checkPubKey pkey) getProof
+        _                                 -> thisShouldNotHappen x
 
-    fromApply fun arg = case fun of
-      Fix (Apply (Fix (VecE VecMap)) f) -> do
+    fromInfixApply loc a v b = rec $ unfoldInfixApply loc a v b
+
+    fromApply loc fun arg = case fun of
+      Fix (Apply _ (Fix (VecE _ (VecMap _))) f) -> do
         Fix f' <- rec f
         Fix vec' <- rec arg
         let errVal = fun
         case vec' of
-          VecE (NewVec vs) -> rec $ Fix $ VecE (NewVec $ fmap (Fix . Apply (Fix f')) vs)
+          VecE loc1 (NewVec loc2 vs) -> rec $ Fix $ VecE loc1 (NewVec loc2 $ fmap (Fix . Apply loc (Fix f')) vs)
           _ -> thisShouldNotHappen errVal
-      Fix (Apply (Fix (Apply (Fix (VecE VecFold)) f)) z) -> do
+      Fix (Apply _ (Fix (Apply _ (Fix (VecE _ (VecFold _))) f)) z) -> do
         fun' <- rec f
         z'   <- rec z
         Fix vec' <- rec arg
         let errVal = fun
         case vec' of
-          VecE (NewVec vs) -> rec $ V.foldl (\a b -> app2 fun' a b) z' vs
+          VecE _ (NewVec _ vs) -> rec $ V.foldl (\a b -> app2 fun' a b) z' vs
           _ -> thisShouldNotHappen errVal
-      Fix (VecE VecLength) -> do
+      Fix (VecE _ (VecLength _)) -> do
         arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim . PrimInt) $ vecSize arg'
-      Fix (TextE TextLength) -> do
+        maybe (thisShouldNotHappen arg') (prim loc . PrimInt loc) $ vecSize arg'
+      Fix (TextE _ (TextLength _)) -> do
         arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim . PrimInt) $ textSize arg'
-      Fix (TextE ConvertToText) -> do
+        maybe (thisShouldNotHappen arg') (prim loc . PrimInt loc) $ textSize arg'
+      Fix (TextE _ (ConvertToText _)) -> do
         arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim . PrimString) $ convertToText arg'
-      Fix (TextE (TextHash Sha256)) -> do
+        maybe (thisShouldNotHappen arg') (prim loc . PrimString loc) $ convertToText arg'
+      Fix (TextE _ (TextHash _ Sha256)) -> do
         arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim . PrimString) $ sha256 arg'
-      Fix (TextE (TextHash Blake2b256)) -> do
+        maybe (thisShouldNotHappen arg') (prim loc . PrimString loc) $ sha256 arg'
+      Fix (TextE _ (TextHash _ Blake2b256)) -> do
         arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim . PrimString) $ blake2b256 arg'
+        maybe (thisShouldNotHappen arg') (prim loc . PrimString loc) $ blake2b256 arg'
       _ -> do
         Fix fun' <- rec fun
         case fun' of
-          Lam varName _ body -> do
+          Lam _ varName body -> do
             arg' <- rec arg
             rec $ subst body varName arg'
-          VecE VecMap -> do
+          VecE loc1 (VecMap loc2) -> do
             arg' <- rec arg
-            return $ Fix $ Apply (Fix (VecE VecMap)) arg'
-          VecE VecFold -> do
+            return $ Fix $ Apply loc (Fix (VecE loc1 (VecMap loc2))) arg'
+          VecE loc1 (VecFold loc2) -> do
             arg' <- rec arg
-            return $ Fix $ Apply (Fix (VecE VecFold)) arg'
-          Apply (Fix (VecE VecFold)) a -> do
+            return $ Fix $ Apply loc (Fix (VecE loc1 (VecFold loc2))) arg'
+          Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a -> do
             a' <- rec a
             arg' <- rec arg
-            return $ Fix $ Apply (Fix $ Apply (Fix (VecE VecFold)) a') arg'
+            return $ Fix $ Apply loc (Fix $ Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a') arg'
           other              -> Exec $ lift $ Left $ AppliedNonFunction $ Fix other
 
-    fromLet v lc1 lc2 = do
-      lc1' <- rec lc1
-      rec $ subst lc2 v lc1'
 
-    fromLetArg v args a b = rec $ unfoldLetArg v args a b
 
-    unfoldLetArg v args a b = Fix $ Let v (Fix $ LamList (fmap (, Fix UknownType) args) a) b
+    fromLet loc bg expr = execDefs defs expr
+      where
+        defs = concat
+          [ fmap explToImpl (bindGroup'expl bg)
+          , concat $ bindGroup'impl bg ]
 
-    fromLetRec v ty lc1 lc2 = do
+        execDefs ds e = case ds of
+          [] -> rec e
+          def:rest -> do
+            let v = toVarName $ impl'name def
+            body <- execAlts $ impl'alts def
+            execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
+
+        execAlts :: [Alt Lang] -> Exec Lang
+        execAlts as = case as of
+          a:_ -> execAlt a
+          _   -> thisShouldNotHappen $ Fix $ Let loc bg expr
+
+        execAlt :: Alt Lang -> Exec Lang
+        execAlt Alt{..} = return $ case alt'pats of
+          [] -> alt'expr
+          ps -> Fix $ LamList loc (fmap toVars ps) $ alt'expr
+          where
+            toVars (PVar _ var) = toVarName var
+
+    fromLetRec loc v lc1 lc2 = do
       insertVar v lc1
       lc1' <- rec lc1
       case lc1' of
         lam@(Fix (Lam _ _ _)) -> do
           insertVar v lc1
           rec $ subst lc2 v lam
-        _ -> Exec $ lift $ Left $ IllegalRecursion $ Fix $ LetRec v ty lc1 lc2
+        _ -> Exec $ lift $ Left $ IllegalRecursion $ Fix $ LetRec loc v lc1 lc2
 
-    fromEnv idx = do
+    fromEnv loc idx = do
       idx' <- mapM rec idx
       case idx' of
-        Height   -> prim . PrimInt =<< getHeight
-        Input  (Fix (PrimE (PrimInt n))) -> toBox n =<< getInputs
-        Output (Fix (PrimE (PrimInt n))) -> toBox n =<< getOutputs
-        Inputs  -> fmap toBoxes getInputs
-        Outputs -> fmap toBoxes getOutputs
-        GetVar (Fix (PrimE (PrimString argName))) -> do
+        Height loc1  -> prim loc . PrimInt loc1 =<< getHeight
+        Input loc1 (Fix (PrimE _ (PrimInt _ n))) -> toBox loc1 n =<< getInputs
+        Output loc1 (Fix (PrimE _ (PrimInt _ n))) -> toBox loc1 n =<< getOutputs
+        Inputs loc1  -> fmap (toBoxes loc1) getInputs
+        Outputs loc1 -> fmap (toBoxes loc1) getOutputs
+        GetVar _ (Fix (PrimE _ (PrimString _ argName))) -> do
           args <- getUserArgs
           case M.lookup argName args of
-            Just value -> prim value
-            _          -> noField argName
-        _      -> return $ Fix $ GetEnv idx
+            Just value -> prim loc value
+            _          -> noField (VarName loc argName)
+        _      -> return $ Fix $ GetEnv loc idx
       where
-        toBox n v = maybe (outOfBound $ Fix $ GetEnv idx) (pure . Fix . BoxE . PrimBox) $ v V.!? n
-        toBoxes vs = Fix $ VecE $ NewVec $ fmap (Fix . BoxE . PrimBox) vs
+        toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? n
+        toBoxes loc1 vs = Fix $ VecE loc $ NewVec loc $ fmap (Fix . BoxE loc1 . PrimBox loc1) vs
 
-    fromBoxField (Fix x) field = case x of
-      GetEnv (Input n)  -> getBoxField field
-      GetEnv (Output n) -> getBoxField field
-
-    fromBoxExpr :: BoxExpr Lang -> Exec Lang
-    fromBoxExpr x = do
+    fromBoxExpr :: Loc -> BoxExpr Lang -> Exec Lang
+    fromBoxExpr loc x = do
       x' <- mapM rec x
       case x' of
-        PrimBox box -> return $ Fix $ BoxE $ PrimBox box
-        BoxAt (Fix (BoxE (PrimBox box))) field -> getBoxField box field
-        _ -> thisShouldNotHappen $ Fix $ BoxE x
+        PrimBox loc1 box -> return $ Fix $ BoxE loc $ PrimBox loc1 box
+        BoxAt loc1 (Fix (BoxE _ (PrimBox _ box))) field -> getBoxField loc1 box field
+        _ -> thisShouldNotHappen $ Fix $ BoxE loc x
 
-
-    getBoxField Box{..} field = case field of
-      BoxFieldId      -> prim $ PrimString $ unBoxId box'id
-      BoxFieldValue   -> prim $ PrimMoney  $ box'value
-      BoxFieldScript  -> prim $ PrimString $ unScript $ box'script
+    getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
+    getBoxField loc Box{..} field = case field of
+      BoxFieldId      -> prim loc $ PrimString loc $ unBoxId box'id
+      BoxFieldValue   -> prim loc $ PrimMoney  loc $ box'value
+      BoxFieldScript  -> prim loc $ PrimString loc $ unScript $ box'script
       BoxFieldArg txt -> case txt of
-        Fix (PrimE (PrimString t)) -> maybe (noField t) prim $ M.lookup t box'args
-        _                          -> thisShouldNotHappen txt
+        Fix (PrimE loc1 (PrimString loc2 t)) -> maybe (noField $ VarName loc2 t) (prim loc1) $ M.lookup t box'args
+        _                                    -> thisShouldNotHappen txt
 
-    fromVec x = do
+    fromVec loc x = do
       x' <- mapM rec x
       case x' of
-        NewVec v        -> fmap (Fix . VecE . NewVec) $ mapM rec v
-        VecAppend a b   -> do
+        NewVec loc1 v        -> fmap (Fix . VecE loc . NewVec loc1) $ mapM rec v
+        VecAppend loc1 a b   -> do
           a' <- rec a
           b' <- rec b
-          return $ Fix $ VecE $ case (a', b') of
-            (Fix (VecE (NewVec v1)), Fix (VecE (NewVec v2))) -> NewVec $ mappend v1 v2
-            _ -> VecAppend a' b'
-        VecAt v n       -> do
+          return $ Fix $ VecE loc $ case (a', b') of
+            (Fix (VecE _ (NewVec _ v1)), Fix (VecE _ (NewVec _ v2))) -> NewVec loc $ mappend v1 v2
+            _ -> VecAppend loc1 a' b'
+        VecAt loc1 v n       -> do
           Fix v' <- rec v
           Fix n' <- rec n
-          let errVal = Fix $ VecE $ VecAt (Fix v') (Fix n')
+          let errVal = Fix $ VecE loc $ VecAt loc1 (Fix v') (Fix n')
           res <- case (v', n') of
-            (VecE (NewVec vs), PrimE (PrimInt idx)) -> maybe (outOfBound errVal) return $ vs V.!? idx
+            (VecE _ (NewVec _ vs), PrimE _ (PrimInt _ idx)) -> maybe (outOfBound errVal) return $ vs V.!? idx
             _ -> thisShouldNotHappen errVal
           rec res
-        VecMap -> return $ Fix $ VecE VecMap
-        VecFold -> return $ Fix $ VecE VecFold
-        VecLength -> return $ Fix $ VecE VecLength
+        VecMap loc1 -> return $ Fix $ VecE loc $ VecMap loc1
+        VecFold loc1 -> return $ Fix $ VecE loc $ VecFold loc1
+        VecLength loc1 -> return $ Fix $ VecE loc $ VecLength loc1
 
-    fromText x = do
+    fromText loc x = do
       x' <- mapM rec x
       case x' of
-        TextAppend a b -> do
+        TextAppend _ a b -> do
           a' <- rec a
           b' <- rec b
           return $ Fix $ case (a', b') of
-            (Fix (PrimE(PrimString t1)), Fix (PrimE (PrimString t2))) -> PrimE $ PrimString $ mappend t1 t2
-            _                                                         -> TextE $ TextAppend a' b'
-        ConvertToText -> returnText ConvertToText
-        TextLength    -> returnText TextLength
-        TextHash algo   -> returnText $ TextHash algo
+            (Fix (PrimE _ (PrimString _ t1)), Fix (PrimE _ (PrimString _ t2))) -> PrimE loc $ PrimString loc $ mappend t1 t2
+            _                                                                  -> TextE loc $ TextAppend loc a' b'
+        ConvertToText loc1  -> returnText $ ConvertToText loc1
+        TextLength loc1     -> returnText $ TextLength loc1
+        TextHash loc1 algo  -> returnText $ TextHash loc1 algo
         where
-          returnText = return . Fix . TextE
+          returnText = return . Fix . TextE loc
 
     textSize (Fix x) = case x of
-      PrimE (PrimString txt) -> Just $ T.length txt
-      _                      -> Nothing
+      PrimE _ (PrimString _ txt) -> Just $ T.length txt
+      _                          -> Nothing
 
     vecSize (Fix x) = case x of
-      VecE (NewVec xs)      -> Just $ V.length xs
-      VecE (VecAppend a b)  -> liftA2 (+) (vecSize a) (vecSize b)
-      _                     -> Nothing
+      VecE _ (NewVec _ xs)      -> Just $ V.length xs
+      VecE _ (VecAppend _ a b)  -> liftA2 (+) (vecSize a) (vecSize b)
+      _                         -> Nothing
 
     convertToText (Fix x) = case x of
-      PrimE p  -> Just $ convertPrim p
-      _        -> Nothing
+      PrimE _ p  -> Just $ convertPrim p
+      _          -> Nothing
       where
         convertPrim = \case
-          PrimInt n       -> showt n
-          PrimMoney m     -> showt m
-          PrimDouble d    -> showt d
-          PrimString t    -> t
-          PrimBool b      -> showt b
+          PrimInt _ n       -> showt n
+          PrimMoney _ m     -> showt m
+          PrimDouble _ d    -> showt d
+          PrimString _ t    -> t
+          PrimBool _ b      -> showt b
 
     sha256 (Fix x) = case x of
-      PrimE (PrimString t) -> Just $ hashText t
-      _                    -> Nothing
+      PrimE _ (PrimString _ t) -> Just $ hashText t
+      _                        -> Nothing
       where
         hashText = showt . hashWith SHA256 . T.encodeUtf8
 
     blake2b256 (Fix x) = case x of
-      PrimE (PrimString t) -> Just $ hashText t
-      _                    -> Nothing
+      PrimE _ (PrimString _ t) -> Just $ hashText t
+      _                        -> Nothing
       where
         hashText = showt . hashWith Blake2b_256 . T.encodeUtf8
 
     subst :: Lang -> VarName -> Lang -> Lang
     subst (Fix body) varName sub = case body of
-      Var e                | e == varName  -> sub
-                           | otherwise     -> Fix $ Var e
-      PrimE p                              -> Fix body
-      Ascr lc t                            -> Fix $ Ascr (rec lc) t
-      UnOpE uo lc                          -> Fix $ UnOpE uo $ rec lc
-      BinOpE bo a b                        -> Fix $ BinOpE bo (rec a) (rec b)
-      Apply a b                              -> Fix $ Apply (rec a) (rec b)
-      e@(Lam v1 ty body1)  | v1 == varName -> Fix $ e
-                           | otherwise     -> Fix $ Lam v1 ty (rec body1)
-      If cond t e                          -> Fix $ If (rec cond) (rec t) (rec e)
-      Let v1 a1 a2         | v1 == varName -> Fix $ Let v1 a1 (rec a2)
-                           | otherwise     -> Fix $ Let v1 (rec a1) (rec a2)
-      LetRec v1 ty a1 a2   | v1 == varName -> Fix $ LetRec v1 ty a1 (rec a2)
-                           | otherwise     -> Fix $ LetRec v1 ty (rec a1) (rec a2)
-      Pk a                                 -> Fix $ Pk $ rec a
-      Tuple as                             -> Fix $ Tuple $ fmap rec as
-      GetEnv idx                           -> Fix $ GetEnv $ fmap rec idx
-      VecE vec                             -> Fix $ VecE $ fmap rec vec
-      TextE txt                            -> Fix $ TextE $ fmap rec txt
-      BoxE box                             -> Fix $ BoxE $ fmap rec box
-      LamList vs a                         -> rec $ unfoldLamList vs a
-      LetArg name args a b                 -> rec $ unfoldLetArg name args a b
-      Trace a b                            -> Fix $ Trace (rec a) (rec b)
+      Var loc e                | e == varName  -> sub
+                               | otherwise     -> Fix $ Var loc e
+      PrimE _ p                                -> Fix body
+      Ascr loc lc t                            -> Fix $ Ascr loc (rec lc) t
+      UnOpE loc uo lc                          -> Fix $ UnOpE loc uo $ rec lc
+      BinOpE loc bo a b                        -> Fix $ BinOpE loc bo (rec a) (rec b)
+      Apply loc a b                            -> Fix $ Apply loc (rec a) (rec b)
+      InfixApply loc a v b     | v == varName  -> subInfix loc sub a b
+      InfixApply loc a v b     | otherwise     -> Fix $ InfixApply loc (rec a) v (rec b)
+      e@(Lam loc v1 body1)     | v1 == varName -> Fix $ e
+                               | otherwise     -> Fix $ Lam loc v1 (rec body1)
+      If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
+      Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (rec e)
+                        -- | v1 == varName -> Fix $ Let v1 a1 (rec a2)
+                        -- | otherwise     -> Fix $ Let v1 (rec a1) (rec a2)
+      LetRec loc v1 a1 a2      | v1 == varName -> Fix $ LetRec loc v1 a1 (rec a2)
+                               | otherwise     -> Fix $ LetRec loc v1 (rec a1) (rec a2)
+      Pk loc a                                 -> Fix $ Pk loc $ rec a
+      Tuple loc as                             -> Fix $ Tuple loc $ fmap rec as
+      GetEnv loc idx                           -> Fix $ GetEnv loc $ fmap rec idx
+      VecE loc vec                             -> Fix $ VecE loc $ fmap rec vec
+      TextE loc txt                            -> Fix $ TextE loc $ fmap rec txt
+      BoxE loc box                             -> Fix $ BoxE loc $ fmap rec box
+      LamList loc vs a                         -> rec $ unfoldLamList loc vs a
+      Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
       where
+        subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
+
         rec x = subst x varName sub
 
-prim :: Prim -> Exec Lang
-prim p = return $ Fix $ PrimE p
+        substBindGroup BindGroup{..} = BindGroup
+          { bindGroup'expl = fmap  substExpl bindGroup'expl
+          , bindGroup'impl = fmap2 substImpl bindGroup'impl
+          }
+
+        substExpl x@Expl{..}
+          | varName == toVarName expl'name = x
+          | otherwise                      = x { expl'alts = fmap substAlt expl'alts }
+
+        substImpl x@Impl{..}
+          | varName == toVarName impl'name = x
+          | otherwise                      = x { impl'alts = fmap substAlt impl'alts }
+
+        substAlt x@Alt{..}
+          | isBinded varName alt'pats = x
+          | otherwise                 = x{ alt'expr = rec alt'expr }
+          where
+            isBinded v ps = fromVarName v `elem` (foldMap getBinds ps)
+
+            getBinds = \case
+              PVar _ idx -> [idx]
+          --     _          -> []
+
+prim :: Loc -> Prim -> Exec Lang
+prim loc p = return $ Fix $ PrimE loc p
 
 toError :: Error -> Exec a
 toError = Exec . lift . Left
@@ -538,7 +585,7 @@ toError = Exec . lift . Left
 thisShouldNotHappen :: Lang -> Exec Lang
 thisShouldNotHappen = toError . ThisShouldNotHappen
 
-noField :: Text -> Exec Lang
+noField :: VarName -> Exec Lang
 noField = toError . NoField
 
 outOfBound :: Lang -> Exec Lang
@@ -567,9 +614,9 @@ substSelfIndex :: Int -> Expr a -> Expr a
 substSelfIndex selfId (Expr x) = Expr $ cata phi x
   where
     phi = \case
-      GetEnv idx -> Fix $ GetEnv $ case idx of
-        Self -> Input $ Fix $ PrimE $ PrimInt selfId
-        _    -> idx
+      GetEnv loc idx -> Fix $ GetEnv loc $ case idx of
+        Self loc -> Input loc $ Fix $ PrimE loc $ PrimInt loc selfId
+        _        -> idx
       other  -> Fix other
 
 isStartEpoch :: TxArg -> Bool
@@ -581,9 +628,6 @@ txPreservesValue tx@TxArg{..}
   | otherwise       = toSum txArg'inputs == toSum txArg'outputs
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
-
-app2 :: Lang -> Lang -> Fix E -> Lang
-app2 f a b = Fix (Apply (Fix (Apply f a)) b)
 
 
 {-

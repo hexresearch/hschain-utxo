@@ -28,6 +28,7 @@ library
                      , data-fix
                      , haskeline
                      , hex-common
+                     , hs-check
                      , hschain-utxo-lang
                      , mtl
                      , process
