@@ -10,13 +10,17 @@ import Type.Infer
 import Type.Loc
 import Type.Subst
 import Type.Type
+import Type.Pretty
 
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 
 import qualified Data.List as L
+import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Vector as V
+
+import Debug.Trace
 
 infixr ~>
 
@@ -81,10 +85,13 @@ fromApply loc as f a = do
   return $ Qual loc (pf ++ pa) t
 
 fromLam :: Loc -> [Assump] -> VarName -> Lang -> Infer (Qual Type)
-fromLam loc as v b = inferExpr as $ toLet v b
+fromLam loc as v b = inferExpr as $ lam v b
   where
-    toLet :: VarName -> Lang -> Lang
-    toLet arg body = singleLet loc (VarName loc "f") (Fix $ Lam loc (VarName loc "x") body) (Fix $ Var loc (VarName loc "f"))
+    -- toLet :: VarName -> Lang -> Lang
+    -- toLet arg body = singleLet loc (VarName loc "f") (Fix $ Lam loc (VarName loc "x") body) (Fix $ Var loc (VarName loc "f"))
+
+    lam :: VarName -> Lang -> Lang
+    lam arg body = Fix $ Let (getLoc arg) (BindGroup [] [[Impl "f" [(Alt [PVar (getLoc arg) (fromVarName arg)] body)]]]) (Fix $ Var (getLoc body) "f")
 
 fromLamList :: Loc -> [Assump] -> [VarName] -> Lang -> Infer (Qual Type)
 fromLamList loc as args body = inferExpr as $ unfoldLamList loc args body
@@ -220,6 +227,7 @@ fromBinOp loc as = \case
       Qual _ bPs bT <- inferExpr as b
       unify t aT
       unify t bT
+      unify aT bT
       return $ Qual loc ((IsIn loc (Id loc "Num") t) : (aPs ++ bPs)) t
 
     eqOp a b = do
@@ -443,7 +451,17 @@ inferPat = \case
 runInferExpr :: [Assump] -> Lang -> Either TypeError (Qual Type)
 runInferExpr as expr = do
   ce <- defaultClassEnv
-  runInfer (inferExpr as expr) ce
+  runInfer (infer ce) ce
+  where
+    infer ce = do
+      (Qual loc ps exprT) <- inferExpr as expr
+      s <- fmap tr getSubst
+      rs <- Infer $ lift $ reduce ce (apply s ps)
+      s' <- fmap tr $ defaultSubst ce [] rs
+      let mainSubst = s' `compose` s
+      return $ Qual loc (removeCons $ apply mainSubst rs) $ apply mainSubst exprT
+
+    tr x = trace (T.unpack $ pp x) x
 
 defaultClassEnv :: Either TypeError ClassEnv
 defaultClassEnv = addCoreClasses initialEnv

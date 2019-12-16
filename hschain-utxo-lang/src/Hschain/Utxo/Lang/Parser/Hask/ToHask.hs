@@ -141,8 +141,8 @@ toHaskExp (Fix expr) = case expr of
 toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral mainLoc = \case
   PrimInt loc    x -> lit $ H.Int loc (fromIntegral x) (show x)
-  PrimMoney loc  x -> lit $ H.PrimDouble loc (realToFrac x) (show x)
-  PrimDouble loc x -> lit $ H.PrimDouble loc (realToFrac x) (show x)
+  PrimMoney loc  x -> lit $ H.Frac loc (realToFrac x) (show x)
+  PrimDouble loc x -> lit $ H.Frac loc (realToFrac x) (show x)
   PrimString loc x -> lit $ H.String loc (T.unpack x) (T.unpack x)
   PrimBool loc   x -> H.Con mainLoc $ bool loc x
   where

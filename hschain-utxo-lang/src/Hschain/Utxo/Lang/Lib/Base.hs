@@ -106,7 +106,8 @@ baseTypeAssump =
   , assumpType  "any" (vectorT boolT ~> boolT)
   , assumpType' "sum"      "Num" aT (vectorT aT ~> aT)
   , assumpType' "product"  "Num" aT (vectorT aT ~> aT)
-  , assumpType  "id"  ((bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
+  , assumpType  "."  ((bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
+  , assumpType  "id"  (aT ~> aT)
   , assumpType "const" (aT ~> bT ~> aT)
   , assumpType "getHeight" intT
   , assumpType "getSelf" boxT

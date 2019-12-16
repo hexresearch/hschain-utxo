@@ -20,6 +20,7 @@ import System.Exit
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Lib.Base
+import Hschain.Utxo.Lang.Infer
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -119,7 +120,13 @@ reload = do
   mapM_ loadTx     =<< getTxFile
 
 showType :: String -> Repl ()
-showType _ = echo "show type (not implemented yet)"
+showType str = case P.parseExp str of
+  P.ParseOk expr      -> do
+    closure  <- fmap replEnv'closure get
+    liftIO $ case runInferExpr baseTypeAssump $ closure expr of
+      Right ty -> T.putStrLn $ renderText ty
+      Left err -> T.putStrLn $ renderText err
+  P.ParseFailed _ msg -> liftIO $ putStrLn msg
 
 
 help :: Repl ()

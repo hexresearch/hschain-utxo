@@ -4,6 +4,7 @@ module Type.ClassEnv(
   , Class(..)
   , initialEnv
   , reduce
+  , removeCons
   , defaultSubst
   , defaultedPreds
   , entail
@@ -162,7 +163,7 @@ simplify ce = loop []
 
 
 reduce :: ClassEnv -> [Pred] -> Except TypeError [Pred]
-reduce ce ps = fmap (simplify ce) $ toHnfs ce ps
+reduce ce ps = fmap (removeCons . simplify ce) $ toHnfs ce ps
   where
     simplify :: ClassEnv -> [Pred] -> [Pred]
     simplify ce = loop []
@@ -173,6 +174,13 @@ reduce ce ps = fmap (simplify ce) $ toHnfs ce ps
                 | otherwise                -> loop (p : rs) ps
 
     scEntail ce ps p = any (p `elem`) (map (bySuper ce) ps)
+
+removeCons :: [Pred] -> [Pred]
+removeCons = filter (not . isCons)
+  where
+    isCons (IsIn _ _ ty) = case ty of
+      TCon _ _ -> True
+      _        -> False
 
 ambiguities :: [Tyvar] -> [Pred] -> [Ambiguity]
 ambiguities vs ps = [ Ambiguity v (filter (elem v . getVars) ps) | v <- (S.toList $ getVars ps) L.\\ vs]

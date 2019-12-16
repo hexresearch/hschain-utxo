@@ -252,10 +252,11 @@ instance HasLoc VarName where
 instance HasLoc Lang where
   getLoc (Fix expr) = getLoc expr
 
-instance HasLoc (E a) where
+instance Show a => HasLoc (E a) where
   getLoc = \case
     Var loc _ -> loc
     Apply loc _ _ -> loc
+    InfixApply loc _ _ _ -> loc
     Lam loc _ _ -> loc
     LamList loc _ _ -> loc
     Let loc _ _ -> loc

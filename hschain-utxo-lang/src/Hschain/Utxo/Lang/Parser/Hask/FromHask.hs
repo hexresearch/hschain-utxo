@@ -197,6 +197,7 @@ fromLit = \case
   H.PrimInt loc val _    -> return $ PrimInt loc (fromInteger val)
   H.PrimFloat loc val _  -> return $ PrimDouble loc (realToFrac val)
   H.PrimDouble loc val _ -> return $ PrimDouble loc (realToFrac val)
+  H.Frac loc val _       -> return $ PrimDouble loc (realToFrac val)
   H.PrimString loc val _ -> return $ PrimString loc (fromString val)
   other                  -> parseFailedBy "Failed to parse literal" other
 

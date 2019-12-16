@@ -8,24 +8,27 @@ import Data.Maybe
 
 import Type.Loc
 import Type.Type
+import Type.Pretty
+
+import Data.Text.Prettyprint.Doc
+import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 
-newtype Subst = Subst { unSubst :: Map Tyvar Type }
-  deriving (Show, Eq)
-
 nullSubst :: Subst
 nullSubst = Subst M.empty
 
 compose :: Subst -> Subst -> Subst
-compose subst2@(Subst s2) (Subst s1) = Subst $ M.union s1' s2'
+compose subst2@(Subst s2) (Subst s1) = Subst $ M.map (apply (Subst s1)) s2 `M.union` s1
+{-
+Subst $ M.union s1' s2'
   where
     s1' = fmap (apply subst2) s1
     s2' = M.difference s2 s1
-
+-}
 merge :: Subst -> Subst -> Maybe Subst
 merge (Subst s1) (Subst s2)
   | agree     = Just $ Subst $ M.union s1 s2
@@ -112,8 +115,10 @@ varBind :: MonadError TypeError m => Tyvar -> Type -> m Subst
 varBind u t
   | t == TVar noLoc u       = return $ nullSubst
   | u `S.member` getVars t  = throwError $ singleTypeError (getLoc u) "occurs check fails"
-  | kind u /= kind t        = throwError $ singleTypeError (getLoc u) "kinds do not match"
+  -- | kind u /= kind t        = throwError $ singleTypeError (getLoc u) $ mconcat ["kinds do not match: got ", pp $ kind u, " expected ", pp $ kind t]
   | otherwise               = return $ singleton u t
+--   where
+    -- pp = renderStrict . layoutPretty defaultLayoutOptions . pretty
 
 
 match :: MonadError TypeError m => Type -> Type -> m Subst
@@ -172,4 +177,6 @@ findAssump idx as =
   maybe err (pure . (\(_ :>: sc) -> sc)) $ L.find (\(idx' :>: _) -> (idx == idx')) as
   where
     err = throwError $ singleTypeError (getLoc idx) $ mconcat ["unbound identifier ", id'name idx]
+
+
 

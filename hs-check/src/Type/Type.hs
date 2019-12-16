@@ -4,6 +4,7 @@ import Data.Function (on)
 import Data.Maybe
 import Data.String
 import Data.Text (Text)
+import Data.Map.Strict (Map)
 
 import qualified Language.Haskell.Exts.SrcLoc as H
 
@@ -26,7 +27,7 @@ enumId loc n = Id loc $ "v" <> (fromString $ show n)
 data TypeError = TypeError
   { typeError'loc     :: [Loc]
   , typeError'message :: [Text]
-  }
+  } deriving (Show)
 
 instance Semigroup TypeError where
   TypeError loc1 msg1 <> TypeError loc2 msg2 = TypeError (loc1 <> loc2) (msg1 <> msg2)
@@ -68,6 +69,9 @@ data Scheme = Forall Loc [Kind] (Qual Type)
 
 data Assump = Id :>: Scheme
   deriving (Show)
+
+newtype Subst = Subst { unSubst :: Map Tyvar Type }
+  deriving (Show, Eq)
 
 --------------------------------
 

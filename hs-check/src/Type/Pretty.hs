@@ -13,6 +13,9 @@ import Type.Type
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
+pp :: Pretty a => a -> Text
+pp = renderStrict . layoutPretty defaultLayoutOptions . pretty
+
 instance Pretty Scheme where
   pretty (Forall _ _ qual) = pretty qual
 
@@ -83,6 +86,13 @@ needsParens env = \case
       | otherwise = True
 
 -------------------------------------------
+
+instance Pretty Kind where
+  pretty = \case
+    Star _     -> "*"
+    Kfun _ a b -> parens (hsep [pretty a, "->", pretty b])
+
+-------------------------------------------
 --
 
 data PartialOrdering = PoLT | PoGT | PoEQ | PoNC
@@ -122,4 +132,18 @@ comparePrec env a b = case (Map.lookup a env, Map.lookup b env) of
 
 fixity :: FixityEnv -> Operator -> Fixity
 fixity env op = maybe FixNone opFix'fixity $ Map.lookup op env
+
+-------------------------------------------------
+
+instance Pretty TypeError where
+  pretty TypeError{..} = vcat $ fmap pretty $ typeError'message
+
+instance Pretty Tyvar where
+  pretty (Tyvar _ name _) = pretty name
+
+instance Pretty Subst where
+  pretty (Subst m) = vcat
+    [ "Subst"
+    , indent 2 $ vcat $ fmap (\(a, b) -> hsep [pretty a, ":", pretty b]) $ Map.toList m]
+
 
