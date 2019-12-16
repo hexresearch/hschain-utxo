@@ -5,6 +5,7 @@ import Control.Monad.Except
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Maybe
+import Data.String
 
 import Type.Loc
 import Type.Type
@@ -179,4 +180,19 @@ findAssump idx as =
     err = throwError $ singleTypeError (getLoc idx) $ mconcat ["unbound identifier ", id'name idx]
 
 
+---------------------------------------
+-- normalize
+
+letters :: [String]
+letters = [1..] >>= flip replicateM ['a'..'z']
+
+normalize :: Types a => a -> a
+normalize x = apply (normalizeSubst x) x
+
+normalizeSubst :: Types a => a -> Subst
+normalizeSubst x = ord
+  where
+    ord = Subst $ M.fromList $ zip (S.toList $ getVars x) normVars
+
+    normVars = fmap (\v -> TVar noLoc (Tyvar noLoc (Id noLoc $ fromString v) (Star noLoc))) letters
 

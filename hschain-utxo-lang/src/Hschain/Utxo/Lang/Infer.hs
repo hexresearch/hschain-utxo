@@ -455,11 +455,13 @@ runInferExpr as expr = do
   where
     infer ce = do
       (Qual loc ps exprT) <- inferExpr as expr
-      s <- fmap tr getSubst
+      s <- getSubst
       rs <- Infer $ lift $ reduce ce (apply s ps)
-      s' <- fmap tr $ defaultSubst ce [] rs
+      s' <- defaultSubst ce [] rs
       let mainSubst = s' `compose` s
-      return $ Qual loc (removeCons $ apply mainSubst rs) $ apply mainSubst exprT
+          resExprT = apply mainSubst exprT
+          normS = normalizeSubst resExprT
+      return $ Qual loc (removeCons $ apply (normS `compose` mainSubst) rs) $ apply normS resExprT
 
     tr x = trace (T.unpack $ pp x) x
 
@@ -488,4 +490,6 @@ addCoreClasses =
       where sh = qual "Show"
 
     qual idx ty = Qual noLoc [] (IsIn noLoc idx ty)
+
+
 
