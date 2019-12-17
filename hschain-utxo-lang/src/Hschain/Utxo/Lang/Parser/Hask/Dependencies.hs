@@ -12,6 +12,7 @@ import Data.Foldable
 import Data.Fix
 import Data.Map.Strict (Map)
 import Data.Maybe
+import Data.Set (Set)
 import Data.Text (Text)
 
 import Language.Haskell.Exts.Parser (
@@ -20,7 +21,9 @@ import Language.Haskell.Exts.Parser (
 import Type.Loc
 import Type.Type
 
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Parser.Hask.Utils
 
 import qualified Data.Map.Strict as Map
@@ -29,6 +32,7 @@ import qualified Data.Text as Text
 import qualified Data.List as L
 import qualified Data.Vector as V
 
+-- import Debug.Trace
 
 type TypeMap  = Map VarName (Qual Type)
 type FunMap   = Map VarName (Alt Lang)
@@ -45,6 +49,19 @@ toBindGroup ds = do
   funMap   <- getFunMap ds
   funOrder <- orderDeps (getDeps funMap)
   renderToBinds funMap typeMap funOrder
+{-
+  where
+    trOrder ord = trace (ppOrdDeps ord) ord
+
+    trDeps deps = trace (ppDeps deps) deps
+
+    ppOrdDeps ord = Text.unpack $ Text.unwords $ fmap varName'name ord
+
+    ppDeps deps = Text.unpack $ Text.unlines $ fmap (\(k, vs) -> mconcat [ppVar k, " : ", ppVars vs]) $ Map.toList deps
+      where
+        ppVar VarName{..} = varName'name
+        ppVars vs = Text.unwords $ fmap ppVar vs
+-}
 
 getTypeMap :: [Decl] -> ParseResult TypeMap
 getTypeMap = foldM accumTypeMap Map.empty . concat . catMaybes . fmap getTypeSig
@@ -70,30 +87,35 @@ getFunMap = fmap Map.fromList . mapM toSingleName . catMaybes . fmap getFunDecl
       (v, _):_   -> parseFailed (varName'loc v) $ mconcat ["Too many functional cases are defined for: ", Text.unpack $ varName'name v]
 
 getDeps :: FunMap -> Deps
-getDeps = fmap (freeVars . alt'expr)
+getDeps = fmap (Set.toList . (`Set.difference` baseNamesSet) . freeVars . altToExpr)
   where
+    baseNamesSet = Set.fromList $ fmap (VarName noLoc) baseNames
+
+    freeVars :: Lang -> Set VarName
     freeVars = cata $ \case
-      Var _ v         -> [v]
+      Var _ v         -> Set.singleton v
+      InfixApply _ a _ b -> a <> b
       Apply _ a b     -> a <> b
-      Lam _ v a       -> filter (/= v) a
-      LamList _ vs a  -> a L.\\ vs
-      Let _ bg a      -> (a L.\\ getBgNames bg) ++ freeVarsBg bg
-      LetRec _ v a b  -> a ++ filter (/= v) b
+      Lam _ v a       -> Set.filter (/= v) a
+      LamList _ vs a  -> a `Set.difference` (Set.fromList vs)
+      Let _ bg a      -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
+      LetRec _ v a b  -> a <> Set.filter (/= v) b
       Ascr _ a _      -> a
-      PrimE _ _       -> []
+      PrimE _ _       -> Set.empty
       If _ a b c      -> mconcat [a, b, c]
       Pk _ a          -> a
-      Tuple _ vs      -> mconcat $ V.toList vs
+      Tuple _ vs      -> fold $ V.toList vs
       UnOpE _ _ a     -> a
       BinOpE _ _ a b  -> mconcat [a, b]
       GetEnv _ env    -> fold env
       VecE _ vec      -> fold vec
       TextE _ txt     -> fold txt
       BoxE _ box      -> fold box
-      Undef _         -> []
+      Undef _         -> Set.empty
       Trace _ a b     -> mconcat [a, b]
 
-    getBgNames BindGroup{..} =
+    getBgNames :: BindGroup a -> Set VarName
+    getBgNames BindGroup{..} = Set.fromList $
       fmap toVarName $ concat $ fmap expl'name bindGroup'expl : (fmap2 impl'name bindGroup'impl)
 
     freeVarsBg = fold
@@ -117,7 +139,7 @@ orderDeps deps
 
     recursiveFail
       | not $ null noDef = let var = head noDef
-                           in  parseFailed (getLoc var) $ Text.unpack $ mconcat ["No defenition for variable: ", varName'name var]
+                           in  parseFailed (getLoc var) $ Text.unpack $ mconcat ["No defenition for free variables: ", Text.unwords (fmap varName'name $ deps Map.! var), " for variable ", varName'name var]
       | otherwise        = parseFailed noLoc "Recursive definitions not allowed" -- todo: find cycles here
                                                                                  --       to say wich vars are recursive
       where

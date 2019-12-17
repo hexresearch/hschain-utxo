@@ -19,6 +19,7 @@ import System.Console.Repline
 import System.Exit
 
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Infer
 
@@ -67,22 +68,19 @@ setHeight arg =
         setEnv env = env { env'height = n }
 
 load :: String -> Repl ()
-load args = liftIO $ mapM_ loadScript $ getFiles args
+load args = mapM_ loadScript $ getFiles args
   where
     getFiles str = headMay $ words str
-
-    loadScript file =
-      evalScript =<< readFile file
-
-    evalScript = undefined
 
 loadScript :: FilePath -> Repl ()
 loadScript file = do
   resetEvalCtx
   saveScriptFile file
   str <- liftIO $ readFile file
-  case P.parseExp str of
-    P.ParseOk expr       -> evalExpr expr
+  case P.parseModule str of
+    P.ParseOk m           -> do
+     let moduleClosure = bindGroupToLet (module'binds m)
+     modify' $ \st -> st { replEnv'closure = moduleClosure . replEnv'closure st }
     P.ParseFailed loc err -> showErr loc err
   where
     showErr _ msg = liftIO $ putStrLn $ unlines

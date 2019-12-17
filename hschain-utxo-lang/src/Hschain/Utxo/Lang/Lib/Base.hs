@@ -55,6 +55,12 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , andB
   , orB
   , notB
+  , eq
+  , neq
+  , lt
+  , gt
+  , lteq
+  , gteq
   ]
 
 baseNames :: [Text]
@@ -98,6 +104,12 @@ baseNames =
   , "&&"
   , "||"
   , "not"
+  , "=="
+  , "/="
+  , "<"
+  , ">"
+  , "<="
+  , ">="
   ]
 
 baseTypeAssump :: [Assump]
@@ -140,8 +152,14 @@ baseTypeAssump =
   , assumpType "map" ((aT ~> bT) ~> vectorT aT ~> vectorT bT)
   , assumpType "fold" ((aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
   , assumpType "length" (vectorT aT ~> intT)
-  , assumpType "pk" (textT ~> textT)
+  , assumpType "pk" (textT ~> boolT)
   , assumpType "!!" (vectorT aT ~> intT ~> aT)
+  , assumpType' "==" "Eq" aT (aT ~> aT ~> boolT)
+  , assumpType' "/=" "Eq" aT (aT ~> aT ~> boolT)
+  , assumpType' "<" "Ord" aT (aT ~> aT ~> boolT)
+  , assumpType' "<=" "Ord" aT (aT ~> aT ~> boolT)
+  , assumpType' ">=" "Ord" aT (aT ~> aT ~> boolT)
+  , assumpType' ">" "Ord" aT (aT ~> aT ~> boolT)
   ]
 
 
@@ -234,6 +252,24 @@ lengthText = letIn "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ 
 
 biOp name op = letIn name (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc op x y)
 unOp name op = letIn name (Fix $ Lam noLoc "x" $ Fix $ UnOpE noLoc op x)
+
+eq :: Lang -> Lang
+eq = biOp "==" Equals
+
+neq :: Lang -> Lang
+neq = biOp "/=" NotEquals
+
+lt :: Lang -> Lang
+lt = biOp "<" LessThan
+
+lteq :: Lang -> Lang
+lteq = biOp "<=" LessThanEquals
+
+gt :: Lang -> Lang
+gt = biOp ">" GreaterThan
+
+gteq :: Lang -> Lang
+gteq = biOp ">=" GreaterThanEquals
 
 andB :: Lang -> Lang
 andB = biOp "&&" And

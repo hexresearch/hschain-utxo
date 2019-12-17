@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Desugar(
   , app3
   , altToExpr
   , moduleToMainExpr
+  , bindGroupToLet
 ) where
 
 import Control.Applicative

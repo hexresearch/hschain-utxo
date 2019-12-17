@@ -278,4 +278,6 @@ instance Pretty Error where
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
 
+prettyMap :: (Pretty a, Pretty b) => String -> M.Map a b -> Doc ann
+prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [pretty k, ":", pretty v]) $ M.toList m]
 
