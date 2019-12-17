@@ -296,3 +296,4 @@ assumpType idx ty = idx :>: (Forall noLoc [Star noLoc] $ Qual noLoc [] ty)
 
 assumpType' :: Id -> Id -> Type -> Type -> Assump
 assumpType' idx cls var ty = idx :>: (Forall noLoc [Star noLoc] $ Qual noLoc [IsIn noLoc cls var] ty)
+

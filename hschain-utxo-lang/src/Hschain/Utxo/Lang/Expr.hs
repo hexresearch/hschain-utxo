@@ -63,8 +63,10 @@ data Pat
   -- | PNpk Id Integer
   -- | PCon Assump [Pat]
 
-data Module = Module Loc [BindGroup Lang]
-  deriving (Show)
+data Module = Module
+  { module'loc   :: !Loc
+  , module'binds :: ![BindGroup Lang]
+  } deriving (Show)
 
 data Alt a = Alt
   { alt'pats :: [Pat]

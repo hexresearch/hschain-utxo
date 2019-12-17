@@ -4,8 +4,9 @@ cabal-version:       >=1.10
 
 name:                hs-check
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            Haskell style type checker
+description:         Implements Hindley-Milner type inference for type lambda-calculus
+                     with polymorphism and type classes.
 -- bug-reports:
 -- license:
 license-file:        LICENSE

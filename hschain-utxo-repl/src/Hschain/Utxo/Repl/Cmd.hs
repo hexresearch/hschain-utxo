@@ -122,8 +122,8 @@ reload = do
 showType :: String -> Repl ()
 showType str = case P.parseExp str of
   P.ParseOk expr      -> do
-    closure  <- fmap replEnv'closure get
-    liftIO $ case runInferExpr baseTypeAssump $ closure expr of
+    eTy <- checkType expr
+    liftIO $ case eTy of
       Right ty -> T.putStrLn $ renderText ty
       Left err -> T.putStrLn $ renderText err
   P.ParseFailed _ msg -> liftIO $ putStrLn msg

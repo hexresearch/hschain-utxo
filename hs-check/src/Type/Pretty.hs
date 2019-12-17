@@ -136,7 +136,7 @@ fixity env op = maybe FixNone opFix'fixity $ Map.lookup op env
 -------------------------------------------------
 
 instance Pretty TypeError where
-  pretty TypeError{..} = vcat $ fmap pretty $ typeError'message
+  pretty TypeError{..} = hsep ["Type error:", vcat $ fmap pretty $ typeError'message]
 
 instance Pretty Tyvar where
   pretty (Tyvar _ name _) = pretty name

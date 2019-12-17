@@ -8,6 +8,8 @@ module Hschain.Utxo.Repl.Monad(
   , Arg
   , getScriptFile
   , getTxFile
+  , checkType
+  , hasType
 ) where
 
 import Control.Applicative
@@ -15,9 +17,13 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 import Control.Monad.IO.Class
 
+import Type.Type
+
 import Data.Fix
+import Data.Either
 
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base
 
 import System.Console.Repline
@@ -63,4 +69,12 @@ getScriptFile = fmap replEnv'scriptFile get
 
 getTxFile :: Repl (Maybe FilePath)
 getTxFile = fmap replEnv'txFile get
+
+checkType :: Lang -> Repl (Either TypeError (Qual Type))
+checkType expr = do
+  closure  <- fmap replEnv'closure get
+  return $ runInferExpr baseTypeAssump $ closure expr
+
+hasType :: Lang -> Repl Bool
+hasType = fmap isRight . checkType
 

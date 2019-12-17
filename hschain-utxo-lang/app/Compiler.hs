@@ -2,11 +2,18 @@ module Main where
 
 import Data.Aeson (encode)
 import Data.ByteString.Lazy (ByteString)
+import Data.String
 import Data.Text (Text)
 import Options.Applicative
 
+import Type.Type
+import Type.Pretty
+
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Parser.Parser
+import Hschain.Utxo.Lang.Desugar
+import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Lib.Base
+import Hschain.Utxo.Lang.Parser.Hask
 
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BS
@@ -54,6 +61,17 @@ app opt@Options{..} = do
 
 compile :: String -> Either String ByteString
 compile res =
-  fmap (encode . toScript . Expr) $ parseExpr res
+  case parseModule res of
+    ParseOk lang ->
+      case checkType lang of
+        Nothing  -> fmap (encode . toScript . Expr) $ moduleToMainExpr lang
+        Just err -> Left $ T.unpack $ renderText err
+    ParseFailed _ err -> Left err
+
+checkType :: Module -> Maybe TypeError
+checkType lang =
+  case runInferExpr baseTypeAssump =<< (either (Left . TypeError [noLoc] . pure . fromString) (Right . importBase) $ moduleToMainExpr lang) of
+    Right _  -> Nothing
+    Left err -> Just err
 
 

@@ -448,6 +448,9 @@ inferPat = \case
 -------------------------------------------
 --
 
+runInferModule :: [Assump] -> Lang -> Either TypeError (Qual Type)
+runInferModule = undefined
+
 runInferExpr :: [Assump] -> Lang -> Either TypeError (Qual Type)
 runInferExpr as expr = do
   ce <- defaultClassEnv
