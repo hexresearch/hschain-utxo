@@ -16,25 +16,15 @@ Like in Haskell we have tuples. They are accessed with operator ``tuple !! int``
 Also we have vectors with usual operators ``map`` (map over), ``fold`` (left fold), ``length`` (size of the vector), 
 ``++`` (concatenation). 
 
-the script is a list of defenitions that ends up with boolean expression.::
+the script is a list of defenitions. It should contain
+the function with name ``main`` which has type ``Bool``. It is the result of the script.::
 
   one = 1
   two = 2
 
   check x = one + two == x
 
-  check 3
-
-.. topic:: Order matters
-
-   We should list the definitions in order of execution. 
-   So reversing the order is not allowed::
-
-      
-      check x = one + two == x   -- error: unbound variable name
-
-      one = 1
-      two = 2
+  main = check 3
 
 .. topic:: No recursion
 
@@ -69,8 +59,9 @@ give it to Bob excluding Alice::
    
    time = 100
 
-      (pk alice && getHeight <= time) 
-   || (pk bob   && getHeight >  time)
+   main = 
+         (pk alice && getHeight <= time) 
+      || (pk bob   && getHeight >  time)
 
 Transaction execution
 -------------------------------------------
@@ -363,5 +354,6 @@ The answer is either error or structure with TX hash and debug-message::
    data PostTxResponse = PostTxResponse
       { postTxResponse'value :: !(Either Text TxHash )
       , postTxResponse'debug :: !Text }
+
 
 

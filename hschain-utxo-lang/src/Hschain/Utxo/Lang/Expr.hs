@@ -21,6 +21,8 @@ import Type.Type
 
 import Text.Show.Deriving
 
+import Hschain.Utxo.Lang.Sigma
+
 newtype Expr a = Expr Lang
   deriving (Show, Eq)
 
@@ -167,6 +169,7 @@ data Prim
   | PrimDouble Loc Double
   | PrimString Loc Text
   | PrimBool Loc   Bool
+  | PrimSigma Loc  Sigma'
   deriving (Show, Eq, Ord)
 
 data EnvId a
@@ -183,13 +186,14 @@ data EnvId a
 data BoxField a = BoxFieldId | BoxFieldValue | BoxFieldScript | BoxFieldArg a
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-instance ToJSON (Prim ) where
+instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
     PrimInt _ n      -> "int"    .= n
     PrimMoney _ m    -> "money"  .= m
     PrimDouble _ d   -> "double" .= d
     PrimString _ txt -> "text"   .= txt
     PrimBool _ b     -> "bool"   .= b
+    PrimSigma _ s    -> "sigma"  .= show s
 
 -- todo: rewrite this instance
 -- to distinguish between numeric types of int, double and money
@@ -200,6 +204,7 @@ instance FromJSON Prim where
     <|> fmap (PrimDouble noLoc) (v .: "double")
     <|> fmap (PrimString noLoc) (v .: "text")
     <|> fmap (PrimBool   noLoc) (v .: "bool")
+    <|> fmap (PrimSigma noLoc . read)  (v .: "sigma")
 
 
 ---------------------------------

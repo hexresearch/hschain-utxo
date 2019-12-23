@@ -16,6 +16,7 @@ import Type.Loc
 import Type.Type
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -64,7 +65,6 @@ toHaskExp (Fix expr) = case expr of
     ap2 f x y = H.App (getLoc y) (H.App (getLoc f) (toVar (getLoc f) f) (rec x)) (rec y)
     op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toQName' f) (rec y)
 
-    toVar loc name = H.Var loc (toQName $ fromVarName name)
 
     fromUnOp loc op a = case op of
       Not       -> ap (VarName loc "not") a
@@ -145,9 +145,24 @@ toLiteral mainLoc = \case
   PrimDouble loc x -> lit $ H.Frac loc (realToFrac x) (show x)
   PrimString loc x -> lit $ H.String loc (T.unpack x) (T.unpack x)
   PrimBool loc   x -> H.Con mainLoc $ bool loc x
+  PrimSigma loc  x -> sigma loc x
   where
     lit = H.Lit mainLoc
     bool loc x = H.UnQual loc $ H.Ident loc $ show x
+
+    sigma :: Loc -> Sigma' -> H.Exp Loc
+    sigma loc x = cata go x
+      where
+        go :: SigmaExpr () (H.Exp Loc) -> H.Exp Loc
+        go = \case
+          SigmaPk _ pkey -> ap (VarName loc "pk") $ lit $ H.String loc (T.unpack pkey) (T.unpack pkey)
+          SigmaAnd _ a b -> op2 "<&&>" a b
+          SigmaOr  _ a b -> op2 "<||>" a b
+
+        op2 :: String -> H.Exp Loc -> H.Exp Loc -> H.Exp Loc
+        op2 name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Ident loc name) b
+
+        ap f x = H.App (getLoc f) (toVar (getLoc f) f) x
 
 toHaskModule :: Module -> H.Module Loc
 toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl =<< bs)
@@ -233,5 +248,6 @@ toSymbolQName x = H.UnQual (getLoc x) $ toSymbolName x
 toSymbolQName' :: VarName -> H.QName Loc
 toSymbolQName' x@(VarName loc _) = H.UnQual loc $ toSymbolName' x
 
-
+toVar :: Loc -> VarName -> H.Exp Loc
+toVar loc name = H.Var loc (toQName $ fromVarName name)
 

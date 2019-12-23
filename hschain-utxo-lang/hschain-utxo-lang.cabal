@@ -66,6 +66,7 @@ library
     DeriveFunctor
     DeriveFoldable
     DeriveTraversable
+    ScopedTypeVariables
     TemplateHaskell
     TupleSections
 

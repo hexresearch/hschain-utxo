@@ -157,8 +157,9 @@ execLang' (Fix x) = case x of
         TupleAt n   -> fromTupleAt n x'
       where
         fromNot expr = case expr of
-          Fix (PrimE loc1 (PrimBool loc2 b)) -> prim loc1 $ PrimBool loc2 $ not b
-          _                                  -> thisShouldNotHappen x
+          Fix (PrimE loc1 (PrimBool loc2 b))  -> prim loc1 $ PrimBool loc2 $ not b
+          Fix (PrimE loc1 (PrimSigma loc2 b)) -> prim loc1 $ either (PrimBool loc2) (PrimSigma loc2) $ notSigma b
+          _                                   -> thisShouldNotHappen x
 
         fromNeg expr = case expr of
           Fix (PrimE loc1 a) -> case a of
@@ -176,8 +177,8 @@ execLang' (Fix x) = case x of
       a <- rec x
       b <- rec y
       case bi of
-        And       -> fromAnd a b
-        Or        -> fromOr a b
+        And       -> fromAnd loc a b
+        Or        -> fromOr loc a b
         Plus      -> fromPlus loc a b
         Minus     -> fromMinus loc a b
         Times     -> fromTimes loc a b
@@ -190,26 +191,41 @@ execLang' (Fix x) = case x of
         GreaterThanEquals -> fromGte loc a b
         ComposeFun -> fromComposeFun loc a b
 
-    fromAnd, fromOr :: Lang -> Lang -> Exec Lang
+    fromAnd, fromOr :: Loc -> Lang -> Lang -> Exec Lang
 
+    -- todo: maybe it's worth to make it lazy
+    fromAnd loc x y = do
+      Fix x' <- rec x
+      Fix y' <- rec y
+      case (x', y') of
+        (PrimE locX1 (PrimBool locX2 a), _) ->
+          if a
+            then return (Fix y')
+            else prim locX1 $ PrimBool locX2 False
+        (_, PrimE locX1 (PrimBool locX2 a)) ->
+          if a
+            then return (Fix x')
+            else prim locX1 $ PrimBool locX2 False
+        (PrimE locX1 (PrimSigma _ a), PrimE locY1 (PrimSigma _ b)) ->
+          return $ Fix $ PrimE loc $ PrimSigma loc $ Fix $ SigmaAnd () a b
+        _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
-    fromAnd (Fix x) (Fix y) = case x of
-      PrimE locX1 (PrimBool locX2 a) ->
-        if a
-          then case y of
-                  PrimE locY1 (PrimBool locY2 b) -> return $ Fix y
-                  _                              -> thisShouldNotHappen $ Fix y
-          else prim locX1 $ PrimBool locX2 False
-      _                 -> thisShouldNotHappen $ Fix x
-
-    fromOr (Fix x) (Fix y) = case x of
-      PrimE locX1 (PrimBool locX2 a) ->
-        if a
-          then prim locX1 $ PrimBool locX2 True
-          else case y of
-                  PrimE locY1 (PrimBool locY2 b) -> prim locY1 $ PrimBool locY2 b
-                  _                              -> thisShouldNotHappen $ Fix y
-      _                  -> thisShouldNotHappen $ Fix x
+    -- todo: maybe it's worth to make it lazy
+    fromOr loc x y = do
+      Fix x' <- rec x
+      Fix y' <- rec y
+      case (x', y') of
+        (PrimE locX1 (PrimBool locX2 a), _) ->
+          if a
+            then prim locX1 $ PrimBool locX2 True
+            else return (Fix y')
+        (_, PrimE locX1 (PrimBool locX2 a)) ->
+          if a
+            then prim locX1 $ PrimBool locX2 True
+            else return (Fix x')
+        (PrimE locX1 (PrimSigma _ a), PrimE locY1 (PrimSigma _ b)) ->
+          return $ Fix $ PrimE loc $ PrimSigma loc $ Fix $ SigmaOr () a b
+        _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+) (+) (+))
     fromMinus loc = fromNumOp2 loc Minus (NumOp2 (\x y -> x - y) (\x y -> x - y) (\x y -> x - y))
@@ -324,10 +340,10 @@ execLang' (Fix x) = case x of
           rec a
         _ -> thisShouldNotHappen $ Fix str'
 
-    fromPk _ x = do
+    fromPk loc x = do
       Fix x' <- rec x
       case x' of
-        PrimE loc1 (PrimString loc2 pkey) -> prim loc1 . PrimBool loc2 =<< fmap (checkPubKey pkey) getProof
+        PrimE loc1 (PrimString loc2 pkey) -> return $ Fix $ PrimE loc $ PrimSigma loc1 $ Fix $ SigmaPk () pkey --  prim loc1 . PrimBool loc2 =<< fmap (checkPubKey pkey) getProof
         _                                 -> thisShouldNotHappen x
 
     fromInfixApply loc a v b = rec $ unfoldInfixApply loc a v b
