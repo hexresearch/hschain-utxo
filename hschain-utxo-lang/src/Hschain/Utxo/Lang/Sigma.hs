@@ -1,10 +1,16 @@
 module Hschain.Utxo.Lang.Sigma where
 
+import Control.Monad
+
 import Data.Aeson
 
 import Data.Fix
+import Data.Functor.Classes
 import Data.Set (Set)
 import Data.Text (Text)
+import Text.Show.Deriving
+
+import Safe
 
 import qualified Data.Set as S
 
@@ -79,4 +85,16 @@ notSigma = evalConstants . applyNot
       (a, Just b) -> if b then a else Just False
       _           -> Nothing
 
+-- TODO: make human readable JSON instances for
+-- usage with other languages, or provide tools to
+-- work with haskell representation.
+
+instance FromJSON Sigma' where
+  parseJSON = maybe mzero pure . readMay <=< parseJSON
+
+instance ToJSON Sigma' where
+  toJSON = toJSON . show
+
+
+$(deriveShow1 ''SigmaExpr)
 

@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang(
 
 import Data.Boolean             as X
 
+import Hschain.Utxo.Lang.Sigma  as X
 import Hschain.Utxo.Lang.Expr   as X
 import Hschain.Utxo.Lang.Exec   as X
 import Hschain.Utxo.Lang.Pretty as X

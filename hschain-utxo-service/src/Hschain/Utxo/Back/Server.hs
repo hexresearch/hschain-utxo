@@ -21,6 +21,7 @@ utxoServer :: ServerT UtxoAPI ServerM
 utxoServer =
        postTxEndpoint
   :<|> getBoxBalanceEndpoint
+  :<|> getTxSigmaEndpoint
   :<|> getEnvEndpoint
   :<|> getStateEndpoint
 
@@ -30,6 +31,10 @@ postTxEndpoint tx = fmap (uncurry PostTxResponse) $ updateBoxChain (react tx)
 getBoxBalanceEndpoint :: BoxId -> ServerM (Maybe Money)
 getBoxBalanceEndpoint boxId =
   fmap (\bch -> S.getBoxBalance bch boxId) readBoxChain
+
+getTxSigmaEndpoint :: Tx -> ServerM SigmaTxResponse
+getTxSigmaEndpoint tx =
+  fmap (\bch -> uncurry SigmaTxResponse $ execInBoxChain tx bch) readBoxChain
 
 getEnvEndpoint :: ServerM GetEnvResponse
 getEnvEndpoint = do

@@ -85,6 +85,9 @@ postTx tx = liftClientM (postTx' tx)
 getBoxBalance :: BoxId -> ClientM (Maybe Money)
 getBoxBalance boxId = liftClientM (getBoxBalance' boxId)
 
+getTxSigma :: Tx -> ClientM SigmaTxResponse
+getTxSigma txHash = liftClientM (getTxSigma' txHash)
+
 getEnv :: ClientM GetEnvResponse
 getEnv = liftClientM getEnv'
 
@@ -98,10 +101,12 @@ getState = liftClientM getState'
 --
 postTx' :: Tx -> C.ClientM PostTxResponse
 getBoxBalance' :: BoxId -> C.ClientM (Maybe Money)
+getTxSigma' :: Tx -> C.ClientM SigmaTxResponse
 getEnv' :: C.ClientM GetEnvResponse
 getState' :: C.ClientM BoxChain
 (      postTx'
   :<|> getBoxBalance'
+  :<|> getTxSigma'
   :<|> getEnv'
   :<|> getState'
   ) = C.client (Proxy :: Proxy UtxoAPI)

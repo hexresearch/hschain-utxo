@@ -1,5 +1,6 @@
 module Hschain.Utxo.State.React(
-  react
+    react
+  , execInBoxChain
 ) where
 
 import Data.Monoid
@@ -33,4 +34,8 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
     updateBoxes f bch@BoxChain{..} = bch { boxChain'boxes = f boxChain'boxes }
 
     incrementHeight bch@BoxChain{..} = bch { boxChain'height = 1 + boxChain'height }
+
+
+execInBoxChain :: Tx -> BoxChain -> (Either Text Sigma', Text)
+execInBoxChain tx bch = maybe (Left "Tx is invalid", "No message") execToSigma (toTxArg bch tx)
 

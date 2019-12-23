@@ -14,6 +14,7 @@ import Hschain.Utxo.State.Types
 type UtxoAPI = "api" :>
   (    PostTxEndpoint
   :<|> GetBoxBalanceEndpoint
+  :<|> GetTxSigmaEndpoint
   :<|> GetEnvEndpoint
   :<|> GetStateEndpoint
   )
@@ -23,8 +24,12 @@ type PostTxEndpoint = "tx" :> Summary "Post Tx" :> "post"
   :> Post '[JSON] PostTxResponse
 
 type GetBoxBalanceEndpoint = "box-balance" :> Summary "Gets the balance inside UTXO box" :> "get"
-  :> Capture "bix-id" BoxId
+  :> Capture "box-id" BoxId
   :> Get '[JSON] (Maybe Money)
+
+type GetTxSigmaEndpoint = "tx-sigma" :> Summary "Gets tx-script evaluated to sigma expression" :> "get"
+  :> ReqBody '[JSON] Tx
+  :> Get '[JSON] SigmaTxResponse
 
 type GetEnvEndpoint = "env"
   :> Get '[JSON] GetEnvResponse
@@ -38,8 +43,19 @@ data PostTxResponse = PostTxResponse
   , postTxResponse'debug :: !Text }
   deriving (Show, Eq)
 
+data SigmaTxResponse = SigmaTxResponse
+  { sigmaTxResponse'value :: !(Either Text Sigma' )
+  , sigmaTxResponse'debug :: !Text }
+  deriving (Show, Eq)
+
 newtype GetEnvResponse = GetEnvResponse { unGetEnvResponse :: Env }
   deriving (Show, Eq, FromJSON, ToJSON)
+
+instance ToHttpApiData TxHash where
+  toQueryParam (TxHash txt) = txt
+
+instance FromHttpApiData TxHash where
+  parseQueryParam = fmap (fmap TxHash) parseQueryParam
 
 instance ToHttpApiData BoxId where
   toQueryParam (BoxId txt) = txt
@@ -48,3 +64,4 @@ instance FromHttpApiData BoxId where
   parseQueryParam = fmap (fmap BoxId) parseQueryParam
 
 $(deriveJSON dropPrefixOptions ''PostTxResponse)
+$(deriveJSON dropPrefixOptions ''SigmaTxResponse)

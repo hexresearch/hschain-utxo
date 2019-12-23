@@ -23,7 +23,7 @@ newtype UserId = UserId { unUserId :: Text }
   deriving (Show, Eq, ToJSON, FromJSON)
 
 newtype TxHash = TxHash Text
-  deriving (Show, Eq, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 data Tx = Tx
   { tx'inputs  :: !(Vector BoxId)

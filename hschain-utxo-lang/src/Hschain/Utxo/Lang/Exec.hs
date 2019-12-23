@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Exec(
     exec
   , execLang
+  , execToSigma
   , runExec
   , Error(..)
 ) where
@@ -652,3 +653,16 @@ traceFun name f x =
   let res = f x
   in  trace (mconcat ["\n\nTRACE: " , name, "(", show x, ") = ", show res]) (f x)
 -}
+
+execToSigma :: TxArg -> (Either Text Sigma', Text)
+execToSigma tx@TxArg{..} = execExpr $ getInputExpr tx
+  where
+    execExpr (Expr x) =
+      case runExec txArg'proof txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
+        Right (Fix (PrimE _ (PrimSigma _ b)), msg) -> (Right b, msg)
+        Right _                                    -> (Left noSigmaExpr, noSigmaExpr)
+        Left err                                   -> (Left (showt err), showt err)
+
+    noSigmaExpr = "Error: Script does not evaluate to sigma expression"
+
+
