@@ -164,12 +164,12 @@ data HashAlgo = Sha256 | Blake2b256
   deriving (Eq, Show)
 
 data Prim
-  = PrimInt Loc    Int
-  | PrimMoney Loc  Money
-  | PrimDouble Loc Double
-  | PrimString Loc Text
-  | PrimBool Loc   Bool
-  | PrimSigma Loc  (Sigma PublicKey)
+  = PrimInt     Int
+  | PrimMoney   Money
+  | PrimDouble  Double
+  | PrimString  Text
+  | PrimBool    Bool
+  | PrimSigma   (Sigma PublicKey)
   deriving (Show, Eq, Ord)
 
 data EnvId a
@@ -188,23 +188,23 @@ data BoxField a = BoxFieldId | BoxFieldValue | BoxFieldScript | BoxFieldArg a
 
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
-    PrimInt _ n      -> "int"    .= n
-    PrimMoney _ m    -> "money"  .= m
-    PrimDouble _ d   -> "double" .= d
-    PrimString _ txt -> "text"   .= txt
-    PrimBool _ b     -> "bool"   .= b
-    PrimSigma _ s    -> "sigma"  .= toJSON s
+    PrimInt n      -> "int"    .= n
+    PrimMoney m    -> "money"  .= m
+    PrimDouble d   -> "double" .= d
+    PrimString txt -> "text"   .= txt
+    PrimBool b     -> "bool"   .= b
+    PrimSigma s    -> "sigma"  .= toJSON s
 
 -- todo: rewrite this instance
 -- to distinguish between numeric types of int, double and money
 instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
-        fmap (PrimInt    noLoc) (v .: "int")
-    <|> fmap (PrimMoney  noLoc) (v .: "money")
-    <|> fmap (PrimDouble noLoc) (v .: "double")
-    <|> fmap (PrimString noLoc) (v .: "text")
-    <|> fmap (PrimBool   noLoc) (v .: "bool")
-    <|> (fmap (PrimSigma noLoc) . parseJSON =<< (v .: "sigma"))
+        fmap PrimInt    (v .: "int")
+    <|> fmap PrimMoney  (v .: "money")
+    <|> fmap PrimDouble (v .: "double")
+    <|> fmap PrimString (v .: "text")
+    <|> fmap PrimBool   (v .: "bool")
+    <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))
 
 ---------------------------------
 -- type constants

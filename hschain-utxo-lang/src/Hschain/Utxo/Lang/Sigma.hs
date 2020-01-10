@@ -12,7 +12,13 @@ module Hschain.Utxo.Lang.Sigma(
   , notSigma
   , publicKeyFromText
   , publicKeyToText
-) where
+  , emptyProofEnv
+  , newSecret
+  , getPublicKey
+  , getKeyPair
+  , toProofEnv
+  , equalSigmaExpr
+  ) where
 
 import Control.Monad
 
@@ -48,6 +54,18 @@ type Secret     = Sigma.Secret     CryptoAlg
 
 type ProofEnv   = Sigma.Env        CryptoAlg
 type Proof      = Sigma.ProofDL    CryptoAlg
+
+newSecret :: IO Secret
+newSecret = Sigma.generateSecretKey
+
+getPublicKey :: Secret -> PublicKey
+getPublicKey = Sigma.getPublicKey
+
+getKeyPair :: Secret -> KeyPair
+getKeyPair secret = Sigma.KeyPair secret (getPublicKey secret)
+
+toProofEnv :: [KeyPair] -> ProofEnv
+toProofEnv ks = Sigma.Env ks
 
 publicKeyFromText :: Text -> Maybe PublicKey
 publicKeyFromText = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . TE.encodeUtf8
@@ -146,6 +164,16 @@ toSigmaExpr = cata $ \case
   SigmaPk k    -> Sigma.Leaf () k
   SigmaAnd a b -> Sigma.AND () [a, b]
   SigmaOr  a b -> Sigma.OR  () [a, b]
+
+emptyProofEnv :: ProofEnv
+emptyProofEnv = Sigma.Env []
+
+equalSigmaExpr :: Sigma PublicKey -> Sigma Proof -> Bool
+equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
+  (SigmaPk pubKey, SigmaPk proof)  -> pubKey == Sigma.publicK proof
+  (SigmaOr a1 b1, SigmaOr a2 b2)   -> equalSigmaExpr a1 a2 && equalSigmaExpr b1 b2
+  (SigmaAnd a1 b1, SigmaAnd a2 b2) -> equalSigmaExpr a1 a2 && equalSigmaExpr b1 b2
+  _                                -> False
 
 $(deriveShow1 ''SigmaExpr)
 

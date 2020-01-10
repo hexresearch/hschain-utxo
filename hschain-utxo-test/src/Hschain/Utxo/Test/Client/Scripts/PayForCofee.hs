@@ -131,26 +131,26 @@ sendTxDelayed from fromBox to delayDiff amount = do
   currentHeight <- fmap fromInteger $ M.getHeight
   totalAmount <- fmap (fromMaybe 0) $ M.getBoxBalance fromBox
   let send = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
-      tx = toSendTxDelayed from send
+  tx <- toSendTxDelayed from send
   logTest $ renderText tx
   txResp <- M.postTx tx
   logTest $ fromString $ ppShow txResp
   return (SendRes backBox toBox $ getTxHash txResp)
 
-toSendTxDelayed :: Wallet -> SendDelayed -> Tx
-toSendTxDelayed wallet SendDelayed{..} = Tx
+toSendTxDelayed :: Wallet -> SendDelayed -> App Tx
+toSendTxDelayed wallet SendDelayed{..} = fmap (\proof -> Tx
   { tx'inputs   = V.fromList [inputBox]
   , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-  , tx'proof    = getOwnerProof wallet
+  , tx'proof    = proof
   , tx'args     = M.empty
-  }
+  }) $ getOwnerProof wallet
   where
     inputBox = sendDelayed'from
     height = sendDelayed'height
 
     spendHeight = "spend-height"
 
-    senderPk = pk (text $ wallet'publicKey wallet)
+    senderPk = pk (text $ publicKeyToText $ getWalletPublicKey wallet)
 
     senderUtxo
       | sendDelayed'remain > 0 = Just $ Box
@@ -174,7 +174,7 @@ toSendTxDelayed wallet SendDelayed{..} = Tx
 
     -- receiver can get money only hieght is greater than specified limit
     receiverScript =
-            pk (text $  wallet'publicKey sendDelayed'recepientWallet)
+            pk (text $ publicKeyToText $ getWalletPublicKey sendDelayed'recepientWallet)
         &&* getBoxArg (getInput (int 0)) (text spendHeight) <* getHeight
 
     -- sender can get money back if hieght is less or equals to specified limit

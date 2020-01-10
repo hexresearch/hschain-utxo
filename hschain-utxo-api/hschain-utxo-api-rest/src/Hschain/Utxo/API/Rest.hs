@@ -44,7 +44,7 @@ data PostTxResponse = PostTxResponse
   deriving (Show, Eq)
 
 data SigmaTxResponse = SigmaTxResponse
-  { sigmaTxResponse'value :: !(Either Text Sigma' )
+  { sigmaTxResponse'value :: !(Either Text (Sigma PublicKey) )
   , sigmaTxResponse'debug :: !Text }
   deriving (Show, Eq)
 

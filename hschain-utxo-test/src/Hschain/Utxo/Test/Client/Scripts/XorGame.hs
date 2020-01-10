@@ -103,7 +103,7 @@ xorGameRound Scene{..} game@Game{..} = do
       bobBox1   = user'box scene'bob
   mAliceScript <- getAliceScript (guess'alice game'guess) alice aliceBox1
   res <- fmap join $ forM mAliceScript $ \(alicePublicHash, scriptBox, aliceBox2, aliceSecret) -> do
-    mBobScript <- getBobScript (guess'bob game'guess) bob alicePublicHash scriptBox (wallet'publicKey alice) bobBox1
+    mBobScript <- getBobScript (guess'bob game'guess) bob alicePublicHash scriptBox (publicKeyToText $ getWalletPublicKey alice) bobBox1
     forM mBobScript $ \(gameBox, bobBox2) -> do
       aliceRes <- triesToWin (isAliceWin game) "Alice" alice gameBox aliceSecret (guess'alice game'guess)
       bobRes   <- triesToWin (isBobWin   game) "Bob"   bob   gameBox aliceSecret (guess'alice game'guess)
@@ -115,7 +115,7 @@ xorGameRound Scene{..} game@Game{..} = do
   where
     getAliceScript guess wallet@Wallet{..} box = do
       (k, s) <- makeAliceSecret guess
-      let fullScriptHash = scriptBlake256 $ toScript $ fullGameScript (text k) (text wallet'publicKey)
+      let fullScriptHash = scriptBlake256 $ toScript $ fullGameScript (text k) (text $ publicKeyToText $ getWalletPublicKey wallet)
           aliceScript = halfGameScript $ text $ fullScriptHash
       (tx, scriptAddr, backAddr) <- makeAliceTx game'amount aliceScript wallet box
       eTx <- postTxDebug True "Alice posts half game script" tx
@@ -148,15 +148,15 @@ xorGameRound Scene{..} game@Game{..} = do
             else Just $ Box
               { box'id     = backAddr
               , box'value  = total - amount
-              , box'script = toScript $ pk $ text $ wallet'publicKey wallet
+              , box'script = toScript $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
               , box'args   = mempty
               }
-      let tx = Tx
+      tx <- fmap (\proof -> Tx
             { tx'inputs  = V.fromList [inBox]
             , tx'outputs = V.fromList $ catMaybes [gameBox, restBox]
-            , tx'proof   = getOwnerProof wallet
+            , tx'proof   = proof
             , tx'args    = mempty
-            }
+            }) $ getOwnerProof wallet
       return (tx, gameAddr, backAddr)
 
     getBobScript guess wallet alicePublicHash scriptBox alicePubKey inBox = do
@@ -171,12 +171,12 @@ xorGameRound Scene{..} game@Game{..} = do
         makeBobTx gameAddr backAddr = do
           total <- fmap (fromMaybe 0) $ getBoxBalance inBox
           height <- fmap fromInteger $ M.getHeight
-          return $ Tx
+          fmap (\proof -> Tx
               { tx'inputs  = V.fromList [inBox, scriptBox]
               , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
-              , tx'proof   = getOwnerProof wallet
+              , tx'proof   = proof
               , tx'args    = mempty
-              }
+              }) $ getOwnerProof wallet
           where
             gameBox total height
               | total < game'amount = Nothing
@@ -192,30 +192,30 @@ xorGameRound Scene{..} game@Game{..} = do
               | otherwise            = Just $ Box
                   { box'id     = backAddr
                   , box'value  = total - game'amount
-                  , box'script = toScript $ pk $ text $ wallet'publicKey wallet
+                  , box'script = toScript $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
                   , box'args   = mempty
                   }
 
             makeArgs height = M.fromList
               [ (bobDeadlineField, PrimInt $ height + 35)
               , (bobGuessField,    PrimInt guess)
-              , (bobPkField,       PrimString $ wallet'publicKey wallet)
+              , (bobPkField,       PrimString $ publicKeyToText $ getWalletPublicKey wallet)
               ]
 
     triesToWin isSuccess name wallet gameBox aliceSecret aliceGuess = do
       winAddr <- allocAddress wallet
-      let tx = winTx gameBox winAddr wallet aliceSecret aliceGuess
+      tx <- winTx gameBox winAddr wallet aliceSecret aliceGuess
       eTxHash <- postTxDebug isSuccess (winMsg name) tx
       return $ either (const False) (const True) eTxHash
       where
         winMsg str = mconcat [str, " tries to win."]
 
-    winTx gameBox winAddr wallet aliceSecret aliceGuess = Tx
+    winTx gameBox winAddr wallet aliceSecret aliceGuess = fmap (\proof -> Tx
             { tx'inputs  = V.fromList [gameBox]
             , tx'outputs = V.fromList [outBox]
-            , tx'proof   = getOwnerProof wallet
+            , tx'proof   = proof
             , tx'args    = args
-            }
+            }) $ getOwnerProof wallet
       where
         args = M.fromList
           [ (sField, PrimString aliceSecret)
@@ -224,7 +224,7 @@ xorGameRound Scene{..} game@Game{..} = do
         outBox = Box
           { box'id      = winAddr
           , box'value   = 2 * game'amount
-          , box'script  = toScript $ pk $ text $ wallet'publicKey wallet
+          , box'script  = toScript $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
           , box'args    = mempty
           }
 

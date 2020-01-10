@@ -69,7 +69,7 @@ toHaskExp (Fix expr) = case expr of
     fromUnOp loc op a = case op of
       Not       -> ap (VarName loc "not") a
       Neg       -> ap (VarName loc "negate") a
-      TupleAt n -> ap2 (VarName loc "tupleAt") (Fix $ PrimE loc $ PrimInt loc n) a
+      TupleAt n -> ap2 (VarName loc "tupleAt") (Fix $ PrimE loc $ PrimInt n) a
 
     fromBimOp loc op = case op of
       And                   -> op2 "&&"
@@ -119,16 +119,16 @@ toHaskExp (Fix expr) = case expr of
       BoxAt loc a field   -> fromBoxField loc a field
 
     fromPrimBox loc Box{..} = H.RecConstr loc (qname "Box")
-      [ field "box'id"     $ prim $ PrimString loc $ unBoxId box'id
-      , field "box'value"  $ prim $ PrimMoney  loc $ box'value
-      , field "box'script" $ prim $ PrimString loc $ unScript box'script
+      [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
+      , field "box'value"  $ prim $ PrimMoney  $ box'value
+      , field "box'script" $ prim $ PrimString $ unScript box'script
       , field "box'args"   $ Fix $ VecE loc $ NewVec loc (V.fromList $ fmap (\(a, b) -> Fix $ Tuple loc (V.fromList [a, b])) args)
       ]
       where
         qname a = toQName' $ VarName loc a
         field name a = H.FieldUpdate loc (qname name) (rec a)
         prim = Fix . PrimE loc
-        args = fmap (\(txt, val) -> (Fix $ PrimE loc $ PrimString loc txt, Fix $ PrimE loc val)) $ M.toList box'args
+        args = fmap (\(txt, val) -> (Fix $ PrimE loc $ PrimString txt, Fix $ PrimE loc val)) $ M.toList box'args
 
     fromBoxField loc a = \case
       BoxFieldId          -> get "getBoxId"
@@ -139,15 +139,15 @@ toHaskExp (Fix expr) = case expr of
         get name = ap (VarName loc name) a
 
 toLiteral :: Loc -> Prim -> H.Exp Loc
-toLiteral mainLoc = \case
-  PrimInt loc    x -> lit $ H.Int loc (fromIntegral x) (show x)
-  PrimMoney loc  x -> lit $ H.Frac loc (realToFrac x) (show x)
-  PrimDouble loc x -> lit $ H.Frac loc (realToFrac x) (show x)
-  PrimString loc x -> lit $ H.String loc (T.unpack x) (T.unpack x)
-  PrimBool loc   x -> H.Con mainLoc $ bool loc x
-  PrimSigma loc  x -> sigma loc x
+toLiteral loc = \case
+  PrimInt x -> lit $ H.Int loc (fromIntegral x) (show x)
+  PrimMoney x -> lit $ H.Frac loc (realToFrac x) (show x)
+  PrimDouble x -> lit $ H.Frac loc (realToFrac x) (show x)
+  PrimString x -> lit $ H.String loc (T.unpack x) (T.unpack x)
+  PrimBool x -> H.Con loc $ bool loc x
+  PrimSigma x -> sigma loc x
   where
-    lit = H.Lit mainLoc
+    lit = H.Lit loc
     bool loc x = H.UnQual loc $ H.Ident loc $ show x
 
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc

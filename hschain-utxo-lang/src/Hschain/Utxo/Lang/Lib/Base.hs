@@ -167,25 +167,25 @@ all :: Lang -> Lang
 all = letIn "all" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
     f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimBool noLoc P.True
+    z = Fix $ PrimE noLoc $ PrimBool P.True
 
 any :: Lang -> Lang
 any = letIn "any" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
     f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimBool noLoc P.False
+    z = Fix $ PrimE noLoc $ PrimBool P.False
 
 sum :: Lang -> Lang
 sum = letIn "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
     f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Plus (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt noLoc 0
+    z = Fix $ PrimE noLoc $ PrimInt 0
 
 product :: Lang -> Lang
 product = letIn "product" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
     f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Times (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt noLoc 1
+    z = Fix $ PrimE noLoc $ PrimInt 1
 
 id :: Lang -> Lang
 id = letIn "id" $ Fix $ Lam noLoc "x" $ Fix $ Var noLoc "x"

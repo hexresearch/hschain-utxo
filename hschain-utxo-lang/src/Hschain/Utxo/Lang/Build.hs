@@ -1,4 +1,5 @@
 module Hschain.Utxo.Lang.Build(
+
     int
   , double
   , text
@@ -50,19 +51,19 @@ primExpr :: Prim -> Expr a
 primExpr p = Expr $ Fix $ PrimE noLoc p
 
 int :: Int -> Expr Int
-int x = primExpr $ PrimInt noLoc x
+int x = primExpr $ PrimInt x
 
 double :: Double -> Expr Double
-double x = primExpr $ PrimDouble noLoc x
+double x = primExpr $ PrimDouble x
 
 text :: Text -> Expr Text
-text x = primExpr $ PrimString noLoc x
+text x = primExpr $ PrimString x
 
 money :: Pico -> Expr Money
-money x = primExpr $ PrimMoney noLoc x
+money x = primExpr $ PrimMoney x
 
 mkBool :: Bool -> Expr Bool
-mkBool x = primExpr $ PrimBool noLoc x
+mkBool x = primExpr $ PrimBool x
 
 op1 :: (Lang -> E Lang) -> Expr a -> Expr b
 op1 f (Expr a) = Expr $ Fix $ f a
@@ -133,7 +134,7 @@ instance Boolean (Expr Bool) where
   (&&*) = op2 (BinOpE noLoc And)
   (||*) = op2 (BinOpE noLoc Or)
 
-pk :: Expr PublicKey -> Expr Bool
+pk :: Expr Text -> Expr Bool
 pk (Expr key) = Expr $ Fix $ Pk noLoc key
 
 getSelf :: Expr Box
@@ -242,7 +243,7 @@ instance Num (Expr Int) where
   (+) = op2 (BinOpE noLoc Plus)
   (*) = op2 (BinOpE noLoc Times)
   negate = op1 (UnOpE noLoc Neg)
-  fromInteger n = primExpr $ PrimInt noLoc $ fromIntegral n
+  fromInteger n = primExpr $ PrimInt $ fromIntegral n
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
 
@@ -250,7 +251,7 @@ instance Num (Expr Double) where
   (+) = op2 (BinOpE noLoc Plus)
   (*) = op2 (BinOpE noLoc Times)
   negate = op1 (UnOpE noLoc Neg)
-  fromInteger n = primExpr $ PrimDouble noLoc $ fromIntegral n
+  fromInteger n = primExpr $ PrimDouble $ fromIntegral n
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
 
@@ -258,7 +259,7 @@ instance Num (Expr Money) where
   (+) = op2 (BinOpE noLoc Plus)
   (*) = op2 (BinOpE noLoc Times)
   negate = op1 (UnOpE noLoc Neg)
-  fromInteger n = primExpr $ PrimMoney noLoc $ fromIntegral n
+  fromInteger n = primExpr $ PrimMoney $ fromIntegral n
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
 

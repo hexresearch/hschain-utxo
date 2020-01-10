@@ -26,13 +26,13 @@ infixr ~>
 
 (~>) = fn
 
-inferPrim :: Prim -> Infer (Qual Type)
-inferPrim = \case
-  PrimInt loc _     -> numT loc
-  PrimMoney  loc _  -> numT loc
-  PrimDouble loc _  -> numT loc
-  PrimString loc _  -> return $ Qual loc [] (textT' loc)
-  PrimBool loc _    -> return $ Qual loc [] (boolT' loc)
+inferPrim :: Loc -> Prim -> Infer (Qual Type)
+inferPrim loc = \case
+  PrimInt _     -> numT loc
+  PrimMoney  _  -> numT loc
+  PrimDouble _  -> numT loc
+  PrimString _  -> return $ Qual loc [] (textT' loc)
+  PrimBool _    -> return $ Qual loc [] (boolT' loc)
   where
     numT loc = do
       v <- newTVar (Star loc)
@@ -109,7 +109,7 @@ fromAscr loc as a t = do
   return $ Qual loc aPs t
 
 fromPrim :: Loc -> Prim -> Infer (Qual Type)
-fromPrim loc = inferPrim
+fromPrim loc = inferPrim loc
 
 fromIf :: Loc -> [Assump] -> Lang -> Lang -> Lang -> Infer (Qual Type)
 fromIf loc as cond a b = do

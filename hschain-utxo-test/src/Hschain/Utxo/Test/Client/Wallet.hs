@@ -1,6 +1,7 @@
 module Hschain.Utxo.Test.Client.Wallet(
     Wallet(..)
   , newWallet
+  , getWalletPublicKey
   , allocAddress
   , getBalance
   , getBoxBalance
@@ -12,6 +13,7 @@ module Hschain.Utxo.Test.Client.Wallet(
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
 
+import Data.Fix
 import Data.Maybe
 import Data.UUID
 
@@ -28,15 +30,17 @@ import qualified Data.Vector as V
 
 data Wallet = Wallet
   { wallet'user       :: !UserId
-  , wallet'publicKey  :: !PubKey
-  , wallet'privateKey :: !PrivateKey
+  , wallet'privateKey :: !Secret
   , wallet'utxos      :: !(TVar [BoxId])
   }
 
-newWallet :: MonadIO io => UserId -> PrivateKey -> io Wallet
+newWallet :: MonadIO io => UserId -> Secret -> io Wallet
 newWallet userId pk = liftIO $ do
   utxos <- newTVarIO []
-  return $ Wallet userId (unUserId userId) pk utxos
+  return $ Wallet userId pk utxos
+
+getWalletPublicKey :: Wallet -> PublicKey
+getWalletPublicKey = getPublicKey . wallet'privateKey
 
 -- | Generates address name and saves it to the wallet utxo list
 allocAddress :: MonadIO io => Wallet -> io BoxId
@@ -59,9 +63,13 @@ getBalance wallet@Wallet{..} = do
   xs <- liftIO $ readTVarIO wallet'utxos
   fmap (sum . catMaybes) $ mapM getBoxBalance xs
 
-getOwnerProof :: Wallet -> Proof
-getOwnerProof Wallet{..} =
-  Proof $ S.fromList [wallet'publicKey]
+getOwnerProof :: MonadIO io => Wallet -> io (Sigma Proof)
+getOwnerProof w@Wallet{..} =
+  liftIO $ newProof env $ Fix $ SigmaPk (getWalletPublicKey w)
+  where
+    env = toProofEnv [getKeyPair wallet'privateKey]
+
+
 
 data Send = Send
   { send'from    :: !BoxId
@@ -77,19 +85,21 @@ data SendBack = SendBack
   }
 
 newSendTx :: Wallet -> Send -> App Tx
-newSendTx wallet send@Send{..} = fmap (toSendTx wallet send) getSendBack
+newSendTx wallet send@Send{..} = (\back -> toSendTx wallet send back) =<< getSendBack
   where
     getSendBack = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount send'back
 
-toSendTx :: Wallet -> Send -> SendBack -> Tx
-toSendTx wallet Send{..} SendBack{..} = Tx
-  { tx'inputs   = V.fromList [inputBox]
-  , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-  , tx'proof    = getOwnerProof wallet
-  , tx'args     = M.empty
-  }
+toSendTx :: Wallet -> Send -> SendBack -> App Tx
+toSendTx wallet Send{..} SendBack{..} = do
+  proof <- getOwnerProof wallet
+  return $ Tx
+    { tx'inputs   = V.fromList [inputBox]
+    , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    , tx'proof    = proof
+    , tx'args     = M.empty
+    }
   where
     inputBox = send'from
 
@@ -97,7 +107,7 @@ toSendTx wallet Send{..} SendBack{..} = Tx
       | sendBack'totalAmount > send'amount = Just $ Box
                 { box'id     = sendBack'backBox
                 , box'value  = sendBack'totalAmount - send'amount
-                , box'script = toScript $ pk (text $ wallet'publicKey wallet)
+                , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
                 , box'args   = M.empty
                 }
       | otherwise                 = Nothing
@@ -105,7 +115,7 @@ toSendTx wallet Send{..} SendBack{..} = Tx
     receiverUtxo = Box
       { box'id     = send'to
       , box'value  = send'amount
-      , box'script = toScript $ pk (text $ wallet'publicKey send'recepientWallet)
+      , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
       , box'args   = M.empty
       }
 

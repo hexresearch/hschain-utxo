@@ -225,11 +225,11 @@ instance Pretty BinOp where
 
 instance Pretty Prim where
   pretty = \case
-    PrimInt _     n -> pretty n
-    PrimDouble _  d -> pretty d
-    PrimMoney _   m -> pretty m
-    PrimBool _    b -> pretty b
-    PrimString _  s -> hcat [dquote, pretty s, dquote]
+    PrimInt      n -> pretty n
+    PrimDouble   d -> pretty d
+    PrimMoney    m -> pretty m
+    PrimBool     b -> pretty b
+    PrimString   s -> hcat [dquote, pretty s, dquote]
 
 instance Pretty Money where
   pretty m = pretty $ removeZeroes $ show m

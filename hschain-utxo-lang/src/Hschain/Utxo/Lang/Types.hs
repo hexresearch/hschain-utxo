@@ -37,7 +37,7 @@ data Tx = Tx
 data TxArg = TxArg
   { txArg'inputs  :: !(Vector Box)
   , txArg'outputs :: !(Vector Box)
-  , txArg'proof   :: !Proof
+  , txArg'proof   :: !(Sigma Proof)
   , txArg'args    :: !Args
   , txArg'env     :: !Env
   }

@@ -11,6 +11,7 @@ module Hschain.Utxo.Test.Client.Scripts.Utils(
 ) where
 
 import Control.Timeout
+import Control.Monad.IO.Class
 
 import Data.Maybe
 import Data.Text (Text)
@@ -47,8 +48,9 @@ debugSend isSuccess msg from fromBox to amount = do
     wait = sleep 0.25
 
 newUser :: Text -> App Wallet
-newUser name =
-  newWallet (UserId name) (mconcat [name, "-private-key"])
+newUser name = do
+  secret <- liftIO newSecret
+  newWallet (UserId name) secret
 
 send :: Wallet -> BoxId -> Wallet -> Money -> App SendResult
 send from fromBoxId to money = do
