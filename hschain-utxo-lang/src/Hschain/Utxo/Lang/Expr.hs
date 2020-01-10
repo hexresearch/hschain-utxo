@@ -169,7 +169,7 @@ data Prim
   | PrimDouble Loc Double
   | PrimString Loc Text
   | PrimBool Loc   Bool
-  | PrimSigma Loc  Sigma'
+  | PrimSigma Loc  (Sigma PublicKey)
   deriving (Show, Eq, Ord)
 
 data EnvId a
@@ -193,7 +193,7 @@ instance ToJSON Prim where
     PrimDouble _ d   -> "double" .= d
     PrimString _ txt -> "text"   .= txt
     PrimBool _ b     -> "bool"   .= b
-    PrimSigma _ s    -> "sigma"  .= show s
+    PrimSigma _ s    -> "sigma"  .= toJSON s
 
 -- todo: rewrite this instance
 -- to distinguish between numeric types of int, double and money
@@ -204,8 +204,7 @@ instance FromJSON Prim where
     <|> fmap (PrimDouble noLoc) (v .: "double")
     <|> fmap (PrimString noLoc) (v .: "text")
     <|> fmap (PrimBool   noLoc) (v .: "bool")
-    <|> fmap (PrimSigma noLoc . read)  (v .: "sigma")
-
+    <|> (fmap (PrimSigma noLoc) . parseJSON =<< (v .: "sigma"))
 
 ---------------------------------
 -- type constants

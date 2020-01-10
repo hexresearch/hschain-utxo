@@ -133,7 +133,7 @@ instance Boolean (Expr Bool) where
   (&&*) = op2 (BinOpE noLoc And)
   (||*) = op2 (BinOpE noLoc Or)
 
-pk :: Expr PubKey -> Expr Bool
+pk :: Expr PublicKey -> Expr Bool
 pk (Expr key) = Expr $ Fix $ Pk noLoc key
 
 getSelf :: Expr Box

@@ -150,14 +150,15 @@ toLiteral mainLoc = \case
     lit = H.Lit mainLoc
     bool loc x = H.UnQual loc $ H.Ident loc $ show x
 
-    sigma :: Loc -> Sigma' -> H.Exp Loc
+    sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma loc x = cata go x
       where
-        go :: SigmaExpr () (H.Exp Loc) -> H.Exp Loc
+        go :: SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
-          SigmaPk _ pkey -> ap (VarName loc "pk") $ lit $ H.String loc (T.unpack pkey) (T.unpack pkey)
-          SigmaAnd _ a b -> op2 "<&&>" a b
-          SigmaOr  _ a b -> op2 "<||>" a b
+          SigmaPk pkey -> let keyTxt = publicKeyToText pkey
+                            in  ap (VarName loc "pk") $ lit $ H.String loc (T.unpack keyTxt) (T.unpack keyTxt)
+          SigmaAnd a b -> op2 "&&" a b
+          SigmaOr  a b -> op2 "||" a b
 
         op2 :: String -> H.Exp Loc -> H.Exp Loc -> H.Exp Loc
         op2 name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Ident loc name) b

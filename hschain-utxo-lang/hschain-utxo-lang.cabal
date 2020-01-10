@@ -31,6 +31,7 @@ library
       Hschain.Utxo.Lang.Parser.Hask.Utils
       Hschain.Utxo.Lang.Pretty
       Hschain.Utxo.Lang.Sigma
+      Hschain.Utxo.Lang.Sigma.Expr
       Hschain.Utxo.Lang.Types
   -- other-modules:
   -- other-extensions:
@@ -42,13 +43,16 @@ library
                      , containers
                      , cryptonite
                      , data-fix
-                     , extra
                      , deriving-compat
+                     , extra
+                     , groom
                      , haskell-src-exts
                      , hex-common
                      , hs-check
+                     , memory
                      , mtl
                      , safe
+                     , serialise
                      , prettyprinter
                      , text
                      , vector
@@ -58,17 +62,25 @@ library
   default-extensions:
     FlexibleInstances
     FlexibleContexts
+    GADTs
     GeneralizedNewtypeDeriving
     TypeFamilies
     RecordWildCards
     OverloadedStrings
     LambdaCase
+    KindSignatures
     DeriveFunctor
     DeriveFoldable
+    DeriveGeneric
     DeriveTraversable
+    DerivingStrategies
     ScopedTypeVariables
+    StandaloneDeriving
     TemplateHaskell
     TupleSections
+    TypeApplications
+    TypeFamilies
+    UndecidableInstances
 
 executable hschain-utxo-compiler
   main-is: Compiler.hs

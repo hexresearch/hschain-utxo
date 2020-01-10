@@ -208,7 +208,7 @@ execLang' (Fix x) = case x of
             then return (Fix x')
             else prim locX1 $ PrimBool locX2 False
         (PrimE locX1 (PrimSigma _ a), PrimE locY1 (PrimSigma _ b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma loc $ Fix $ SigmaAnd () a b
+          return $ Fix $ PrimE loc $ PrimSigma loc $ Fix $ SigmaAnd a b
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     -- todo: maybe it's worth to make it lazy
@@ -225,7 +225,7 @@ execLang' (Fix x) = case x of
             then prim locX1 $ PrimBool locX2 True
             else return (Fix x')
         (PrimE locX1 (PrimSigma _ a), PrimE locY1 (PrimSigma _ b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma loc $ Fix $ SigmaOr () a b
+          return $ Fix $ PrimE loc $ PrimSigma loc $ Fix $ SigmaOr a b
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+) (+) (+))
@@ -344,8 +344,11 @@ execLang' (Fix x) = case x of
     fromPk loc x = do
       Fix x' <- rec x
       case x' of
-        PrimE loc1 (PrimString loc2 pkey) -> return $ Fix $ PrimE loc $ PrimSigma loc1 $ Fix $ SigmaPk () pkey --  prim loc1 . PrimBool loc2 =<< fmap (checkPubKey pkey) getProof
-        _                                 -> thisShouldNotHappen x
+        PrimE loc1 (PrimString loc2 pkeyTxt) ->
+          case publicKeyFromText pkeyTxt of
+            Just pkey  -> return $ Fix $ PrimE loc $ PrimSigma loc1 $ Fix $ SigmaPk ( pkey) --  prim loc1 . PrimBool loc2 =<< fmap (checkPubKey pkey) getProof
+            Nothing    -> parseError loc1 $ mconcat ["Failed to convert parse public key from string: ", pkeyTxt]
+        _                                    -> thisShouldNotHappen x
 
     fromInfixApply loc a v b = rec $ unfoldInfixApply loc a v b
 
@@ -608,6 +611,9 @@ noField = toError . NoField
 outOfBound :: Lang -> Exec Lang
 outOfBound = toError . OutOfBound
 
+parseError :: Loc -> Text -> Exec Lang
+parseError loc msg = toError $ ParseError loc msg
+
 type Mono2 a = a -> a -> a
 
 data NumOp2 = NumOp2
@@ -654,7 +660,7 @@ traceFun name f x =
   in  trace (mconcat ["\n\nTRACE: " , name, "(", show x, ") = ", show res]) (f x)
 -}
 
-execToSigma :: TxArg -> (Either Text Sigma', Text)
+execToSigma :: TxArg -> (Either Text (Sigma PublicKey), Text)
 execToSigma tx@TxArg{..} = execExpr $ getInputExpr tx
   where
     execExpr (Expr x) =

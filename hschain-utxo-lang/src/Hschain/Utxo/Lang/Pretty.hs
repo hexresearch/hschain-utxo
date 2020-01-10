@@ -14,7 +14,7 @@ import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Sigma (Proof(..))
+import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Exec
 
 import qualified Data.Map.Strict as M
@@ -84,8 +84,13 @@ instance Pretty Env where
 instance Pretty UserId where
   pretty (UserId txt) = pretty txt
 
+-- TODO
 instance Pretty Proof where
-  pretty (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
+  pretty = undefined -- (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
+
+-- TODO
+instance Pretty (S.Sigma Proof) where
+  pretty = undefined -- (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
 
 op1 :: Doc ann -> Doc ann -> Doc ann
 op1 name a = hcat [name, parens a]

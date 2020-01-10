@@ -28,7 +28,7 @@ newtype TxHash = TxHash Text
 data Tx = Tx
   { tx'inputs  :: !(Vector BoxId)
   , tx'outputs :: !(Vector Box)
-  , tx'proof   :: !Proof
+  , tx'proof   :: !(Sigma Proof)
   , tx'args    :: !Args
   }
   deriving (Show, Eq)
