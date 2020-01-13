@@ -42,9 +42,11 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding.Error as TE
 
 import qualified Hschain.Utxo.Lang.Sigma.Expr as Sigma
 
+import qualified Data.ByteString.Base58 as Base58
 
 type CryptoAlg = Sigma.Ed25519
 
@@ -68,17 +70,15 @@ toProofEnv :: [KeyPair] -> ProofEnv
 toProofEnv ks = Sigma.Env ks
 
 publicKeyFromText :: Text -> Maybe PublicKey
-publicKeyFromText = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . TE.encodeUtf8
+publicKeyFromText =
+  (either (const Nothing) Just . deserialiseOrFail . LB.fromStrict <=< Base58.decodeBase58 Base58.bitcoinAlphabet) .
+  TE.encodeUtf8
 
 publicKeyToText :: PublicKey -> Text
-publicKeyToText = either (const err) id . TE.decodeUtf8' . LB.toStrict . serialise
-  where
-    err = error "Non UTF-8 bytestring (converting to Text)" -- Null
+publicKeyToText = TE.decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet . LB.toStrict . serialise
 
 serialiseToJSON :: Serialise a => a -> Value
-serialiseToJSON = either (const err) toJSON . TE.decodeUtf8' . LB.toStrict . serialise
-  where
-    err = error "Non UTF-8 bytestring (converting to JSON)" -- Null
+serialiseToJSON = toJSON . TE.decodeUtf8With TE.lenientDecode . LB.toStrict . serialise
 
 serialiseFromJSON :: Serialise a => Value -> Parser a
 serialiseFromJSON = (either (const mzero) pure . deserialiseOrFail . LB.fromStrict . TE.encodeUtf8) <=< parseJSON
@@ -87,13 +87,13 @@ instance FromJSON Proof where
   parseJSON = serialiseFromJSON
 
 instance FromJSON PublicKey where
-  parseJSON = serialiseFromJSON
+  parseJSON = (maybe mzero pure . publicKeyFromText) <=< parseJSON
 
 instance ToJSON Proof where
   toJSON = serialiseToJSON
 
 instance ToJSON PublicKey where
-  toJSON = serialiseToJSON
+  toJSON = toJSON . publicKeyToText
 
 instance ToJSON (Sigma Proof) where
   toJSON = serialiseToJSON

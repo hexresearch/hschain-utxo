@@ -39,6 +39,8 @@ library
                      , aeson
                      , array
                      , Boolean
+                     , base64-bytestring
+                     , base58-bytestring
                      , bytestring
                      , containers
                      , cryptonite
