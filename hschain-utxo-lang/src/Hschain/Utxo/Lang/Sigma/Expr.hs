@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Sigma.Expr where
 
 import qualified Codec.Serialise as CBOR
+import qualified Codec.Serialise.Decoding as CBOR
 import Control.Monad
 import Data.Bits
 import Data.Function (on)
@@ -94,17 +95,24 @@ deriving instance Ord  (ECScalar  Ed25519)
 deriving instance Ord  (Challenge Ed25519)
 deriving instance Ord  (Secret    Ed25519)
 
+
+
 instance CBOR.Serialise (ECPoint Ed25519) where
   encode = CBOR.encode . id @BS.ByteString . Ed.pointEncode . coerce
-  decode = undefined
+  decode = decodeBy (fmap coerce . Ed.pointDecode) =<< CBOR.decode
 
 instance CBOR.Serialise (ECScalar Ed25519) where
   encode = CBOR.encode . id @BS.ByteString . Ed.scalarEncode . coerce
-  decode = undefined
+  decode = decodeBy (fmap coerce . Ed.scalarDecodeLong) =<< CBOR.decode
 
 instance CBOR.Serialise (Challenge Ed25519) where
   encode (ChallengeEd25519 bs) = CBOR.encode bs
   decode = fmap ChallengeEd25519 CBOR.decode
+
+decodeBy :: (BS.ByteString -> CryptoFailable a) -> BS.ByteString -> CBOR.Decoder s a
+decodeBy decoder bs = case decoder bs of
+  CryptoPassed a   -> return a
+  CryptoFailed err -> fail $ show err
 
 fiatShamirCommitment :: (EC a, CBOR.Serialise b) => b -> Challenge a
 fiatShamirCommitment = randomOracle . BL.toStrict . CBOR.serialise

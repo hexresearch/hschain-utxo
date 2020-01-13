@@ -7,16 +7,20 @@ import Data.Text.Prettyprint.Doc
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 import Data.Either
+import Data.Text (Text)
 
+import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 unExpr (Expr x) = x
 
-lam' :: VarName -> (Expr a -> Expr b) -> Expr (a -> b)
-lam' name fun = lam name (Fix BoolType) fun
+lam' :: Text -> (Expr a -> Expr b) -> Expr (a -> b)
+lam' name fun = lam name fun
 
+pk' :: PublicKey -> Expr Bool
+pk' = pk . text . publicKeyToText
 
 id' :: Expr (a -> a)
 id' = lam' "x" (\x -> x)
@@ -27,30 +31,29 @@ const' = lam' "x" (\x -> lam' "y" $ \_ -> x)
 flip' :: Expr (a -> b -> c) -> Expr (b -> a -> c)
 flip' fun = lam' "x" (\x -> lam' "y" $ \y -> (app (app fun y) x))
 
-e1 :: Expr Bool
-e1 = app (lam' "x" $ \x -> x &&* pk "jack-pk") (10 <=* getHeight)
+e1 :: PublicKey -> Expr Bool
+e1 key = app (lam' "x" $ \x -> x &&* pk' key) (10 <=* getHeight)
 
-e2 :: Expr Bool
-e2 = app (app fun (10 >* getHeight)) (pk "jack-pk")
+e2 :: PublicKey -> Expr Bool
+e2 key = app (app fun (10 >* getHeight)) (pk' key)
   where
     fun = lam' "x" $ \x -> (lam' "y" $ \y -> (x ||* y))
 
-e3 :: Expr Bool
-e3 = app (app const' (10 >* getHeight)) (pk "jack-pk")
+e3 :: PublicKey -> Expr Bool
+e3 key = app (app const' (10 >* getHeight)) (pk' key)
 
-e4 :: Expr Bool
-e4 = app (app (flip' const') (10 >* getHeight)) (pk "jack-pk")
+e4 :: PublicKey -> Expr Bool
+e4 key = app (app (flip' const') (10 >* getHeight)) (pk' key)
 
 
-e5 :: Expr Bool
-e5 =
+e5 :: PublicKey -> Expr Bool
+e5 key =
   def "const" const' $ \constFun ->
-    app (app constFun (10 <=* getHeight)) (pk "jack-pk")
+    app (app constFun (10 <=* getHeight)) (pk' key)
 
 run :: Expr Bool -> IO ()
-run (Expr a) = T.putStrLn $ either (T.pack . show) renderText $ runExec proof height ins outs $ execLang a
+run (Expr a) = T.putStrLn $ either (T.pack . show) renderText $ runExec M.empty height ins outs $ execLang a
   where
-    proof  = Proof $ S.fromList ["jack-pk"]
     height = 99
     ins    = mempty
     outs   = mempty
