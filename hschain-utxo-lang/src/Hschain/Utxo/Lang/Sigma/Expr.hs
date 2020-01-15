@@ -6,6 +6,7 @@ import Control.Monad
 import Data.Bits
 import Data.Function (on)
 import Data.List (find)
+import Data.Monoid (All(..))
 import qualified Data.ByteString         as BS
 import qualified Data.ByteString.Lazy    as BL
 import qualified Data.ByteArray          as BA
@@ -44,6 +45,8 @@ class EC a where
   (^+^)   :: ECPoint  a -> ECPoint  a -> ECPoint  a
   negateP :: ECPoint a -> ECPoint a
 
+type Commitment a = ECPoint a
+type Response a   = ECScalar a
 
 data Ed25519
 
@@ -161,7 +164,7 @@ data SigmaE k a
   | AND k [SigmaE k a]
     -- ^ AND connective
   | OR  k [SigmaE k a]
-  deriving (Functor, Show)
+  deriving (Functor, Foldable, Traversable, Show)
 
 sexprAnn :: SigmaE k a -> k
 sexprAnn = \case
@@ -264,13 +267,13 @@ generateCommitments = goReal
       _ -> error "Real node"
 
 toFiatShamir
-  :: SigmaE k (Either (PartialProof a) (ProofDL a))
+  :: SigmaE k (FiatShamirLeaf a)
   -> FiatShamir a
 toFiatShamir = \case
-  Leaf _ (Left  PartialProof{..}) -> FSDLog pproofPK pproofA
-  Leaf _ (Right ProofDL{..})      -> FSDLog publicK  commitmentA
-  AND  _ es -> FSAnd (toFiatShamir <$> es)
-  OR   _ es -> FSOr  (toFiatShamir <$> es)
+  Leaf _ leaf -> FSDLog leaf
+  AND  _ es   -> FSAnd (toFiatShamir <$> es)
+  OR   _ es   -> FSOr  (toFiatShamir <$> es)
+
 
 generateProofs
   :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
@@ -280,7 +283,13 @@ generateProofs
 generateProofs (Env env) expr0 = goReal ch0 expr0
   where
     ch0 :: Challenge a
-    ch0 = fiatShamirCommitment $ toFiatShamir expr0
+    ch0 = fiatShamirCommitment $ toFiatShamir $ fmap extractCommitment expr0
+
+    extractCommitment :: Either (PartialProof a) (ProofDL a) -> FiatShamirLeaf a
+    extractCommitment =
+      either
+        (\x -> FiatShamirLeaf (pproofPK x) (pproofA x))
+        (\x -> FiatShamirLeaf (publicK x)  (commitmentA x))
     --
     goReal ch = \case
       Leaf Real (Left PartialProof{..}) -> do
@@ -292,13 +301,19 @@ generateProofs (Env env) expr0 = goReal ch0 expr0
         return $ Leaf () $ ProofDL { publicK     = pproofPK
                                    , commitmentA = pproofA
                                    , challengeE  = ch
-                                   , responceZ   = z
+                                   , responseZ   = z
                                    }
       Leaf Simulated (Right e)               -> return $ Leaf () e
       AND  Real      es -> AND () <$> traverse (goReal ch) es
-      AND  Simulated es -> undefined
+      AND  Simulated es -> AND () <$> traverse goSim es
       OR   Real      es -> OR  () <$> undefined
-      OR   Simulated es -> undefined
+      OR   Simulated es -> OR  () <$> traverse goSim es
+
+    goSim = \case
+      Leaf Simulated (Right pdl) -> return $ Leaf () pdl
+      AND  Simulated es          -> AND () <$> traverse goSim es
+      OR   Simulated es          -> OR  () <$> traverse goSim es
+      _                          -> error "Simulated parent node has real children"
 
 -- Partial proof of possession of discrete logarithm
 data PartialProof a = PartialProof
@@ -315,8 +330,8 @@ deriving instance ( Show (ECPoint   a)
 -- | Proof of knowledge of discrete logarithm
 data ProofDL a = ProofDL
   { publicK     :: PublicKey a
-  , commitmentA :: ECPoint   a
-  , responceZ   :: ECScalar  a
+  , commitmentA :: Commitment a
+  , responseZ   :: Response a
   , challengeE  :: Challenge a
   } deriving (Generic)
 
@@ -342,15 +357,64 @@ data SimTree a
 
 -- | Tree that is used as input to Fiat-Shamir hash function
 data FiatShamir a
-  = FSDLog (PublicKey a) (ECPoint a)
+  = FSDLog (FiatShamirLeaf a)
   | FSAnd [FiatShamir a]
   | FSOr  [FiatShamir a]
   deriving (Generic)
 
+data FiatShamirLeaf a = FiatShamirLeaf
+  { fsLeaf'publicKey  :: PublicKey a
+  , fsLeaf'commitment :: Commitment a
+  } deriving (Generic)
+
 instance ( CBOR.Serialise (ECPoint a)
          ) => CBOR.Serialise (FiatShamir a)
 
+instance ( CBOR.Serialise (ECPoint a)
+         ) => CBOR.Serialise (FiatShamirLeaf a)
 
+data Proof a = Proof
+  { proof'rootChallenge :: Challenge a
+  , proof'tree          :: ProvenTree a
+  }
+
+data ProvenTree a
+  = ProvenLeaf
+      { provenLeaf'responceZ :: ECScalar a
+      , provenLeaf'publicK   :: PublicKey a
+      }
+  | ProvenOr
+      { provenOr'rightmost :: ProvenTree a
+      , provenOr'rest      :: OrChild a
+      }
+  | ProvenAnd
+      { provenAnd'children :: [ProvenTree a]
+      }
+
+data OrChild a = OrChild
+  { orChild'challenge :: Challenge a
+  , orChild'tree      :: ProvenTree a
+  }
+
+completeProvenTree :: ProvenTree a -> SigmaE (Challenge a) (ProofDL a)
+completeProvenTree = undefined
+
+verifyProvenTree :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a), Eq (Challenge a))
+  => Proof a -> Bool
+verifyProvenTree Proof{..} =
+     checkProofs compTree
+  && checkHash (getHash compTree)
+  where
+    checkProofs :: SigmaE b (ProofDL a) -> Bool
+    checkProofs = getAll . foldMap (All . verifyProofDL)
+
+    checkHash hash = proof'rootChallenge == hash
+
+    getHash tree = fiatShamirCommitment $ toFiatShamir $ fmap extractFiatShamirLeaf tree
+      where
+        extractFiatShamirLeaf ProofDL{..} = FiatShamirLeaf publicK commitmentA
+
+    compTree = completeProvenTree $ proof'tree
 
 ----------------------------------------------------------------
 -- Primitives for Σ-expressions
@@ -366,13 +430,13 @@ simulateProofDL pk e = do
   return ProofDL
     { publicK     = pk
     , commitmentA = fromGenerator z ^+^ negateP (fromChallenge e .*^ unPublicKey pk)
-    , responceZ   = z
+    , responseZ   = z
     , challengeE  = e
     }
 
 verifyProofDL :: (EC a, Eq (ECPoint a)) => ProofDL a -> Bool
 verifyProofDL ProofDL{..}
-  = fromGenerator responceZ == (commitmentA ^+^ (fromChallenge challengeE .*^ unPublicKey publicK))
+  = fromGenerator responseZ == (commitmentA ^+^ (fromChallenge challengeE .*^ unPublicKey publicK))
 --   where
 --     -- Recompute challenge
 --     ch :: Hash.Digest Hash.SHA256

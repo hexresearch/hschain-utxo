@@ -13,6 +13,7 @@ module Hschain.Utxo.Lang.Sigma(
   , publicKeyFromText
   , publicKeyToText
   , emptyProofEnv
+  , proofEnvFromKeys
   , newSecret
   , getPublicKey
   , getKeyPair
@@ -167,6 +168,9 @@ toSigmaExpr = cata $ \case
 
 emptyProofEnv :: ProofEnv
 emptyProofEnv = Sigma.Env []
+
+proofEnvFromKeys :: [KeyPair] -> ProofEnv
+proofEnvFromKeys = Sigma.Env
 
 equalSigmaExpr :: Sigma PublicKey -> Sigma Proof -> Bool
 equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
