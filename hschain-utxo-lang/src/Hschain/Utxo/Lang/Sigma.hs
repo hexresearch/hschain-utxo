@@ -19,6 +19,7 @@ module Hschain.Utxo.Lang.Sigma(
   , getKeyPair
   , toProofEnv
   , equalSigmaExpr
+  , equalSigmaProof
   ) where
 
 import Control.Monad
@@ -56,7 +57,8 @@ type PublicKey  = Sigma.PublicKey  CryptoAlg
 type Secret     = Sigma.Secret     CryptoAlg
 
 type ProofEnv   = Sigma.Env        CryptoAlg
-type Proof      = Sigma.ProofDL    CryptoAlg
+type Proof      = Sigma.Proof      CryptoAlg
+type ProofDL    = Sigma.ProofDL    CryptoAlg
 
 newSecret :: IO Secret
 newSecret = Sigma.generateSecretKey
@@ -102,11 +104,11 @@ instance ToJSON (Sigma Proof) where
 instance FromJSON (Sigma Proof) where
   parseJSON = serialiseFromJSON
 
-newProof :: ProofEnv -> Sigma PublicKey -> IO (Sigma Proof)
-newProof env = fmap fromSigmaExpr . Sigma.newProof env . toSigmaExpr
+newProof :: ProofEnv -> Sigma PublicKey -> IO (Either Text Proof)
+newProof env = Sigma.newProof env . toSigmaExpr
 
-verifyProof :: Sigma Proof -> Bool
-verifyProof = Sigma.verifyProof . toSigmaExpr
+verifyProof :: Proof -> Bool
+verifyProof = Sigma.verifyProof
 
 type Sigma k = Fix (SigmaExpr k)
 
@@ -172,7 +174,13 @@ emptyProofEnv = Sigma.Env []
 proofEnvFromKeys :: [KeyPair] -> ProofEnv
 proofEnvFromKeys = Sigma.Env
 
-equalSigmaExpr :: Sigma PublicKey -> Sigma Proof -> Bool
+equalSigmaProof :: Sigma PublicKey -> Proof -> Bool
+equalSigmaProof candidate proof =
+  equalSigmaExpr
+      candidate
+      (fromSigmaExpr $ Sigma.completeProvenTree proof)
+
+equalSigmaExpr :: Sigma PublicKey -> Sigma ProofDL -> Bool
 equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
   (SigmaPk pubKey, SigmaPk proof)  -> pubKey == Sigma.publicK proof
   (SigmaOr a1 b1, SigmaOr a2 b2)   -> equalSigmaExpr a1 a2 && equalSigmaExpr b1 b2

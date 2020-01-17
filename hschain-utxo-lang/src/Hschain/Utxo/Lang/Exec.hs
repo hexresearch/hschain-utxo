@@ -661,7 +661,7 @@ traceFun name f x =
 -- supplied by the proposer and then verify the proof itself.
 exec :: TxArg -> (Bool, Text)
 exec tx = case res of
-  Right sigma -> (equalSigmaExpr sigma proof && verifyProof proof, debug)
+  Right sigma -> (equalSigmaProof sigma proof && verifyProof proof, debug)
   Left err    -> (False, err)
   where
     (res, debug) = execToSigma tx

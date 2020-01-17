@@ -28,7 +28,7 @@ newtype TxHash = TxHash Text
 data Tx = Tx
   { tx'inputs  :: !(Vector BoxId)
   , tx'outputs :: !(Vector Box)
-  , tx'proof   :: !(Sigma Proof)
+  , tx'proof   :: !Proof
   , tx'args    :: !Args
   }
   deriving (Show, Eq)
@@ -37,7 +37,7 @@ data Tx = Tx
 data TxArg = TxArg
   { txArg'inputs  :: !(Vector Box)
   , txArg'outputs :: !(Vector Box)
-  , txArg'proof   :: !(Sigma Proof)
+  , txArg'proof   :: !Proof
   , txArg'args    :: !Args
   , txArg'env     :: !Env
   }
