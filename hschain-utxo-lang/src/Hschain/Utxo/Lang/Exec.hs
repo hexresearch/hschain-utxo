@@ -205,7 +205,7 @@ execLang' (Fix x) = case x of
             then return (Fix x')
             else prim locX1 $ PrimBool False
         (PrimE locX1 (PrimSigma a), PrimE locY1 (PrimSigma b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaAnd a b
+          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaAnd [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     -- todo: maybe it's worth to make it lazy
@@ -222,7 +222,7 @@ execLang' (Fix x) = case x of
             then prim locX1 $ PrimBool True
             else return (Fix x')
         (PrimE locX1 (PrimSigma a), PrimE locY1 (PrimSigma b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaOr a b
+          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaOr [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+) (+) (+))

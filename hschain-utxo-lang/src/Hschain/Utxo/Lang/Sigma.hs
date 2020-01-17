@@ -28,7 +28,7 @@ import Codec.Serialise
 
 import Data.Aeson
 import Data.Aeson.Types
-
+import Data.Either
 import Data.Fix
 import Data.Functor.Classes
 import Data.Set (Set)
@@ -114,9 +114,9 @@ type Sigma k = Fix (SigmaExpr k)
 
 data SigmaExpr k a =
     SigmaPk k
-  | SigmaAnd a a -- todo: in low-level impl And Or contain list of values. is it better for performance
+  | SigmaAnd [a] -- todo: in low-level impl And Or contain list of values. is it better for performance
                  -- to use lists here too instead of pair of arguments
-  | SigmaOr  a a
+  | SigmaOr  [a]
   deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic)
 
 instance Serialise k => Serialise (Sigma k)
@@ -129,18 +129,20 @@ instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)
 notSigma :: forall k . Sigma k -> Either Bool (Sigma k)
 notSigma = cata $ \case
       SigmaPk  key -> Left False
-      SigmaAnd a b -> orTag a b
-      SigmaOr  a b -> andTag a b
+      SigmaAnd as  -> orTag as
+      SigmaOr  as  -> andTag as
   where
-    orTag x y = case (x, y) of
-      (Left a, b)        -> if a then Left True else b
-      (a, Left b)        -> if b then Left True else a
-      (Right a, Right b) -> Right $ Fix $ SigmaOr a b
+    orTag xs
+      | or ls     = Left True
+      | otherwise = Right $ Fix $ SigmaOr rs
+      where
+        (ls, rs) = partitionEithers xs
 
-    andTag x y = case (x, y) of
-      (Left a, b)        -> if a then b else Left False
-      (a, Left b)        -> if b then a else Left False
-      (Right a, Right b) -> Right $ Fix $ SigmaAnd a b
+    andTag xs
+      | not (and ls) = Left False
+      | otherwise    = Right $ Fix $ SigmaAnd rs
+      where
+        (ls, rs) = partitionEithers xs
 
 -- TODO: make human readable JSON instances for
 -- usage with other languages, or provide tools to
@@ -155,18 +157,16 @@ instance ToJSON (Sigma PublicKey) where
 fromSigmaExpr :: Sigma.SigmaE () a -> Sigma a
 fromSigmaExpr = \case
   Sigma.Leaf _ k -> Fix $ SigmaPk k
-  Sigma.AND _ as -> foldBy SigmaAnd $ fmap rec as
-  Sigma.OR _ as  -> foldBy SigmaOr  $ fmap rec as
+  Sigma.AND _ as -> Fix $ SigmaAnd $ fmap rec as
+  Sigma.OR _ as  -> Fix $ SigmaOr  $ fmap rec as
   where
     rec  = fromSigmaExpr
-
-    foldBy cons as = L.foldl1 (\a b -> Fix $ cons a b) as
 
 toSigmaExpr :: Sigma a -> Sigma.SigmaE () a
 toSigmaExpr = cata $ \case
   SigmaPk k    -> Sigma.Leaf () k
-  SigmaAnd a b -> Sigma.AND () [a, b]
-  SigmaOr  a b -> Sigma.OR  () [a, b]
+  SigmaAnd as  -> Sigma.AND () as
+  SigmaOr  as  -> Sigma.OR  () as
 
 emptyProofEnv :: ProofEnv
 emptyProofEnv = Sigma.Env []
@@ -183,9 +183,16 @@ equalSigmaProof candidate proof =
 equalSigmaExpr :: Sigma PublicKey -> Sigma ProofDL -> Bool
 equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
   (SigmaPk pubKey, SigmaPk proof)  -> pubKey == Sigma.publicK proof
-  (SigmaOr a1 b1, SigmaOr a2 b2)   -> equalSigmaExpr a1 a2 && equalSigmaExpr b1 b2
-  (SigmaAnd a1 b1, SigmaAnd a2 b2) -> equalSigmaExpr a1 a2 && equalSigmaExpr b1 b2
+  (SigmaOr as, SigmaOr bs)         -> equalList as bs
+  (SigmaAnd as, SigmaAnd bs)       -> equalList as bs
   _                                -> False
+  where
+    equalList xs ys = case (xs, ys) of
+      ([], []) -> True
+      (a:as, b:bs) -> if equalSigmaExpr a b
+                        then equalList as bs
+                        else False
+      _ -> False
 
 $(deriveShow1 ''SigmaExpr)
 

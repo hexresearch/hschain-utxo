@@ -26,12 +26,10 @@ import qualified Crypto.Random.Types     as RND
 import Crypto.Error
 import GHC.Generics (Generic)
 
-import Text.Groom
-import Text.Show.Pretty
-
 import qualified Data.Sequence as Seq
 
-import Debug.Trace
+-- import Debug.Trace
+-- import Text.Show.Pretty
 
 ----------------------------------------------------------------
 -- Operations with elliptic curves
@@ -210,7 +208,7 @@ data ProofVar
   | Simulated
   deriving (Show,Eq)
 
-newProof :: (Show (ECPoint a), Show (FiatShamirLeaf a), Show (ProofTag a), EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
+newProof :: (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
   => Env a -> SigmaE () (PublicKey a) -> IO (Either Text (Proof a))
 newProof env expr = runProve $ do
   commitments <- generateCommitments (markTree env expr)
@@ -329,7 +327,7 @@ toFiatShamir = \case
 
 
 generateProofs
-  :: forall a. (Show (ECPoint a), Show (FiatShamirLeaf a), Show (ProofTag a), EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
+  :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
   => Env a
   -> SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
   -> Prove (SigmaE (ProofTag a) (ProofDL a))
@@ -338,7 +336,7 @@ generateProofs (Env env) expr0 = goReal ch0 expr0
     withChallenge ch tag = tag { proofTag'challenge = Just ch }
 
     ch0 :: Challenge a
-    ch0 = fiatShamirCommitment $ traceMsg "shamir-1" $ toFiatShamir $ fmap extractCommitment expr0
+    ch0 = fiatShamirCommitment $ toFiatShamir $ fmap extractCommitment expr0
 
     extractCommitment :: Either (PartialProof a) (ProofDL a) -> FiatShamirLeaf a
     extractCommitment =
@@ -375,6 +373,7 @@ generateProofs (Env env) expr0 = goReal ch0 expr0
             else goSim x
             ) children
 
+    -- This step is not needed, but might be useful to prevent side-channel timing attacks.
     goSim = \case
       Leaf tag eProof -> case (proofTag'flag tag, eProof) of
         (Simulated, Right pdl)  -> return $ Leaf tag pdl
@@ -522,18 +521,18 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
 orChallenge :: EC a => Challenge a -> [Challenge a] -> Challenge a
 orChallenge ch rest = foldl xorChallenge ch rest
 
-verifyProof :: forall a. (Show (ECPoint a), EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a), Eq (Challenge a))
+verifyProof :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a), Eq (Challenge a))
   => Proof a -> Bool
 verifyProof proof =
      checkProofs compTree
-  && (traceMsg "ver-hash" $ checkHash (getHash compTree))
+  && (checkHash (getHash compTree))
   where
     checkProofs :: SigmaE b (ProofDL a) -> Bool
     checkProofs = getAll . foldMap (All . verifyProofDL)
 
     checkHash hash = proof'rootChallenge proof == hash
 
-    getHash tree = fiatShamirCommitment $ traceMsg "shamir-2" $ toFiatShamir $ fmap extractFiatShamirLeaf tree
+    getHash tree = fiatShamirCommitment $ toFiatShamir $ fmap extractFiatShamirLeaf tree
       where
         extractFiatShamirLeaf ProofDL{..} = FiatShamirLeaf publicK commitmentA
 
@@ -542,9 +541,6 @@ verifyProof proof =
 ----------------------------------------------------------------
 -- Primitives for Σ-expressions
 ----------------------------------------------------------------
-
-traceMsg :: Show a => String -> a -> a
-traceMsg msg a = trace (mconcat [msg, ": ", ppShow a]) a
 
 -- Simulate proof of posession of discrete logarithm for given
 -- challenge
@@ -563,16 +559,7 @@ getCommitment z ch pk = fromGenerator z ^+^ negateP (fromChallenge ch .*^ unPubl
 
 verifyProofDL :: (EC a, Eq (ECPoint a)) => ProofDL a -> Bool
 verifyProofDL ProofDL{..}
-  = traceMsg "ver-proof-dl" $ fromGenerator responseZ == (commitmentA ^+^ (fromChallenge challengeE .*^ unPublicKey publicK))
-
---   where
---     -- Recompute challenge
---     ch :: Hash.Digest Hash.SHA256
---     ch = Hash.hashFinalize
---        $ flip Hash.hashUpdate (Ed.pointEncode (unShare commitmentA) :: BA.Bytes)
---        $ flip Hash.hashUpdate (Ed.pointEncode (unShare publicK)     :: BA.Bytes)
---        $ Hash.hashInit
---     CryptoPassed e = Ed.scalarDecodeLong $ BS.tail $ BA.convert ch
+  = fromGenerator responseZ == (commitmentA ^+^ (fromChallenge challengeE .*^ unPublicKey publicK))
 
 {-
 go = do
@@ -600,5 +587,11 @@ go = do
   putStrLn $ groom proof
   putStrLn ""
   putStrLn $ groom $ verifyProof proof
+-}
+
+{- For debug
+
+traceMsg :: Show a => String -> a -> a
+traceMsg msg a = trace (mconcat [msg, ": ", ppShow a]) a
 -}
 

@@ -157,8 +157,8 @@ toLiteral loc = \case
         go = \case
           SigmaPk pkey -> let keyTxt = publicKeyToText pkey
                             in  ap (VarName loc "pk") $ lit $ H.String loc (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd a b -> op2 "&&" a b
-          SigmaOr  a b -> op2 "||" a b
+          SigmaAnd as  -> foldl1 (op2 "&&") as
+          SigmaOr  as  -> foldl1 (op2 "||") as
 
         op2 :: String -> H.Exp Loc -> H.Exp Loc -> H.Exp Loc
         op2 name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Ident loc name) b
