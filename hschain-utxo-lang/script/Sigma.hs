@@ -37,3 +37,8 @@ and' as = Fix $ SigmaAnd as
 or'  as = Fix $ SigmaOr as
 
 
+checkProof = do
+  Test{..} <- setup
+  Right proof <- newProof env1 (or' [pk1, pk2])
+  print $ verifyProof proof
+

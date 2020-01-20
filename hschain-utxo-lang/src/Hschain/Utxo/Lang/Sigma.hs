@@ -46,7 +46,11 @@ import qualified Data.Set as S
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TE
 
-import qualified Hschain.Utxo.Lang.Sigma.Expr as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
+
 
 import qualified Data.ByteString.Base58 as Base58
 
