@@ -52,6 +52,11 @@ newUser name = do
   secret <- liftIO newSecret
   newWallet (UserId name) secret
 
+newMasterUser :: App Wallet
+newMasterUser = do
+  secret <- getMasterSecret
+  newWallet (UserId "master") secret
+
 send :: Wallet -> BoxId -> Wallet -> Money -> App SendResult
 send from fromBoxId to money = do
   toBoxId <- allocAddress to
@@ -65,11 +70,6 @@ send from fromBoxId to money = do
 getTxHash :: PostTxResponse -> Maybe TxHash
 getTxHash PostTxResponse{..} =
   either (const Nothing) Just $ postTxResponse'value
-
--- | Initial master box for default genesis.
--- All funds belong to master-user.
-initMasterBox :: BoxId
-initMasterBox = BoxId "master:box-0"
 
 --------------------------------------------------
 -- init three users
@@ -88,23 +88,38 @@ data Scene = Scene
 
 initUsers :: App Scene
 initUsers = do
-  master <- newUser "master"
+  master <- newMasterUser
   alice  <- newUser "alice"
   bob    <- newUser "bob"
   john   <- newUser "john"
+  return $ Scene
+    { scene'alice   = User alice  (box "alice")
+    , scene'bob     = User bob    (box "bob")
+    , scene'john    = User john   (box "john")
+    , scene'master  = User master initMasterBox
+    }
+  where
+    box user = BoxId $ mconcat [user, ":box-0"]
+
+setupScene :: Scene -> App Scene
+setupScene scene@Scene{..} = do
   logTest "Start state:"
   st <- getState
   logTest $ renderText st
+  let master = user'wallet scene'master
+      alice  = user'wallet scene'alice
+      bob    = user'wallet scene'bob
+      john   = user'wallet scene'john
 
   SendResult masterBox1 aliceBox _ <- debugSend True "Master sends 10 to alice" master initMasterBox alice 10
   SendResult masterBox2 bobBox _   <- debugSend True "Master sends 10 to bob"   master masterBox1    bob   10
   SendResult masterBox3 johnBox _  <- debugSend True "Master sends 10 to john"  master masterBox2    john  10
-  return $ Scene
-    { scene'alice   = User alice  aliceBox
-    , scene'bob     = User bob    bobBox
-    , scene'john    = User john   johnBox
-    , scene'master  = User master masterBox3
+  return $ scene
+    { scene'alice  = withBox scene'alice  aliceBox
+    , scene'bob    = withBox scene'bob    bobBox
+    , scene'john   = withBox scene'john   johnBox
+    , scene'master = withBox scene'master masterBox3
     }
-
-
+    where
+      withBox u b = u { user'box = b }
 

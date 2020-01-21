@@ -9,6 +9,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , getBoxBalance
   , getState
   , getBoxChainEnv
+  , getMasterSecret
   , forceLogTest
   , logTest
   , printTest
@@ -16,6 +17,8 @@ module Hschain.Utxo.Test.Client.Monad(
   , testCase
   , runTest
   , toHspec
+  , initMasterBox
+  , initGenesis
 ) where
 
 import Hex.Common.Text
@@ -27,6 +30,7 @@ import Control.Monad.Except
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 
+import Data.Fix
 import Data.Sequence (Seq)
 import Data.Text (Text)
 
@@ -34,10 +38,14 @@ import Test.Hspec
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Build (pk')
 import Hschain.Utxo.State.Types
+import Hschain.Utxo.Back.Config
 
 import qualified Hschain.Utxo.API.Client as C
 
+import qualified Data.Map.Strict as M
+import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -55,10 +63,11 @@ newtype App a = App { unApp :: ReaderT TestEnv (ExceptT Text IO) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader TestEnv, MonadError Text)
 
 data TestEnv = TestEnv
-  { testEnv'client  :: !C.ClientSpec
-  , testEnv'verbose :: !Bool
-  , testEnv'log     :: TVar (Seq Text)
-  , testEnv'test    :: TVar Test
+  { testEnv'client         :: !C.ClientSpec
+  , testEnv'verbose        :: !Bool
+  , testEnv'log            :: TVar (Seq Text)
+  , testEnv'test           :: TVar Test
+  , testEnv'masterSecret   :: !Secret
   }
 
 data TestSpec = TestSpec
@@ -66,22 +75,27 @@ data TestSpec = TestSpec
   , testSpec'verbose :: !Bool
   }
 
+getMasterSecret :: App Secret
+getMasterSecret = asks testEnv'masterSecret
+
 runTest :: TestSpec -> App () -> IO Test
 runTest TestSpec{..} app = do
   testTv <- newTVarIO emptyTest
   logTv <- newTVarIO mempty
-  res <- runApp (env testTv logTv) app
+  masterSecret <- newSecret
+  res <- runApp (env testTv logTv masterSecret) app
   test <- readTVarIO testTv
   return $ case res of
     Left  err -> test { test'cases =  mappend (test'cases test) (pure (TestCase err False)) }
     Right _   -> test
   where
-    env tv logTv = TestEnv
-      { testEnv'client = testSpec'client
-      , testEnv'verbose = testSpec'verbose
-      , testEnv'log = logTv
-      , testEnv'test = tv
-      }
+    env tv logTv masterSecret = TestEnv
+        { testEnv'client = testSpec'client
+        , testEnv'verbose = testSpec'verbose
+        , testEnv'log = logTv
+        , testEnv'test = tv
+        , testEnv'masterSecret = masterSecret
+        }
 
     emptyTest = Test "" mempty
 
@@ -143,5 +157,38 @@ toHspec Test{..} =
   where
     fromCase TestCase{..} =
       it (T.unpack testCase'name) $ testCase'value `shouldBe` True
+
+
+initGenesis :: App Genesis
+initGenesis =
+  liftIO . withSecret =<< getMasterSecret
+  where
+    withSecret secret = do
+      Right proof <- newProof env (Fix $ SigmaPk publicKey)
+      return $ [tx proof]
+      where
+        publicKey = getPublicKey secret
+        env = proofEnvFromKeys [getKeyPair secret]
+
+        box = Box
+          { box'id     = initMasterBox
+          , box'value  = initMoney
+          , box'script = toScript $ pk' publicKey
+          , box'args   = M.empty
+          }
+
+        tx proof = Tx
+          { tx'inputs  = V.empty
+          , tx'outputs = V.fromList [box]
+          , tx'proof   = proof
+          , tx'args    = mempty
+          }
+
+        initMoney = 1000000
+
+-- | Initial master box for default genesis.
+-- All funds belong to master-user.
+initMasterBox :: BoxId
+initMasterBox = BoxId "master:box-0"
 
 
