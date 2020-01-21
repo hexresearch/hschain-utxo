@@ -1,10 +1,10 @@
 module Hschain.Utxo.Lang.Build(
-
     int
   , double
   , text
   , money
   , pk
+  , pk'
   , getHeight
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxArg
@@ -133,6 +133,9 @@ instance Boolean (Expr Bool) where
   notB = op1 (UnOpE noLoc Not)
   (&&*) = op2 (BinOpE noLoc And)
   (||*) = op2 (BinOpE noLoc Or)
+
+pk' :: PublicKey -> Expr Bool
+pk' = pk . text . publicKeyToText
 
 pk :: Expr Text -> Expr Bool
 pk (Expr key) = Expr $ Fix $ Pk noLoc key

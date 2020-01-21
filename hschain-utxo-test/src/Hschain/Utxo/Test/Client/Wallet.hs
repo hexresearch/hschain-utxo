@@ -8,13 +8,16 @@ module Hschain.Utxo.Test.Client.Wallet(
   , newSendTx
   , Send(..)
   , getOwnerProof
+  , getOwnerProofUnsafe
 ) where
 
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
+import Control.Monad.Except
 
 import Data.Fix
 import Data.Maybe
+import Data.Text (Text)
 import Data.UUID
 
 import System.Random
@@ -63,13 +66,15 @@ getBalance wallet@Wallet{..} = do
   xs <- liftIO $ readTVarIO wallet'utxos
   fmap (sum . catMaybes) $ mapM getBoxBalance xs
 
-getOwnerProof :: MonadIO io => Wallet -> io (Sigma Proof)
+getOwnerProof :: MonadIO io => Wallet -> io (Either Text Proof)
 getOwnerProof w@Wallet{..} =
   liftIO $ newProof env $ Fix $ SigmaPk (getWalletPublicKey w)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 
-
+getOwnerProofUnsafe :: Wallet -> App Proof
+getOwnerProofUnsafe wallet =
+  either throwError pure =<< getOwnerProof wallet
 
 data Send = Send
   { send'from    :: !BoxId
@@ -93,13 +98,13 @@ newSendTx wallet send@Send{..} = (\back -> toSendTx wallet send back) =<< getSen
 
 toSendTx :: Wallet -> Send -> SendBack -> App Tx
 toSendTx wallet Send{..} SendBack{..} = do
-  proof <- getOwnerProof wallet
+  proof <- getOwnerProofUnsafe wallet
   return $ Tx
-    { tx'inputs   = V.fromList [inputBox]
-    , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-    , tx'proof    = proof
-    , tx'args     = M.empty
-    }
+        { tx'inputs   = V.fromList [inputBox]
+        , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+        , tx'proof    = proof
+        , tx'args     = M.empty
+        }
   where
     inputBox = send'from
 

@@ -19,14 +19,6 @@ import Data.Maybe
 import Data.Monoid (All(..))
 import Data.Sequence (Seq)
 import Data.Text (Text)
-import qualified Data.ByteString         as BS
-import qualified Data.ByteString.Lazy    as BL
-import qualified Data.ByteArray          as BA
-import Data.Coerce
-import qualified Crypto.ECC.Edwards25519 as Ed
-import qualified Crypto.Hash.Algorithms  as Hash
-import qualified Crypto.Hash             as Hash
-import qualified Crypto.Random.Types     as RND
 import Crypto.Error
 import GHC.Generics (Generic)
 

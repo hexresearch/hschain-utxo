@@ -6,6 +6,7 @@
 module Sgima where
 
 import Data.Fix
+import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Sigma
 
 data Test = Test

@@ -41,6 +41,7 @@ import Text.Show.Deriving
 import Safe
 
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Text.Encoding as TE
@@ -85,10 +86,15 @@ publicKeyToText :: PublicKey -> Text
 publicKeyToText = TE.decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet . LB.toStrict . serialise
 
 serialiseToJSON :: Serialise a => a -> Value
-serialiseToJSON = toJSON . TE.decodeUtf8With TE.lenientDecode . LB.toStrict . serialise
+serialiseToJSON = toJSON . TE.decodeUtf8 . Base64.encode . LB.toStrict . serialise
 
 serialiseFromJSON :: Serialise a => Value -> Parser a
-serialiseFromJSON = (either (const mzero) pure . deserialiseOrFail . LB.fromStrict . TE.encodeUtf8) <=< parseJSON
+serialiseFromJSON =
+      (toParser . deserialiseOrFail . LB.fromStrict)
+  <=< (toParser . Base64.decode . TE.encodeUtf8)
+  <=< parseJSON
+  where
+    toParser = either (const mzero) pure
 
 instance FromJSON Proof where
   parseJSON = serialiseFromJSON
@@ -118,8 +124,7 @@ type Sigma k = Fix (SigmaExpr k)
 
 data SigmaExpr k a =
     SigmaPk k
-  | SigmaAnd [a] -- todo: in low-level impl And Or contain list of values. is it better for performance
-                 -- to use lists here too instead of pair of arguments
+  | SigmaAnd [a]
   | SigmaOr  [a]
   deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic)
 
@@ -199,4 +204,3 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
       _ -> False
 
 $(deriveShow1 ''SigmaExpr)
-

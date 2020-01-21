@@ -5,6 +5,7 @@
 module Hschain.Utxo.Test.Client.Scripts.PayForCofee where
 
 import Prelude hiding ((<*))
+import Control.Monad.Except
 import Control.Timeout
 
 import Data.Boolean
@@ -138,12 +139,14 @@ sendTxDelayed from fromBox to delayDiff amount = do
   return (SendRes backBox toBox $ getTxHash txResp)
 
 toSendTxDelayed :: Wallet -> SendDelayed -> App Tx
-toSendTxDelayed wallet SendDelayed{..} = fmap (\proof -> Tx
-  { tx'inputs   = V.fromList [inputBox]
-  , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-  , tx'proof    = proof
-  , tx'args     = M.empty
-  }) $ getOwnerProof wallet
+toSendTxDelayed wallet SendDelayed{..} = do
+  proof <- getOwnerProofUnsafe wallet
+  return $ Tx
+      { tx'inputs   = V.fromList [inputBox]
+      , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      , tx'proof    = proof
+      , tx'args     = M.empty
+      }
   where
     inputBox = sendDelayed'from
     height = sendDelayed'height

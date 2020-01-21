@@ -156,7 +156,7 @@ xorGameRound Scene{..} game@Game{..} = do
             , tx'outputs = V.fromList $ catMaybes [gameBox, restBox]
             , tx'proof   = proof
             , tx'args    = mempty
-            }) $ getOwnerProof wallet
+            }) $ getOwnerProofUnsafe wallet
       return (tx, gameAddr, backAddr)
 
     getBobScript guess wallet alicePublicHash scriptBox alicePubKey inBox = do
@@ -176,7 +176,7 @@ xorGameRound Scene{..} game@Game{..} = do
               , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
               , tx'proof   = proof
               , tx'args    = mempty
-              }) $ getOwnerProof wallet
+              }) $ getOwnerProofUnsafe wallet
           where
             gameBox total height
               | total < game'amount = Nothing
@@ -215,7 +215,7 @@ xorGameRound Scene{..} game@Game{..} = do
             , tx'outputs = V.fromList [outBox]
             , tx'proof   = proof
             , tx'args    = args
-            }) $ getOwnerProof wallet
+            }) $ getOwnerProofUnsafe wallet
       where
         args = M.fromList
           [ (sField, PrimString aliceSecret)

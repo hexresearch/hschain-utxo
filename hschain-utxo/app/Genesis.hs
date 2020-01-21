@@ -1,7 +1,9 @@
 module Main where
 
 import Data.Aeson.Encode.Pretty
+import Data.Aeson
 import Data.Default
+import Data.Fix
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
@@ -13,28 +15,33 @@ import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 main :: IO ()
-main = B.putStrLn $ LB.toStrict $ encodePretty $ singleOwnerGenesis
+main = B.putStrLn . LB.toStrict . encodePretty =<< singleOwnerGenesis
 
-
-singleOwnerGenesis :: [Tx]
-singleOwnerGenesis = pure $ Tx
-  { tx'inputs  = V.empty
-  , tx'outputs = V.fromList [box]
-  , tx'proof   = mempty
-  , tx'args    = mempty
-  }
+singleOwnerGenesis :: IO [Tx]
+singleOwnerGenesis = withSecret =<< newSecret
   where
-    box = Box
-      { box'id     = BoxId "master:box-0"
-      , box'value  = initMoney
-      , box'script = toScript $ pk (text publicKey)
-      , box'args   = M.empty
-      }
+    withSecret secret = do
+      Right proof <- newProof env (Fix $ SigmaPk publicKey)
+      return $ [tx proof]
+      where
+        publicKey = getPublicKey secret
+        env = proofEnvFromKeys [getKeyPair secret]
 
-    userId = UserId "master"
-    publicKey = "master"
-    privateKey = "master-private-key"
-    initMoney = 1000000
+        box = Box
+          { box'id     = BoxId "master:box-0"
+          , box'value  = initMoney
+          , box'script = toScript $ pk' publicKey
+          , box'args   = M.empty
+          }
+
+        tx proof = Tx
+          { tx'inputs  = V.empty
+          , tx'outputs = V.fromList [box]
+          , tx'proof   = proof
+          , tx'args    = mempty
+          }
+
+        initMoney = 1000000
 
 
 
