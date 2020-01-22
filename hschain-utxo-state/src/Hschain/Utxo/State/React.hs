@@ -17,7 +17,9 @@ react tx bch
   | isValid   = (Right $ appendHash $ updateBoxChain tx bch, debugMsg)
   | otherwise = (Left "Tx is invalid", debugMsg)
   where
-    (isValid, debugMsg) = maybe (False, "No message") exec (toTxArg bch tx)
+    (isValid, debugMsg) = case toTxArg bch tx of
+        Right txArg -> exec txArg
+        Left err    -> (False, err)
 
     -- todo: replace me with real hash
     fakeHash = TxHash . mappend "tx-" . T.pack . show . boxChain'height
@@ -37,5 +39,7 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
 
 
 execInBoxChain :: Tx -> BoxChain -> (Either Text BoolExprResult, Text)
-execInBoxChain tx bch = maybe (Left "Tx is invalid", "No message") execToSigma (toTxArg bch tx)
+execInBoxChain tx bch = case toTxArg bch tx of
+  Right txArg -> execToSigma txArg
+  Left err    -> (Left err, "No message")
 

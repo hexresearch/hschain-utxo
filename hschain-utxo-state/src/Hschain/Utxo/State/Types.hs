@@ -3,6 +3,8 @@ module Hschain.Utxo.State.Types where
 import Hex.Common.Aeson
 
 import Control.Monad
+
+import Data.Text (Text)
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang
@@ -20,7 +22,7 @@ emptyBoxChain = BoxChain
   , boxChain'height = 0
   }
 
-toTxArg :: BoxChain -> Tx -> Maybe TxArg
+toTxArg :: BoxChain -> Tx -> Either Text TxArg
 toTxArg bch@BoxChain{..} Tx{..} = fmap (\inputs ->
   TxArg
     { txArg'outputs = tx'outputs
@@ -31,7 +33,8 @@ toTxArg bch@BoxChain{..} Tx{..} = fmap (\inputs ->
     }
   ) mInputs
   where
-    mInputs = mapM (\boxId -> M.lookup boxId boxChain'boxes) tx'inputs
+    mInputs = mapM (\boxId -> maybe (noInputFor boxId) Right $ M.lookup boxId boxChain'boxes) tx'inputs
+    noInputFor (BoxId idx) = Left $ mconcat ["Error: no box input with id: ", idx]
 
 getEnv :: BoxChain -> Env
 getEnv BoxChain{..} = Env { env'height = boxChain'height }

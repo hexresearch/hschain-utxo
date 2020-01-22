@@ -5,6 +5,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , runApp
   , call
   , postTx
+  , getTxSigma
   , getHeight
   , getBoxBalance
   , getState
@@ -147,6 +148,15 @@ getState = call C.getState
 getBoxChainEnv :: App Env
 getBoxChainEnv = fmap unGetEnvResponse $ call C.getEnv
 
+getTxSigma :: Tx -> App (Either Text (Sigma PublicKey))
+getTxSigma tx = do
+  resp <- call $ C.getTxSigma tx
+  case sigmaTxResponse'value resp of
+    Right boolRes -> return $ case boolRes of
+      SigmaBool sigma -> Right sigma
+      _               -> Left "Not a sigma-expression form result"
+    Left err -> return $ Left err
+
 -------------------------
 -- test to hspec
 --
@@ -160,12 +170,9 @@ toHspec Test{..} =
 
 
 initGenesis :: App Genesis
-initGenesis =
-  liftIO . withSecret =<< getMasterSecret
+initGenesis = fmap withSecret $ getMasterSecret
   where
-    withSecret secret = do
-      Right proof <- newProof env (Fix $ SigmaPk publicKey)
-      return $ [tx proof]
+    withSecret secret = [tx]
       where
         publicKey = getPublicKey secret
         env = proofEnvFromKeys [getKeyPair secret]
@@ -177,10 +184,10 @@ initGenesis =
           , box'args   = M.empty
           }
 
-        tx proof = Tx
+        tx = Tx
           { tx'inputs  = V.empty
           , tx'outputs = V.fromList [box]
-          , tx'proof   = proof
+          , tx'proof   = Nothing
           , tx'args    = mempty
           }
 

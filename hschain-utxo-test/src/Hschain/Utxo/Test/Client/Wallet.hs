@@ -52,6 +52,8 @@ allocAddress wallet@Wallet{..} = liftIO $ do
   atomically $ modifyTVar' wallet'utxos $ (addr : )
   return addr
 
+getProofEnv :: Wallet -> ProofEnv
+getProofEnv Wallet{..} = proofEnvFromKeys [getKeyPair wallet'privateKey]
 
 -- | Generates new address name
 newAddress :: MonadIO io => Wallet -> io BoxId
@@ -90,19 +92,37 @@ data SendBack = SendBack
   }
 
 newSendTx :: Wallet -> Send -> App Tx
-newSendTx wallet send@Send{..} = (\back -> toSendTx wallet send back) =<< getSendBack
+newSendTx wallet send@Send{..} = do
+  back <- getSendBack
+  preTx <- toSendTx wallet send back Nothing
+  sigma <- getSigmaForProof preTx
+  let env = getProofEnv wallet
+  proof <- newProofOrFail env sigma
+  toSendTx wallet send back (Just proof)
   where
     getSendBack = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount send'back
 
-toSendTx :: Wallet -> Send -> SendBack -> App Tx
-toSendTx wallet Send{..} SendBack{..} = do
-  proof <- getOwnerProofUnsafe wallet
+newProofOrFail :: ProofEnv -> Sigma PublicKey -> App Proof
+newProofOrFail env expr = do
+  eProof <- liftIO $ newProof env expr
+  case eProof of
+    Right proof -> return proof
+    Left err    -> throwError err
+
+getTxSigmaUnsafe :: Tx -> App (Sigma PublicKey)
+getTxSigmaUnsafe tx = either throwError pure =<< getTxSigma tx
+
+getSigmaForProof :: Tx -> App (Sigma PublicKey)
+getSigmaForProof tx = getTxSigmaUnsafe tx
+
+toSendTx :: Wallet -> Send -> SendBack -> Maybe Proof -> App Tx
+toSendTx wallet Send{..} SendBack{..} mProof = do
   return $ Tx
         { tx'inputs   = V.fromList [inputBox]
         , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-        , tx'proof    = proof
+        , tx'proof    = mProof
         , tx'args     = M.empty
         }
   where

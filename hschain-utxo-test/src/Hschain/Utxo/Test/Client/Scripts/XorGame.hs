@@ -154,7 +154,7 @@ xorGameRound Scene{..} game@Game{..} = do
       tx <- fmap (\proof -> Tx
             { tx'inputs  = V.fromList [inBox]
             , tx'outputs = V.fromList $ catMaybes [gameBox, restBox]
-            , tx'proof   = proof
+            , tx'proof   = Just proof
             , tx'args    = mempty
             }) $ getOwnerProofUnsafe wallet
       return (tx, gameAddr, backAddr)
@@ -174,7 +174,7 @@ xorGameRound Scene{..} game@Game{..} = do
           fmap (\proof -> Tx
               { tx'inputs  = V.fromList [inBox, scriptBox]
               , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
-              , tx'proof   = proof
+              , tx'proof   = Just proof
               , tx'args    = mempty
               }) $ getOwnerProofUnsafe wallet
           where
@@ -213,7 +213,7 @@ xorGameRound Scene{..} game@Game{..} = do
     winTx gameBox winAddr wallet aliceSecret aliceGuess = fmap (\proof -> Tx
             { tx'inputs  = V.fromList [gameBox]
             , tx'outputs = V.fromList [outBox]
-            , tx'proof   = proof
+            , tx'proof   = Just proof
             , tx'args    = args
             }) $ getOwnerProofUnsafe wallet
       where

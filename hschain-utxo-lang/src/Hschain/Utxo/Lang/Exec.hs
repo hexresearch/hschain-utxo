@@ -662,13 +662,15 @@ traceFun name f x =
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
 exec :: TxArg -> (Bool, Text)
-exec tx = case res of
-  Right (SigmaBool sigma) -> (equalSigmaProof sigma proof && verifyProof proof, debug)
-  Right (ConstBool bool)  -> (bool, "")
-  Left err    -> (False, err)
+exec tx
+  | txPreservesValue tx = case res of
+        Right (SigmaBool sigma) -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
+        Right (ConstBool bool)  -> (bool, "")
+        Left err    -> (False, err)
+  | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
   where
     (res, debug) = execToSigma tx
-    proof = txArg'proof tx
+    mProof = txArg'proof tx
 
 data BoolExprResult
   = ConstBool Bool

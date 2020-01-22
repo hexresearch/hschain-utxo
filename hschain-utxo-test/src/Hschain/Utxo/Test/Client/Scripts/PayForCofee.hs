@@ -144,7 +144,7 @@ toSendTxDelayed wallet SendDelayed{..} = do
   return $ Tx
       { tx'inputs   = V.fromList [inputBox]
       , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-      , tx'proof    = proof
+      , tx'proof    = Just proof
       , tx'args     = M.empty
       }
   where

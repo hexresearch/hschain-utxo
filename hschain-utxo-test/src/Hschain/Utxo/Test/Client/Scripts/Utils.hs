@@ -92,7 +92,7 @@ initUsers = do
   alice  <- newUser "alice"
   bob    <- newUser "bob"
   john   <- newUser "john"
-  return $ Scene
+  setupScene $ Scene
     { scene'alice   = User alice  (box "alice")
     , scene'bob     = User bob    (box "bob")
     , scene'john    = User john   (box "john")

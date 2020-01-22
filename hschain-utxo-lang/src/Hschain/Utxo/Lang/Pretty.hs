@@ -24,6 +24,8 @@ import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
+import qualified Text.Show.Pretty as P
+
 import Type.Type
 import Type.Pretty
 
@@ -86,10 +88,10 @@ instance Pretty UserId where
 
 -- TODO
 instance Pretty Proof where
-  pretty = undefined -- (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
+  pretty proof = pretty $ P.ppShow proof
 
 -- TODO
-instance Pretty (S.Sigma Proof) where
+instance Pretty (S.Sigma S.PublicKey) where
   pretty = undefined -- (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
 
 op1 :: Doc ann -> Doc ann -> Doc ann

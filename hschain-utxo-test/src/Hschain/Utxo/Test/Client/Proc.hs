@@ -35,7 +35,7 @@ defaultServiceOptions = Options
 defaultTestSpec :: TestSpec
 defaultTestSpec = TestSpec
   { testSpec'client  = C.ClientSpec "127.0.0.1" 8181 False
-  , testSpec'verbose = False
+  , testSpec'verbose = True
   }
 
 app :: Options -> Genesis -> IO Thread
