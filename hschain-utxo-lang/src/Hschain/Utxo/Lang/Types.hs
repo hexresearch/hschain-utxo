@@ -14,6 +14,7 @@ import Safe
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Parser.Hask
 
 import qualified Crypto.Hash as C
 import qualified Data.Text as T
@@ -51,13 +52,16 @@ data Env = Env
 --------------------------------------------
 
 parseScript :: Text -> Maybe (Expr Bool)
-parseScript = undefined
+parseScript txt =
+  case parseExp $ T.unpack txt of
+    ParseOk expr    -> Just $ Expr expr
+    ParseFailed _ _ -> Nothing
 
 fromScript :: Script -> Maybe (Expr Bool)
 fromScript (Script txt )= parseScript txt
 
 toScript :: Expr Bool -> Script
-toScript = Script . T.pack . show
+toScript (Expr expr) = Script $ T.pack $ prettyExp expr
 
 hashScript ::  C.HashAlgorithm a => a -> Script -> Text
 hashScript algo = hash . unScript

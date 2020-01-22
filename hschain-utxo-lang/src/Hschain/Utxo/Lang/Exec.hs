@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Exec(
   , execToSigma
   , runExec
   , Error(..)
+  , BoolExprResult(..)
 ) where
 
 import Hex.Common.Control
@@ -15,6 +16,7 @@ import Control.Monad.State.Strict
 
 import Crypto.Hash
 
+import Data.Aeson
 import Data.Boolean
 import Data.Fix
 import Data.Map.Strict (Map)
@@ -661,21 +663,38 @@ traceFun name f x =
 -- supplied by the proposer and then verify the proof itself.
 exec :: TxArg -> (Bool, Text)
 exec tx = case res of
-  Right sigma -> (equalSigmaProof sigma proof && verifyProof proof, debug)
+  Right (SigmaBool sigma) -> (equalSigmaProof sigma proof && verifyProof proof, debug)
+  Right (ConstBool bool)  -> (bool, "")
   Left err    -> (False, err)
   where
     (res, debug) = execToSigma tx
     proof = txArg'proof tx
 
+data BoolExprResult
+  = ConstBool Bool
+  | SigmaBool (Sigma PublicKey)
+  deriving (Show, Eq)
 
-execToSigma :: TxArg -> (Either Text (Sigma PublicKey), Text)
+instance ToJSON BoolExprResult where
+  toJSON = \case
+    ConstBool b -> object ["bool"  .= b]
+    SigmaBool s -> object ["sigma" .= s]
+
+instance FromJSON BoolExprResult where
+  parseJSON = withObject "BoolExprResult" $ \obj ->
+        (ConstBool <$> obj .: "bool")
+    <|> (SigmaBool <$> obj .: "sigma")
+
+
+execToSigma :: TxArg -> (Either Text BoolExprResult, Text)
 execToSigma tx@TxArg{..} = execExpr $ getInputExpr tx
   where
     execExpr (Expr x) =
       case runExec txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE _ (PrimSigma b)), msg) -> (Right b, msg)
-        Right _                                    -> (Left noSigmaExpr, noSigmaExpr)
-        Left err                                   -> (Left (showt err), showt err)
+        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> (Right $ SigmaBool b, msg)
+        Right (Fix (PrimE _ (PrimBool b)), msg)   -> (Right $ ConstBool b, msg)
+        Right _                                   -> (Left noSigmaExpr, noSigmaExpr)
+        Left err                                  -> (Left (showt err), showt err)
 
     noSigmaExpr = "Error: Script does not evaluate to sigma expression"
 

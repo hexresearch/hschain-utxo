@@ -36,6 +36,6 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
     incrementHeight bch@BoxChain{..} = bch { boxChain'height = 1 + boxChain'height }
 
 
-execInBoxChain :: Tx -> BoxChain -> (Either Text (Sigma PublicKey), Text)
+execInBoxChain :: Tx -> BoxChain -> (Either Text BoolExprResult, Text)
 execInBoxChain tx bch = maybe (Left "Tx is invalid", "No message") execToSigma (toTxArg bch tx)
 
