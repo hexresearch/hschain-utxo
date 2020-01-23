@@ -58,7 +58,7 @@ parseScript txt =
     ParseFailed _ _ -> Nothing
 
 fromScript :: Script -> Maybe (Expr Bool)
-fromScript (Script txt )= parseScript txt
+fromScript (Script txt) = parseScript txt
 
 toScript :: Expr Bool -> Script
 toScript (Expr expr) = Script $ T.pack $ prettyExp expr

@@ -34,7 +34,7 @@ toHaskExp (Fix expr) = case expr of
   InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (getLoc v) $ toSymbolQName' v) (rec b)
   Lam loc name a -> H.Lambda loc [H.PVar (getLoc name) $ toIdentName' name] (rec a)
   LamList loc vs a -> H.Lambda loc (fmap (\v -> H.PVar (getLoc v) $ toIdentName' v) vs) (rec a)
-  Let loc bg a -> undefined
+  Let loc bg a -> H.Let loc (toLetBinds loc bg) (toHaskExp a)
   LetRec loc name a b -> undefined
   Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType (Forall loc [] (Qual loc [] ty)))
   -- primitives
@@ -63,8 +63,9 @@ toHaskExp (Fix expr) = case expr of
     rec = toHaskExp
     ap f x = H.App (getLoc f) (toVar (getLoc f) f) (rec x)
     ap2 f x y = H.App (getLoc y) (H.App (getLoc f) (toVar (getLoc f) f) (rec x)) (rec y)
-    op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toQName' f) (rec y)
+--    op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toSymbolQName' f) (rec y)
 
+    toLetBinds loc bg = H.BDecls loc $ toDecl bg
 
     fromUnOp loc op a = case op of
       Not       -> ap (VarName loc "not") a
@@ -72,21 +73,21 @@ toHaskExp (Fix expr) = case expr of
       TupleAt n -> ap2 (VarName loc "tupleAt") (Fix $ PrimE loc $ PrimInt n) a
 
     fromBimOp loc op = case op of
-      And                   -> op2 "&&"
-      Or                    -> op2 "||"
-      Plus                  -> op2 "+"
-      Minus                 -> op2 "-"
-      Times                 -> op2 "*"
-      Div                   -> op2 "/"
-      Equals                -> op2 "=="
-      NotEquals             -> op2 "/="
-      LessThan              -> op2 "<"
-      GreaterThan           -> op2 ">"
-      LessThanEquals        -> op2 "<="
-      GreaterThanEquals     -> op2 ">="
-      ComposeFun            -> op2 "."
+      And                   -> op2' "&&"
+      Or                    -> op2' "||"
+      Plus                  -> op2' "+"
+      Minus                 -> op2' "-"
+      Times                 -> op2' "*"
+      Div                   -> op2' "/"
+      Equals                -> op2' "=="
+      NotEquals             -> op2' "/="
+      LessThan              -> op2' "<"
+      GreaterThan           -> op2' ">"
+      LessThanEquals        -> op2' "<="
+      GreaterThanEquals     -> op2' ">="
+      ComposeFun            -> op2' "."
       where
-        op2 name a b = H.InfixApp loc (rec a) (H.QVarOp loc $ H.UnQual loc $ H.Ident loc name) (rec b)
+        op2' name a b = op2 loc name (rec a) (rec b)
 
     fromEnv _ = \case
       Height loc    -> toVar loc (VarName loc "getHeight")
@@ -99,14 +100,14 @@ toHaskExp (Fix expr) = case expr of
 
     fromVec _ = \case
       NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
-      VecAppend loc a b -> op2 (VarName loc "++") a b
-      VecAt loc a b     -> op2 (VarName loc "!") a b
+      VecAppend loc a b -> op2 loc "++" (rec a) (rec b)
+      VecAt loc a b     -> op2 loc "!" (rec a) (rec b)
       VecLength loc     -> toVar loc (VarName loc "length")
       VecMap loc        -> toVar loc (VarName loc "map")
       VecFold loc       -> toVar loc (VarName loc "fold")
 
     fromText _ = \case
-      TextAppend loc a b  -> op2 (VarName loc "<>") a b
+      TextAppend loc a b  -> op2 loc "<>" (rec a) (rec b)
       ConvertToText loc   -> toVar loc (VarName loc "show")
       TextLength loc      -> toVar loc (VarName loc "lengthText")
       TextHash loc algo   -> case algo of
@@ -138,6 +139,10 @@ toHaskExp (Fix expr) = case expr of
       where
         get name = ap (VarName loc name) a
 
+op2 :: Loc -> String -> H.Exp Loc -> H.Exp Loc -> H.Exp Loc
+op2 loc name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc name) b
+
+
 toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral loc = \case
   PrimInt x -> lit $ H.Int loc (fromIntegral x) (show x)
@@ -157,23 +162,20 @@ toLiteral loc = \case
         go = \case
           SigmaPk pkey -> let keyTxt = publicKeyToText pkey
                             in  ap (VarName loc "pk") $ lit $ H.String loc (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (op2 "&&") as
-          SigmaOr  as  -> foldl1 (op2 "||") as
-
-        op2 :: String -> H.Exp Loc -> H.Exp Loc -> H.Exp Loc
-        op2 name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Ident loc name) b
+          SigmaAnd as  -> foldl1 (op2 loc "&&") as
+          SigmaOr  as  -> foldl1 (op2 loc "||") as
 
         ap f x = H.App (getLoc f) (toVar (getLoc f) f) x
 
 toHaskModule :: Module -> H.Module Loc
 toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl =<< bs)
-  where
-    toDecl :: BindGroup Lang -> [H.Decl Loc]
-    toDecl BindGroup{..} = concat
-      [ toDeclExpl =<< bindGroup'expl
-      , concat $ fmap (toDeclImpl =<< ) bindGroup'impl
-      ]
 
+toDecl :: BindGroup Lang -> [H.Decl Loc]
+toDecl BindGroup{..} = concat
+  [ toDeclExpl =<< bindGroup'expl
+  , concat $ fmap (toDeclImpl =<< ) bindGroup'impl
+  ]
+  where
     toDeclImpl :: Impl Lang -> [H.Decl Loc]
     toDeclImpl Impl{..} = return $ H.FunBind (getLoc impl'name) $ fmap (toMatch impl'name) impl'alts
 
@@ -187,7 +189,6 @@ toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl =<< bs)
 
         tyLoc = getLoc expl'type
 
-
     toMatch :: Id -> Alt Lang -> H.Match Loc
     toMatch name alt = H.Match (getLoc name) (toIdentName name) (toPats alt) (toRhs alt) Nothing
 
@@ -199,6 +200,7 @@ toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl =<< bs)
 
     toRhs :: Alt Lang -> H.Rhs Loc
     toRhs Alt{..} = H.UnGuardedRhs (getLoc alt'expr) (toHaskExp alt'expr)
+
 
 toIdentName :: Id -> H.Name Loc
 toIdentName Id{..} = H.Ident id'loc (T.unpack id'name)

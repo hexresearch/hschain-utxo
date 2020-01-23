@@ -154,7 +154,7 @@ getTxSigma tx = do
   case sigmaTxResponse'value resp of
     Right boolRes -> return $ case boolRes of
       SigmaBool sigma -> Right sigma
-      _               -> Left "Not a sigma-expression form result"
+      ConstBool b     -> Left $ mconcat ["Not a sigma-expression from result, got ", showt b]
     Left err -> return $ Left err
 
 -------------------------

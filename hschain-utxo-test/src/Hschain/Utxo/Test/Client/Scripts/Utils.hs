@@ -11,6 +11,7 @@ module Hschain.Utxo.Test.Client.Scripts.Utils(
 ) where
 
 import Control.Timeout
+import Control.Monad
 import Control.Monad.IO.Class
 
 import Data.Maybe
@@ -37,13 +38,18 @@ data SendResult = SendResult
 debugSend :: Bool -> Text -> Wallet -> BoxId -> Wallet -> Money -> App SendResult
 debugSend isSuccess msg from fromBox to amount = do
   logTest msg
-  res <- send from fromBox to amount
-  printTest res
-  st <- getState
-  logTest $ renderText st
-  wait
-  testCase msg (isJust (sendResult'txHash res) == isSuccess)
-  return res
+  eRes <- send from fromBox to amount
+  case eRes of
+    Right res -> do
+      printTest res
+      st <- getState
+      logTest $ renderText st
+      wait
+      testCase msg (isJust (sendResult'txHash res) == isSuccess)
+      return res
+    Left err -> do
+      testCase (mconcat [msg, " ", err]) (False == isSuccess)
+      return $ SendResult fromBox fromBox Nothing
   where
     wait = sleep 0.25
 
@@ -57,15 +63,16 @@ newMasterUser = do
   secret <- getMasterSecret
   newWallet (UserId "master") secret
 
-send :: Wallet -> BoxId -> Wallet -> Money -> App SendResult
+send :: Wallet -> BoxId -> Wallet -> Money -> App (Either Text SendResult)
 send from fromBoxId to money = do
   toBoxId <- allocAddress to
   backBoxId <- allocAddress from
-  tx <- newSendTx from  (Send fromBoxId toBoxId backBoxId money to)
-  logTest $ renderText tx
-  resp <- postTx tx
-  printTest resp
-  return $ SendResult backBoxId toBoxId (getTxHash resp)
+  eTx <- newSendTx from  (Send fromBoxId toBoxId backBoxId money to)
+  forM eTx $ \tx -> do
+    logTest $ renderText tx
+    resp <- postTx tx
+    printTest resp
+    return $ SendResult backBoxId toBoxId (getTxHash resp)
 
 getTxHash :: PostTxResponse -> Maybe TxHash
 getTxHash PostTxResponse{..} =

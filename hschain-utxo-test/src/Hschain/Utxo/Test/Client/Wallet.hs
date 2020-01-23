@@ -9,6 +9,9 @@ module Hschain.Utxo.Test.Client.Wallet(
   , Send(..)
   , getOwnerProof
   , getOwnerProofUnsafe
+  , getProofEnv
+  , newProofOrFail
+  , getTxSigmaUnsafe
 ) where
 
 import Control.Concurrent.STM
@@ -91,14 +94,17 @@ data SendBack = SendBack
   , sendBack'backBox      :: !BoxId
   }
 
-newSendTx :: Wallet -> Send -> App Tx
+newSendTx :: Wallet -> Send -> App (Either Text Tx)
 newSendTx wallet send@Send{..} = do
   back <- getSendBack
   preTx <- toSendTx wallet send back Nothing
-  sigma <- getSigmaForProof preTx
-  let env = getProofEnv wallet
-  proof <- newProofOrFail env sigma
-  toSendTx wallet send back (Just proof)
+  eSigma <- getTxSigma preTx
+  fmap join $ forM eSigma $ \sigma -> do
+    let env = getProofEnv wallet
+    eProof <- liftIO $ newProof env sigma
+    case eProof of
+      Right proof -> fmap Right $ toSendTx wallet send back (Just proof)
+      Left err    -> return $ Left err
   where
     getSendBack = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from

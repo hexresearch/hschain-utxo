@@ -15,7 +15,7 @@ import Data.Text (Text)
 
 import Text.Show.Pretty
 
-import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle)
+import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle, getTxSigma)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
@@ -46,22 +46,23 @@ payForCofeeBob = do
       (User bob    bobBox1)    = scene'bob
       (User john   johnBox1)   = scene'john
       (User master masterBox1) = scene'master
-  SendRes aliceBox2 aliceOrBobBox _ <- debugSendDelayed True
+  mSendDelAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
-  SendResult bobBox3 johnBox2 _ <- debugSend False
-        "Bob tries to send 2 coins to john (it should fail on delayed condition)"
-        bob aliceOrBobBox john 2
-  SendResult masterBox2 johnBox3 _ <- debugSend True
-        "Master sends to john 1 coin"
-        master masterBox1 john 1
-  SendResult masterBox3 johnBox4 _ <- debugSend True
-        "Master sends to john 1 coin"
-        master masterBox2 john 1
-  SendResult bobBox4 johnBox6 _ <- debugSend True
-        "Bob tries to send 1 coins to john (it should proceed, condition is ok now)"
-        bob aliceOrBobBox john 1
-  return ()
+  forM_ (mSendDelAlice) $ \(SendRes aliceBox2 aliceOrBobBox _) -> do
+      SendResult bobBox3 johnBox2 _  <- debugSend False
+            "Bob tries to send 2 coins to john (it should fail on delayed condition)"
+            bob aliceOrBobBox john 2
+      SendResult masterBox2 johnBox3 _ <- debugSend True
+            "Master sends to john 1 coin"
+            master masterBox1 john 1
+      SendResult masterBox3 johnBox4 _ <- debugSend True
+            "Master sends to john 1 coin"
+            master masterBox2 john 1
+      SendResult bobBox4 johnBox6 _ <- debugSend True
+            "Bob tries to send 1 coins to john (it should proceed, condition is ok now)"
+            bob aliceOrBobBox john 1
+      return ()
 
 -- | Script function
 -- In this scenario Alice gets her money back.
@@ -73,22 +74,23 @@ payForCofeeAlice = do
       (User bob    bobBox1)    = scene'bob
       (User john   johnBox1)   = scene'john
       (User master masterBox1) = scene'master
-  SendRes aliceBox2 aliceOrBobBox _ <- debugSendDelayed True
+  mDelSendAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
-  SendResult bobBox3 johnBox2 _ <- debugSend False
-        "Bob tries to send 2 coins to john (it should fail on delayed condition)"
-        bob aliceOrBobBox john 2
-  SendResult masterBox2 johnBox3 _ <- debugSend True
-        "Master sends to john 1 coin"
-        master masterBox1 john 1
-  SendResult masterBox2 johnBox4 _ <- debugSend True
-        "Alice sends to john 2 coins. It should proceed."
-        alice aliceOrBobBox john 2
-  SendResult bobBox4 johnBox6 _ <- debugSend False
-        "Bob tries to send 1 coins to john (it should fail, Alice already taken the money)"
-        bob aliceOrBobBox john 1
-  return ()
+  forM_ mDelSendAlice $ \(SendRes aliceBox2 aliceOrBobBox _) -> do
+    SendResult bobBox3 johnBox2 _ <- debugSend False
+          "Bob tries to send 2 coins to john (it should fail on delayed condition)"
+          bob aliceOrBobBox john 2
+    SendResult masterBox2 johnBox3 _ <- debugSend True
+          "Master sends to john 1 coin"
+          master masterBox1 john 1
+    SendResult masterBox2 johnBox4 _ <- debugSend True
+          "Alice sends to john 2 coins. It should proceed."
+          alice aliceOrBobBox john 2
+    SendResult bobBox4 johnBox6 _ <- debugSend False
+          "Bob tries to send 1 coins to john (it should fail, Alice already taken the money)"
+          bob aliceOrBobBox john 1
+    return ()
 
 data SendDelayed = SendDelayed
   { sendDelayed'from   :: !BoxId
@@ -110,21 +112,27 @@ data SendResultDelayed = SendRes
 ----------------------------------------
 -- transactions
 
-debugSendDelayed :: Bool -> Text -> Wallet -> BoxId -> Wallet -> Int -> Money -> App SendResultDelayed
+debugSendDelayed :: Bool -> Text -> Wallet -> BoxId -> Wallet -> Int -> Money -> App (Maybe SendResultDelayed)
 debugSendDelayed isSuccess msg from fromBox to heightDiff amount = do
   logTest msg
-  res <- sendTxDelayed from fromBox to heightDiff amount
-  printTest res
-  st <- M.getState
-  logTest $  renderText st
-  wait
-  testCase msg $ (isJust (sendRes'txHash res) == isSuccess)
-  return res
+  eRes <- sendTxDelayed from fromBox to heightDiff amount
+  case eRes of
+    Right res -> do
+      printTest res
+      st <- M.getState
+      logTest $  renderText st
+      wait
+      testCase msg $ (isJust (sendRes'txHash res) == isSuccess)
+      return (Just res)
+    Left err -> do
+      testCase msg (False == isSuccess)
+      logTest err
+      return Nothing
   where
     wait = sleep 0.25
 
 
-sendTxDelayed :: Wallet -> BoxId -> Wallet -> Int -> Money -> App SendResultDelayed
+sendTxDelayed :: Wallet -> BoxId -> Wallet -> Int -> Money -> App (Either Text SendResultDelayed)
 sendTxDelayed from fromBox to delayDiff amount = do
   toBox     <- allocAddress to
   backBox   <- allocAddress from
@@ -132,19 +140,25 @@ sendTxDelayed from fromBox to delayDiff amount = do
   currentHeight <- fmap fromInteger $ M.getHeight
   totalAmount <- fmap (fromMaybe 0) $ M.getBoxBalance fromBox
   let send = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
-  tx <- toSendTxDelayed from send
-  logTest $ renderText tx
-  txResp <- M.postTx tx
-  logTest $ fromString $ ppShow txResp
-  return (SendRes backBox toBox $ getTxHash txResp)
+      preTx = toSendTxDelayed from send Nothing
+      proofEnv = getProofEnv from
+  eSigma <- getTxSigma preTx
+  eProof <- fmap join $ mapM (liftIO . newProof proofEnv) eSigma
+  case eProof of
+    Right proof -> do
+      let tx = toSendTxDelayed from send (Just proof)
+      logTest $ renderText tx
+      txResp <- M.postTx tx
+      logTest $ fromString $ ppShow txResp
+      return $ Right $ SendRes backBox toBox $ getTxHash txResp
+    Left err -> return $ Left err
 
-toSendTxDelayed :: Wallet -> SendDelayed -> App Tx
-toSendTxDelayed wallet SendDelayed{..} = do
-  proof <- getOwnerProofUnsafe wallet
-  return $ Tx
+toSendTxDelayed :: Wallet -> SendDelayed -> Maybe Proof -> Tx
+toSendTxDelayed wallet SendDelayed{..} mProof = do
+    Tx
       { tx'inputs   = V.fromList [inputBox]
       , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-      , tx'proof    = Just proof
+      , tx'proof    = mProof
       , tx'args     = M.empty
       }
   where
@@ -153,7 +167,7 @@ toSendTxDelayed wallet SendDelayed{..} = do
 
     spendHeight = "spend-height"
 
-    senderPk = pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+    senderPk = pk' $ getWalletPublicKey wallet
 
     senderUtxo
       | sendDelayed'remain > 0 = Just $ Box
@@ -177,7 +191,7 @@ toSendTxDelayed wallet SendDelayed{..} = do
 
     -- receiver can get money only hieght is greater than specified limit
     receiverScript =
-            pk (text $ publicKeyToText $ getWalletPublicKey sendDelayed'recepientWallet)
+            pk' (getWalletPublicKey sendDelayed'recepientWallet)
         &&* getBoxArg (getInput (int 0)) (text spendHeight) <* getHeight
 
     -- sender can get money back if hieght is less or equals to specified limit

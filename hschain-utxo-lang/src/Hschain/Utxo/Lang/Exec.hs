@@ -101,16 +101,6 @@ runExec args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
     emptyCtx = Ctx M.empty args height inputs outputs mempty
-{-
-exec :: TxArg -> (Bool, Text)
-exec tx@TxArg{..} =
-  first (txPreservesValue tx &&) $ (execExpr $ getInputExpr tx)
-  where
-    execExpr (Expr x) =
-      case runExec txArg'proof txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE _ (PrimBool _ b)), msg) -> (b, msg)
-        Left err                                  -> (False, showt err)
--}
 
 execLang :: Lang -> Exec Lang
 execLang = execLang' . importBase
