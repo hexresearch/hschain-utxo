@@ -195,6 +195,9 @@ fromLit = \case
   H.String loc val _     -> return $ PrimString (fromString val)
   H.Int loc val _        -> return $ PrimInt (fromInteger val)
   H.PrimInt loc val _    -> return $ PrimInt (fromInteger val)
+  -- TODO FIXME: untyped literal numbers inconsistency.
+  -- Here when we parse we also assign the type, but type is undefined here
+  -- it can be any number. Not only double
   H.PrimFloat loc val _  -> return $ PrimDouble (realToFrac val)
   H.PrimDouble loc val _ -> return $ PrimDouble (realToFrac val)
   H.Frac loc val _       -> return $ PrimDouble (realToFrac val)

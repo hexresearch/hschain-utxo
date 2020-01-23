@@ -153,9 +153,12 @@ data VecExpr a
   | VecFold Loc
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
+data TextTypeTag = IntToText | DoubleToText | MoneyToText | BoolToText | ScriptToText
+  deriving (Eq, Show)
+
 data TextExpr a
   = TextAppend Loc a a
-  | ConvertToText Loc
+  | ConvertToText TextTypeTag Loc
   | TextLength Loc
   | TextHash Loc HashAlgo
   deriving (Eq, Show, Functor, Foldable, Traversable)

@@ -287,7 +287,8 @@ fromText _ as = \case
     unify aT textT
     unify bT textT
     return $ Qual loc [] (textT' loc)
-  ConvertToText loc  -> do
+  -- todo: use text tag to restrict type inference here
+  ConvertToText _ loc  -> do
     t <- newTVar (Star loc)
     return $ Qual loc [] $ fn' loc t (textT' loc)
   TextLength loc     -> return $ Qual loc [] $ fn' loc (textT' loc) (intT' loc)

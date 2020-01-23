@@ -37,11 +37,13 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , blake2b256
   , getVar
   , trace
+  , lengthVec
   , lengthText
   , showInt
   , showDouble
   , showMoney
   , showBool
+  , showScript
   , plus
   , times
   , minus
@@ -85,11 +87,13 @@ baseNames =
   , "blake2b256"
   , "getVar"
   , "trace"
+  , "length"
   , "lengthText"
   , "showInt"
   , "showDouble"
   , "showMoney"
   , "showBool"
+  , "showScript"
   , "+"
   , "*"
   , "-"
@@ -135,11 +139,13 @@ baseTypeAssump =
   , assumpType "blake2b256" (textT ~> textT)
   , assumpType "getVar" (textT ~> aT)
   , assumpType "trace" (textT ~> aT ~> aT)
+  , assumpType "length" (vectorT aT ~> intT)
   , assumpType "lengthText" (textT ~> intT)
   , assumpType "showInt" (intT ~> textT)
   , assumpType "showDouble" (doubleT ~> textT)
   , assumpType "showMoney" (moneyT ~> textT)
   , assumpType "showBool" (boolT ~> textT)
+  , assumpType "showScript" (scriptT ~> textT)
   , assumpType "&&" (boolT ~> boolT ~> boolT)
   , assumpType "||" (boolT ~> boolT ~> boolT)
   , assumpType "not" (boolT ~> boolT)
@@ -236,16 +242,22 @@ trace :: Lang -> Lang
 trace = letIn "trace" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Trace noLoc (Fix $ Var noLoc "x") (Fix $ Var noLoc "y"))
 
 showInt :: Lang -> Lang
-showInt = letIn "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) (Fix $ Var noLoc "x"))
+showInt = letIn "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText IntToText noLoc)) (Fix $ Var noLoc "x"))
 
 showDouble :: Lang -> Lang
-showDouble = letIn "showDouble" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) (Fix $ Var noLoc "x"))
+showDouble = letIn "showDouble" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText DoubleToText noLoc)) (Fix $ Var noLoc "x"))
 
 showBool :: Lang -> Lang
-showBool = letIn "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) (Fix $ Var noLoc "x"))
+showBool = letIn "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText BoolToText noLoc)) (Fix $ Var noLoc "x"))
+
+showScript :: Lang -> Lang
+showScript = letIn "showScript" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText ScriptToText noLoc)) (Fix $ Var noLoc "x"))
 
 showMoney :: Lang -> Lang
-showMoney = letIn "showMoney" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) (Fix $ Var noLoc "x"))
+showMoney = letIn "showMoney" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText MoneyToText noLoc)) (Fix $ Var noLoc "x"))
+
+lengthVec :: Lang -> Lang
+lengthVec = letIn "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))
 
 lengthText :: Lang -> Lang
 lengthText = letIn "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))

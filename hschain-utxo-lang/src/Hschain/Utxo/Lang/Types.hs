@@ -51,13 +51,13 @@ data Env = Env
 
 --------------------------------------------
 
-parseScript :: Text -> Maybe (Expr Bool)
+parseScript :: Text -> Either Text (Expr Bool)
 parseScript txt =
   case parseExp $ T.unpack txt of
-    ParseOk expr    -> Just $ Expr expr
-    ParseFailed _ _ -> Nothing
+    ParseOk expr        -> Right $ Expr expr
+    ParseFailed loc msg -> Left $ mconcat ["Parse failed at ", showt loc, " with ", T.pack msg]
 
-fromScript :: Script -> Maybe (Expr Bool)
+fromScript :: Script -> Either Text (Expr Bool)
 fromScript (Script txt) = parseScript txt
 
 toScript :: Expr Bool -> Script

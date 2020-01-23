@@ -102,8 +102,11 @@ runExec args height inputs outputs (Exec st) =
   where
     emptyCtx = Ctx M.empty args height inputs outputs mempty
 
+applyBase :: Expr a -> Expr a
+applyBase (Expr a) = Expr $ importBase a
+
 execLang :: Lang -> Exec Lang
-execLang = execLang' . importBase
+execLang = execLang'
 
 execLang' :: Lang -> Exec Lang
 execLang' (Fix x) = case x of
@@ -227,6 +230,9 @@ execLang' (Fix x) = case x of
         (PrimInt m, PrimInt n) -> prim locA1 $ PrimInt $ numOp2'int m n
         (PrimDouble m, PrimDouble n) -> prim locA1 $ PrimDouble $ numOp2'double m n
         (PrimMoney m, PrimMoney n) -> prim locA1 $ PrimMoney $ numOp2'money m n
+        -- todo: we have to decide on mixed num types
+        (PrimDouble m, PrimMoney n) -> prim locA1 $ PrimMoney $ numOp2'money (realToFrac m) n
+        (PrimMoney m, PrimDouble n) -> prim locA1 $ PrimMoney $ numOp2'money m (realToFrac n)
         _ -> err
       _ -> err
       where
@@ -240,6 +246,9 @@ execLang' (Fix x) = case x of
           (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 == a2
           (PrimMoney a1, PrimMoney a2)   -> prim locA1 $ PrimBool $ a1 == a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 == a2
+        -- todo: we have to decide on mixed num types
+          (PrimDouble a1, PrimMoney a2) -> prim locA1 $ PrimBool $ (realToFrac a1) == a2
+          (PrimMoney a1, PrimDouble a2) -> prim locA1 $ PrimBool $ (realToFrac a1) == a2
           _ -> err
         _ -> err
       where
@@ -363,7 +372,7 @@ execLang' (Fix x) = case x of
       Fix (TextE _ (TextLength _)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimInt) $ textSize arg'
-      Fix (TextE _ (ConvertToText _)) -> do
+      Fix (TextE _ (ConvertToText _ _)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ convertToText arg'
       Fix (TextE _ (TextHash _ Sha256)) -> do
@@ -492,9 +501,9 @@ execLang' (Fix x) = case x of
           return $ Fix $ case (a', b') of
             (Fix (PrimE _ (PrimString t1)), Fix (PrimE _ (PrimString t2))) -> PrimE loc $ PrimString $ mappend t1 t2
             _                                                              -> TextE loc $ TextAppend loc a' b'
-        ConvertToText loc1  -> returnText $ ConvertToText loc1
-        TextLength loc1     -> returnText $ TextLength loc1
-        TextHash loc1 algo  -> returnText $ TextHash loc1 algo
+        ConvertToText loc1 tag  -> returnText $ ConvertToText loc1 tag
+        TextLength loc1         -> returnText $ TextLength loc1
+        TextHash loc1 algo      -> returnText $ TextHash loc1 algo
         where
           returnText = return . Fix . TextE loc
 
@@ -616,7 +625,7 @@ getInputExpr tx@TxArg{..}
   | V.null inputs = onEmptyInputs
   | otherwise     = V.foldl1' (&&*) inputs
   where
-    inputs = V.zipWith substSelfIndex (V.fromList [0..]) $ fmap (fromMaybe false . fromScript . box'script) txArg'inputs
+    inputs = V.zipWith substSelfIndex (V.fromList [0..]) $ fmap (either (const false) applyBase . fromScript . box'script) txArg'inputs
 
     onEmptyInputs
       | isStartEpoch tx = true

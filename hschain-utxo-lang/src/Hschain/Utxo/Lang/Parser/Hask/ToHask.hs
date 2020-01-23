@@ -108,11 +108,18 @@ toHaskExp (Fix expr) = case expr of
 
     fromText _ = \case
       TextAppend loc a b  -> op2 loc "<>" (rec a) (rec b)
-      ConvertToText loc   -> toVar loc (VarName loc "show")
+      ConvertToText tag loc   -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
       TextLength loc      -> toVar loc (VarName loc "lengthText")
       TextHash loc algo   -> case algo of
         Sha256     -> toVar loc (VarName loc "sha256")
         Blake2b256 -> toVar loc (VarName loc "blake2b256")
+      where
+        fromTextTag = \case
+          IntToText    -> "Int"
+          DoubleToText -> "Double"
+          MoneyToText  -> "Money"
+          ScriptToText -> "Script"
+          BoolToText   -> "Bool"
 
     fromBox :: Loc -> BoxExpr Lang -> H.Exp Loc
     fromBox _ = \case
@@ -133,8 +140,8 @@ toHaskExp (Fix expr) = case expr of
 
     fromBoxField loc a = \case
       BoxFieldId          -> get "getBoxId"
-      BoxFieldValue       -> get "getValue"
-      BoxFieldScript      -> get "getScript"
+      BoxFieldValue       -> get "getBoxValue"
+      BoxFieldScript      -> get "getBoxScript"
       BoxFieldArg b       -> ap2 (VarName loc "getBoxArg") b a
       where
         get name = ap (VarName loc name) a

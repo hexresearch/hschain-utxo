@@ -40,9 +40,9 @@ instance Pretty BoxId where
   pretty (BoxId txt) = pretty txt
 
 instance Pretty Script where
-  pretty = maybe err pretty . fromScript
+  pretty = either err pretty . fromScript
     where
-      err = "Failed to parse script"
+      err = pretty . mappend "Failed to parse script: "
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
@@ -107,49 +107,10 @@ fun3 :: Doc ann -> Doc ann -> Doc ann -> Doc ann -> Doc ann
 fun3 name a b c = parens $ hsep [name, a, b, c]
 
 instance Pretty (Expr a) where
-  pretty (Expr a) = cata prettyE a
+  pretty (Expr a) = pretty a
 
 instance Pretty VarName where
   pretty (VarName _ txt) = pretty txt
-
-prettyE :: E (Doc ann) -> Doc ann
-prettyE = \case
-  Var _ varName     -> pretty varName
-  Apply _ a b       -> hsep [parens a, parens b]
-  Lam _ name a      -> hsep [hcat ["\\", pretty name], "->", a]
-  LamList _ names a -> hsep [hcat ["\\", hsep $ fmap (\var -> parens $ hsep [pretty var]) names], "->", a]
-  Let _ bg a        -> vcat [ hsep ["let", indent 4 $ prettyBinds bg ]
-                            , hsep ["in  ", a ]
-                            ]
-  LetRec _ name a b -> vcat [ hsep ["let rec", pretty name, "=", a]
-                            , b ]
-  Ascr _ a ty       -> parens $ hsep [a, ":", pretty ty]
-  -- primitives
-  PrimE _   p       -> pretty p
-  -- logic
-  If _ cond t e     -> vcat [ hsep ["if", cond]
-                            , indent 2 $ vcat [ hsep ["then", t]
-                                              , hsep ["else", e]
-                                              ]
-                            ]
-  Pk _ a            -> op1 "pk" a
-  -- tuples
-  Tuple _ as        -> parens $ hsep $ punctuate comma $ V.toList as
-  -- operations
-  UnOpE _ uo a      -> op1 (pretty uo) a
-  BinOpE _ bo a b   -> op2 (pretty bo) a b
-  -- environment
-  GetEnv _ idx      -> prettyId idx
-  -- vectors
-  VecE _ v          -> prettyVecExpr v
-  -- text
-  TextE _ txt       -> prettyTextExpr txt
-  -- boxes
-  BoxE _ box        -> prettyBoxExpr box
-  -- undef
-  Undef _           -> "undefined"
-  -- debug
-  Trace _ a b       -> parens $ hsep ["trace", a, b]
 
 prettyBinds :: BindGroup (Doc ann) -> Doc ann
 prettyBinds BindGroup{..} = vcat
@@ -180,29 +141,6 @@ instance Pretty Pat where
     PVar _ idx  -> pretty idx
     -- PWildcard _ -> "_"
     -- PLit _ p    -> pretty p
-
-prettyVecExpr :: VecExpr (Doc ann) -> Doc ann
-prettyVecExpr = \case
-  NewVec _ vec     -> brackets $ hsep $ punctuate comma $ V.toList vec
-  VecAppend _ a b  -> op2 "++" a b
-  VecLength _      -> "length"
-  VecAt _ a n      -> op2 "!" a n
-  VecMap _         -> "map"
-  VecFold _        -> "fold"
-
-prettyTextExpr :: TextExpr (Doc ann) -> Doc ann
-prettyTextExpr = \case
-  TextAppend _ a b  -> op2 "++" a b
-  TextLength _      -> "length"
-  ConvertToText _   -> "show"
-  TextHash _ alg    -> case alg of
-    Sha256     -> "sha256"
-    Blake2b256 -> "blake2b256"
-
-prettyBoxExpr :: BoxExpr (Doc ann) -> Doc ann
-prettyBoxExpr = \case
-  PrimBox _ box   -> pretty box
-  BoxAt _ a field -> hcat [a, dot, prettyBoxField field]
 
 instance Pretty UnOp where
   pretty = \case

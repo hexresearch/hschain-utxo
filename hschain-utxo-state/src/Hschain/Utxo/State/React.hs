@@ -33,8 +33,10 @@ react tx bch
         isValidTx = inputsAreValid && outputsAreValid
 
         (inputsAreValid, debugMsgInputs) = exec txArg
-        mInvalidOutput = L.find (isLeft . fst . execToSigma) $ checkOutputTxArg txArg
-        mInvalidOutputId = (\TxArg{..} -> fmap (\x -> unBoxId $ box'id x) $ txArg'inputs V.!? 0) =<< mInvalidOutput
+        -- todo: check here that script evaluates to boolean with type checker.
+        --       for now we check only that it parses
+        mInvalidOutput = L.find (isLeft . fromScript . box'script) $ checkOutputTxArg txArg
+        mInvalidOutputId = fmap (unBoxId . box'id) mInvalidOutput
 
         outputsAreValid = isNothing mInvalidOutput
 
@@ -62,12 +64,6 @@ execInBoxChain tx bch = case toTxArg bch tx of
 
 -- | We move outputs to inputs to check that expressions of outputs
 -- are all valid and produce sigma expressions or booleans.
-checkOutputTxArg :: TxArg -> [TxArg]
-checkOutputTxArg tx@TxArg{..} = V.toList $ fmap subst txArg'outputs
-  where
-    subst x = tx
-      { txArg'inputs  = V.singleton x
-      , txArg'outputs = V.empty
-      }
-
+checkOutputTxArg :: TxArg -> [Box]
+checkOutputTxArg tx@TxArg{..} = V.toList txArg'outputs
 

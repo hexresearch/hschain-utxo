@@ -132,14 +132,15 @@ orderDeps deps
   where
     (noDeps, withDeps) = Map.partition null deps
     noDepKeys = Map.keys noDeps
+    withDepKeys = Map.keys withDeps
 
     removeDeps = fmap (filter (not . flip Set.member blackList))
       where
         blackList = Set.fromList noDepKeys
 
     recursiveFail
-      | not $ null noDef = let var = head noDef
-                           in  parseFailed (getLoc var) $ Text.unpack $ mconcat ["No defenition for free variables: ", Text.unwords (fmap varName'name $ deps Map.! var), " for variable ", varName'name var]
+      | not $ null noDef = return withDepKeys -- let var = head noDef
+                           -- in  parseFailed (getLoc var) $ Text.unpack $ mconcat ["No defenition for free variables: ", Text.unwords (fmap varName'name $ deps Map.! var), " for variable ", varName'name var]
       | otherwise        = parseFailed noLoc "Recursive definitions not allowed" -- todo: find cycles here
                                                                                  --       to say wich vars are recursive
       where
