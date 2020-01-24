@@ -26,6 +26,7 @@ type Response a   = ECScalar a
 deriving stock   instance Show (ECPoint a) => Show (PublicKey a)
 deriving stock   instance Eq   (ECPoint a) => Eq   (PublicKey a)
 deriving stock   instance Ord  (ECPoint a) => Ord  (PublicKey a)
+deriving newtype instance (CBOR.Serialise (ECScalar a)) => CBOR.Serialise (Secret a)
 deriving newtype instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (PublicKey a)
 
 generateSecretKey :: EC a => IO (Secret a)
