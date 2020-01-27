@@ -68,11 +68,10 @@ We can test for ownership with function ``pk``
 
 .. function:: pk :: Text -> Bool
 
-   It evaluates to true if the owner of the key is listed in proofs
+   It evaluates to true if the owner of the key is proven in the transaction field ``proof``
    of the transaction.
 
-Transaction has special field ``proof`` where it lists the proofs for ownership
-for all keys that are present in the transaction.
+Transaction has special field ``proof`` where it contains provement of the ownership.
 
 Type signatures
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

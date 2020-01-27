@@ -20,6 +20,7 @@ The structure of the project
 The modules are separated for the parts:
 
 * ``hschain-utxo-lang`` defines language of smartcontracts and model of execution and key terms
+* ``hschain-utxo-compiler`` utility to compile scripts and prove ownership of the transaction
 * ``hschain-utxo-state`` defines blockchain and rules to commit the blocks and transactions
 * ``hschain-utxo-service`` is service to run a node
 * ``hschain-utxo-api`` is API to interact with blockchain

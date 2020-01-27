@@ -48,11 +48,39 @@ Here is the simple script to protect Bob's values::
 
   pk "bob-key"
 
+In this line ``bob-key`` is a public key of the user. It protects the funds
+from spending by other parties. Bu where do we get our keys?
+We get public key from secret key. 
 
-.. topic:: todo
+Secret and public keys
+----------------------------------------------------
 
-   Bob now contains private-key :) but it have to be implemented with sigma-protocol
-   and probalby be based on public key.
+We can create the secret and public keys in two ways. One involves knowledge
+of Haskell and another is lanuage agnostic. 
+To create new secret key in Haskell we can use the function ``newSecret`` from the package
+``hschain-utxo-lang`` and then we can get the public key out of secret with 
+function ``getPublicKey :: Secret -> PublicKey``. 
+
+Also we can create secret key with utility ``hschain-utxo-compiler`` and it's command ``secret``.
+We can use it like this::
+   
+   > hschain-utxo-compiler secret --output bob-secret.txt
+
+It creates new secret key and dumps it to the file ``bob-secret.txt``.
+Then we can get the public key with command ``public-key``::
+
+   > hschain-utxo-compiler secret --input bob-secret.txt --output bob-public-key.txt
+
+It transforms secret key to public. If we ommit the option output it will dump public key
+to stdout. This string we can use as the argument of the function ``pk`` to protect our funds. 
+
+If we want to receive funds from another user we can give public key to her so that
+she can submit transaction with the script::
+
+  pk "our-public-key"
+
+Conditional ownershhip
+----------------------------------------------------
 
 Also we can give money to Alice until certain time and later 
 give it to Bob excluding Alice::
@@ -76,17 +104,33 @@ Let's look at how transaction is executed. Transaction has several components:
    The input boxes are destroyed.
 
 **Proof**
-   List of public keys that proove the ownership (todo: should be implemented with sima-protocol).
+   Signed sigma-expression that proofs the ownership.
 
 **Args**
    Key-value pairs of primitive values. 
 
-User creates transaction and posts it to the system with API-call.
+User post transaction in three steps. 
+
+* User creates transaction with empty proof and calls API method ``api/tx-sigma/get``. This
+  method produces sigma-expression that is the result of evaluation of transaction in 
+  the current state of block-chain.
+
+* User creates a proof of ownership if she can for received sigma-expression.
+
+* User uses this proof with transaction and post it again but with method ``api/tx/post``.
+  If everything is ok, verifier checks the transaction and accepts it.
+
 The engine reads all inputs from the blockchain and creates the total
 script for transaction by and-concatination of all scripts in inputs.
 If all input scripts are valid in the current context of transaction and blockchain
 then transaction is valid and we destroy input UTXOs and add output UTXOs to the
 blockchain.
+
+Beside check of proof there are other conditions:
+
+* Sum of inputs should equal to sum of outputs.
+
+* Outputs should contain valid scripts, that are evaluated to Bool.
 
 In the following sections we are going to look at several examples. 
 
@@ -127,7 +171,7 @@ after TX confirmation. So we have TX such as::
            , "args": {}
            }
          ];
-      "proof": ["alice-key"],
+      "proof": signed-sigma-expression,
       "args": {}
    }
 
@@ -156,11 +200,34 @@ But also alice just gave him 2 coins, so he can use two UTXOs as inputs and crea
            , "args": {}
            }
          ];
-      "proof": ["bob-key"],
+      "proof": signed-sigma-expresision,
       "args": {}
    }
 
 It is enforced by the blockchain that sum of input values should be equal to sum of output values.
+
+How to sign sigma-expression
+---------------------------------------
+
+To sign sigma expression first we need to get it. Sigma expression is kind of
+boolean expression that can contain AND and OR operators in the nodes and ownership
+pk-statements with public keys in the leafs. To get this expression we first need to 
+call the API method ``api/tx-sigma/get`` with our transaction but we omit proof.
+
+Once we get the expression. We can sign it with compiler command ``sign``::
+
+  > hschain-utxo-compiler sign --secret secret.txt --input sigma-expr.txt --output signed-sigma.txt
+
+This command expects three inputs:
+
+* ``--secret`` the file that contains secret key of the user
+
+* ``--sigma-expr.txt`` the file that contains the ouptut of the API call to tx-sigma method.
+
+* ``--signed-sigma.txt`` the file to dump the output, i.e. signed sigma expression 
+     or proof of the ownership.
+
+
 
 Pay for Cofee - delayed exchange
 --------------------------------------------
@@ -261,7 +328,7 @@ Every TX  is a JSON-object that contains following fields::
 
   { "inputs": ["utxo-input-id-1", "utxo-input-id-2"]
   , "outputs": [box1, box2]
-  , "proof": [pk1, pk2]
+  , "proof": signed-sigma-expression
   , "args": { "arg1": val1,
             , "arg2": val2
             }
@@ -271,7 +338,9 @@ Every TX  is a JSON-object that contains following fields::
 
 Inputs  contain the list of Box identifiers that are used as inputs.
 Ouptuts contain boxes that are going to be produced after TX is validated.
-Proof contains the list of publik keys to prove the ownership (see the function ``pk``). 
+Proof contains the signed sigma expression that we can get with compiler (see previous section). 
+First we send the transaction to method ``api/tx-sigma/get`` then we receive
+sigma-expression and prove it. And we supply this prove in the field ``proof``.
 Args contains the map of key-value. It can be empty.
 
 The sum of values of inputs should be equal to sum of values of outputs. 
@@ -291,7 +360,7 @@ It contains UTXO identifier, amount of maney as a value, script and arguments.
 The script is written in our language. But to get the final string for transaction we need
 to compile it with compiler ``hschain-utxo-compiler``::
 
-  cabal new-run hschain-utxo-compiler -- -i script.hs -o out.txt
+  cabal new-run hschain-utxo-compiler -- compile -i script.hs -o out.txt
 
 if flag ``-o`` is omitted then the result is dumped to stdout. 
 Then paste the output to the output box script field. We can save the TX to file ``tx.json``
