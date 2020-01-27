@@ -46,25 +46,15 @@ or slash-lambda. Like in haskell we have <code class="docutils literal notransla
 <p>Like in Haskell we have tuples. They are accessed with operator <code class="docutils literal notranslate"><span class="pre">tuple</span> <span class="pre">!!</span> <span class="pre">int</span></code>.
 Also we have vectors with usual operators <code class="docutils literal notranslate"><span class="pre">map</span></code> (map over), <code class="docutils literal notranslate"><span class="pre">fold</span></code> (left fold), <code class="docutils literal notranslate"><span class="pre">length</span></code> (size of the vector),
 <code class="docutils literal notranslate"><span class="pre">++</span></code> (concatenation).</p>
-<p>the script is a list of defenitions that ends up with boolean expression.:</p>
+<p>the script is a list of defenitions. It should contain
+the function with name <code class="docutils literal notranslate"><span class="pre">main</span></code> which has type <code class="docutils literal notranslate"><span class="pre">Bool</span></code>. It is the result of the script.:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">one</span> <span class="o">=</span> <span class="mi">1</span>
 <span class="n">two</span> <span class="o">=</span> <span class="mi">2</span>
 
 <span class="n">check</span> <span class="n">x</span> <span class="o">=</span> <span class="n">one</span> <span class="o">+</span> <span class="n">two</span> <span class="o">==</span> <span class="n">x</span>
 
-<span class="n">check</span> <span class="mi">3</span>
+<span class="n">main</span> <span class="o">=</span> <span class="n">check</span> <span class="mi">3</span>
 </pre></div>
-</div>
-<div class="topic">
-<p class="topic-title first">Order matters</p>
-<p>We should list the definitions in order of execution.
-So reversing the order is not allowed:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">check</span> <span class="n">x</span> <span class="o">=</span> <span class="n">one</span> <span class="o">+</span> <span class="n">two</span> <span class="o">==</span> <span class="n">x</span>   <span class="o">--</span> <span class="n">error</span><span class="p">:</span> <span class="n">unbound</span> <span class="n">variable</span> <span class="n">name</span>
-
-<span class="n">one</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="n">two</span> <span class="o">=</span> <span class="mi">2</span>
-</pre></div>
-</div>
 </div>
 <div class="topic">
 <p class="topic-title first">No recursion</p>
@@ -86,17 +76,44 @@ that lists all rproofs for ownership of the keys.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="s2">&quot;bob-key&quot;</span>
 </pre></div>
 </div>
-<div class="topic">
-<p class="topic-title first">todo</p>
-<p>Bob now contains private-key :) but it have to be implemented with sigma-protocol
-and probalby be based on public key.</p>
+<p>In this line <code class="docutils literal notranslate"><span class="pre">bob-key</span></code> is a public key of the user. It protects the funds
+from spending by other parties. Bu where do we get our keys?
+We get public key from secret key.</p>
 </div>
+<div class="section" id="secret-and-public-keys">
+<h2>Secret and public keys<a class="headerlink" href="#secret-and-public-keys" title="Permalink to this headline">¶</a></h2>
+<p>We can create the secret and public keys in two ways. One involves knowledge
+of Haskell and another is lanuage agnostic.
+To create new secret key in Haskell we can use the function <code class="docutils literal notranslate"><span class="pre">newSecret</span></code> from the package
+<code class="docutils literal notranslate"><span class="pre">hschain-utxo-lang</span></code> and then we can get the public key out of secret with
+function <code class="docutils literal notranslate"><span class="pre">getPublicKey</span> <span class="pre">::</span> <span class="pre">Secret</span> <span class="pre">-&gt;</span> <span class="pre">PublicKey</span></code>.</p>
+<p>Also we can create secret key with utility <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code> and it’s command <code class="docutils literal notranslate"><span class="pre">secret</span></code>.
+We can use it like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">secret</span> <span class="o">--</span><span class="n">output</span> <span class="n">bob</span><span class="o">-</span><span class="n">secret</span><span class="o">.</span><span class="n">txt</span>
+</pre></div>
+</div>
+<p>It creates new secret key and dumps it to the file <code class="docutils literal notranslate"><span class="pre">bob-secret.txt</span></code>.
+Then we can get the public key with command <code class="docutils literal notranslate"><span class="pre">public-key</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">secret</span> <span class="o">--</span><span class="nb">input</span> <span class="n">bob</span><span class="o">-</span><span class="n">secret</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">output</span> <span class="n">bob</span><span class="o">-</span><span class="n">public</span><span class="o">-</span><span class="n">key</span><span class="o">.</span><span class="n">txt</span>
+</pre></div>
+</div>
+<p>It transforms secret key to public. If we ommit the option output it will dump public key
+to stdout. This string we can use as the argument of the function <code class="docutils literal notranslate"><span class="pre">pk</span></code> to protect our funds.</p>
+<p>If we want to receive funds from another user we can give public key to her so that
+she can submit transaction with the script:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="s2">&quot;our-public-key&quot;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="conditional-ownershhip">
+<h2>Conditional ownershhip<a class="headerlink" href="#conditional-ownershhip" title="Permalink to this headline">¶</a></h2>
 <p>Also we can give money to Alice until certain time and later
 give it to Bob excluding Alice:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">time</span> <span class="o">=</span> <span class="mi">100</span>
 
-   <span class="p">(</span><span class="n">pk</span> <span class="n">alice</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&lt;=</span> <span class="n">time</span><span class="p">)</span>
-<span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span>   <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span>  <span class="n">time</span><span class="p">)</span>
+<span class="n">main</span> <span class="o">=</span>
+      <span class="p">(</span><span class="n">pk</span> <span class="n">alice</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&lt;=</span> <span class="n">time</span><span class="p">)</span>
+   <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span>   <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span>  <span class="n">time</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -109,17 +126,30 @@ give it to Bob excluding Alice:</p>
 <dt><strong>Outputs</strong></dt><dd><p>List of produced UTXOs. They are added to blockchain if TX is valid.
 The input boxes are destroyed.</p>
 </dd>
-<dt><strong>Proof</strong></dt><dd><p>List of public keys that proove the ownership (todo: should be implemented with sima-protocol).</p>
+<dt><strong>Proof</strong></dt><dd><p>Signed sigma-expression that proofs the ownership.</p>
 </dd>
 <dt><strong>Args</strong></dt><dd><p>Key-value pairs of primitive values.</p>
 </dd>
 </dl>
-<p>User creates transaction and posts it to the system with API-call.
-The engine reads all inputs from the blockchain and creates the total
+<p>User post transaction in three steps.</p>
+<ul class="simple">
+<li><p>User creates transaction with empty proof and calls API method <code class="docutils literal notranslate"><span class="pre">api/tx-sigma/get</span></code>. This
+method produces sigma-expression that is the result of evaluation of transaction in
+the current state of block-chain.</p></li>
+<li><p>User creates a proof of ownership if she can for received sigma-expression.</p></li>
+<li><p>User uses this proof with transaction and post it again but with method <code class="docutils literal notranslate"><span class="pre">api/tx/post</span></code>.
+If everything is ok, verifier checks the transaction and accepts it.</p></li>
+</ul>
+<p>The engine reads all inputs from the blockchain and creates the total
 script for transaction by and-concatination of all scripts in inputs.
 If all input scripts are valid in the current context of transaction and blockchain
 then transaction is valid and we destroy input UTXOs and add output UTXOs to the
 blockchain.</p>
+<p>Beside check of proof there are other conditions:</p>
+<ul class="simple">
+<li><p>Sum of inputs should equal to sum of outputs.</p></li>
+<li><p>Outputs should contain valid scripts, that are evaluated to Bool.</p></li>
+</ul>
 <p>In the following sections we are going to look at several examples.</p>
 </div>
 <div class="section" id="simple-money-exchange-script">
@@ -156,7 +186,7 @@ after TX confirmation. So we have TX such as:</p>
         <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
         <span class="p">}</span>
       <span class="p">];</span>
-   <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;alice-key&quot;</span><span class="p">],</span>
+   <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span><span class="p">,</span>
    <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
 <span class="p">}</span>
 </pre></div>
@@ -183,12 +213,33 @@ But also alice just gave him 2 coins, so he can use two UTXOs as inputs and crea
         <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
         <span class="p">}</span>
       <span class="p">];</span>
-   <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;bob-key&quot;</span><span class="p">],</span>
+   <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expresision</span><span class="p">,</span>
    <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p>It is enforced by the blockchain that sum of input values should be equal to sum of output values.</p>
+</div>
+<div class="section" id="how-to-sign-sigma-expression">
+<h2>How to sign sigma-expression<a class="headerlink" href="#how-to-sign-sigma-expression" title="Permalink to this headline">¶</a></h2>
+<p>To sign sigma expression first we need to get it. Sigma expression is kind of
+boolean expression that can contain AND and OR operators in the nodes and ownership
+pk-statements with public keys in the leafs. To get this expression we first need to
+call the API method <code class="docutils literal notranslate"><span class="pre">api/tx-sigma/get</span></code> with our transaction but we omit proof.</p>
+<p>Once we get the expression. We can sign it with compiler command <code class="docutils literal notranslate"><span class="pre">sign</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">sign</span> <span class="o">--</span><span class="n">secret</span> <span class="n">secret</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="nb">input</span> <span class="n">sigma</span><span class="o">-</span><span class="n">expr</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">output</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">.</span><span class="n">txt</span>
+</pre></div>
+</div>
+<p>This command expects three inputs:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--secret</span></code> the file that contains secret key of the user</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--sigma-expr.txt</span></code> the file that contains the ouptut of the API call to tx-sigma method.</p></li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--signed-sigma.txt</span></code> the file to dump the output, i.e. signed sigma expression</dt><dd><p>or proof of the ownership.</p>
+</dd>
+</dl>
+</li>
+</ul>
 </div>
 <div class="section" id="pay-for-cofee-delayed-exchange">
 <h2>Pay for Cofee - delayed exchange<a class="headerlink" href="#pay-for-cofee-delayed-exchange" title="Permalink to this headline">¶</a></h2>
@@ -276,7 +327,7 @@ open her commitment, then Bob is sure to win after the deadline expires.</p>
 Every TX  is a JSON-object that contains following fields:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span> <span class="s2">&quot;inputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;utxo-input-id-1&quot;</span><span class="p">,</span> <span class="s2">&quot;utxo-input-id-2&quot;</span><span class="p">]</span>
 <span class="p">,</span> <span class="s2">&quot;outputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">box1</span><span class="p">,</span> <span class="n">box2</span><span class="p">]</span>
-<span class="p">,</span> <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">pk1</span><span class="p">,</span> <span class="n">pk2</span><span class="p">]</span>
+<span class="p">,</span> <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span>
 <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="s2">&quot;arg1&quot;</span><span class="p">:</span> <span class="n">val1</span><span class="p">,</span>
           <span class="p">,</span> <span class="s2">&quot;arg2&quot;</span><span class="p">:</span> <span class="n">val2</span>
           <span class="p">}</span>
@@ -285,7 +336,9 @@ Every TX  is a JSON-object that contains following fields:</p>
 </div>
 <p>Inputs  contain the list of Box identifiers that are used as inputs.
 Ouptuts contain boxes that are going to be produced after TX is validated.
-Proof contains the list of publik keys to prove the ownership (see the function <code class="docutils literal notranslate"><span class="pre">pk</span></code>).
+Proof contains the signed sigma expression that we can get with compiler (see previous section).
+First we send the transaction to method <code class="docutils literal notranslate"><span class="pre">api/tx-sigma/get</span></code> then we receive
+sigma-expression and prove it. And we supply this prove in the field <code class="docutils literal notranslate"><span class="pre">proof</span></code>.
 Args contains the map of key-value. It can be empty.</p>
 <p>The sum of values of inputs should be equal to sum of values of outputs.
 For TX to be valid all conditions for scripts of the inputs should evalueate to true.
@@ -302,7 +355,7 @@ List of inputs should be non-empty.</p>
 <p>It contains UTXO identifier, amount of maney as a value, script and arguments.
 The script is written in our language. But to get the final string for transaction we need
 to compile it with compiler <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="o">-</span><span class="n">i</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">-</span><span class="n">o</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="nb">compile</span> <span class="o">-</span><span class="n">i</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">-</span><span class="n">o</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
 </pre></div>
 </div>
 <p>if flag <code class="docutils literal notranslate"><span class="pre">-o</span></code> is omitted then the result is dumped to stdout.
@@ -387,8 +440,11 @@ We need method <code class="docutils literal notranslate"><span class="pre">post
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Quick start guide for language</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#ownership-check-the-heart-of-the-language">Ownership check - the heart of the language</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#secret-and-public-keys">Secret and public keys</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#conditional-ownershhip">Conditional ownershhip</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#transaction-execution">Transaction execution</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#simple-money-exchange-script">Simple money exchange script</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-to-sign-sigma-expression">How to sign sigma-expression</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pay-for-cofee-delayed-exchange">Pay for Cofee - delayed exchange</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#xor-game">XOR-game</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#create-transaction-and-send-it-with-api">Create transaction and send it with API</a></li>
