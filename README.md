@@ -12,3 +12,16 @@ See this workflow as a reference on how to update the docs:
 
 https://daler.github.io/sphinxdoc-test/includeme.html
 
+General workflow to update docs:
+
+* cd to the main repo and edit doc-files in the ```doc``` directory.
+* build docs locally with ```make html```
+* commit changes
+* switch to the html-doc repo ```../hschain-utxo-docs```
+* commit html changes and submit it to the main repo 
+* ```git commit -a -m "rebuilt docs"```
+* ```git push origin gh-pages```
+
+
+
+
