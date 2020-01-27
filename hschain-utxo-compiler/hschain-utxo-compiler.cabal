@@ -71,5 +71,6 @@ executable hschain-utxo-compiler
     , text
     , hs-check
     , hschain-utxo-lang
+    , hschain-utxo-compiler
   default-language: Haskell2010
 
