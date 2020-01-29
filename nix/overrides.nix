@@ -5,6 +5,9 @@ let
       "servant-client" 
       "haskeline"
       "repline" ];
-  cabalProject = lib.parseCabalProject { path = ./..; };
 in
-  lib.projectOverrides { inherit cabalProject noCheck; }
+  rec { 
+    haskellOverrides = lib.projectOverrides { inherit cabalProject noCheck; };
+    cabalProject     = lib.parseCabalProject { path = ./..; };
+  }
+    

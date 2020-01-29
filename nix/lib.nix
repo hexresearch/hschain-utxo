@@ -1,7 +1,33 @@
+with builtins;
 let
   lib = (import <nixpkgs> {}).haskell.lib;
   callInternal = hsPkgs: name: path: args: (
     lib.dontHaddock (hsPkgs.callCabal2nix name path args ));
+  
+  configOverrides = haskOverrides:
+    let 
+      over    = pack: new: pack.override { overrides = new; };
+      setHask = pack: over pack haskOverrides;    
+    in {
+      allowUnfree = true;
+      packageOverrides = ps: rec {
+        haskellPackages = setHask ps.haskellPackages;
+        haskell = ps.haskell // {
+          packages = ps.haskell.packages // {
+            ghc843 = setHask ps.haskell.packages.ghc843;
+          };
+        };
+      };
+    };    
+
+  releaseSet = pkgs: cabalProject: rec {
+    inherit pkgs;
+    hschainUtxoPackages = {
+      inherit (pkgs.haskell.packages.ghc843);
+    } // (
+      listToAttrs (map (x: { name = x.name; value = pkgs.haskell.packages.ghc843.${x.name}; }) cabalProject)
+    );    
+  };
 
   # Creates overrides for local submodules.
   # It expects a list of sets { name, path }
@@ -13,7 +39,7 @@ let
         value = call name path;
       };
     in 
-      builtins.listToAttrs (builtins.map toPackage cabalProject);
+      listToAttrs (map toPackage cabalProject);
 
   projectOverrides = {cabalProject, noCheck ? []}: hsNew: hsOld: 
     let
@@ -23,7 +49,7 @@ let
       locals = localsToOverrides cabalProject hsNew;
       # Suppress tests
       stopCheck = x: { name = x; value = lib.dontCheck (hsOld // derivations).${x}; };
-      noCheckLibs = builtins.listToAttrs (builtins.map stopCheck noCheck);
+      noCheckLibs = listToAttrs (map stopCheck noCheck);
     in 
       derivations // locals // noCheckLibs;      
 
@@ -74,5 +100,7 @@ in
     inherit parseCabalProject; 
     inherit attrsToList;
     inherit getDirs; 
+    inherit configOverrides;
+    inherit releaseSet;
   }
 
