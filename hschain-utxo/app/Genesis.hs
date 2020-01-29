@@ -37,7 +37,7 @@ singleOwnerGenesis = withSecret =<< newSecret
         tx proof = Tx
           { tx'inputs  = V.empty
           , tx'outputs = V.fromList [box]
-          , tx'proof   = proof
+          , tx'proof   = Just proof
           , tx'args    = mempty
           }
 
