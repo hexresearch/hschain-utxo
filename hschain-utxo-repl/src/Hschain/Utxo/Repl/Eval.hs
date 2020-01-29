@@ -36,28 +36,29 @@ import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
 
 evalExpr :: Lang -> Repl ()
-evalExpr lang = do
+evalExpr lang = undefined {- do
   eTy <- checkType lang
   case eTy of
     Right _ -> do
       closure  <- fmap replEnv'closure get
       tx       <- fmap replEnv'tx get
-      let res = runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
+      let res = undefined -- runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
       liftIO $ case res of
         Right (expr, debugTxt) -> do
           T.putStrLn $ renderText expr
           when (not $ T.null debugTxt) $ T.putStrLn debugTxt
         Left err   -> T.putStrLn $ renderText err
     Left err -> liftIO $ T.putStrLn $ renderText err
+-}
 
 evalBind :: VarName -> Lang -> Repl ()
-evalBind var lang = do
+evalBind var lang = undefined  {- do
   eTy <- checkType lang
   case eTy of
     Right _ -> do
       closure <- fmap replEnv'closure get
       tx      <- fmap replEnv'tx get
-      let res = runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
+      let res = undefined -- runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
       case res of
         Right (expr, _) -> do
           modify' $ \st -> st { replEnv'closure = (\next -> singleLet noLoc var expr next) . closure
@@ -65,6 +66,7 @@ evalBind var lang = do
           return ()
         Left err   -> liftIO $ T.putStrLn $ renderText err
     Left err -> liftIO $ T.putStrLn $ renderText err
+-}
 
 parseExpr :: String -> Either String ParseRes
 parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp input

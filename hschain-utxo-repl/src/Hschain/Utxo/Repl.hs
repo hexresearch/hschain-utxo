@@ -11,7 +11,7 @@ import Data.Fix
 
 import Hschain.Utxo.Lang
 
-import System.Console.Repline
+import System.Console.Repline hiding (options)
 import System.Console.Haskeline.MonadException
 import System.Process
 import Data.List (isPrefixOf)
@@ -74,7 +74,7 @@ runRepl = runReplM txArg $ evalRepl (pure " > ") eval options Nothing (Word comp
     txArg = TxArg
         { txArg'inputs  = mempty
         , txArg'outputs = mempty
-        , txArg'proof   = emptyProofEnv
+        , txArg'proof   = Nothing
         , txArg'args    = mempty
         , txArg'env     = Env 0
         }
