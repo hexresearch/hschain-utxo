@@ -6,6 +6,11 @@ Language for smart contracts and service to work with UTXO model.
 For a description read the [docs](https://hexresearch.github.io/hschain-utxo/)
 
 
+### How to build
+
+Project is built with nix. See README.md in the nix directory
+for instructions.
+
 ### How to update docs
 
 See this workflow as a reference on how to update the docs:
