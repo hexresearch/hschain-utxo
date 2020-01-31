@@ -28,7 +28,7 @@ library
                        Hschain.Utxo.Test.Client.Wallet
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.11 && <4.12
+  build-depends:       base >=4.11 && <5
                      , hex-common
                      , hschain-utxo-api-client
                      , hschain-utxo-api-rest
@@ -69,7 +69,7 @@ executable hschain-utxo-test
   hs-source-dirs:      app
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.11 && <4.12
+  build-depends:       base >=4.11 && <5
                      , hschain-utxo-test
                      , hspec
   -- hs-source-dirs:

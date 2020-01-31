@@ -39,7 +39,7 @@ library
       Hschain.Utxo.Lang.Types
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.11 && <4.12
+  build-depends:       base >=4.11 && <5
                      , aeson
                      , array
                      , Boolean

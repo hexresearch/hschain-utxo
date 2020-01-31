@@ -3,29 +3,48 @@ let
   lib = (import <nixpkgs> {}).haskell.lib;
   callInternal = hsPkgs: name: path: args: (
     lib.dontHaddock (hsPkgs.callCabal2nix name path args ));
-  
+ 
+  tryEval = var : default :
+    with builtins.tryEval var;
+      if success
+        then value
+        else default;
+
+  readConfig = overrideCfg : cfgFile :
+     let inFile = tryEval overrideCfg cfgFile;
+     in builtins.fromJSON (builtins.readFile inFile);
+
+  callFromVersions = {
+      callCabal2nixWithOptions
+    , fetchgitPrivate
+    , pkgConfig
+    }: repo: name: cabal2NixOpts: args: callCabal2nixWithOptions "${name}" (fetchgitPrivate pkgConfig."${repo}") cabal2NixOpts args;
+
   configOverrides = haskOverrides:
     let 
       over    = pack: new: pack.override { overrides = new; };
       setHask = pack: over pack haskOverrides;    
     in {
       allowUnfree = true;
+			allowBroken = true;
       packageOverrides = ps: rec {
         haskellPackages = setHask ps.haskellPackages;
         haskell = ps.haskell // {
           packages = ps.haskell.packages // {
-            ghc843 = setHask ps.haskell.packages.ghc843;
+            ghc844 = setHask ps.haskell.packages.ghc844;
           };
         };
+        inherit tryEval;
+        pkgConfig = readConfig <cfg> ./versions.json;
       };
     };    
 
   releaseSet = pkgs: cabalProject: rec {
     inherit pkgs;
     hschainUtxoPackages = {
-      inherit (pkgs.haskell.packages.ghc843);
+      inherit (pkgs.haskell.packages.ghc844);
     } // (
-      listToAttrs (map (x: { name = x.name; value = pkgs.haskell.packages.ghc843.${x.name}; }) cabalProject)
+      listToAttrs (map (x: { name = x.name; value = pkgs.haskell.packages.ghc844.${x.name}; }) cabalProject)
     );    
   };
 
@@ -102,5 +121,8 @@ in
     inherit getDirs; 
     inherit configOverrides;
     inherit releaseSet;
+    inherit tryEval;
+    inherit readConfig;
+    inherit callFromVersions;
   }
 

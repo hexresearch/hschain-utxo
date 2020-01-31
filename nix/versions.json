@@ -1,0 +1,8 @@
+{
+  "hschain": {
+    "url": "ssh://git@github.com/hexresearch/hschain.git",
+    "rev": "135f45f2e73f5f55d717dc0d38b56b08e0051a76", 
+    "sha256": "09fc5gpkd8k6qcnv5gk1pzif343qnk45k588wjsk89cfjafvvmv1"
+  }
+}
+
