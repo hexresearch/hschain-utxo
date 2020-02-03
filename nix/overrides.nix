@@ -4,7 +4,10 @@ let
       "timeout"
       "servant-client" 
       "haskeline"
-      "repline" ];
+      "repline"
+      "katip"
+      "katip-elasticsearch"
+      "glob-test" ];
 in
   rec { 
     haskellOverrides = lib.projectOverrides { inherit cabalProject noCheck; };

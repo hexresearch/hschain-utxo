@@ -31,7 +31,7 @@ let
         haskellPackages = setHask ps.haskellPackages;
         haskell = ps.haskell // {
           packages = ps.haskell.packages // {
-            ghc844 = setHask ps.haskell.packages.ghc844;
+            ghc843 = setHask ps.haskell.packages.ghc843;
           };
         };
         inherit tryEval;
@@ -39,13 +39,16 @@ let
       };
     };    
 
-  releaseSet = pkgs: cabalProject: rec {
-    inherit pkgs;
-    hschainUtxoPackages = {
-      inherit (pkgs.haskell.packages.ghc844);
-    } // (
-      listToAttrs (map (x: { name = x.name; value = pkgs.haskell.packages.ghc844.${x.name}; }) cabalProject)
-    );    
+  releaseSet = pkgs: cabalProject:
+    let pkgNames = (map (x: x.name) cabalProject);
+        getPkg   = name: { name = name; value = pkgs.haskell.packages.ghc843.${name}; };
+    in  rec {
+      inherit pkgs;
+      hschainUtxoPackages = {
+        # inherit (pkgs.haskell.packages.ghc843);
+      } // (
+        listToAttrs (map getPkg pkgNames)
+      );    
   };
 
   # Creates overrides for local submodules.
@@ -70,7 +73,13 @@ let
       stopCheck = x: { name = x; value = lib.dontCheck (hsOld // derivations).${x}; };
       noCheckLibs = listToAttrs (map stopCheck noCheck);
     in 
-      derivations // locals // noCheckLibs;      
+      derivations // locals // noCheckLibs // {
+        mkDerivation = args: hsOld.mkDerivation (args // {
+          doCheck = false;        
+          enableLibraryProfiling = false;
+          doHaddock = false;
+        });
+      };      
 
   attrsToList = set: builtins.attrValues (
     builtins.mapAttrs (name: value: { name = name; value = value; }) set);
@@ -114,15 +123,16 @@ let
         else builtins.map toProject subModules ++ next;
 
 in
-  { inherit localsToOverrides;
-    inherit projectOverrides;
-    inherit parseCabalProject; 
-    inherit attrsToList;
-    inherit getDirs; 
-    inherit configOverrides;
-    inherit releaseSet;
-    inherit tryEval;
-    inherit readConfig;
-    inherit callFromVersions;
+  { inherit 
+      localsToOverrides
+      projectOverrides
+      parseCabalProject
+      attrsToList
+      getDirs 
+      configOverrides
+      releaseSet
+      tryEval
+      readConfig
+      callFromVersions;
   }
 

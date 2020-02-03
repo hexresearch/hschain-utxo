@@ -24,6 +24,7 @@ mkDerivation {
     transformers unordered-containers vector x509 x509-store
     x509-system x509-validation
   ];
+  doCheck = false;
   homepage = "https://github.com/hexresearch/thundermint";
   description = "Haskell reimplementation of tendermint protocol";
   license = stdenv.lib.licenses.unfree;

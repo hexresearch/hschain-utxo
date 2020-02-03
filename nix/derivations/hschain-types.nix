@@ -15,10 +15,11 @@ mkDerivation {
     data-default-class deepseq hschain-crypto serialise sqlite-simple
     text time unordered-containers vector vector-th-unbox
   ];
-  testHaskellDepends = [
-    base bytestring hschain-crypto QuickCheck random serialise tasty
-    tasty-hunit tasty-quickcheck
-  ];
+  doCheck = false;
+#  testHaskellDepends = [
+#    base bytestring hschain-crypto QuickCheck random serialise tasty
+#    tasty-hunit tasty-quickcheck
+#  ];
   homepage = "https://github.com/hexresearch/hschain";
   description = "Core data types of HSChain";
   license = stdenv.lib.licenses.unfree;
