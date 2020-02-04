@@ -175,12 +175,12 @@ baseTypeAssump =
   , assumpType "length" (vectorT aT ~> intT)
   , assumpType "pk" (textT ~> boolT)
   , assumpType "!!" (vectorT aT ~> intT ~> aT)
-  , assumpType' "==" "Eq" aT (aT ~> aT ~> boolT)
-  , assumpType' "/=" "Eq" aT (aT ~> aT ~> boolT)
-  , assumpType' "<" "Ord" aT (aT ~> aT ~> boolT)
-  , assumpType' "<=" "Ord" aT (aT ~> aT ~> boolT)
-  , assumpType' ">=" "Ord" aT (aT ~> aT ~> boolT)
-  , assumpType' ">" "Ord" aT (aT ~> aT ~> boolT)
+  , assumpType "==" (aT ~> aT ~> boolT)
+  , assumpType "/=" (aT ~> aT ~> boolT)
+  , assumpType "<" (aT ~> aT ~> boolT)
+  , assumpType "<=" (aT ~> aT ~> boolT)
+  , assumpType ">=" (aT ~> aT ~> boolT)
+  , assumpType ">" (aT ~> aT ~> boolT)
   ]
 
 
