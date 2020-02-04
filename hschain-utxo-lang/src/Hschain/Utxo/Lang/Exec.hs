@@ -19,6 +19,7 @@ import Crypto.Hash
 import Data.Aeson
 import Data.Boolean
 import Data.Fix
+import Data.Fixed
 import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Monoid hiding (Alt)
@@ -158,7 +159,6 @@ execLang' (Fix x) = case x of
           Fix (PrimE loc1 a) -> case a of
             PrimInt n    -> prim loc1 $ PrimInt $ negate n
             PrimDouble d -> prim loc1 $ PrimDouble $ negate d
-            PrimMoney m  -> prim loc1 $ PrimMoney $ negate m
             other        -> thisShouldNotHappen $ Fix $ PrimE loc1 other
           _                  -> thisShouldNotHappen x
 
@@ -220,19 +220,15 @@ execLang' (Fix x) = case x of
           return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaOr [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
-    fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+) (+) (+))
-    fromMinus loc = fromNumOp2 loc Minus (NumOp2 (\x y -> x - y) (\x y -> x - y) (\x y -> x - y))
-    fromTimes loc = fromNumOp2 loc Times (NumOp2 (*) (*) (*))
-    fromDiv   loc = fromNumOp2 loc Div   (NumOp2 (/) div (/))
+    fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+) (+))
+    fromMinus loc = fromNumOp2 loc Minus (NumOp2 (\x y -> x - y) (\x y -> x - y))
+    fromTimes loc = fromNumOp2 loc Times (NumOp2 (*) (*))
+    fromDiv   loc = fromNumOp2 loc Div   (NumOp2 (/) div)
 
     fromNumOp2 loc op NumOp2{..} (Fix x) (Fix y) = case (x, y) of
       (PrimE locA1 a, PrimE locB1 b) -> case (a, b) of
         (PrimInt m, PrimInt n) -> prim locA1 $ PrimInt $ numOp2'int m n
         (PrimDouble m, PrimDouble n) -> prim locA1 $ PrimDouble $ numOp2'double m n
-        (PrimMoney m, PrimMoney n) -> prim locA1 $ PrimMoney $ numOp2'money m n
-        -- todo: we have to decide on mixed num types
-        (PrimDouble m, PrimMoney n) -> prim locA1 $ PrimMoney $ numOp2'money (realToFrac m) n
-        (PrimMoney m, PrimDouble n) -> prim locA1 $ PrimMoney $ numOp2'money m (realToFrac n)
         _ -> err
       _ -> err
       where
@@ -244,11 +240,8 @@ execLang' (Fix x) = case x of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 == a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 == a2
           (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 == a2
-          (PrimMoney a1, PrimMoney a2)   -> prim locA1 $ PrimBool $ a1 == a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 == a2
         -- todo: we have to decide on mixed num types
-          (PrimDouble a1, PrimMoney a2) -> prim locA1 $ PrimBool $ (realToFrac a1) == a2
-          (PrimMoney a1, PrimDouble a2) -> prim locA1 $ PrimBool $ (realToFrac a1) == a2
           _ -> err
         _ -> err
       where
@@ -259,7 +252,6 @@ execLang' (Fix x) = case x of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 /= a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 /= a2
           (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 /= a2
-          (PrimMoney a1, PrimMoney a2)   -> prim locA1 $ PrimBool $ a1 /= a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 /= a2
           _ -> err
         _ -> err
@@ -271,7 +263,6 @@ execLang' (Fix x) = case x of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 < a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 < a2
           (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 < a2
-          (PrimMoney a1, PrimMoney a2)   -> prim locA1 $ PrimBool $ a1 < a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 < a2
           _ -> err
         _ -> err
@@ -283,7 +274,6 @@ execLang' (Fix x) = case x of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 > a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 > a2
           (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 > a2
-          (PrimMoney a1, PrimMoney a2)   -> prim locA1 $ PrimBool $ a1 > a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 > a2
           _ -> err
         _ -> err
@@ -295,7 +285,6 @@ execLang' (Fix x) = case x of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 <= a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 <= a2
           (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 <= a2
-          (PrimMoney a1, PrimMoney a2)   -> prim locA1 $ PrimBool $ a1 <= a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 <= a2
           _ -> err
         _ -> err
@@ -307,7 +296,6 @@ execLang' (Fix x) = case x of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 >= a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 >= a2
           (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 >= a2
-          (PrimMoney a1, PrimMoney a2)   -> prim locA1 $ PrimBool $ a1 >= a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 >= a2
           _ -> err
         _ -> err
@@ -464,7 +452,7 @@ execLang' (Fix x) = case x of
     getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
       BoxFieldId      -> prim loc $ PrimString $ unBoxId box'id
-      BoxFieldValue   -> prim loc $ PrimMoney  $ box'value
+      BoxFieldValue   -> prim loc $ PrimDouble $ box'value
       BoxFieldScript  -> prim loc $ PrimString $ unScript $ box'script
       BoxFieldArg txt -> case txt of
         Fix (PrimE loc1 (PrimString t)) -> maybe (noField $ VarName loc1 t) (prim loc1) $ M.lookup t box'args
@@ -522,7 +510,6 @@ execLang' (Fix x) = case x of
       where
         convertPrim = \case
           PrimInt n       -> showt n
-          PrimMoney m     -> showt m
           PrimDouble d    -> showt d
           PrimString t    -> t
           PrimBool b      -> showt b
@@ -615,9 +602,8 @@ parseError loc msg = toError $ ParseError loc msg
 type Mono2 a = a -> a -> a
 
 data NumOp2 = NumOp2
-  { numOp2'double :: Mono2 Double
+  { numOp2'double :: Mono2 Pico
   , numOp2'int    :: Mono2 Int
-  , numOp2'money  :: Mono2 Money
   }
 
 getInputExpr :: TxArg -> Expr Bool

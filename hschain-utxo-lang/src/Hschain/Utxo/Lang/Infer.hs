@@ -29,7 +29,6 @@ infixr ~>
 inferPrim :: Loc -> Prim -> Infer (Qual Type)
 inferPrim loc = \case
   PrimInt _     -> numT loc
-  PrimMoney  _  -> numT loc
   PrimDouble _  -> numT loc
   PrimString _  -> return $ Qual loc [] (textT' loc)
   PrimBool _    -> return $ Qual loc [] (boolT' loc)
@@ -304,7 +303,7 @@ fromBox _ as = \case
       unify bT boxT
       case field of
         BoxFieldId      -> return $ Qual loc [] (textT' loc)
-        BoxFieldValue   -> return $ Qual loc [] (moneyT' loc)
+        BoxFieldValue   -> return $ Qual loc [] (doubleT' loc)
         BoxFieldScript  -> return $ Qual loc [] (scriptT' loc)
         BoxFieldArg txt -> do
           t <- newTVar (Star loc)
@@ -485,12 +484,12 @@ addCoreClasses =
     ordInsts = instBy ord
       where ord = qual "Ord"
 
-    instBy f = fmap f [boolT, textT, intT, doubleT, moneyT]
+    instBy f = fmap f [boolT, textT, intT, doubleT]
 
-    numInsts = fmap num [intT, doubleT, moneyT]
+    numInsts = fmap num [intT, doubleT]
       where num = qual "Num"
 
-    showInsts = fmap sh [intT, doubleT, moneyT, textT, boolT]
+    showInsts = fmap sh [intT, doubleT, textT, boolT]
       where sh = qual "Show"
 
     qual idx ty = Qual noLoc [] (IsIn noLoc idx ty)

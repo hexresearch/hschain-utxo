@@ -167,7 +167,6 @@ instance Pretty Prim where
   pretty = \case
     PrimInt      n -> pretty n
     PrimDouble   d -> pretty d
-    PrimMoney    m -> pretty m
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
 

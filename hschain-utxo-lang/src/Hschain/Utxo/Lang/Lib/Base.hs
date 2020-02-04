@@ -21,6 +21,8 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , any
   , sum
   , product
+  , sumInt
+  , productInt
   , id
   , const
   , getHeight
@@ -41,13 +43,16 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , lengthText
   , showInt
   , showDouble
-  , showMoney
   , showBool
   , showScript
   , plus
   , times
   , minus
   , division
+  , plusDouble
+  , timesDouble
+  , minusDouble
+  , divisionDouble
   , appendText
   , appendVec
   , mapVec
@@ -69,6 +74,8 @@ baseNames :: [Text]
 baseNames =
   [ "all"
   , "any"
+  , "sumInt"
+  , "productInt"
   , "sum"
   , "product"
   , "id"
@@ -91,13 +98,16 @@ baseNames =
   , "lengthText"
   , "showInt"
   , "showDouble"
-  , "showMoney"
   , "showBool"
   , "showScript"
   , "+"
   , "*"
   , "-"
   , "/"
+  , "+."
+  , "*."
+  , "-."
+  , "/."
   , "<>"
   , "++"
   , "map"
@@ -120,8 +130,10 @@ baseTypeAssump :: [Assump]
 baseTypeAssump =
   [ assumpType  "all" (vectorT boolT ~> boolT)
   , assumpType  "any" (vectorT boolT ~> boolT)
-  , assumpType' "sum"      "Num" aT (vectorT aT ~> aT)
-  , assumpType' "product"  "Num" aT (vectorT aT ~> aT)
+  , assumpType "sumInt"      (vectorT intT ~> intT)
+  , assumpType "productInt"  (vectorT intT ~> intT)
+  , assumpType "sum"      (vectorT doubleT ~> doubleT)
+  , assumpType "product"  (vectorT doubleT ~> doubleT)
   , assumpType  "."  ((bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
   , assumpType  "id"  (aT ~> aT)
   , assumpType "const" (aT ~> bT ~> aT)
@@ -132,7 +144,7 @@ baseTypeAssump =
   , assumpType "getOutputs" (vectorT boxT)
   , assumpType "getInputs" (vectorT boxT)
   , assumpType "getBoxId" (boxT ~> textT)
-  , assumpType "getBoxValue" (boxT ~> moneyT)
+  , assumpType "getBoxValue" (boxT ~> doubleT)
   , assumpType "getBoxScript" (boxT ~> scriptT)
   , assumpType "getBoxArg" (boxT ~> textT ~> aT)
   , assumpType "sha256" (textT ~> textT)
@@ -143,16 +155,19 @@ baseTypeAssump =
   , assumpType "lengthText" (textT ~> intT)
   , assumpType "showInt" (intT ~> textT)
   , assumpType "showDouble" (doubleT ~> textT)
-  , assumpType "showMoney" (moneyT ~> textT)
   , assumpType "showBool" (boolT ~> textT)
   , assumpType "showScript" (scriptT ~> textT)
   , assumpType "&&" (boolT ~> boolT ~> boolT)
   , assumpType "||" (boolT ~> boolT ~> boolT)
   , assumpType "not" (boolT ~> boolT)
-  , assumpType' "+" "Num" aT (aT ~> aT ~> aT)
-  , assumpType' "-" "Num" aT (aT ~> aT ~> aT)
-  , assumpType' "*" "Num" aT (aT ~> aT ~> aT)
-  , assumpType' "/" "Num" aT (aT ~> aT ~> aT)
+  , assumpType "+" (intT ~> intT ~> intT)
+  , assumpType "-" (intT ~> intT ~> intT)
+  , assumpType "*" (intT ~> intT ~> intT)
+  , assumpType "/" (intT ~> intT ~> intT)
+  , assumpType "+." (doubleT ~> doubleT ~> doubleT)
+  , assumpType "-." (doubleT ~> doubleT ~> doubleT)
+  , assumpType "*." (doubleT ~> doubleT ~> doubleT)
+  , assumpType "/." (doubleT ~> doubleT ~> doubleT)
   , assumpType "++" (vectorT aT ~> vectorT aT ~> vectorT aT)
   , assumpType "<>" (textT ~> textT ~> textT)
   , assumpType "map" ((aT ~> bT) ~> vectorT aT ~> vectorT bT)
@@ -180,6 +195,18 @@ any = letIn "any" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFol
   where
     f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
     z = Fix $ PrimE noLoc $ PrimBool P.False
+
+sumInt :: Lang -> Lang
+sumInt = letIn "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
+  where
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Plus (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimInt 0
+
+productInt :: Lang -> Lang
+productInt = letIn "product" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
+  where
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Times (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimInt 1
 
 sum :: Lang -> Lang
 sum = letIn "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
@@ -253,9 +280,6 @@ showBool = letIn "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ Text
 showScript :: Lang -> Lang
 showScript = letIn "showScript" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText ScriptToText noLoc)) (Fix $ Var noLoc "x"))
 
-showMoney :: Lang -> Lang
-showMoney = letIn "showMoney" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText MoneyToText noLoc)) (Fix $ Var noLoc "x"))
-
 lengthVec :: Lang -> Lang
 lengthVec = letIn "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))
 
@@ -303,6 +327,18 @@ minus = biOp "-" Minus
 
 division :: Lang -> Lang
 division = biOp "/" Div
+
+plusDouble :: Lang -> Lang
+plusDouble = biOp "+." Plus
+
+timesDouble :: Lang -> Lang
+timesDouble = biOp "*." Times
+
+minusDouble :: Lang -> Lang
+minusDouble = biOp "-." Minus
+
+divisionDouble :: Lang -> Lang
+divisionDouble = biOp "/." Div
 
 mapVec :: Lang -> Lang
 mapVec = letIn "map" (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)

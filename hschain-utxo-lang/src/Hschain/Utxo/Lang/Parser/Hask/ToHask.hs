@@ -117,7 +117,6 @@ toHaskExp (Fix expr) = case expr of
         fromTextTag = \case
           IntToText    -> "Int"
           DoubleToText -> "Double"
-          MoneyToText  -> "Money"
           ScriptToText -> "Script"
           BoolToText   -> "Bool"
 
@@ -128,7 +127,7 @@ toHaskExp (Fix expr) = case expr of
 
     fromPrimBox loc Box{..} = H.RecConstr loc (qname "Box")
       [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
-      , field "box'value"  $ prim $ PrimMoney  $ box'value
+      , field "box'value"  $ prim $ PrimDouble  $ box'value
       , field "box'script" $ prim $ PrimString $ unScript box'script
       , field "box'args"   $ Fix $ VecE loc $ NewVec loc (V.fromList $ fmap (\(a, b) -> Fix $ Tuple loc (V.fromList [a, b])) args)
       ]
@@ -153,7 +152,6 @@ op2 loc name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc 
 toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral loc = \case
   PrimInt x -> lit $ H.Int loc (fromIntegral x) (show x)
-  PrimMoney x -> lit $ H.Frac loc (realToFrac x) (show x)
   PrimDouble x -> lit $ H.Frac loc (realToFrac x) (show x)
   PrimString x -> lit $ H.String loc (T.unpack x) (T.unpack x)
   PrimBool x -> H.Con loc $ bool loc x

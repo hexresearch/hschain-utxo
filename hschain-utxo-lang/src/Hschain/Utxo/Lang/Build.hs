@@ -2,7 +2,6 @@ module Hschain.Utxo.Lang.Build(
     int
   , double
   , text
-  , money
   , pk
   , pk'
   , getHeight
@@ -53,14 +52,11 @@ primExpr p = Expr $ Fix $ PrimE noLoc p
 int :: Int -> Expr Int
 int x = primExpr $ PrimInt x
 
-double :: Double -> Expr Double
+double :: Pico -> Expr Double
 double x = primExpr $ PrimDouble x
 
 text :: Text -> Expr Text
 text x = primExpr $ PrimString x
-
-money :: Pico -> Expr Money
-money x = primExpr $ PrimMoney x
 
 mkBool :: Bool -> Expr Bool
 mkBool x = primExpr $ PrimBool x
@@ -258,22 +254,10 @@ instance Num (Expr Double) where
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
 
-instance Num (Expr Money) where
-  (+) = op2 (BinOpE noLoc Plus)
-  (*) = op2 (BinOpE noLoc Times)
-  negate = op1 (UnOpE noLoc Neg)
-  fromInteger n = primExpr $ PrimMoney $ fromIntegral n
-  abs = error "abs is not defined for Expr"
-  signum = error "signum is not defined for Expr"
-
 -- equals
 --
 
 instance EqB (Expr Int) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
-
-instance EqB (Expr Money) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
@@ -292,9 +276,6 @@ instance EqB (Expr Script) where
 -- order
 
 instance OrdB (Expr Int) where
-  (<*) = op2 (BinOpE noLoc LessThan)
-
-instance OrdB (Expr Money) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
 instance OrdB (Expr Text) where

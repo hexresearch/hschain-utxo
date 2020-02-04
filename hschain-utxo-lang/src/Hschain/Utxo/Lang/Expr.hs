@@ -23,6 +23,8 @@ import Text.Show.Deriving
 
 import Hschain.Utxo.Lang.Sigma
 
+type Money = Pico
+
 newtype Expr a = Expr Lang
   deriving (Show, Eq)
 
@@ -137,8 +139,6 @@ data BinOp
   | ComposeFun
   deriving (Show, Eq)
 
-type Money  = Pico
-
 data BoxExpr a
   = PrimBox Loc Box
   | BoxAt Loc a (BoxField a)
@@ -153,7 +153,7 @@ data VecExpr a
   | VecFold Loc
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data TextTypeTag = IntToText | DoubleToText | MoneyToText | BoolToText | ScriptToText
+data TextTypeTag = IntToText | DoubleToText | BoolToText | ScriptToText
   deriving (Eq, Show)
 
 data TextExpr a
@@ -168,8 +168,7 @@ data HashAlgo = Sha256 | Blake2b256
 
 data Prim
   = PrimInt     Int
-  | PrimMoney   Money
-  | PrimDouble  Double
+  | PrimDouble  Pico
   | PrimString  Text
   | PrimBool    Bool
   | PrimSigma   (Sigma PublicKey)
@@ -192,7 +191,6 @@ data BoxField a = BoxFieldId | BoxFieldValue | BoxFieldScript | BoxFieldArg a
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
     PrimInt n      -> "int"    .= n
-    PrimMoney m    -> "money"  .= m
     PrimDouble d   -> "double" .= d
     PrimString txt -> "text"   .= txt
     PrimBool b     -> "bool"   .= b
@@ -203,7 +201,6 @@ instance ToJSON Prim where
 instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
         fmap PrimInt    (v .: "int")
-    <|> fmap PrimMoney  (v .: "money")
     <|> fmap PrimDouble (v .: "double")
     <|> fmap PrimString (v .: "text")
     <|> fmap PrimBool   (v .: "bool")
@@ -212,19 +209,15 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-boolT, boxT, scriptT, textT, moneyT :: Type
+boolT, boxT, scriptT, textT :: Type
 
 boolT = boolT' noLoc
 boxT  = boxT' noLoc
 scriptT = scriptT' noLoc
 textT = textT' noLoc
-moneyT = moneyT' noLoc
 
 boxT' :: Loc -> Type
 boxT' loc = TCon loc (Tycon loc (Id loc "Box") (Star loc))
-
-moneyT' :: Loc -> Type
-moneyT' loc = TCon loc (Tycon loc (Id loc "Money") (Star loc))
 
 textT' :: Loc -> Type
 textT' loc = TCon loc (Tycon loc (Id loc "Text") (Star loc))
