@@ -698,5 +698,3 @@ execToSigma tx@TxArg{..} = execExpr $ getInputExpr tx
         Left err                                  -> (Left (showt err), showt err)
 
     noSigmaExpr = "Error: Script does not evaluate to sigma expression"
-
-

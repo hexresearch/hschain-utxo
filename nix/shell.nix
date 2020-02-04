@@ -12,16 +12,7 @@ in release.pkgs.haskellPackages.shellFor {
     buildInputs = with pkgs; [
       #rabbitmq_server
     ];
-    packages = _: 
-      let packs = pkgs.lib.attrValues release.hschainUtxoPackages;
-          names = pkgs.lib.attrNames  release.hschainUtxoPackages;
-      in  lib.traceSeq names packs ;
-    # NOTE: this is workaround for problem with building
-    #       hschain-types. Without this build fails
-    #       mysteriously. Note that build with nix-build is not
-    #       affected.
-    shellHook = "";
-#    shellHook = ''
-#      export LD_LIBRARY_PATH=${pkgs.libsodium}/lib''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH
-#      '';
+    packages = _: pkgs.lib.attrValues release.hschainUtxoPackages;
+    shellHook = ''
+      '';
   }

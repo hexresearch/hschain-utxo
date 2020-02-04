@@ -34,39 +34,47 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
+getClosureExpr :: Lang -> Repl Lang
+getClosureExpr expr = do
+  closure <- fmap replEnv'closure get
+  return $ closure expr
+
+noTypeCheck :: Lang -> (Lang -> Repl ()) -> Repl ()
+noTypeCheck expr cont = cont expr
+
+withTypeCheck :: Lang -> (Lang -> Repl ()) -> Repl ()
+withTypeCheck expr cont = do
+  eTy <- checkType expr
+  case eTy of
+    Right _  -> cont expr
+    Left err -> liftIO $ T.putStrLn $ renderText err
 
 evalExpr :: Lang -> Repl ()
-evalExpr lang = undefined {- do
-  eTy <- checkType lang
-  case eTy of
-    Right _ -> do
-      closure  <- fmap replEnv'closure get
-      tx       <- fmap replEnv'tx get
-      let res = undefined -- runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
-      liftIO $ case res of
-        Right (expr, debugTxt) -> do
-          T.putStrLn $ renderText expr
-          when (not $ T.null debugTxt) $ T.putStrLn debugTxt
-        Left err   -> T.putStrLn $ renderText err
-    Left err -> liftIO $ T.putStrLn $ renderText err
--}
+evalExpr lang = do
+  closedExpr <- getClosureExpr lang
+  noTypeCheck closedExpr $ \expr -> do
+    tx       <- fmap replEnv'tx get
+    let res = runExec (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
+    liftIO $ case res of
+      Right (expr, debugTxt) -> do
+        T.putStrLn $ renderText expr
+        when (not $ T.null debugTxt) $ T.putStrLn debugTxt
+      Left err   -> T.putStrLn $ renderText err
+
 
 evalBind :: VarName -> Lang -> Repl ()
-evalBind var lang = undefined  {- do
-  eTy <- checkType lang
-  case eTy of
-    Right _ -> do
-      closure <- fmap replEnv'closure get
-      tx      <- fmap replEnv'tx get
-      let res = undefined -- runExec (txArg'proof tx) (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang $ closure lang
+evalBind var lang = do
+  closure <- fmap replEnv'closure get
+  let closedExpr = closure lang
+  noTypeCheck closedExpr $ \expr -> do
+      tx <- fmap replEnv'tx get
+      let res = runExec (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
       case res of
         Right (expr, _) -> do
           modify' $ \st -> st { replEnv'closure = (\next -> singleLet noLoc var expr next) . closure
                               , replEnv'words   = varName'name var : replEnv'words st }
           return ()
         Left err   -> liftIO $ T.putStrLn $ renderText err
-    Left err -> liftIO $ T.putStrLn $ renderText err
--}
 
 parseExpr :: String -> Either String ParseRes
 parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp input
@@ -83,7 +91,4 @@ fromParseResult = \case
   P.ParseFailed loc err -> Left $ toError loc err
   where
     toError _ msg = msg
-
-
-
 

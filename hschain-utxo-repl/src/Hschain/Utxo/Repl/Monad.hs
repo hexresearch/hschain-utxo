@@ -58,7 +58,7 @@ runReplM tx (ReplM app) = evalStateT app defEnv
     defEnv =
       ReplEnv
         { replEnv'tx          = tx
-        , replEnv'closure     = id
+        , replEnv'closure     = importBase
         , replEnv'words       = baseNames
         , replEnv'scriptFile  = Nothing
         , replEnv'txFile      = Nothing
