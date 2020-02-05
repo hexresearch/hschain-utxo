@@ -2,6 +2,8 @@ module Hschain.Utxo.State.Blockchain(
 
 ) where
 
+import Data.Foldable
+
 import Codec.Serialise      (Serialise, serialise)
 import Control.Applicative
 import Control.DeepSeq      (NFData)
@@ -10,19 +12,23 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Trans.Except
 import Control.Parallel.Strategies
+import Data.Fix
 import Data.Fixed
 import Data.Int
+import Data.ByteString (ByteString)
+import Data.Sequence (Seq)
 import Data.Text (Text)
 import qualified Data.Aeson          as JSON
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict     as Map
 import qualified Data.Vector         as V
+import qualified Crypto.ECC.Edwards25519  as Ed
 
 import GHC.Generics (Generic)
 
 import HSChain.Blockchain.Internal.Engine.Types
 import HSChain.Control
-import HSChain.Crypto
+import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
@@ -58,22 +64,6 @@ hashDomain = "hschain.utxo.sigma"
 
 deriving instance Generic E12
 deriving instance Generic Sigma.Ed25519
-
-instance CryptoHashable Tx where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxChain where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxId where
-  hashStep = genericHashStep hashDomain
-
-{-
-instance CryptoHashable Tx where
-  hashStep = hashStep . serialise
-instance CryptoHashable BoxChain where
-  hashStep = hashStep . serialise
--}
 
 instance BlockData BData where
    type TX              BData = Tx
@@ -145,5 +135,71 @@ dioLogic :: forall tag. Dio tag => BChLogic Maybe (BData tag)
      DioDict{..} = dioDict @tag
 
 -}
+
+------------------------------------------
+-- instance boilerplate
+
+instance CryptoHashable Tx where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxChain where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxId where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Prim where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Script where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Box where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (Sigma PublicKey) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Proof where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (Sigma.ProvenTree CryptoAlg) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (Sigma.OrChild CryptoAlg) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (Sigma.Challenge CryptoAlg) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (Sigma.ECScalar CryptoAlg) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (Sigma.ECPoint CryptoAlg) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable PublicKey where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Ed.Point where
+  hashStep x = hashStep (Ed.pointEncode x :: ByteString)
+
+instance CryptoHashable Ed.Scalar where
+  hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
+
+instance CryptoHashable a => CryptoHashable (Seq a) where
+  hashStep = hashStep . toList
+
+instance CryptoHashable Text where
+  hashStep = hashStep . serialise
+
+instance CryptoHashable Bool where
+  hashStep = hashStep . serialise
+
+instance CryptoHashable Pico where
+  hashStep = hashStep . serialise
 
 

@@ -94,6 +94,12 @@ deriving instance Ord  (Challenge Ed25519)
 
 deriving newtype instance NFData  (ECPoint Ed25519)
 deriving newtype instance NFData  (ECScalar Ed25519)
+deriving newtype instance NFData  (Challenge Ed25519)
+
+deriving stock   instance Generic (ECScalar Ed25519)
+deriving stock   instance Generic (ECPoint Ed25519)
+deriving stock   instance Generic (Challenge Ed25519)
+
 
 instance CBOR.Serialise (ECPoint Ed25519) where
   encode = CBOR.encode . id @BS.ByteString . Ed.pointEncode . coerce
@@ -111,6 +117,4 @@ decodeBy decoder bs = case decoder bs of
 instance CBOR.Serialise (Challenge Ed25519) where
   encode (ChallengeEd25519 bs) = CBOR.encode bs
   decode = fmap ChallengeEd25519 CBOR.decode
-
-deriving newtype instance NFData  (Challenge Ed25519)
 
