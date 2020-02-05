@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Hschain.Utxo.State
+                       Hschain.Utxo.State.Blockchain
                        Hschain.Utxo.State.Pretty
                        Hschain.Utxo.State.Query
                        Hschain.Utxo.State.React
@@ -31,10 +32,33 @@ library
                      , prettyprinter
                      , text
                      , vector
+                     , hschain-types
+                     , hschain-crypto
+                     , hschain
+                     , serialise
+                     , deepseq
+                     , aeson
+                     , parallel
+                     , unordered-containers
+                     , mtl
+                     , transformers
+                     , exceptions
+
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
-    RecordWildCards
+    DataKinds
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingStrategies
+    FlexibleContexts
+    GeneralizedNewtypeDeriving
     OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
     TemplateHaskell
-
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+ -

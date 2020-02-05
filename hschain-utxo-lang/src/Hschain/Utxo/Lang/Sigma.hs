@@ -23,6 +23,7 @@ module Hschain.Utxo.Lang.Sigma(
   ) where
 
 import Control.Monad
+import Control.DeepSeq (NFData)
 
 import Codec.Serialise
 
@@ -122,11 +123,13 @@ verifyProof = Sigma.verifyProof
 
 type Sigma k = Fix (SigmaExpr k)
 
+deriving anyclass instance NFData k => NFData (Sigma k)
+
 data SigmaExpr k a =
     SigmaPk k
   | SigmaAnd [a]
   | SigmaOr  [a]
-  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic)
+  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData)
 
 instance Serialise k => Serialise (Sigma k)
 instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)

@@ -3,6 +3,9 @@ module Hschain.Utxo.Lang.Expr where
 import Hex.Common.Text
 
 import Control.Applicative
+import Control.DeepSeq (NFData)
+
+import Codec.Serialise
 
 import Data.Aeson
 
@@ -15,6 +18,8 @@ import Data.Map.Strict (Map)
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
+
+import GHC.Generics
 
 import Type.Loc
 import Type.Type
@@ -45,10 +50,14 @@ toVarName (Id loc txt) = VarName loc txt
 type Args = Map Text (Prim )
 
 newtype BoxId = BoxId { unBoxId :: Text }
-  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
 
 newtype Script = Script { unScript :: Text }
-  deriving (Show, Eq, Ord, ToJSON, FromJSON)
+  deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
 
 data Box = Box
   { box'id     :: !BoxId
@@ -56,7 +65,7 @@ data Box = Box
   , box'script :: !Script
   , box'args   :: !Args
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Serialise, NFData)
 
 data Pat
   = PVar Loc Id
@@ -172,7 +181,7 @@ data Prim
   | PrimString  Text
   | PrimBool    Bool
   | PrimSigma   (Sigma PublicKey)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 data EnvId a
   = Height Loc

@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Sigma.Interpreter where
 
 import Control.Applicative
+import Control.DeepSeq
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
@@ -31,7 +32,7 @@ import qualified Data.Sequence as Seq
 -- prove monad
 
 newtype Prove a = Prove (ExceptT Text IO a)
-  deriving (Functor, Monad, Applicative, MonadError Text, MonadIO)
+  deriving newtype (Functor, Monad, Applicative, MonadError Text, MonadIO)
 
 runProve :: Prove a -> IO (Either Text a)
 runProve (Prove p) = runExceptT p
@@ -74,6 +75,8 @@ instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Seriali
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (Proof a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (Proof a)
 
+deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (Proof a)
+
 data ProvenTree a
   = ProvenLeaf
       { provenLeaf'responceZ :: ECScalar a
@@ -93,19 +96,20 @@ instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Seriali
 
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (ProvenTree a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (ProvenTree a)
--- deriving stock   instance Show (ECPoint a) => Show (Proof a)
+deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (ProvenTree a)
+
 
 data OrChild a = OrChild
   { orChild'challenge :: Challenge a
   , orChild'tree      :: ProvenTree a
   } deriving (Generic)
 
-
 instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
          ) => CBOR.Serialise (OrChild a)
 
-deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (OrChild a)
-deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (OrChild a)
+deriving stock    instance (Show   (ECPoint a), Show   (ECScalar a), Show   (Challenge a)) => Show   (OrChild a)
+deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Challenge a)) => Eq     (OrChild a)
+deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (OrChild a)
 
 
 newProof :: (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
