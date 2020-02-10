@@ -38,7 +38,7 @@ data Tx = Tx
   , tx'proof   :: !(Maybe Proof)
   , tx'args    :: !Args
   }
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
 

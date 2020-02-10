@@ -1,5 +1,10 @@
 module Hschain.Utxo.State.Blockchain(
-
+    UtxoAlg
+  , UtxoError(..)
+  , BData(..)
+  , initBoxChain
+  , interpretSpec
+  , RunningNode(..)
 ) where
 
 import Data.Foldable
@@ -41,7 +46,9 @@ import HSChain.Store.STM
 import HSChain.Types
 import HSChain.Types.Merkle.Types
 
-import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang hiding (Height)
+import Hschain.Utxo.State.Blockchain.Config
+import Hschain.Utxo.State.React
 import Hschain.Utxo.State.Types
 
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
@@ -55,7 +62,7 @@ newtype BData = BData [Tx]
    deriving newtype  (NFData,CryptoHashable,JSON.ToJSON,JSON.FromJSON)
    deriving anyclass (Serialise)
 
-data UtxoError = UtxoError
+data UtxoError = UtxoError Text
    deriving stock    (Show,Generic)
    deriving anyclass (Exception,NFData)
 
@@ -69,72 +76,111 @@ instance BlockData BData where
    type TX              BData = Tx
    type BlockchainState BData = BoxChain
    type BChError        BData = UtxoError
-   type BChMonad        BData = Maybe
+   type BChMonad        BData = Either UtxoError
    type Alg             BData = UtxoAlg
    bchLogic                         = utxoLogic
    proposerSelection                = ProposerSelection randomProposerSHA512
    blockTransactions    (BData txs) = txs
    logBlockData         (BData txs) = HM.singleton "Ntx" $ JSON.toJSON $ length txs
 
-utxoLogic :: BChLogic Maybe BData
+utxoLogic :: BChLogic (Either UtxoError) BData
 utxoLogic = BChLogic{..}
   where
-    processTx     = const empty
+    processTx BChEval{..} = void $ processTransaction bchValue (merkleValue blockchainState)
 
-    processBlock  = undefined
+    processBlock BChEval{..} = do
+      st <- foldM (flip processTransaction) (merkleValue blockchainState) $ blockTransactions $ merkleValue $ blockData bchValue
+      return BChEval { bchValue        = ()
+                     , blockchainState = merkled st
+                     , ..
+                     }
 
-    generateBlock = undefined
+    generateBlock NewBlock{..} txs = do
+      let selectTx c []     = (c,[])
+          selectTx c (t:tx) = case processTransaction t c of
+                                Left  _  -> selectTx c  tx
+                                Right c' -> let (c'', b  ) = selectTx c' tx
+                                             in  (c'', t:b)
+      let (st', dat) = selectTx (merkleValue newBlockState) txs
+      return BChEval { bchValue        = BData dat
+                     , validatorSet    = merkled newBlockValSet
+                     , blockchainState = merkled st'
+                     }
 
+    processTransaction :: Tx -> BoxChain -> Either UtxoError BoxChain
+    processTransaction tx st = either (Left . UtxoError) Right $ fst $ react tx st
 
-{-
-dioLogic :: forall tag. Dio tag => BChLogic Maybe (BData tag)
- dioLogic = BChLogic
-   { processTx     = const empty
-   --
-   , processBlock  = \BChEval{..} -> do
-       let sigCheck = guard
-                    $ and
-                    $ parMap rseq
-                      (\(Tx sig tx) -> verifySignatureHashed (txFrom tx) tx sig)
-                      (blockTransactions $ merkleValue $ blockData bchValue)
-       let update   = foldM (flip process) (merkleValue blockchainState)
-                    $ blockTransactions $ merkleValue $ blockData bchValue
-       st <- uncurry (>>)
-           $ withStrategy (evalTuple2 rpar rpar)
-           $ (sigCheck, update)
-       return BChEval { bchValue        = ()
-                      , blockchainState = merkled st
-                      , ..
-                      }
-   -- We generate one transaction for every key. And since we move
-   -- money from one account to another it's quite simple to update state
-   , generateBlock = \NewBlock{..} _ -> do
-       let nonce = let Height h = newBlockHeight in fromIntegral h - 1
-           keys  = dioUserKeys
-       return $! BChEval
-         { bchValue = BData
-                    $ parMap rseq
-                      (\(sk,pk) -> let body = TxBody
-                                         { txTo     = pk
-                                         , txFrom   = pk
-                                         , txNonce  = nonce
-                                         , txAmount = 1
-                                         }
-                                   in Tx { txSig  = signHashed sk body
-                                         , txBody = body
-                                         }
-                      )
-                      (V.toList keys)
-         , validatorSet    = merkled newBlockValSet
-         , blockchainState = merkled
-                           $ userMap . each . userNonce %~ succ
-                           $ merkleValue newBlockState
-         }
-   }
-   where
-     DioDict{..} = dioDict @tag
+------------------------------------------
 
--}
+interpretSpec
+   :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
+      , MonadTrace m, MonadTMMonitoring m
+      , Has x BlockchainNet
+      , Has x NodeSpec
+      , Has x (Configuration BoxChainConfig))
+   => Genesis BData
+   -> x
+   -> AppCallbacks m BData
+   -> m (RunningNode m BData, [m ()])
+interpretSpec genesis p cb = do
+  conn    <- askConnectionRO
+  store   <- newSTMBchStorage $ blockchainState genesis
+  mempool <- makeMempool store (ExceptT . return)
+  acts <- runNode (getT p :: Configuration BoxChainConfig) NodeDescription
+    { nodeValidationKey = p ^.. nspecPrivKey
+    , nodeGenesis       = genesis
+    , nodeCallbacks     = cb <> nonemptyMempoolCallback mempool
+    , nodeRunner        = ExceptT . return
+    , nodeStore         = AppStore { appBchState = store
+                                   , appMempool  = mempool
+                                   }
+    , nodeNetwork       = getT p
+    }
+  return
+    ( RunningNode { rnodeState   = store
+                  , rnodeConn    = conn
+                  , rnodeMempool = mempool
+                  }
+    , acts
+    )
+
+-- | Genesis block has many field with predetermined content so this
+--   is convenience function to create genesis block.
+makeGenesis
+  :: (Crypto (Alg a), CryptoHashable a)
+  => a                          -- ^ Block data
+  -> Hashed (Alg a) (BlockchainState a)
+  -> ValidatorSet (Alg a)           -- ^ Set of validators for H=0
+  -> ValidatorSet (Alg a)           -- ^ Set of validators for H=1
+  -> Block a
+makeGenesis dat stateHash valSet0 valSet1 = Block
+  { blockHeight        = Height 0
+  , blockPrevBlockID   = Nothing
+  , blockValidators    = merkled valSet0
+  , blockNewValidators = merkled valSet1
+  , blockData          = merkled dat
+  , blockPrevCommit    = Nothing
+  , blockEvidence      = merkled []
+  , blockStateHash     = stateHash
+  }
+
+-------------------------------------------
+
+data BoxChainSpec = BoxChainSpec
+
+initBoxChain :: (Foldable f)
+  => f (Validator (Alg BData))
+  -> [Tx]
+  -> Genesis BData
+initBoxChain nodes txs = BChEval
+  { bchValue        = genesis
+  , validatorSet    = merkled valSet
+  , blockchainState = merkled state0
+  }
+  where
+    Right valSet = makeValidatorSet nodes
+    genesis = makeGenesis (BData txs) (hashed state0) valSet valSet
+    state0 = emptyBoxChain
 
 ------------------------------------------
 -- instance boilerplate

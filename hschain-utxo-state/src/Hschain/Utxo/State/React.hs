@@ -16,9 +16,9 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-react :: Tx -> BoxChain -> (Either Text (TxHash, BoxChain), Text)
+react :: Tx -> BoxChain -> (Either Text BoxChain, Text)
 react tx bch
-  | isValid   = (Right $ appendHash $ updateBoxChain tx bch, debugMsg)
+  | isValid   = (Right $ updateBoxChain tx bch, debugMsg)
   | otherwise = (Left "Tx is invalid", debugMsg)
   where
     (isValid, debugMsg) = case toTxArg bch tx of
@@ -39,11 +39,6 @@ react tx bch
         mInvalidOutputId = fmap (unBoxId . box'id) mInvalidOutput
 
         outputsAreValid = isNothing mInvalidOutput
-
-    -- todo: replace me with real hash
-    fakeHash = TxHash . mappend "tx-" . T.pack . show . boxChain'height
-
-    appendHash x = (fakeHash x, x)
 
 updateBoxChain :: Tx -> BoxChain -> BoxChain
 updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs

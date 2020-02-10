@@ -74,6 +74,7 @@ instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Seriali
 
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (Proof a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (Proof a)
+deriving stock   instance (Ord  (ECPoint a), Ord  (ECScalar a), Ord  (Challenge a)) => Ord  (Proof a)
 
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (Proof a)
 
@@ -96,6 +97,7 @@ instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Seriali
 
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (ProvenTree a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (ProvenTree a)
+deriving stock   instance (Ord  (ECPoint a), Ord  (ECScalar a), Ord  (Challenge a)) => Ord  (ProvenTree a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (ProvenTree a)
 
 
@@ -109,6 +111,7 @@ instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Seriali
 
 deriving stock    instance (Show   (ECPoint a), Show   (ECScalar a), Show   (Challenge a)) => Show   (OrChild a)
 deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Challenge a)) => Eq     (OrChild a)
+deriving stock    instance (Ord    (ECPoint a), Ord    (ECScalar a), Ord    (Challenge a)) => Ord    (OrChild a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (OrChild a)
 
 

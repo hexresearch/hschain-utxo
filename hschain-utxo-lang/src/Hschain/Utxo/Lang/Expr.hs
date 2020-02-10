@@ -65,7 +65,7 @@ data Box = Box
   , box'script :: !Script
   , box'args   :: !Args
   }
-  deriving (Show, Eq, Generic, Serialise, NFData)
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 data Pat
   = PVar Loc Id
