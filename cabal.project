@@ -4,6 +4,7 @@ packages:
   hschain-utxo
   hschain-utxo-api/hschain-utxo-api-client
   hschain-utxo-api/hschain-utxo-api-rest
+  hschain-utxo-blockchain
   hschain-utxo-compiler
   hschain-utxo-lang
   hschain-utxo-repl

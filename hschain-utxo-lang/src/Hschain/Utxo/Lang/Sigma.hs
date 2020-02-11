@@ -20,6 +20,10 @@ module Hschain.Utxo.Lang.Sigma(
   , toProofEnv
   , equalSigmaExpr
   , equalSigmaProof
+  , serialiseFromJSON
+  , serialiseToJSON
+  , serialiseFromText
+  , serialiseToText
   ) where
 
 import Control.Monad
@@ -79,12 +83,18 @@ toProofEnv :: [KeyPair] -> ProofEnv
 toProofEnv ks = Sigma.Env ks
 
 publicKeyFromText :: Text -> Maybe PublicKey
-publicKeyFromText =
-  (either (const Nothing) Just . deserialiseOrFail . LB.fromStrict <=< Base58.decodeBase58 Base58.bitcoinAlphabet) .
-  TE.encodeUtf8
+publicKeyFromText = serialiseFromText
 
 publicKeyToText :: PublicKey -> Text
-publicKeyToText = TE.decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet . LB.toStrict . serialise
+publicKeyToText = serialiseToText
+
+serialiseToText :: Serialise a => a -> Text
+serialiseToText = TE.decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet . LB.toStrict . serialise
+
+serialiseFromText :: Serialise a => Text -> Maybe a
+serialiseFromText =
+  (either (const Nothing) Just . deserialiseOrFail . LB.fromStrict <=< Base58.decodeBase58 Base58.bitcoinAlphabet) .
+  TE.encodeUtf8
 
 serialiseToJSON :: Serialise a => a -> Value
 serialiseToJSON = toJSON . TE.decodeUtf8 . Base64.encode . LB.toStrict . serialise

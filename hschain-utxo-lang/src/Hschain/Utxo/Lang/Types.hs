@@ -8,6 +8,7 @@ import Control.Monad
 import Codec.Serialise
 
 import Data.Aeson
+import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import Data.Text (Text)
@@ -28,9 +29,21 @@ newtype UserId = UserId { unUserId :: Text }
   deriving newtype  (Show, Eq, ToJSON, FromJSON)
   deriving stock    (Generic)
 
-newtype TxHash = TxHash Text
-  deriving newtype  (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+newtype TxHash = TxHash ByteString
+  deriving newtype  (Show, Eq, Ord, Serialise)
   deriving stock    (Generic)
+
+instance ToJSON TxHash where
+  toJSON = serialiseToJSON
+
+instance FromJSON TxHash where
+  parseJSON = serialiseFromJSON
+
+instance ToJSONKey TxHash where
+  toJSONKey = ToJSONKeyText serialiseToText (text . serialiseToText)
+
+instance FromJSONKey TxHash where
+  fromJSONKey = FromJSONKeyTextParser  (maybe mzero return . serialiseFromText)
 
 data Tx = Tx
   { tx'inputs  :: !(Vector BoxId)

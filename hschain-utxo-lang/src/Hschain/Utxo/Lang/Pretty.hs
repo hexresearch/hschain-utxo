@@ -14,7 +14,7 @@ import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Sigma (Proof)
+import Hschain.Utxo.Lang.Sigma (Proof, serialiseToText)
 import Hschain.Utxo.Lang.Exec
 
 import qualified Data.Map.Strict as M
@@ -62,7 +62,7 @@ prettyArgs m = hsep $ punctuate comma $ fmap phi $ M.toList m
       phi (uid, pk) = hsep [pretty uid, "->", pretty pk]
 
 instance Pretty TxHash where
-  pretty (TxHash txt) = pretty txt
+  pretty (TxHash bs) = pretty $ serialiseToText bs
 
 instance Pretty Tx where
   pretty Tx{..} = prettyRecord "Tx"
