@@ -1,6 +1,9 @@
 module Hschain.Utxo.API.Rest where
 
 import Hex.Common.Aeson
+import Hex.Common.Serialise
+
+import Control.Monad
 
 import Data.Aeson
 import Data.Text (Text)
@@ -52,10 +55,12 @@ newtype GetEnvResponse = GetEnvResponse { unGetEnvResponse :: Env }
   deriving (Show, Eq, FromJSON, ToJSON)
 
 instance ToHttpApiData TxHash where
-  toQueryParam (TxHash txt) = txt
+  toQueryParam (TxHash bs) = serialiseToText bs
 
 instance FromHttpApiData TxHash where
-  parseQueryParam = fmap (fmap TxHash) parseQueryParam
+  parseQueryParam = fmap (join . fmap (maybe err (Right . TxHash) . serialiseFromText)) parseQueryParam
+    where
+      err = Left "Failed to decode query param for TxHash"
 
 instance ToHttpApiData BoxId where
   toQueryParam (BoxId txt) = txt

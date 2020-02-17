@@ -26,7 +26,7 @@ utxoServer =
   :<|> getStateEndpoint
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
-postTxEndpoint tx = fmap (uncurry PostTxResponse) $ updateBoxChain (react tx)
+postTxEndpoint tx = undefined -- fmap (uncurry PostTxResponse) $ updateBoxChain (react tx)
 
 getBoxBalanceEndpoint :: BoxId -> ServerM (Maybe Money)
 getBoxBalanceEndpoint boxId =

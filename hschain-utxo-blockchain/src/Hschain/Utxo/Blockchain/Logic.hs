@@ -1,33 +1,16 @@
-module Hschain.Utxo.State.Blockchain(
-    UtxoAlg
-  , UtxoError(..)
-  , BData(..)
-  , initBoxChain
-  , interpretSpec
-  , RunningNode(..)
-) where
-
-import Data.Foldable
+module Hschain.Utxo.Blockchain.Logic where
 
 import Codec.Serialise      (Serialise, serialise)
-import Control.Applicative
 import Control.DeepSeq      (NFData)
-import Control.Exception    (Exception)
+import Control.Exception
 import Control.Monad
-import Control.Monad.Catch
-import Control.Monad.Trans.Except
-import Control.Parallel.Strategies
+
+import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Fixed
-import Data.Int
-import Data.ByteString (ByteString)
+import Data.Foldable
 import Data.Sequence (Seq)
 import Data.Text (Text)
-import qualified Data.Aeson          as JSON
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict     as Map
-import qualified Data.Vector         as V
-import qualified Crypto.ECC.Edwards25519  as Ed
 
 import GHC.Generics (Generic)
 
@@ -47,17 +30,23 @@ import HSChain.Types
 import HSChain.Types.Merkle.Types
 
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.State.Blockchain.Config
-import Hschain.Utxo.State.React
+import Hschain.Utxo.State
 import Hschain.Utxo.State.Types
+import Hschain.Utxo.State.React
+
+import qualified Data.Aeson          as JSON
+import qualified Data.HashMap.Strict as HM
+import qualified Crypto.ECC.Edwards25519  as Ed
 
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
+
+
 type UtxoAlg = Ed25519 :& SHA512
 
-newtype BData = BData [Tx]
+newtype BData = BData { unBData :: [Tx] }
    deriving stock    (Show,Eq,Generic)
    deriving newtype  (NFData,CryptoHashable,JSON.ToJSON,JSON.FromJSON)
    deriving anyclass (Serialise)
@@ -109,78 +98,6 @@ utxoLogic = BChLogic{..}
 
     processTransaction :: Tx -> BoxChain -> Either UtxoError BoxChain
     processTransaction tx st = either (Left . UtxoError) Right $ fst $ react tx st
-
-------------------------------------------
-
-interpretSpec
-   :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
-      , MonadTrace m, MonadTMMonitoring m
-      , Has x BlockchainNet
-      , Has x NodeSpec
-      , Has x (Configuration BoxChainConfig))
-   => Genesis BData
-   -> x
-   -> AppCallbacks m BData
-   -> m (RunningNode m BData, [m ()])
-interpretSpec genesis p cb = do
-  conn    <- askConnectionRO
-  store   <- newSTMBchStorage $ blockchainState genesis
-  mempool <- makeMempool store (ExceptT . return)
-  acts <- runNode (getT p :: Configuration BoxChainConfig) NodeDescription
-    { nodeValidationKey = p ^.. nspecPrivKey
-    , nodeGenesis       = genesis
-    , nodeCallbacks     = cb <> nonemptyMempoolCallback mempool
-    , nodeRunner        = ExceptT . return
-    , nodeStore         = AppStore { appBchState = store
-                                   , appMempool  = mempool
-                                   }
-    , nodeNetwork       = getT p
-    }
-  return
-    ( RunningNode { rnodeState   = store
-                  , rnodeConn    = conn
-                  , rnodeMempool = mempool
-                  }
-    , acts
-    )
-
--- | Genesis block has many field with predetermined content so this
---   is convenience function to create genesis block.
-makeGenesis
-  :: (Crypto (Alg a), CryptoHashable a)
-  => a                          -- ^ Block data
-  -> Hashed (Alg a) (BlockchainState a)
-  -> ValidatorSet (Alg a)           -- ^ Set of validators for H=0
-  -> ValidatorSet (Alg a)           -- ^ Set of validators for H=1
-  -> Block a
-makeGenesis dat stateHash valSet0 valSet1 = Block
-  { blockHeight        = Height 0
-  , blockPrevBlockID   = Nothing
-  , blockValidators    = merkled valSet0
-  , blockNewValidators = merkled valSet1
-  , blockData          = merkled dat
-  , blockPrevCommit    = Nothing
-  , blockEvidence      = merkled []
-  , blockStateHash     = stateHash
-  }
-
--------------------------------------------
-
-data BoxChainSpec = BoxChainSpec
-
-initBoxChain :: (Foldable f)
-  => f (Validator (Alg BData))
-  -> [Tx]
-  -> Genesis BData
-initBoxChain nodes txs = BChEval
-  { bchValue        = genesis
-  , validatorSet    = merkled valSet
-  , blockchainState = merkled state0
-  }
-  where
-    Right valSet = makeValidatorSet nodes
-    genesis = makeGenesis (BData txs) (hashed state0) valSet valSet
-    state0 = emptyBoxChain
 
 ------------------------------------------
 -- instance boilerplate

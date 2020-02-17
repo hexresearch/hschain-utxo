@@ -3,23 +3,30 @@ module Hschain.Utxo.Blockchain.Hschain(
   , UtxoError(..)
   , BData(..)
   , initBoxChain
---  , interpretSpec
+  , interpretSpecWithCallback
 ) where
 
 import Data.Foldable
 
 import Codec.Serialise      (Serialise, serialise)
 import Control.Applicative
+import Control.Concurrent.STM
 import Control.DeepSeq      (NFData)
 import Control.Exception    (Exception)
 import Control.Monad
+import Control.Monad.IO.Class
 import Control.Monad.Catch
+import Control.Monad.Fail (MonadFail)
+import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Parallel.Strategies
 import Data.Fix
 import Data.Fixed
+import Data.Function (fix)
+import Data.Either
 import Data.Int
 import Data.ByteString (ByteString)
+import Data.Proxy
 import Data.Sequence (Seq)
 import Data.Text (Text)
 import qualified Data.Aeson          as JSON
@@ -27,8 +34,13 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict     as Map
 import qualified Data.Vector         as V
 import qualified Crypto.ECC.Edwards25519  as Ed
+import qualified Network.Socket as Net
 
 import GHC.Generics (Generic)
+import Prometheus
+
+import System.FilePath
+import System.Directory
 
 import HSChain.Blockchain.Internal.Engine.Types
 import HSChain.Control
@@ -40,109 +52,130 @@ import HSChain.Debug.Trace
 import HSChain.Logger
 import HSChain.Monitoring
 import HSChain.Run
+import HSChain.P2P (generatePeerId)
+import HSChain.P2P.Network (newNetworkTcp)
 import HSChain.Store
 import HSChain.Store.STM
 import HSChain.Types
 import HSChain.Types.Merkle.Types
 
+import qualified HSChain.P2P.Types as P2PT
+
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.State.Blockchain.Config
 import Hschain.Utxo.State.React
 import Hschain.Utxo.State.Types
+
+import Hschain.Utxo.Blockchain.Logic
+import Hschain.Utxo.Blockchain.Bchain
+import Hschain.Utxo.Blockchain.Net
 
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
-type UtxoAlg = Ed25519 :& SHA512
-
-newtype BData = BData { unBData :: [Tx] }
-   deriving stock    (Show,Eq,Generic)
-   deriving newtype  (NFData,CryptoHashable,JSON.ToJSON,JSON.FromJSON)
-   deriving anyclass (Serialise)
-
-data UtxoError = UtxoError Text
-   deriving stock    (Show,Generic)
-   deriving anyclass (Exception,NFData)
-
-hashDomain :: String
-hashDomain = "hschain.utxo.sigma"
-
-deriving instance Generic E12
-deriving instance Generic Sigma.Ed25519
-
-instance BlockData BData where
-   type TX              BData = Tx
-   type BlockchainState BData = BoxChain
-   type BChError        BData = UtxoError
-   type BChMonad        BData = Either UtxoError
-   type Alg             BData = UtxoAlg
-   bchLogic                         = utxoLogic
-   proposerSelection                = ProposerSelection randomProposerSHA512
-   blockTransactions    (BData txs) = txs
-   logBlockData         (BData txs) = HM.singleton "Ntx" $ JSON.toJSON $ length txs
-
-utxoLogic :: BChLogic (Either UtxoError) BData
-utxoLogic = BChLogic{..}
-  where
-    processTx BChEval{..} = void $ processTransaction bchValue (merkleValue blockchainState)
-
-    processBlock BChEval{..} = do
-      st <- foldM (flip processTransaction) (merkleValue blockchainState) $ blockTransactions $ merkleValue $ blockData bchValue
-      return BChEval { bchValue        = ()
-                     , blockchainState = merkled st
-                     , ..
-                     }
-
-    generateBlock NewBlock{..} txs = do
-      let selectTx c []     = (c,[])
-          selectTx c (t:tx) = case processTransaction t c of
-                                Left  _  -> selectTx c  tx
-                                Right c' -> let (c'', b  ) = selectTx c' tx
-                                             in  (c'', t:b)
-      let (st', dat) = selectTx (merkleValue newBlockState) txs
-      return BChEval { bchValue        = BData dat
-                     , validatorSet    = merkled newBlockValSet
-                     , blockchainState = merkled st'
-                     }
-
-    processTransaction :: Tx -> BoxChain -> Either UtxoError BoxChain
-    processTransaction tx st = either (Left . UtxoError) Right $ fst $ react tx st
-
 ------------------------------------------
-{-
-interpretSpec
+
+interpretSpecWithCallback
    :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
-      , MonadTrace m, MonadTMMonitoring m
-      , Has x BlockchainNet
-      , Has x NodeSpec
-      , Has x (Configuration BoxChainConfig))
-   => Genesis BData
-   -> x
-   -> AppCallbacks m BData
-   -> m (RunningNode m BData, [m ()])
-interpretSpec genesis p cb = do
-  conn    <- askConnectionRO
-  store   <- newSTMBchStorage $ blockchainState genesis
-  mempool <- makeMempool store (ExceptT . return)
-  acts <- runNode (getT p :: Configuration BoxChainConfig) NodeDescription
-    { nodeValidationKey = p ^.. nspecPrivKey
+      , MonadTrace m, MonadTMMonitoring m)
+   => (Block BData -> m ())
+   -> NodeSpec
+   -> [Tx]
+   -> (Bchain m -> m ())
+   -> m ()
+interpretSpecWithCallback callBackOnCommit nodeSpec genesisTx cont = do
+  txWaitChan <- liftIO newBroadcastTChanIO
+  conn     <- askConnectionRO
+  store    <- newSTMBchStorage $ blockchainState genesis
+  mempool  <- makeMempool store (ExceptT . return)
+  nodeDesc <- getNodeDesc nodeSpec mempool store genesis txWaitChan callBackOnCommit
+  acts <- runNode (defCfg :: Configuration BoxChainConfig) nodeDesc
+  let bchain = Bchain
+          { bchain'conn       = conn
+          , bchain'mempool    = mempool
+          , bchain'store      = store
+          , bchain'waitForTx  = getTxWait txWaitChan conn mempool
+          }
+  initDB
+  runConcurrently (cont bchain : acts)
+  where
+    validatorSet = getValidatorSet nodeSpec
+    genesisBlock = bchValue genesis
+    genesis = initBoxChain validatorSet genesisTx
+
+-- TODO
+initDB :: Monad m => m ()
+initDB = return ()
+
+getNodeDesc :: (Monad m, MonadIO m)
+  => NodeSpec
+  -> Mempool m (Alg BData) Tx
+  -> BChStore m BData
+  -> Genesis BData
+  -> TChan [Hash UtxoAlg]
+  -> (Block BData -> m ())
+  -> m (NodeDescription m BData)
+getNodeDesc spec@NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit = do
+  net <- getNetwork spec
+  return $ NodeDescription
+    { nodeValidationKey = nspec'privKey
     , nodeGenesis       = genesis
-    , nodeCallbacks     = cb <> nonemptyMempoolCallback mempool
+    , nodeCallbacks     = mempty { appCommitCallback = getCommitCallback txWaitChan callBackOnCommit }
     , nodeRunner        = ExceptT . return
     , nodeStore         = AppStore { appBchState = store
                                    , appMempool  = mempool
                                    }
-    , nodeNetwork       = getT p
+    , nodeNetwork       = net
     }
-  return
-    ( RunningNode { rnodeState   = store
-                  , rnodeConn    = conn
-                  , rnodeMempool = mempool
-                  }
-    , acts
-    )
--}
+
+getNetwork :: (Monad m, MonadIO m)
+  => NodeSpec -> m BlockchainNet
+getNetwork NodeSpec{..} = do
+  peerId <- generatePeerId
+  let peerInfo = P2PT.PeerInfo peerId (read nspec'port) 0
+  return $ BlockchainNet
+    { bchNetwork          = newNetworkTcp peerInfo
+    , bchInitialPeers     = nspec'seeds
+    }
+
+getTxWait :: (Monad m, MonadIO m)
+  => TChan [Hash UtxoAlg]
+  -> Connection 'RO BData
+  -> Mempool m UtxoAlg Tx
+  -> m (TxHash -> m Bool)
+getTxWait txWaitChan conn mempool = do
+  ch <- liftIO $ atomically $ dupTChan txWaitChan
+  pure $ \(TxHash h0) -> fix $ \loop -> do
+    let h = Hashed (Hash h0)
+    hashes :: [Hash UtxoAlg] <- liftIO $ atomically $ readTChan ch
+    case Hash h0 `elem` hashes of
+      True  -> pure True
+      False -> txInMempool mempool h >>= \case
+        True  -> loop
+        False -> pure False
+
+getCommitCallback :: (Monad m, MonadIO m)
+  => TChan [Hash UtxoAlg]
+  -> (Block BData -> m ())
+  -> Block BData
+  -> m ()
+getCommitCallback txWaitChan callBackOnCommit b = do
+  liftIO $ atomically $ writeTChan txWaitChan $ fmap hash $ (\(BData txs) -> txs) $ merkleValue $ blockData b
+  -- User callback
+  callBackOnCommit b
+
+getValidatorSet :: NodeSpec -> ValidatorSet UtxoAlg
+getValidatorSet NodeSpec{..} =
+  fromRight err $ makeValidatorSet [ Validator pk 1 | pk <- nspec'validators ]
+  where
+    err = error "Failed to get validator set"
+
+getGenesisBlock :: NodeSpec -> [Tx] -> Block BData
+getGenesisBlock nspec txs =
+  makeGenesis (BData txs) (Hashed $ hash emptyBoxChain) validatorSet validatorSet
+  where
+    validatorSet = getValidatorSet nspec
+
 
 -- | Genesis block has many field with predetermined content so this
 --   is convenience function to create genesis block.
@@ -168,84 +201,51 @@ makeGenesis dat stateHash valSet0 valSet1 = Block
 
 data BoxChainSpec = BoxChainSpec
 
-initBoxChain :: (Foldable f)
-  => f (Validator (Alg BData))
-  -> [Tx]
-  -> Genesis BData
-initBoxChain nodes txs = BChEval
+initBoxChain :: ValidatorSet UtxoAlg -> [Tx] -> Genesis BData
+initBoxChain valSet txs = BChEval
   { bchValue        = genesis
   , validatorSet    = merkled valSet
   , blockchainState = merkled state0
   }
   where
-    Right valSet = makeValidatorSet nodes
     genesis = makeGenesis (BData txs) (hashed state0) valSet valSet
     state0 = emptyBoxChain
 
-------------------------------------------
--- instance boilerplate
+-----------------------------------------------------------------
+-- Prometheus metrics
+{-
+makeGaugeRegisteredUsers
+  :: (MonadIO m, MonadMonitor n)
+  => m (BoxChain -> n ())
+makeGaugeRegisteredUsers = do
+  g <- register
+     $ gauge $ Info "huralchain_users_total" "Number of registered users"
+  pure $ setGauge g
+       . fromIntegral . Map.size . huralState'users
+-}
 
-instance CryptoHashable Tx where
-  hashStep = genericHashStep hashDomain
+data BoxChainConfig
 
-instance CryptoHashable BoxChain where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxId where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Prim where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Script where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Box where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma PublicKey) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Proof where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ProvenTree CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.OrChild CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.Challenge CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ECScalar CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ECPoint CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable PublicKey where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Ed.Point where
-  hashStep x = hashStep (Ed.pointEncode x :: ByteString)
-
-instance CryptoHashable Ed.Scalar where
-  hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
-
-instance CryptoHashable a => CryptoHashable (Seq a) where
-  hashStep = hashStep . toList
-
-instance CryptoHashable Text where
-  hashStep = hashStep . serialise
-
-instance CryptoHashable Bool where
-  hashStep = hashStep . serialise
-
-instance CryptoHashable Pico where
-  hashStep = hashStep . serialise
-
+instance DefaultConfig BoxChainConfig where
+  defCfg = Configuration
+    { cfgConsensus         = ConsensusCfg
+      { timeoutNewHeight   = 500
+      , timeoutProposal    = (500, 500)
+      , timeoutPrevote     = (500, 500)
+      , timeoutPrecommit   = (500, 500)
+      , timeoutEmptyBlock  = 100
+      , incomingQueueSize  = 10
+      }
+    , cfgNetwork               = NetworkCfg
+      { gossipDelayVotes       = 25
+      , gossipDelayBlocks      = 25
+      , gossipDelayMempool     = 25
+      , pexMinConnections      = 3
+      , pexMaxConnections      = 12
+      , pexMinKnownConnections = 3
+      , pexMaxKnownConnections = 20
+      , reconnectionRetries    = 100
+      , reconnectionDelay      = 100
+      }
+    }
 

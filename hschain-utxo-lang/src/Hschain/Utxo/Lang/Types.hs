@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Types where
 
 import Hex.Common.Aeson
+import Hex.Common.Serialise
 import Hex.Common.Text
 import Control.DeepSeq (NFData)
 import Control.Monad

@@ -21,31 +21,37 @@ library
   exposed-modules:     Hschain.Utxo.Blockchain
                        Hschain.Utxo.Blockchain.Bchain
                        Hschain.Utxo.Blockchain.Hschain
+                       Hschain.Utxo.Blockchain.Logic
                        Hschain.Utxo.Blockchain.Net
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
-                     , hex-common
-                     , hschain-utxo-lang
-                     , hschain-utxo-state
-                     , data-fix
+                     , aeson
                      , bytestring
                      , containers
                      , cryptonite
-                     , prettyprinter
-                     , text
-                     , vector
+                     , data-fix
+                     , deepseq
+                     , directory
+                     , exceptions
+                     , filepath
+                     , hex-common
+                     , hschain
                      , hschain-types
                      , hschain-crypto
-                     , hschain
-                     , serialise
-                     , deepseq
-                     , aeson
-                     , parallel
-                     , unordered-containers
+                     , hschain-utxo-lang
+                     , hschain-utxo-state
                      , mtl
+                     , network
+                     , parallel
+                     , prettyprinter
+                     , prometheus-client
+                     , serialise
+                     , stm
+                     , text
                      , transformers
-                     , exceptions
+                     , vector
+                     , unordered-containers
 
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -57,6 +63,7 @@ library
     FlexibleContexts
     FlexibleInstances
     GeneralizedNewtypeDeriving
+    LambdaCase
     OverloadedStrings
     RankNTypes
     RecordWildCards

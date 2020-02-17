@@ -1,9 +1,14 @@
 module Hschain.Utxo.Blockchain.Bchain where
 
+import Codec.Serialise
+
+import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
+
+import Data.Text (Text)
 
 import HSChain.Types.Blockchain
 import HSChain.Types.Merkle.Types
@@ -15,22 +20,25 @@ import qualified HSChain.Crypto as Crypto
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.State
 import Hschain.Utxo.State.Types
-import Hschain.Utxo.Blockchain.Hschain
+import Hschain.Utxo.Blockchain.Logic
+
+import qualified Data.Aeson as JSON
 
 data Bchain m = Bchain {
     bchain'conn       :: Connection 'RO BData
-  , bchain'cursor     :: MempoolCursor m (Alg BData) Tx
+  , bchain'mempool    :: Mempool m (Alg BData) Tx
   , bchain'store      :: BChStore m BData
   , bchain'waitForTx  :: m (TxHash -> m Bool)
   }
 
 hoistBchain :: Functor n => (forall a. m a -> n a) -> Bchain m -> Bchain n
 hoistBchain f Bchain{..} = Bchain
-  { bchain'cursor     = hoistMempoolCursor  f bchain'cursor
+  { bchain'mempool    = hoistMempool f bchain'mempool
   , bchain'store      = hoistBChStore       f bchain'store
   , bchain'waitForTx  = fmap f <$> f bchain'waitForTx
   , ..
   }
+
 
 class MonadIO m => MonadBChain m where
   askBchain :: m (Bchain IO)
@@ -41,7 +49,8 @@ class MonadIO m => MonadBChain m where
 writeTx :: (MonadBChain m) => Tx -> m (Maybe TxHash)
 writeTx tx = do
   Bchain{..} <- askBchain
-  liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$> pushTransaction bchain'cursor tx
+  liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
+    ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
 
 readBlock :: (MonadIO m, MonadBChain m) => Int -> m (Maybe [Tx])
 readBlock height = do

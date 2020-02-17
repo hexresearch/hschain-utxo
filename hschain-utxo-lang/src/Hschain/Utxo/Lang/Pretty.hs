@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Pretty(
 ) where
 
 import Hex.Common.Control
+import Hex.Common.Serialise
 
 import Data.Fix
 import Data.Functor.Compose
@@ -14,7 +15,7 @@ import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Sigma (Proof, serialiseToText)
+import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Exec
 
 import qualified Data.Map.Strict as M

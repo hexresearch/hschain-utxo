@@ -17,8 +17,6 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Hschain.Utxo.State
-                       Hschain.Utxo.State.Blockchain
-                       Hschain.Utxo.State.Blockchain.Config
                        Hschain.Utxo.State.Pretty
                        Hschain.Utxo.State.Query
                        Hschain.Utxo.State.React
