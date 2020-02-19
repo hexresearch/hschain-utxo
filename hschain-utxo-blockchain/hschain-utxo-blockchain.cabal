@@ -20,7 +20,7 @@ extra-source-files:  CHANGELOG.md
 library
   exposed-modules:     Hschain.Utxo.Blockchain
                        Hschain.Utxo.Blockchain.Bchain
-                       Hschain.Utxo.Blockchain.Hschain
+                       Hschain.Utxo.Blockchain.Interpret
                        Hschain.Utxo.Blockchain.Logic
                        Hschain.Utxo.Blockchain.Net
   -- other-modules:

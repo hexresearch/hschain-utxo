@@ -2,15 +2,24 @@ module Hschain.Utxo.Back.Env where
 
 import Control.Concurrent.STM
 import Control.Monad
+import Control.Monad.Cont
+import Control.Monad.Catch
 
 import Data.Text (Text)
 import Data.Maybe                (fromMaybe)
 import Data.Time.Clock           (getCurrentTime)
+import Data.String
+
+import System.FilePath
+import System.Directory
+
+import HSChain.Store
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.State.React
 import Hschain.Utxo.State.Types
+import Hschain.Utxo.Blockchain
 
 import GHC.Generics (Generic)
 import Katip
@@ -21,44 +30,31 @@ import HSChain.Logger
 import Hschain.Utxo.Back.Config (LogSpec(..))
 
 data AppEnv = AppEnv
-  { appEnv'boxChain :: TVar BoxChain
+  { appEnv'bchain :: Bchain IO
   }
 
-emptyAppEnv :: IO AppEnv
-emptyAppEnv = fmap AppEnv $ newTVarIO emptyBoxChain
+initEnv :: NodeSpec -> [Tx] -> IO (AppEnv, [IO ()])
+initEnv nspec genesis =
+  runContT (allocNode nspec) $ \(conn, logEnv) -> initEnvBy conn logEnv nspec genesis
 
-initEnv  :: Genesis -> IO AppEnv
-initEnv genesis = do
-  let bch = case applyTxs genesis emptyBoxChain of
-        Left err -> error $ T.unpack $ mconcat ["Genesis is wrong: ", err]
-        Right nextEnv -> nextEnv
-  env <- fmap AppEnv $ newTVarIO bch
-  return env
+initEnvBy :: Connection 'RW BData -> LogEnv -> NodeSpec -> [Tx] -> IO (AppEnv, [IO ()])
+initEnvBy conn logenv nspec genesis = do
+  (bchain, acts) <- run $ interpretSpec (const $ pure ()) nspec genesis
+  return $ (AppEnv $ hoistBchain run bchain, fmap run acts)
   where
+    run :: DBT 'RW BData (LoggerT m) x -> m x
+    run = runLoggerT logenv . runDBT conn
 
-applyTxs :: [Tx] -> BoxChain -> Either Text BoxChain
-applyTxs txs = foldl (>=>) pure $ fmap (fmap fst . react) txs
-
-
-data KatipEnv = KatipEnv
-  { katipEnv'namespace :: Namespace
-  , katipEnv'logEnv    :: LogEnv
-  } deriving (Generic)
-
-newKatipEnv :: LogSpec -> Text -> IO KatipEnv
-newKatipEnv LogSpec{..} appName = do
-  logEnv <- do le <- initLogEnv appNameSpace $ Environment $ fromMaybe "" logSpec'clusterId
-               return le { _logEnvTimer = getCurrentTime
-                         , _logEnvHost  = case logSpec'hostnameSuffix of
-                                            Nothing -> id
-                                            Just s  -> (<>s)
-                                        $ _logEnvHost le
-                         }
-  let names = [T.pack ("log_" ++ show i) | i <- [0::Int ..]]
-  logEnvWithScribes <- foldM (\le (nm,s) -> makeScribe s >>= (\scribe -> registerScribe nm scribe defaultScribeSettings le))
-    logEnv (zip names logSpec'logFiles)
-  return $ KatipEnv appNameSpace logEnvWithScribes
+-- | Allocate resources for node
+allocNode
+  :: ( MonadIO m, MonadMask m)
+  => NodeSpec
+  -> ContT r m (Connection 'RW a, LogEnv)
+allocNode NodeSpec{..} = do
+  liftIO $ createDirectoryIfMissing True $ takeDirectory nspec'dbName
+  conn   <- ContT $ withDatabase nspec'dbName
+  logenv <- ContT $ withLogEnv namespace "DEV" [ makeScribe s | s <- logSpec'files nspec'logs ]
+  return (conn,logenv)
   where
-    appNameSpace = Namespace [appName]
-
+    namespace = fromString $ T.unpack $ logSpec'namespace nspec'logs
 

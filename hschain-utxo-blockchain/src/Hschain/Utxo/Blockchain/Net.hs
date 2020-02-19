@@ -1,8 +1,11 @@
 module Hschain.Utxo.Blockchain.Net(
-  NodeSpec(..)
+    NodeSpec(..)
+  , LogSpec(..)
 ) where
 
 import Hex.Common.Aeson
+
+import Data.Text (Text)
 
 import GHC.Generics
 
@@ -11,6 +14,7 @@ import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
 import HSChain.P2P
 import HSChain.Blockchain.Internal.Engine.Types
+import HSChain.Logger (ScribeSpec)
 
 ----------------------------------------------------------------
  -- Generating node specification
@@ -29,8 +33,18 @@ data NodeSpec = NodeSpec
   , nspec'seeds          :: [NetAddr]
     -- ^ Set of initial addresses
   , nspec'monitoringPort :: Maybe Int
+  , nspec'logs           :: LogSpec
+    -- ^ Loggers
   }
   deriving (Generic, Show)
 
+data LogSpec = LogSpec
+  { logSpec'files           :: ![ScribeSpec]
+    -- ^ Log files to write to
+  , logSpec'namespace       :: !Text
+    -- ^ Logger namespace
+  } deriving (Generic, Show)
+
+$(deriveJSON dropPrefixOptions ''LogSpec)
 $(deriveJSON dropPrefixOptions ''NodeSpec)
 

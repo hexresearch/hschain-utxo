@@ -11,6 +11,7 @@ import Hschain.Utxo.State.React
 import Hschain.Utxo.State.Types
 
 import Hschain.Utxo.Back.Monad
+import Hschain.Utxo.Blockchain
 
 import qualified Data.Text as T
 
@@ -26,7 +27,7 @@ utxoServer =
   :<|> getStateEndpoint
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
-postTxEndpoint tx = undefined -- fmap (uncurry PostTxResponse) $ updateBoxChain (react tx)
+postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
 
 getBoxBalanceEndpoint :: BoxId -> ServerM (Maybe Money)
 getBoxBalanceEndpoint boxId =

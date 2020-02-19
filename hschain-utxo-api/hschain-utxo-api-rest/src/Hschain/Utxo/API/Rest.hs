@@ -42,9 +42,8 @@ type GetStateEndpoint = "debug" :> "state" :> Summary "Gets the state of box-cha
   :> Get '[JSON] BoxChain
 
 data PostTxResponse = PostTxResponse
-  { postTxResponse'value :: !(Either Text TxHash )
-  , postTxResponse'debug :: !Text }
-  deriving (Show, Eq)
+  { postTxResponse'value :: !(Maybe TxHash )
+  } deriving (Show, Eq)
 
 data SigmaTxResponse = SigmaTxResponse
   { sigmaTxResponse'value :: !(Either Text BoolExprResult)

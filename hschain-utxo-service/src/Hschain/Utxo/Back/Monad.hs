@@ -2,7 +2,6 @@ module Hschain.Utxo.Back.Monad(
     ServerM
   , runServerM
   , readBoxChain
-  , updateBoxChain
 ) where
 
 import Control.Concurrent.STM
@@ -16,9 +15,12 @@ import Data.Text (Text)
 
 import Servant.Server
 
+import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Env
+
+
 
 -- | Server monad that holds internal environment
 newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }
@@ -31,6 +33,9 @@ instance MonadBaseControl IO ServerM where
     type StM ServerM a = StMServerM a
     liftBaseWith f = ServerM $ liftBaseWith $ \q -> f (fmap StMServerM . q . unServerM)
     restoreM = ServerM . restoreM . unStMServerM
+
+instance MonadBChain ServerM where
+  askBchain = asks appEnv'bchain
 
 -- | Execution of 'ServerM'
 runServerM :: AppEnv -> ServerM a -> Handler a
@@ -46,18 +51,5 @@ runServerMIO env m = do
 
 -- | Reads current state of the block chain
 readBoxChain :: ServerM BoxChain
-readBoxChain = do
-  tv <- asks appEnv'boxChain
-  liftIO $ readTVarIO tv
-
-updateBoxChain :: (BoxChain -> (Either Text (TxHash, BoxChain), Text)) -> ServerM ((Either Text TxHash), Text)
-updateBoxChain react = do
-  tv <- asks appEnv'boxChain
-  liftIO $ atomically $ do
-    bch <- readTVar tv
-    case react bch of
-      (Left err, msg) -> return $ (Left err, msg)
-      (Right (txHash, nextBch), msg) -> do
-        writeTVar tv nextBch
-        return $ (Right txHash, msg)
+readBoxChain = readBoxChainState
 

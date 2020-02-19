@@ -1,7 +1,10 @@
 module Hschain.Utxo.State.React(
     react
   , execInBoxChain
+  , applyTxs
 ) where
+
+import Control.Monad
 
 import Data.Either
 import Data.Maybe
@@ -62,3 +65,5 @@ execInBoxChain tx bch = case toTxArg bch tx of
 checkOutputTxArg :: TxArg -> [Box]
 checkOutputTxArg tx@TxArg{..} = V.toList txArg'outputs
 
+applyTxs :: [Tx] -> BoxChain -> Either Text BoxChain
+applyTxs txs = foldl (>=>) pure $ fmap (fmap fst . react) txs

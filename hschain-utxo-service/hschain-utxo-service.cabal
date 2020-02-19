@@ -21,7 +21,6 @@ library
                        Hschain.Utxo.Back.Env
                        Hschain.Utxo.Back.Monad
                        Hschain.Utxo.Back.Server
-                       Hschain.Utxo.Back.WebNode
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
@@ -33,8 +32,10 @@ library
                      , hschain-utxo-state
                      , aeson
                      , bytestring
+                     , directory
                      , exceptions
                      , fast-logger
+                     , filepath
                      , immortal
                      , katip
                      , servant
@@ -42,6 +43,7 @@ library
                      , monad-control
                      , monad-logger
                      , mtl
+                     , prometheus-client
                      , stm
                      , text
                      , time
@@ -56,6 +58,7 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
+    DataKinds
     DeriveGeneric
     GeneralizedNewtypeDeriving
     MultiParamTypeClasses
@@ -63,6 +66,7 @@ library
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables
+    StandaloneDeriving
     TemplateHaskell
 
 executable hschain-utxo-service

@@ -33,25 +33,14 @@ import qualified Data.ByteString.Lazy as LB
 data UtxoSettings = UtxoSettings
   { utxo'web         :: ServerConfig
   , utxo'blockchain  :: NodeSpec
-  , utxo'logs        :: LogSpec
   }
-
--- | Specification of logging
-data LogSpec = LogSpec
-  { logSpec'logFiles :: [ScribeSpec]
-    -- ^ Log files to write to
-  , logSpec'hostnameSuffix :: Maybe String
-    -- ^ Suffix to append to host name in logs.
-  , logSpec'clusterId      :: Maybe Text
-    -- ^ Cluster ID will written to @env@ field of logs
-  }
-  deriving(Generic, Show)
 
 type Genesis = [Tx]
 
 data Config = Config
   { config'server :: ServerConfig
-  } deriving (Show, Eq)
+  , config'node   :: NodeSpec
+  } deriving (Show)
 
 data ServerConfig = ServerConfig
   { serverConfig'host   :: !String

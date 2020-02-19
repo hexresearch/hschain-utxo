@@ -1,9 +1,10 @@
-module Hschain.Utxo.Blockchain.Hschain(
+module Hschain.Utxo.Blockchain.Interpret(
     UtxoAlg
   , UtxoError(..)
   , BData(..)
   , initBoxChain
-  , interpretSpecWithCallback
+  , interpretSpec
+--  , interpretSpecWithCallback
 ) where
 
 import Data.Foldable
@@ -75,15 +76,25 @@ import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
 ------------------------------------------
 
-interpretSpecWithCallback
+{-
+interpretSpec
+   :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
+      , MonadTrace m, MonadTMMonitoring m)
+   => NodeSpec
+   -> [Tx]
+   -> (Bchain m -> m ())
+   -> m ()
+interpretSpec = interpretSpecWithCallback (const $ pure ())
+-}
+
+interpretSpec
    :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
       , MonadTrace m, MonadTMMonitoring m)
    => (Block BData -> m ())
    -> NodeSpec
    -> [Tx]
-   -> (Bchain m -> m ())
-   -> m ()
-interpretSpecWithCallback callBackOnCommit nodeSpec genesisTx cont = do
+   -> m (Bchain m, [m ()])
+interpretSpec callBackOnCommit nodeSpec genesisTx = do
   txWaitChan <- liftIO newBroadcastTChanIO
   conn     <- askConnectionRO
   store    <- newSTMBchStorage $ blockchainState genesis
@@ -97,7 +108,8 @@ interpretSpecWithCallback callBackOnCommit nodeSpec genesisTx cont = do
           , bchain'waitForTx  = getTxWait txWaitChan conn mempool
           }
   initDB
-  runConcurrently (cont bchain : acts)
+  return (bchain, acts)
+  -- runConcurrently (cont bchain : acts)
   where
     validatorSet = getValidatorSet nodeSpec
     genesisBlock = bchValue genesis
