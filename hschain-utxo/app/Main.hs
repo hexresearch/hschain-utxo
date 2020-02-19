@@ -1,4 +1,7 @@
 module Main where
 
+import Hschain.Utxo.App
+
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main = runApp
+

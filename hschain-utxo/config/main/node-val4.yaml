@@ -1,0 +1,17 @@
+port      : "45004"
+seeds     : []
+privKey   : "D2fpHM1JA8trshiUW8XPvspsapUvPqVzSofaK1MGRySd"
+validators:
+    - "HVQNfbH8rj2uVb6XyC41wzGCMGVFooeBZJMLnRBJifTX"
+    - "HUs35FXTSYA3zY39MrKjqFdeCvTxx97uccPFxvwpqgt7"
+    - "AZ3m8VUkPJ8iGNgQ5zpG4rMBqg5VNAYtSaJDmrR4Rz1m"
+    - "2PggMrWVjsvUvrZHqYVgH4PRpjVp2oYJe9gjaWrU1R4m"
+dbName  : "/var/run/user/1000/db/node-4"
+logs:
+  logFiles :
+    - type      : "ScribeJSON"
+      path      : "logs/node-4.log"
+      severity  : "Debug"
+      verbosity : "V2"
+  namespace: "validator-node4"
+

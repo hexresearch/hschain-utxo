@@ -2,3 +2,5 @@
 dist-newstyle
 hschain-utxo-repl/.history
 nix/result
+logs
+dist

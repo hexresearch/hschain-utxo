@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module Hschain.Utxo.Back.App(
     runWebNode
+  , runValidator
 ) where
 
 import Hex.Common.Delay
@@ -35,13 +36,13 @@ import qualified Control.Immortal as Immortal
 runWebNode :: Config -> [Tx] -> IO ()
 runWebNode cfg@Config{..} genesis = do
   (env, acts) <- initEnv config'node genesis
-  runConcurrently $ void (runApp env cfg)
+  runConcurrently $ (void (runApp env cfg) >> waitForever)
                   : acts
 
 runValidator :: NodeSpec -> [Tx] -> IO ()
 runValidator nspec genesis = do
   (_, acts) <- initEnv nspec genesis
-  runConcurrently acts
+  runConcurrently $ waitForever : acts
 
 serverApp :: AppEnv -> Config -> Application
 serverApp env config = do
