@@ -8,7 +8,7 @@ validators:
     - "2PggMrWVjsvUvrZHqYVgH4PRpjVp2oYJe9gjaWrU1R4m"
 dbName  : "/var/run/user/1000/db/node-4"
 logs:
-  logFiles :
+  files :
     - type      : "ScribeJSON"
       path      : "logs/node-4.log"
       severity  : "Debug"

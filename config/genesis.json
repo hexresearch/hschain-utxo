@@ -1,11 +1,11 @@
 [
     {
-        "proof": "gwBYH6RQtX75tZ3x13LBmQT/Sqn33yMoLwIOTxHmdH4wvImDAFggpl6yrz7YGW4teYZJNuv/ze+bvx7VeM9gFUHfxb47LgdYID3k6l4FOHFDglEXkU79ol4yFeeLtqngw2hw1kQHjsit",
+        "proof": "gwBYH++U7FcOBssz8T98qoHTQWR1JkVlr5Dp2kE3wE8OdS6DAFgghzlgMPKizjoTGIAuT8kuruwnQJ8V6ePAaK0s+tkOVApYIMisA3N2il+maY0Wu4JxFV2WRToLy+KDX0plZ2u+MUmy",
         "args": {},
         "inputs": [],
         "outputs": [
             {
-                "script": "Expr (Fix (Pk (SrcSpanInfo {srcInfoSpan = SrcSpan \"\" -1 -1 -1 -1, srcInfoPoints = []}) (Fix (PrimE (SrcSpanInfo {srcInfoSpan = SrcSpan \"\" -1 -1 -1 -1, srcInfoPoints = []}) (PrimString \"2zYnv9fdQ4eAmZcLpsL51sagEKocUtB4K821fGpWvyrQFFa\")))))",
+                "script": "pk \"2zYxFt1frN27gKPHoQNfEHt5e7AqSUkLQ5kZ1b9a2cPxWzV\"",
                 "args": {},
                 "value": 1000000,
                 "id": "master:box-0"

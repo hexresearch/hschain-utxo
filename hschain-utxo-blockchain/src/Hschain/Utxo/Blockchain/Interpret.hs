@@ -107,17 +107,11 @@ interpretSpec callBackOnCommit nodeSpec genesisTx = do
           , bchain'store      = store
           , bchain'waitForTx  = getTxWait txWaitChan conn mempool
           }
-  initDB
   return (bchain, acts)
-  -- runConcurrently (cont bchain : acts)
   where
     validatorSet = getValidatorSet nodeSpec
     genesisBlock = bchValue genesis
     genesis = initBoxChain validatorSet genesisTx
-
--- TODO
-initDB :: Monad m => m ()
-initDB = return ()
 
 getNodeDesc :: (Monad m, MonadIO m)
   => NodeSpec
@@ -215,13 +209,25 @@ data BoxChainSpec = BoxChainSpec
 
 initBoxChain :: ValidatorSet UtxoAlg -> [Tx] -> Genesis BData
 initBoxChain valSet txs = BChEval
-  { bchValue        = genesis
+  { bchValue        = extractRealGenesisHash genesis
   , validatorSet    = merkled valSet
   , blockchainState = merkled state0
   }
   where
-    genesis = makeGenesis (BData txs) (hashed state0) valSet valSet
+    genesis = getFakeHashGenesis
     state0 = emptyBoxChain
+
+    getFakeHashGenesis = makeGenesis (BData txs) fakeHash valSet valSet
+    fakeHash = hashed emptyBoxChain
+
+    extractRealGenesisHash gen = gen { blockStateHash = merkleHashed st }
+      where
+        Right BChEval{blockchainState=st}
+          = processBlock utxoLogic BChEval
+            { bchValue        = gen
+            , validatorSet    = merkled valSet
+            , blockchainState = merkled state0
+            }
 
 -----------------------------------------------------------------
 -- Prometheus metrics

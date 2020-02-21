@@ -33,9 +33,10 @@ data AppEnv = AppEnv
   { appEnv'bchain :: Bchain IO
   }
 
-initEnv :: NodeSpec -> [Tx] -> IO (AppEnv, [IO ()])
-initEnv nspec genesis =
-  runContT (allocNode nspec) $ \(conn, logEnv) -> initEnvBy conn logEnv nspec genesis
+initEnv :: (MonadIO m, MonadMask m) => NodeSpec -> [Tx] -> ContT r m (AppEnv, [IO ()])
+initEnv nspec genesis = do
+  (conn, logEnv) <- allocNode nspec
+  liftIO $ initEnvBy conn logEnv nspec genesis
 
 initEnvBy :: Connection 'RW BData -> LogEnv -> NodeSpec -> [Tx] -> IO (AppEnv, [IO ()])
 initEnvBy conn logenv nspec genesis = do

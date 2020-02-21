@@ -89,7 +89,7 @@ utxoLogic = BChLogic{..}
           selectTx c (t:tx) = case processTransaction t c of
                                 Left  _  -> selectTx c  tx
                                 Right c' -> let (c'', b  ) = selectTx c' tx
-                                             in  (c'', t:b)
+                                            in  (c'', t:b)
       let (st', dat) = selectTx (merkleValue newBlockState) txs
       return BChEval { bchValue        = BData dat
                      , validatorSet    = merkled newBlockValSet

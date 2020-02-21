@@ -254,6 +254,15 @@ instance Num (Expr Double) where
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
 
+instance Num (Expr Money) where
+  (+) = op2 (BinOpE noLoc Plus)
+  (*) = op2 (BinOpE noLoc Times)
+  negate = op1 (UnOpE noLoc Neg)
+  fromInteger n = primExpr $ PrimDouble $ fromIntegral n
+  abs = error "abs is not defined for Expr"
+  signum = error "signum is not defined for Expr"
+
+
 -- equals
 --
 
@@ -266,6 +275,10 @@ instance EqB (Expr Text) where
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
 instance EqB (Expr Double) where
+  (==*) = op2 (BinOpE noLoc Equals)
+  (/=*) = op2 (BinOpE noLoc NotEquals)
+
+instance EqB (Expr Money) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
@@ -282,6 +295,9 @@ instance OrdB (Expr Text) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
 instance OrdB (Expr Double) where
+  (<*) = op2 (BinOpE noLoc LessThan)
+
+instance OrdB (Expr Money) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
 --------------------------

@@ -39,11 +39,12 @@ defaultTestSpec = TestSpec
   }
 
 app :: Options -> Genesis -> IO Thread
-app opt@Options{..} genesis = do
+app opt@Options{..} genesis = undefined {- do
   cfg <- loadConfig configPath
   putStrLn $ mconcat ["Starts hschain-utxo server on port ", show $ serverConfig'port $ config'server cfg]
   appEnv <- initEnv genesis
   runApp appEnv cfg
+-}
 
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do

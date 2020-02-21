@@ -75,8 +75,7 @@ send from fromBoxId to money = do
     return $ SendResult backBoxId toBoxId (getTxHash resp)
 
 getTxHash :: PostTxResponse -> Maybe TxHash
-getTxHash PostTxResponse{..} =
-  either (const Nothing) Just $ postTxResponse'value
+getTxHash PostTxResponse{..} = postTxResponse'value
 
 --------------------------------------------------
 -- init three users

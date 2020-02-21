@@ -264,12 +264,12 @@ postTxDebug isSuccess msg tx = do
   logTest $ renderText tx
   resp <- M.postTx tx
   printTest $ postTxResponse'value resp
-  logTest $ postTxResponse'debug resp
+  -- logTest $ postTxResponse'debug resp
   st <- M.getState
   logTest $ renderText st
   wait
   testCase msg $ (isJust $ getTxHash resp) == isSuccess
-  return $ postTxResponse'value resp
+  return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
   where
     wait = sleep 0.25
 

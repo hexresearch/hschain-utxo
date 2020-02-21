@@ -10,6 +10,7 @@ import Hex.Common.Immortal
 import Control.Concurrent (newEmptyMVar, takeMVar, myThreadId)
 import Control.Immortal
 import Control.Monad
+import Control.Monad.Cont
 import Control.Monad.IO.Class
 import Foreign.StablePtr
 
@@ -30,19 +31,26 @@ import Hschain.Utxo.Back.Server
 import Hschain.Utxo.Back.Env
 import Hschain.Utxo.Lang
 
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Control.Immortal as Immortal
 
 runWebNode :: Config -> [Tx] -> IO ()
-runWebNode cfg@Config{..} genesis = do
+runWebNode cfg@Config{..} genesis = flip runContT return $ do
   (env, acts) <- initEnv config'node genesis
-  runConcurrently $ (void (runApp env cfg) >> waitForever)
-                  : acts
+  liftIO $ runConcurrently $ (void (runApp env cfg) >> greetNode config'node >> waitForever)
+                           : acts
 
 runValidator :: NodeSpec -> [Tx] -> IO ()
-runValidator nspec genesis = do
+runValidator nspec genesis = flip runContT return $ do
   (_, acts) <- initEnv nspec genesis
-  runConcurrently $ waitForever : acts
+  liftIO $ runConcurrently $ (greetNode nspec >> waitForever) : acts
+
+
+greetNode :: NodeSpec -> IO ()
+greetNode NodeSpec{..} = T.putStrLn $ mconcat
+  [ "Starts ", logSpec'namespace nspec'logs , " on port ", T.pack nspec'port ]
 
 serverApp :: AppEnv -> Config -> Application
 serverApp env config = do
