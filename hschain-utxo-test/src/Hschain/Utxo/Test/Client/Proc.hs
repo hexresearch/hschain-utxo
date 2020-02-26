@@ -69,7 +69,7 @@ defaultTestSpec = TestSpec
   }
 
 app :: Options -> Genesis -> IO [ThreadId]
-app opt genesisTx = setupTest opt $ \tempDir -> do
+app opt genesisTx = withTestDir opt $ \tempDir -> do
   valCfgs <- fmap2 (substValidatorTempDir tempDir) $ mapM readValidatorConfig $ configValidatorPath opt
   nodeCfg <- fmap (substWebnodeTempDir tempDir) $ readWebnodeConfig $ configWebnodePath opt
   valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
@@ -112,9 +112,8 @@ runTestProc testApp = do
   where
     wait = sleep 0.25
 
-setupTest :: Options -> (FilePath -> IO a) -> IO a
-setupTest Options{..} cont = do
+withTestDir :: Options -> (FilePath -> IO a) -> IO a
+withTestDir Options{..} cont = do
   createDirectoryIfMissing True testDir
   withTempDirectory testDir "test" cont
-
 
