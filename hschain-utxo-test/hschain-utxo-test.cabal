@@ -30,15 +30,19 @@ library
   -- other-extensions:
   build-depends:       base >=4.11 && <5
                      , hex-common
+                     , hschain
                      , hschain-utxo-api-client
                      , hschain-utxo-api-rest
+                     , hschain-utxo-blockchain
                      , hschain-utxo-lang
                      , hschain-utxo-service
                      , hschain-utxo-state
+                     , Boolean
                      , containers
                      , cryptonite
                      , data-fix
-                     , Boolean
+                     , directory
+                     , filepath
                      , hspec
                      , immortal
                      , servant
@@ -47,6 +51,7 @@ library
                      , random
                      , pretty-show
                      , stm
+                     , temporary
                      , text
                      , time
                      , timeout
