@@ -1,5 +1,7 @@
 module Hschain.Utxo.Back.Config(
     Genesis
+  , UtxoSettings(..)
+  , LogSpec(..)
   , Config(..)
   , ServerConfig(..)
   , loadConfig
@@ -17,17 +19,28 @@ import Data.Yaml.Config            (loadYamlSettings, useEnv)
 
 import Data.Text (Text)
 
+import GHC.Generics
+
+import HSChain.Logger
+
 import Hschain.Utxo.Lang.Types
+import Hschain.Utxo.Blockchain.Net
 
 import qualified Control.Exception   as Exception
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
 
+data UtxoSettings = UtxoSettings
+  { utxo'web         :: ServerConfig
+  , utxo'blockchain  :: NodeSpec
+  }
+
 type Genesis = [Tx]
 
 data Config = Config
   { config'server :: ServerConfig
-  } deriving (Show, Eq)
+  , config'node   :: NodeSpec
+  } deriving (Show)
 
 data ServerConfig = ServerConfig
   { serverConfig'host   :: !String

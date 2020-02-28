@@ -75,7 +75,7 @@ data Ctx = Ctx
   }
 
 newtype Exec a = Exec (StateT Ctx (Either Error) a)
-  deriving (MonadState Ctx, Monad, Functor, Applicative)
+  deriving newtype (MonadState Ctx, Monad, Functor, Applicative)
 
 getHeight :: Exec Int
 getHeight = fmap (fromInteger . ctx'height) get

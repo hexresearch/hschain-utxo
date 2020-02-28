@@ -25,19 +25,28 @@ library
   -- other-extensions:
   build-depends:       base >=4.11 && <5
                      , hex-common
+                     , hschain
                      , hschain-utxo-api-rest
+                     , hschain-utxo-blockchain
                      , hschain-utxo-lang
                      , hschain-utxo-state
                      , aeson
                      , bytestring
+                     , directory
                      , exceptions
+                     , fast-logger
+                     , filepath
                      , immortal
+                     , katip
                      , servant
                      , servant-server
                      , monad-control
+                     , monad-logger
                      , mtl
+                     , prometheus-client
                      , stm
                      , text
+                     , time
                      , transformers-base
                      , wai
                      , wai-extra
@@ -49,12 +58,15 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
+    DataKinds
+    DeriveGeneric
     GeneralizedNewtypeDeriving
     MultiParamTypeClasses
     TypeFamilies
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables
+    StandaloneDeriving
     TemplateHaskell
 
 executable hschain-utxo-service

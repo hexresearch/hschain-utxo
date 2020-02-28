@@ -1,6 +1,9 @@
 module Hschain.Utxo.API.Rest where
 
 import Hex.Common.Aeson
+import Hex.Common.Serialise
+
+import Control.Monad
 
 import Data.Aeson
 import Data.Text (Text)
@@ -39,9 +42,8 @@ type GetStateEndpoint = "debug" :> "state" :> Summary "Gets the state of box-cha
   :> Get '[JSON] BoxChain
 
 data PostTxResponse = PostTxResponse
-  { postTxResponse'value :: !(Either Text TxHash )
-  , postTxResponse'debug :: !Text }
-  deriving (Show, Eq)
+  { postTxResponse'value :: !(Maybe TxHash )
+  } deriving (Show, Eq)
 
 data SigmaTxResponse = SigmaTxResponse
   { sigmaTxResponse'value :: !(Either Text BoolExprResult)
@@ -52,10 +54,12 @@ newtype GetEnvResponse = GetEnvResponse { unGetEnvResponse :: Env }
   deriving (Show, Eq, FromJSON, ToJSON)
 
 instance ToHttpApiData TxHash where
-  toQueryParam (TxHash txt) = txt
+  toQueryParam (TxHash bs) = serialiseToText bs
 
 instance FromHttpApiData TxHash where
-  parseQueryParam = fmap (fmap TxHash) parseQueryParam
+  parseQueryParam = fmap (join . fmap (maybe err (Right . TxHash) . serialiseFromText)) parseQueryParam
+    where
+      err = Left "Failed to decode query param for TxHash"
 
 instance ToHttpApiData BoxId where
   toQueryParam (BoxId txt) = txt

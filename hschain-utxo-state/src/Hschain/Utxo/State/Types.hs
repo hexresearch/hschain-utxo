@@ -2,10 +2,13 @@ module Hschain.Utxo.State.Types where
 
 import Hex.Common.Aeson
 
+import Codec.Serialise (Serialise)
 import Control.Monad
 
 import Data.Text (Text)
 import Data.Map.Strict (Map)
+
+import GHC.Generics
 
 import Hschain.Utxo.Lang
 
@@ -14,7 +17,7 @@ import qualified Data.Map.Strict as M
 data BoxChain = BoxChain
   { boxChain'boxes  :: !(Map BoxId Box)
   , boxChain'height :: !Integer
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic, Serialise)
 
 emptyBoxChain :: BoxChain
 emptyBoxChain = BoxChain

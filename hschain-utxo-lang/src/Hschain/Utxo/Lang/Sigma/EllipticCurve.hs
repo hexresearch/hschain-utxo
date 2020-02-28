@@ -3,11 +3,15 @@ module Hschain.Utxo.Lang.Sigma.EllipticCurve(
   , Ed25519
 ) where
 
+import Control.DeepSeq (NFData)
+
 import Crypto.Error
 
 import Data.Bits
 import Data.Coerce
 import Data.Function (on)
+
+import GHC.Generics
 
 import qualified Codec.Serialise          as CBOR
 import qualified Codec.Serialise.Decoding as CBOR
@@ -88,6 +92,15 @@ deriving instance Ord  (ECPoint   Ed25519)
 deriving instance Ord  (ECScalar  Ed25519)
 deriving instance Ord  (Challenge Ed25519)
 
+deriving newtype instance NFData  (ECPoint Ed25519)
+deriving newtype instance NFData  (ECScalar Ed25519)
+deriving newtype instance NFData  (Challenge Ed25519)
+
+deriving stock   instance Generic (ECScalar Ed25519)
+deriving stock   instance Generic (ECPoint Ed25519)
+deriving stock   instance Generic (Challenge Ed25519)
+
+
 instance CBOR.Serialise (ECPoint Ed25519) where
   encode = CBOR.encode . id @BS.ByteString . Ed.pointEncode . coerce
   decode = decodeBy (fmap coerce . Ed.pointDecode) =<< CBOR.decode
@@ -104,5 +117,4 @@ decodeBy decoder bs = case decoder bs of
 instance CBOR.Serialise (Challenge Ed25519) where
   encode (ChallengeEd25519 bs) = CBOR.encode bs
   decode = fmap ChallengeEd25519 CBOR.decode
-
 

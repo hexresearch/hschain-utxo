@@ -1,4 +1,7 @@
 .history
 dist-newstyle
 hschain-utxo-repl/.history
+hschain-utxo-test/test-craddle
 nix/result
+logs
+dist

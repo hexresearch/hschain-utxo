@@ -26,15 +26,43 @@ library
   build-depends:       base >=4.11 && <5
                      , hex-common
                      , hschain-utxo-lang
+                     , data-fix
                      , bytestring
                      , containers
+                     , cryptonite
                      , prettyprinter
                      , text
                      , vector
+                     , hschain-types
+                     , hschain-crypto
+                     , hschain
+                     , serialise
+                     , deepseq
+                     , aeson
+                     , parallel
+                     , unordered-containers
+                     , mtl
+                     , transformers
+                     , exceptions
+
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
-    RecordWildCards
+    DataKinds
+    DeriveAnyClass
+    DeriveGeneric
+    DerivingStrategies
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
     OverloadedStrings
+    RankNTypes
+    RecordWildCards
+    StandaloneDeriving
+    ScopedTypeVariables
     TemplateHaskell
-
+    TypeApplications
+    TypeFamilies
+    TypeOperators
+    TypeSynonymInstances
+ -

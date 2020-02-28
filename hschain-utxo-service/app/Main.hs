@@ -47,8 +47,6 @@ app opt@Options{..} = do
   mGenesis <- loadGenesis  genesisPath
   putStrLn $ mconcat ["Starts hschain-utxo server on port ", show $ serverConfig'port $ config'server cfg]
   case mGenesis of
-    Just genesis -> do
-      appEnv <- initEnv genesis
-      void $ runApp appEnv cfg
+    Just genesis -> runWebNode cfg genesis
     Nothing -> error "Failed to read genesis."
 

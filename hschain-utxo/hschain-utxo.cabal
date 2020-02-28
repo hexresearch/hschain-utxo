@@ -17,11 +17,38 @@ maintainer:          anton.kholomiov@gmail.com
 build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
+library
+  exposed-modules:     Hschain.Utxo.App
+                       Hschain.Utxo.App.Options
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , hex-common
+                     , hschain-utxo-lang
+                     , hschain-utxo-service
+                     , optparse-applicative
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveGeneric
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    TypeFamilies
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TemplateHaskell
+
+
 executable hschain-utxo
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , hschain-utxo
   hs-source-dirs:      app
   default-language:    Haskell2010
 

@@ -1,15 +1,21 @@
 module Hschain.Utxo.Lang.Types where
 
 import Hex.Common.Aeson
+import Hex.Common.Serialise
 import Hex.Common.Text
+import Control.DeepSeq (NFData)
 import Control.Monad
 
+import Codec.Serialise
+
 import Data.Aeson
+import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import GHC.Generics
 import Safe
 
 import Hschain.Utxo.Lang.Expr
@@ -21,10 +27,24 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
 newtype UserId = UserId { unUserId :: Text }
-  deriving (Show, Eq, ToJSON, FromJSON)
+  deriving newtype  (Show, Eq, ToJSON, FromJSON)
+  deriving stock    (Generic)
 
-newtype TxHash = TxHash Text
-  deriving (Show, Eq, Ord, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+newtype TxHash = TxHash ByteString
+  deriving newtype  (Show, Eq, Ord, Serialise)
+  deriving stock    (Generic)
+
+instance ToJSON TxHash where
+  toJSON = serialiseToJSON
+
+instance FromJSON TxHash where
+  parseJSON = serialiseFromJSON
+
+instance ToJSONKey TxHash where
+  toJSONKey = ToJSONKeyText serialiseToText (text . serialiseToText)
+
+instance FromJSONKey TxHash where
+  fromJSONKey = FromJSONKeyTextParser  (maybe mzero return . serialiseFromText)
 
 data Tx = Tx
   { tx'inputs  :: !(Vector BoxId)
@@ -32,7 +52,9 @@ data Tx = Tx
   , tx'proof   :: !(Maybe Proof)
   , tx'args    :: !Args
   }
-  deriving (Show, Eq)
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
 
 -- | Tx with substituted inputs and environment.
 data TxArg = TxArg

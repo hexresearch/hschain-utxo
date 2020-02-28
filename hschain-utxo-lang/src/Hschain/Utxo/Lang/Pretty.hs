@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Pretty(
 ) where
 
 import Hex.Common.Control
+import Hex.Common.Serialise
 
 import Data.Fix
 import Data.Functor.Compose
@@ -62,7 +63,7 @@ prettyArgs m = hsep $ punctuate comma $ fmap phi $ M.toList m
       phi (uid, pk) = hsep [pretty uid, "->", pretty pk]
 
 instance Pretty TxHash where
-  pretty (TxHash txt) = pretty txt
+  pretty (TxHash bs) = pretty $ serialiseToText bs
 
 instance Pretty Tx where
   pretty Tx{..} = prettyRecord "Tx"

@@ -79,11 +79,10 @@ data TestSpec = TestSpec
 getMasterSecret :: App Secret
 getMasterSecret = asks testEnv'masterSecret
 
-runTest :: TestSpec -> App () -> IO Test
-runTest TestSpec{..} app = do
+runTest :: TestSpec -> Secret -> App () -> IO Test
+runTest TestSpec{..} masterSecret app = do
   testTv <- newTVarIO emptyTest
   logTv <- newTVarIO mempty
-  masterSecret <- newSecret
   res <- runApp (env testTv logTv masterSecret) app
   test <- readTVarIO testTv
   return $ case res of
@@ -169,29 +168,27 @@ toHspec Test{..} =
       it (T.unpack testCase'name) $ testCase'value `shouldBe` True
 
 
-initGenesis :: App Genesis
-initGenesis = fmap withSecret $ getMasterSecret
+initGenesis :: Secret -> Genesis
+initGenesis secret = [tx]
   where
-    withSecret secret = [tx]
-      where
-        publicKey = getPublicKey secret
-        env = proofEnvFromKeys [getKeyPair secret]
+    publicKey = getPublicKey secret
+    env = proofEnvFromKeys [getKeyPair secret]
 
-        box = Box
-          { box'id     = initMasterBox
-          , box'value  = initMoney
-          , box'script = toScript $ pk' publicKey
-          , box'args   = M.empty
-          }
+    box = Box
+      { box'id     = initMasterBox
+      , box'value  = initMoney
+      , box'script = toScript $ pk' publicKey
+      , box'args   = M.empty
+      }
 
-        tx = Tx
-          { tx'inputs  = V.empty
-          , tx'outputs = V.fromList [box]
-          , tx'proof   = Nothing
-          , tx'args    = mempty
-          }
+    tx = Tx
+      { tx'inputs  = V.empty
+      , tx'outputs = V.fromList [box]
+      , tx'proof   = Nothing
+      , tx'args    = mempty
+      }
 
-        initMoney = 1000000
+    initMoney = 1000000
 
 -- | Initial master box for default genesis.
 -- All funds belong to master-user.

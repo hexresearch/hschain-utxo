@@ -1,0 +1,14 @@
+[
+    {
+        "args": {},
+        "inputs": [],
+        "outputs": [
+            {
+                "script": "pk \"2zYxFt1frN27gKPHoQNfEHt5e7AqSUkLQ5kZ1b9a2cPxWzV\"",
+                "args": {},
+                "value": 1000000,
+                "id": "master:box-0"
+            }
+        ]
+    }
+]

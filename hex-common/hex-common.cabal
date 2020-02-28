@@ -26,6 +26,8 @@ library
       base >=4.11 && <5
     , aeson
     , bytestring
+    , base58-bytestring
+    , base64-bytestring
     , containers
     , directory
     , immortal
@@ -35,12 +37,14 @@ library
     , mtl
     , pretty-show
     , safe
+    , serialise
     , stm
     , template-haskell
     , text
     , time
     , unbounded-delays
     , unliftio-core
+    , unix
     , url
     , vector
     , vector-space
@@ -56,6 +60,8 @@ library
       Hex.Common.IO
       Hex.Common.Lens
       Hex.Common.Lock
+      Hex.Common.Serialise
+      Hex.Common.Server.Sigterm
       Hex.Common.Text
       Hex.Common.Time
       Hex.Common.Time.Const

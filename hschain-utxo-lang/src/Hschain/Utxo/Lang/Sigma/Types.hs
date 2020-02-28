@@ -1,6 +1,8 @@
 module Hschain.Utxo.Lang.Sigma.Types
 where
 
+import Control.DeepSeq (NFData)
+
 import Data.Coerce
 
 import GHC.Generics (Generic)
@@ -28,6 +30,7 @@ deriving stock   instance Eq   (ECPoint a) => Eq   (PublicKey a)
 deriving stock   instance Ord  (ECPoint a) => Ord  (PublicKey a)
 deriving newtype instance (CBOR.Serialise (ECScalar a)) => CBOR.Serialise (Secret a)
 deriving newtype instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (PublicKey a)
+deriving newtype instance NFData (ECPoint a) => NFData (PublicKey a)
 
 generateSecretKey :: EC a => IO (Secret a)
 generateSecretKey = coerce generateScalar

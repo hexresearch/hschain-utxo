@@ -22,7 +22,10 @@ module Hschain.Utxo.Lang.Sigma(
   , equalSigmaProof
   ) where
 
+import Hex.Common.Serialise
+
 import Control.Monad
+import Control.DeepSeq (NFData)
 
 import Codec.Serialise
 
@@ -78,23 +81,11 @@ toProofEnv :: [KeyPair] -> ProofEnv
 toProofEnv ks = Sigma.Env ks
 
 publicKeyFromText :: Text -> Maybe PublicKey
-publicKeyFromText =
-  (either (const Nothing) Just . deserialiseOrFail . LB.fromStrict <=< Base58.decodeBase58 Base58.bitcoinAlphabet) .
-  TE.encodeUtf8
+publicKeyFromText = serialiseFromText
 
 publicKeyToText :: PublicKey -> Text
-publicKeyToText = TE.decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet . LB.toStrict . serialise
+publicKeyToText = serialiseToText
 
-serialiseToJSON :: Serialise a => a -> Value
-serialiseToJSON = toJSON . TE.decodeUtf8 . Base64.encode . LB.toStrict . serialise
-
-serialiseFromJSON :: Serialise a => Value -> Parser a
-serialiseFromJSON =
-      (toParser . deserialiseOrFail . LB.fromStrict)
-  <=< (toParser . Base64.decode . TE.encodeUtf8)
-  <=< parseJSON
-  where
-    toParser = either (const mzero) pure
 
 instance FromJSON Proof where
   parseJSON = serialiseFromJSON
@@ -122,11 +113,13 @@ verifyProof = Sigma.verifyProof
 
 type Sigma k = Fix (SigmaExpr k)
 
+deriving anyclass instance NFData k => NFData (Sigma k)
+
 data SigmaExpr k a =
     SigmaPk k
   | SigmaAnd [a]
   | SigmaOr  [a]
-  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic)
+  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData)
 
 instance Serialise k => Serialise (Sigma k)
 instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)

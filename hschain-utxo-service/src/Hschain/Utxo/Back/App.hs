@@ -1,14 +1,14 @@
 {-# LANGUAGE CPP #-}
 module Hschain.Utxo.Back.App(
-    runApp
+    runWebNode
+  , runValidator
 ) where
 
 import Hex.Common.Delay
-import Hex.Common.Immortal
 
-import Control.Concurrent (newEmptyMVar, takeMVar, myThreadId)
-import Control.Immortal
+import Control.Concurrent (newEmptyMVar, takeMVar, myThreadId, ThreadId, forkIO)
 import Control.Monad
+import Control.Monad.Cont
 import Control.Monad.IO.Class
 import Foreign.StablePtr
 
@@ -19,14 +19,34 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant.Server (serve, hoistServer)
 
+import HSChain.Control
+
 import Hschain.Utxo.API.Rest
+import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Back.Monad
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Back.Server
 import Hschain.Utxo.Back.Env
+import Hschain.Utxo.Lang
 
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Control.Immortal as Immortal
+
+runWebNode :: Config -> [Tx] -> IO ()
+runWebNode cfg@Config{..} genesis = flip runContT return $ do
+  (env, acts) <- initEnv config'node genesis
+  liftIO $ runConcurrently $ (greetNode config'node >> runApp env cfg)
+                           : acts
+
+runValidator :: NodeSpec -> [Tx] -> IO ()
+runValidator nspec genesis = flip runContT return $ do
+  (_, acts) <- initEnv nspec genesis
+  liftIO $ runConcurrently $ (greetNode nspec >> waitForever) : acts
+
+greetNode :: NodeSpec -> IO ()
+greetNode NodeSpec{..} = T.putStrLn $ mconcat
+  [ "Starts ", logSpec'namespace nspec'logs , " on port ", T.pack nspec'port ]
 
 serverApp :: AppEnv -> Config -> Application
 serverApp env config = do
@@ -42,16 +62,11 @@ warpSettings AppEnv {..} ServerConfig{..} =
       defaultSettings
 --    & setOnException (katipOnExceptionHandler env'katip)
 
-runApp :: AppEnv -> Config -> IO Thread
+runApp :: AppEnv -> Config -> IO ()
 runApp env settings = do
   -- Run the application with Warp
   let httpServer
         = runSettings (warpSettings env $ config'server settings)
         $ serverApp env settings
-  (pid :: Thread) <- immortalProc' "hschain-utxo-main-service" $ liftIO httpServer
-  runBackgroundProcesses env
-  return pid
-
-runBackgroundProcesses :: AppEnv -> IO ()
-runBackgroundProcesses _ = return () -- no procs so far
+  httpServer
 

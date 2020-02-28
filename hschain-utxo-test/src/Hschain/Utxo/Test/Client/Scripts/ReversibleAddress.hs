@@ -5,6 +5,7 @@ module Hschain.Utxo.Test.Client.Scripts.ReversibleAddress(
 import Prelude hiding ((<*))
 
 import Data.Fix
+import Data.Fixed
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang
@@ -43,4 +44,8 @@ reversibleAddressScript blocksIn24h carol feeProposition maxFee =
                       ) $ \isValid ->
   "totalFee"   =: (foldVec (lam2 "x" "b" $ \x b -> ifB (app isFee b) (x + getBoxValue b) x) 0 getOutputs) $ \totalFee ->
   pk "alice" &&* allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee)
+
+
+
+
 
