@@ -5,10 +5,8 @@ module Hschain.Utxo.Back.App(
 ) where
 
 import Hex.Common.Delay
-import Hex.Common.Immortal
 
-import Control.Concurrent (newEmptyMVar, takeMVar, myThreadId)
-import Control.Immortal
+import Control.Concurrent (newEmptyMVar, takeMVar, myThreadId, ThreadId, forkIO)
 import Control.Monad
 import Control.Monad.Cont
 import Control.Monad.IO.Class
@@ -34,19 +32,17 @@ import Hschain.Utxo.Lang
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Control.Immortal as Immortal
 
 runWebNode :: Config -> [Tx] -> IO ()
 runWebNode cfg@Config{..} genesis = flip runContT return $ do
   (env, acts) <- initEnv config'node genesis
-  liftIO $ runConcurrently $ (void (runApp env cfg) >> greetNode config'node >> waitForever)
+  liftIO $ runConcurrently $ (greetNode config'node >> runApp env cfg)
                            : acts
 
 runValidator :: NodeSpec -> [Tx] -> IO ()
 runValidator nspec genesis = flip runContT return $ do
   (_, acts) <- initEnv nspec genesis
   liftIO $ runConcurrently $ (greetNode nspec >> waitForever) : acts
-
 
 greetNode :: NodeSpec -> IO ()
 greetNode NodeSpec{..} = T.putStrLn $ mconcat
@@ -66,16 +62,11 @@ warpSettings AppEnv {..} ServerConfig{..} =
       defaultSettings
 --    & setOnException (katipOnExceptionHandler env'katip)
 
-runApp :: AppEnv -> Config -> IO Thread
+runApp :: AppEnv -> Config -> IO ()
 runApp env settings = do
   -- Run the application with Warp
   let httpServer
         = runSettings (warpSettings env $ config'server settings)
         $ serverApp env settings
-  (pid :: Thread) <- immortalProc' "hschain-utxo-main-service" $ liftIO httpServer
-  runBackgroundProcesses env
-  return pid
-
-runBackgroundProcesses :: AppEnv -> IO ()
-runBackgroundProcesses _ = return () -- no procs so far
+  httpServer
 

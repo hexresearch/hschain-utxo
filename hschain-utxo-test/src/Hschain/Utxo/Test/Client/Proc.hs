@@ -8,17 +8,17 @@ import Hex.Common.Yaml
 
 import Control.Concurrent
 
-import Control.Immortal
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Timeout
 
 import Data.Maybe
 import Data.Ord
+import Data.UUID
 
 import System.Directory
 import System.FilePath
-import System.IO.Temp
+import System.Random
 import Test.Hspec
 
 import HSChain.Logger
@@ -27,9 +27,23 @@ import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Back.App
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Back.Env
+import Hschain.Utxo.Lang.Sigma (newSecret)
 import Hschain.Utxo.Test.Client.Monad(App, runTest, toHspec, TestSpec(..), initGenesis)
 
+import qualified Data.List as L
+
 import qualified Hschain.Utxo.API.Client as C
+
+
+data Resource = Resource
+  { resource'threads :: [ThreadId]
+  , resource'dbs     :: [FilePath]
+  } deriving (Show)
+
+clearResource :: Resource -> IO ()
+clearResource Resource{..} = do
+  mapM_ killThread resource'threads
+  mapM_ clearDb resource'dbs
 
 data Options = Options
   { configValidatorPath  :: ![FilePath]
@@ -64,18 +78,29 @@ defaultServiceOptions = Options
 
 defaultTestSpec :: TestSpec
 defaultTestSpec = TestSpec
-  { testSpec'client  = C.ClientSpec "127.0.0.1" 8181 False
+  { testSpec'client  = C.ClientSpec "127.0.0.1" 8080 False
   , testSpec'verbose = False
   }
 
-app :: Options -> Genesis -> IO [ThreadId]
-app opt genesisTx = withTestDir opt $ \tempDir -> do
-  valCfgs <- fmap2 (substValidatorTempDir tempDir) $ mapM readValidatorConfig $ configValidatorPath opt
-  nodeCfg <- fmap (substWebnodeTempDir tempDir) $ readWebnodeConfig $ configWebnodePath opt
-  valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
-  webThread <- forkIO $ runWebNode nodeCfg genesisTx
-  return $ webThread : valThreads
+app :: Options -> Genesis -> IO Resource
+app opt genesisTx = do
+  valCfgs <-  mapM readValidatorConfig $ configValidatorPath opt
+  nodeCfg <- readWebnodeConfig $ configWebnodePath opt
+  if (isInMemoryTest nodeCfg valCfgs)
+    then do
+      putStrLn "In memory test"
+      go valCfgs nodeCfg
+    else withTestDir opt $ \tempDir ->
+            go (fmap (substValidatorTempDir tempDir) valCfgs) (substWebnodeTempDir tempDir nodeCfg)
   where
+    go valCfgs nodeCfg = do
+      valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
+      webThread <- forkIO $ runWebNode nodeCfg genesisTx
+      return $ Resource
+        { resource'threads = webThread : valThreads
+        , resource'dbs     = catMaybes $ fmap nspec'dbName $ config'node nodeCfg : valCfgs
+        }
+
     readValidatorConfig :: FilePath -> IO NodeSpec
     readValidatorConfig = readYaml
 
@@ -88,7 +113,7 @@ app opt genesisTx = withTestDir opt $ \tempDir -> do
       }
 
     substNodeSpec dir spec@NodeSpec{..} = spec
-      { nspec'dbName = dir <.> nspec'dbName
+      { nspec'dbName = fmap (substDir dir) nspec'dbName
       , nspec'logs   = substLog dir nspec'logs
       }
 
@@ -97,23 +122,58 @@ app opt genesisTx = withTestDir opt $ \tempDir -> do
       }
 
     substScribeSpec dir spec@ScribeSpec{..} = spec
-      { scribe'path = fmap (dir <.> ) scribe'path
+      { scribe'path = fmap (substDir dir) scribe'path
       }
+
+    substDir dir path
+      | isAbsolute path = path
+      | otherwise       = dir </> path
+      where
+        isAbsolute = L.isPrefixOf "/"
 
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do
-  test <- runTest defaultTestSpec $ do
-    genesis <- initGenesis
-    serviceProcs <- liftIO $ app defaultServiceOptions genesis
-    wait
-    testApp
-    liftIO $ mapM_ killThread serviceProcs
+  masterSecret <- newSecret
+  serviceResources <- app defaultServiceOptions $ initGenesis masterSecret
+  wait
+  test <- runTest defaultTestSpec masterSecret $ testApp
+  clearResource serviceResources
+  wait
   return $ toHspec $ test
   where
-    wait = sleep 0.25
+    wait = sleep 1
 
 withTestDir :: Options -> (FilePath -> IO a) -> IO a
 withTestDir Options{..} cont = do
   createDirectoryIfMissing True testDir
-  withTempDirectory testDir "test" cont
+  withFixedDirectory testDir "test" cont
+  where
+    withFixedDirectory dir name cont = do
+      let resDir = dir </> name
+      putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
+      createDirectory resDir
+      cont resDir
+
+    withTempDirectory dir name cont = do
+      tempDir <- getTempDirName name
+      let resDir= dir </> tempDir
+      putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
+      createDirectory resDir
+      cont resDir
+      where
+        getTempDirName name = do
+          suffix :: UUID <- randomIO
+          return $ mconcat [name, "-", show suffix]
+
+clearDb :: FilePath -> IO ()
+clearDb path = removeFile path
+
+isInMemoryTest :: Config -> [NodeSpec] -> Bool
+isInMemoryTest webNode validators =
+  all isInMemoryNode $ config'node webNode : validators
+
+isInMemoryNode :: NodeSpec -> Bool
+isInMemoryNode NodeSpec{..} =
+     (isNothing nspec'dbName || nspec'dbName == Just ":memory:")
+  && (L.null $ logSpec'files nspec'logs)
 

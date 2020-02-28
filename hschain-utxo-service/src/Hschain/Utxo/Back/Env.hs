@@ -52,8 +52,8 @@ allocNode
   => NodeSpec
   -> ContT r m (Connection 'RW a, LogEnv)
 allocNode NodeSpec{..} = do
-  liftIO $ createDirectoryIfMissing True $ takeDirectory nspec'dbName
-  conn   <- ContT $ withDatabase nspec'dbName
+  mapM_ (\db -> liftIO $ createDirectoryIfMissing True $ takeDirectory db) nspec'dbName
+  conn   <- ContT $ withDatabase $ fromMaybe ":memory:" nspec'dbName
   logenv <- ContT $ withLogEnv namespace "DEV" [ makeScribe s | s <- logSpec'files nspec'logs ]
   return (conn,logenv)
   where

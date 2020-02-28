@@ -26,7 +26,7 @@ data NodeSpec = NodeSpec
     -- ^ Private key of validator
   , nspec'validators     :: [PublicKey (Ed25519 :& SHA512)]
     -- ^ Set of public keys of validator nodes
-  , nspec'dbName         :: FilePath
+  , nspec'dbName         :: Maybe FilePath
     -- ^ Database name for the node
   , nspec'port           :: String
     -- ^ Port to listen on
