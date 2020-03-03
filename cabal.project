@@ -1,5 +1,6 @@
 packages:
   hex-common
+  hindley-milner-tags
   hs-check
   hschain-utxo
   hschain-utxo-api/hschain-utxo-api-client
