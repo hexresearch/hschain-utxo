@@ -49,7 +49,7 @@ data Typed t a
     deriving (Show, Functor)
 
 -- | Typed term variables.
-type TyVar src = Typed (Sigma src) Var
+type TyVar src = Typed (Signature src) Var
 
 newtype TypedF t f r = TypedF { unTypedF :: Typed t (f r) }
     deriving Show
@@ -58,26 +58,26 @@ instance Functor f => Functor (TypedF t f) where
     fmap f (TypedF t) = TypedF (fmap (fmap f) t)
 
 -- | Typed terms.
-type TyTerm src = Fix (TypedF (Tau src) (TermF src (TyVar src)))
+type TyTerm src = Fix (TypedF (Type src) (TermF src (TyVar src)))
 
 -- | 'tyVarE' @x t@ constructs a variable whose name is @x@ and whose type is
 -- @t@.
-tyVarE :: src -> TyVar src -> Tau src -> TyTerm src
+tyVarE :: src -> TyVar src -> Type src -> TyTerm src
 tyVarE src x t = Fix $ TypedF $ Typed (Var src x) t
 
 -- | 'tyAppE' @l r t@ constructs an application of @l@ to @r@ whose resulting
 -- type is @t@.
-tyAppE :: src -> TyTerm src -> TyTerm src -> Tau src -> TyTerm src
+tyAppE :: src -> TyTerm src -> TyTerm src -> Type src -> TyTerm src
 tyAppE src l r t = Fix $ TypedF $ Typed (App src l r) t
 
 -- | 'tyAbsE' @x e t@ constructs an abstraction of @x@ over @t@ whose type
 -- is @t@.
-tyAbsE :: src -> TyVar src -> TyTerm src -> Tau src -> TyTerm src
+tyAbsE :: src -> TyVar src -> TyTerm src -> Type src -> TyTerm src
 tyAbsE src x e t = Fix $ TypedF $ Typed (Abs src x e) t
 
 -- | 'tyLetE' @x e0 e1 t@ constructs a binding of @e0@ to @x@ in @e1@ whose
 -- resulting type is @t@.
-tyLetE :: src -> TyVar src -> TyTerm src -> TyTerm src -> Tau src -> TyTerm src
+tyLetE :: src -> TyVar src -> TyTerm src -> TyTerm src -> Type src -> TyTerm src
 tyLetE src x e0 e1 t = Fix $ TypedF $ Typed (Let src x e0 e1) t
 
 --------------------------------------------------------------------------------

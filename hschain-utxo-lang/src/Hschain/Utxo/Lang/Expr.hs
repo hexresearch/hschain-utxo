@@ -21,12 +21,21 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import Type.Loc
-import Type.Type
+-- import Language.HM ()
 
 import Text.Show.Deriving
 
 import Hschain.Utxo.Lang.Sigma
+
+import qualified Language.HM as H
+import qualified Language.Haskell.Exts.SrcLoc as Hask
+
+type Loc = Hask.SrcSpanInfo
+type Type = H.Type Loc
+type Signature = H.Signature Loc
+
+noLoc :: Loc
+noLoc = Hask.noSrcSpan
 
 type Money = Pico
 
@@ -41,11 +50,13 @@ data VarName = VarName
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
-fromVarName :: VarName -> Id
+{-
+fromVarName :: VarName -> Text
 fromVarName (VarName loc name) = Id loc name
 
 toVarName :: Id -> VarName
 toVarName (Id loc txt) = VarName loc txt
+-}
 
 type Args = Map Text (Prim )
 
@@ -68,7 +79,7 @@ data Box = Box
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 data Pat
-  = PVar Loc Id
+  = PVar Loc VarName
   deriving (Show, Eq, Ord)
   -- | PWildcard Loc
   -- | PLit Loc Prim
@@ -93,13 +104,13 @@ data BindGroup a = BindGroup
 
 
 data Expl a = Expl
-  { expl'name  :: Id
-  , expl'type  :: Scheme
+  { expl'name  :: VarName
+  , expl'type  :: Signature
   , expl'alts  :: [Alt a]
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 data Impl a = Impl
-  { impl'name  :: Id
+  { impl'name  :: VarName
   , impl'alts  :: [Alt a]
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
@@ -226,44 +237,45 @@ scriptT = scriptT' noLoc
 textT = textT' noLoc
 
 boxT' :: Loc -> Type
-boxT' loc = TCon loc (Tycon loc (Id loc "Box") (Star loc))
+boxT' loc = H.conT loc "Box"
 
 textT' :: Loc -> Type
-textT' loc = TCon loc (Tycon loc (Id loc "Text") (Star loc))
+textT' loc = H.conT loc "Text"
 
 boolT' :: Loc -> Type
-boolT' loc = TCon loc (Tycon loc (Id loc "Bool") (Star loc))
+boolT' loc = H.conT loc "Bool"
 
 scriptT' :: Loc -> Type
-scriptT' loc = TCon loc (Tycon loc (Id loc "Script") (Star loc))
+scriptT' loc = H.conT loc "Script"
 
 vectorT :: Type -> Type
 vectorT = vectorT' noLoc
 
 vectorT' :: Loc -> Type -> Type
-vectorT' loc a = TAp loc (TCon loc (Tycon loc (Id loc "Vector") (Kfun loc (Star loc) (Star loc)))) a
+vectorT' loc a = H.appT loc (H.conT loc "Vector") a
 
 tupleT :: [Type] -> Type
 tupleT = tupleT' noLoc
 
 tupleT' :: Loc -> [Type] -> Type
-tupleT' loc ts = foldl (TAp loc) cons ts
+tupleT' loc ts = foldl (H.appT loc) cons ts
   where
     arity = length ts
-
-    kind = foldr1 (Kfun loc) $ replicate arity (Star loc)
-    cons = TCon loc $ Tycon loc (Id loc $ mappend "Tuple" (showt arity)) kind
+    cons = H.conT loc $ mappend "Tuple" (showt arity)
 
 --------------------------------
 -- instances
 
-instance HasLoc VarName where
+instance H.HasLoc VarName where
+  type Loc VarName = Loc
   getLoc (VarName loc _) = loc
 
-instance HasLoc Lang where
-  getLoc (Fix expr) = getLoc expr
+instance H.HasLoc Lang where
+  type Loc Lang = Loc
+  getLoc (Fix expr) = H.getLoc expr
 
-instance Show a => HasLoc (E a) where
+instance Show a => H.HasLoc (E a) where
+  type Loc (E a) = Loc
   getLoc = \case
     Var loc _ -> loc
     Apply loc _ _ -> loc
@@ -296,21 +308,25 @@ instance Show a => HasLoc (E a) where
     -- debug
     Trace loc _ _ -> loc
 
-instance HasLoc a => HasLoc (Alt a) where
-  getLoc = getLoc . alt'expr
+instance H.HasLoc a => H.HasLoc (Alt a) where
+  type Loc (Alt a) = H.Loc a
+  getLoc = H.getLoc . alt'expr
 
-instance HasLoc (Expl a) where
-  getLoc = getLoc . expl'name
+instance H.HasLoc (Expl a) where
+  type Loc (Expl a) = Loc
+  getLoc = H.getLoc . expl'name
 
-instance HasLoc (Impl a) where
-  getLoc = getLoc . impl'name
+instance H.HasLoc (Impl a) where
+  type Loc (Impl a) = Loc
+  getLoc = H.getLoc . impl'name
 
-instance HasLoc (BindGroup Lang) where
+instance H.HasLoc (BindGroup Lang) where
+  type Loc (BindGroup Lang) = Loc
   getLoc BindGroup{..} = case bindGroup'expl of
-    a:_ -> getLoc $ expl'name a
+    a:_ -> H.getLoc $ expl'name a
     []  -> case bindGroup'impl of
       iss:_ -> case iss of
-        is:_ -> getLoc $ impl'name is
+        is:_ -> H.getLoc $ impl'name is
         []   -> noLoc
       []   -> noLoc
 

@@ -15,8 +15,8 @@ import Control.Applicative
 
 import Data.Fix
 
-import Type.Loc
-import Type.Type
+import Language.HM (getLoc)
+
 import Hschain.Utxo.Lang.Expr
 
 import qualified Data.List as L
@@ -35,7 +35,7 @@ singleLet loc v body expr = Fix $ Let loc bg expr
 
     expl = []
 
-    impl = [[Impl (fromVarName v) [Alt [] body]]]
+    impl = [[Impl v [Alt [] body]]]
 
 explToImpl :: Expl a -> Impl a
 explToImpl Expl{..} = Impl expl'name expl'alts
@@ -88,8 +88,8 @@ moduleToMainExpr prog = case findMain prog of
         noMainImpl = not . isMain . impl'name
         noMainExpl = not . isMain . expl'name
 
-    isMain :: Id -> Bool
-    isMain = (== "main") . id'name
+    isMain :: VarName -> Bool
+    isMain = (== "main") . varName'name
 
 
 app2 :: Lang -> Lang -> Lang -> Lang
@@ -103,7 +103,7 @@ altToExpr Alt{..} = case alt'pats of
   []   -> alt'expr
   pats -> Fix $ LamList (getLoc alt'expr) (fmap toArg pats) $ alt'expr
   where
-    toArg (PVar _ var) = toVarName var
+    toArg (PVar _ var) = var
 
 
 

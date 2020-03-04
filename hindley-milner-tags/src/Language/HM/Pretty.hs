@@ -10,8 +10,8 @@ import Language.HM.Type
 
 import qualified Data.List as L
 
-instance Pretty (Tau src) where
-  pretty = cata go . unTau
+instance Pretty (Type src) where
+  pretty = cata go . unType
     where
       go = \case
         VarT _ var   -> pretty var

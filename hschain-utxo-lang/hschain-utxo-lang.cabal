@@ -55,7 +55,7 @@ library
                      , groom
                      , haskell-src-exts
                      , hex-common
-                     , hs-check
+                     , hindley-milner-tags
                      , memory
                      , mtl
                      , pretty-show

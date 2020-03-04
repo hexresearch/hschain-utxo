@@ -58,8 +58,8 @@ library
     Language.HM.AlgorithmW,
     Language.HM.Alpha,
     Language.HM.Pretty,
+    Language.HM.Subst,
     Language.HM.Term,
-    Language.HM.Theta,
     Language.HM.Type,
     Language.HM.TypeError
 
@@ -73,6 +73,7 @@ library
   build-depends:
     base >=4.8 && <5,
     containers >=0.5,
+    deriving-compat,
     data-fix,
     mtl,
     prettyprinter,
@@ -94,6 +95,7 @@ library
     LambdaCase,
     OverloadedStrings,
     ScopedTypeVariables,
+    TemplateHaskell,
     TypeFamilies,
     TypeSynonymInstances
 

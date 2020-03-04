@@ -1,9 +1,7 @@
---------------------------------------------------------------------------------
-
 module Language.HM.AlgorithmW (
     -- * Typing contexts
     Context(..),
-    empty,
+    emptyContext,
 
     -- * External interface
     runW,
@@ -23,22 +21,22 @@ import qualified Data.List as L
 import qualified Data.Map as M
 
 import Language.HM.Term
-import Language.HM.Theta
+import Language.HM.Subst
 import Language.HM.Type
 import Language.HM.TypeError
 
 --------------------------------------------------------------------------------
 
 -- | Typing contexts.
-newtype Context src = Context { unContext :: M.Map Var (Sigma src) }
+newtype Context src = Context { unContext :: M.Map Var (Signature src) }
 
 -- | 'empty' is the empty typing context.
-empty :: Context src
-empty = Context M.empty
+emptyContext :: Context src
+emptyContext = Context M.empty
 
 -- instance CanApply Context where
-applyContext :: Theta src -> Context src -> Context src
-applyContext s = Context . M.map (applySigma s) . unContext
+applyContext :: Subst src -> Context src -> Context src
+applyContext s = Context . M.map (applySignature s) . unContext
 
 --------------------------------------------------------------------------------
 
@@ -66,7 +64,7 @@ instance Monad (W src) where
 --------------------------------------------------------------------------------
 
 -- | 'fresh' returns a fresh type variable.
-fresh :: src -> W src (Tau src)
+fresh :: src -> W src (Type src)
 fresh src = W $ \_ n -> return (varT src (mconcat ["$", fromString $ show n]), n + 1)
 
 typeError :: TypeError src -> W src a
@@ -75,10 +73,10 @@ typeError err = W $ \_ _ -> Left err
 --------------------------------------------------------------------------------
 
 -- | 'gen' @t@ generalises a monomorphic type @t@ to a polymorphic type.
-gen :: Tau src -> W src (Sigma src)
+gen :: Type src -> W src (Signature src)
 gen t = W $ \ctx n -> return (gen' ctx t, n)
 
-gen' :: Context src -> Tau src -> Sigma src
+gen' :: Context src -> Type src -> Signature src
 gen' ctx t = L.foldr (\(ty, src) -> forAllT src ty) (monoT t) $ M.toList $ unVarSet vs
     where
         cs = mconcat $ map tyVars $ M.elems $ unContext ctx
@@ -87,23 +85,23 @@ gen' ctx t = L.foldr (\(ty, src) -> forAllT src ty) (monoT t) $ M.toList $ unVar
 -- | 'genInOrder' @ctx t@ generalises a monomorphic type @t@ to a polymorphic
 -- type in a context @ctx@. This variant of 'gen' ensures that the order of
 -- quantifiers matches that in which type variables occur in @t@.
-genInOrder :: Context src -> Tau src -> Sigma src
+genInOrder :: Context src -> Type src -> Signature src
 genInOrder ctx t = foldr (\(var, src) -> forAllT src var) (monoT t) vs
     where
         cs = mconcat $ map tyVars $ M.elems $ unContext ctx
         vs = L.deleteFirstsBy ((==) `on` fst) (tyVarsInOrder t) (M.toList $ unVarSet cs)
 
 -- | 'inst' @t@ instantiates a polymorphic type @t@ with fresh type variables.
-inst :: Sigma src -> W src (Tau src)
-inst = cataM go . unSigma
+inst :: Signature src -> W src (Type src)
+inst = cataM go . unSignature
     where
         go (MonoT t) = return t
         go (ForAllT src x t) = do
             i <- fresh src
 
-            let s = Theta $ M.singleton x i
+            let s = Subst $ M.singleton x i
 
-            return (applyTau s t)
+            return (applyType s t)
 
 -- | 'withContext' @f m@ runs applies @f@ to the typing context in which @m@ is
 -- run. The context of the overall computation is not affected.
@@ -111,12 +109,12 @@ withContext :: (Context src -> Context src) -> W src a -> W src a
 withContext f (W m) = W $ \ctx n -> m (f ctx) n
 
 -- | 'lookupType' @x@ looks up the type of @x@ in the context.
-lookupType :: Var -> W src (Maybe (Sigma src))
+lookupType :: Var -> W src (Maybe (Signature src))
 lookupType x = W $ \ctx n -> return (M.lookup x $ unContext ctx, n)
 
 -- | 'requireType' @x@ looks up the type of @x@ in the context. A type error
 -- is raised if @x@ is not typed in the context.
-requireType :: src -> Var -> W src (Sigma src)
+requireType :: src -> Var -> W src (Signature src)
 requireType src x = lookupType x >>= \r -> case r of
     Nothing -> typeError $ NotInScopeErr src x
     Just t  -> return t
@@ -124,28 +122,28 @@ requireType src x = lookupType x >>= \r -> case r of
 --------------------------------------------------------------------------------
 
 -- | 'bind' @x t@ binds a type @t@ to a type variable named @x@.
-bind :: Text -> TauF src (Fix (TauF src)) -> W src (Theta src)
-bind x (VarT _ y) | x == y = return $ Theta M.empty
-bind x t = case getVar (tyVars (Tau $ Fix t)) x of
-  Just src -> typeError $ OccursErr src x (Tau $ Fix t)
-  Nothing  -> return $ Theta $ M.singleton x (Tau $ Fix t)
+bind :: Text -> TypeF src (Fix (TypeF src)) -> W src (Subst src)
+bind x (VarT _ y) | x == y = return $ Subst M.empty
+bind x t = case getVar (tyVars (Type $ Fix t)) x of
+  Just src -> typeError $ OccursErr src x (Type $ Fix t)
+  Nothing  -> return $ Subst $ M.singleton x (Type $ Fix t)
 
 -- | 'unify' @t0 t1@ unifies two types @t0@ and @t1@. If the two types can be
 -- unified, a substitution is returned which unifies them.
-unify :: Tau src -> Tau src -> W src (Theta src)
-unify (Tau tau0) (Tau tau1) = go (unFix tau0) (unFix tau1)
+unify :: Type src -> Type src -> W src (Subst src)
+unify (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
     where
         go (VarT _ x) t = bind x t
         go t (VarT _ x) = bind x t
-        go (ConT _ a) (ConT _ b) | a == b = return emptyTheta
+        go (ConT _ a) (ConT _ b) | a == b = return emptySubst
         go (AppT _ f x) (AppT _ g y) = unifyPair (f, x) (g, y)
         go (ArrowT _ f x) (ArrowT _ g y) = unifyPair (f, x) (g, y)
         -- without base types etc., all types are unifiable
-        go t0 t1 = typeError $ UnifyErr (getSrc $ Tau $ Fix t0) (Tau $ Fix t0) (Tau $ Fix t1)
+        go t0 t1 = typeError $ UnifyErr (getLoc $ Type $ Fix t0) (Type $ Fix t0) (Type $ Fix t1)
 
         unifyPair (f, x) (g, y) = do
             s0 <- go (unFix f) (unFix g)
-            s1 <- go (unFix $ unTau $ applyTau s0 $ Tau x) (unFix $ unTau $ applyTau s0 $ Tau y)
+            s1 <- go (unFix $ unType $ applyType s0 $ Type x) (unFix $ unType $ applyType s0 $ Type y)
             return (s1 <@> s0)
 
 --------------------------------------------------------------------------------
@@ -154,7 +152,7 @@ unify (Tau tau0) (Tau tau1) = go (unFix tau0) (unFix tau1)
 infer :: forall src . Term src -> W src (TyTerm src)
 infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
     where
-        go :: TermF src Var (W src (Theta src, Tau src, TyTerm src)) -> W src (Theta src, Tau src, TyTerm src)
+        go :: TermF src Var (W src (Subst src, Type src, TyTerm src)) -> W src (Subst src, Type src, TyTerm src)
         go (Var src x) = do
             -- @x@ must be typed in the context
             pt <- requireType src x
@@ -163,7 +161,7 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
             mt <- inst pt
 
             -- return an annotated variable along with an empty substituion
-            return (emptyTheta, mt, tyVarE src (Typed x (monoT mt)) mt)
+            return (emptySubst, mt, tyVarE src (Typed x (monoT mt)) mt)
         go (App src f x) = do
             (s0, t0, tf) <- f
             (s1, t1, tx) <- withContext (applyContext s0) x
@@ -176,7 +174,7 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
             s2 <- unify t0 (arrowT src t1 mt)
 
             -- return the annotated application
-            return (s2 <@> s1 <@> s0, applyTau s2 mt, tyAppE src tf tx mt)
+            return (s2 <@> s1 <@> s0, applyType s2 mt, tyAppE src tf tx mt)
         go (Abs src x e) = do
             -- we need a fresh type variable for @x@
             mt <- fresh src
@@ -187,7 +185,7 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
             let rt = arrowT src mt t0
 
             -- return the annotated abstraction
-            return (s0, applyTau s0 rt, tyAbsE src (Typed x (monoT mt)) te rt)
+            return (s0, applyType s0 rt, tyAbsE src (Typed x (monoT mt)) te rt)
         go (Let src x e0 e1) = do
             -- infer the type of the expression that is being bound
             (s0, t0, te0) <- e0
@@ -210,7 +208,7 @@ runW ctx term = fst `fmap` unW (infer term) ctx 0
 
 -- | 'inferW' @gamma term@ runs Algorithm W on @term@ with an initial context
 -- @gamma@ and returns the polymorphic type of the whole term.
-inferW :: Context src -> Term src -> Either (TypeError src) (Tau src)
+inferW :: Context src -> Term src -> Either (TypeError src) (Type src)
 inferW ctx term = (tyAnn . unTypedF . unFix) `fmap` runW ctx term
 
 --------------------------------------------------------------------------------
