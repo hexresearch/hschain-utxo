@@ -3,6 +3,8 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskModule
 ) where
 
+import Hex.Common.Text
+
 import Control.Monad
 
 import Data.Fix
@@ -70,7 +72,7 @@ toHaskExp (Fix expr) = case expr of
     fromUnOp loc op a = case op of
       Not       -> ap (VarName loc "not") a
       Neg       -> ap (VarName loc "negate") a
-      TupleAt n -> ap2 (VarName loc "tupleAt") (Fix $ PrimE loc $ PrimInt n) a
+      TupleAt size n -> ap2 (VarName loc $ mconcat ["tuple", showt size, "At"]) (Fix $ PrimE loc $ PrimInt n) a
 
     fromBimOp loc op = case op of
       And                   -> op2' "&&"
@@ -85,7 +87,6 @@ toHaskExp (Fix expr) = case expr of
       GreaterThan           -> op2' ">"
       LessThanEquals        -> op2' "<="
       GreaterThanEquals     -> op2' ">="
-      ComposeFun            -> op2' "."
       where
         op2' name a b = op2 loc name (rec a) (rec b)
 

@@ -150,13 +150,12 @@ data E a
   | Trace Loc a a
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data UnOp = Not | Neg | TupleAt Int
+data UnOp = Not | Neg | TupleAt Int Int
   deriving (Show, Eq)
 
 data BinOp
   = And | Or | Plus | Minus | Times | Div
   | Equals | NotEquals | LessThan | GreaterThan | LessThanEquals | GreaterThanEquals
-  | ComposeFun
   deriving (Show, Eq)
 
 data BoxExpr a
