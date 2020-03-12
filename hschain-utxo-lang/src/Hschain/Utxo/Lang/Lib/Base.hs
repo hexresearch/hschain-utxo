@@ -1,10 +1,12 @@
 module Hschain.Utxo.Lang.Lib.Base(
     importBase
   , baseNames
-  , baseTypeAssump
+  , baseLibTypeContext
+  , langTypeContext
 ) where
 
 import qualified Prelude as P
+import Prelude ((.))
 import Prelude (($))
 import Data.Text (Text)
 
@@ -13,13 +15,22 @@ import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Infer
 
+import Language.HM (monoT, forAllT)
 import qualified Language.HM as H
+
+import qualified Data.Map as M
+
+langTypeContext :: H.Context Loc
+langTypeContext =
+  P.mappend defaultContext baseLibTypeContext
 
 -- | Prelude functions
 importBase :: Lang -> Lang
 importBase = P.foldl (\f g x -> f (g x)) P.id
   [ all
   , any
+  , and
+  , or
   , sum
   , product
   , sumInt
@@ -74,6 +85,8 @@ baseNames :: [Text]
 baseNames =
   [ "all"
   , "any"
+  , "and"
+  , "or"
   , "sumInt"
   , "productInt"
   , "sum"
@@ -126,80 +139,98 @@ baseNames =
   , ">="
   ]
 
-data Assump = Assump
-  { assump'id   :: H.Var
-  , assump'type :: Type
-  } deriving (P.Show, P.Eq)
-
 (~>) :: Type -> Type -> Type
 (~>) a b = H.arrowT noLoc a b
 
-baseTypeAssump :: [Assump]
-baseTypeAssump =
-  [ assumpType  "all" (vectorT boolT ~> boolT)
-  , assumpType  "any" (vectorT boolT ~> boolT)
-  , assumpType "sumInt"      (vectorT intT ~> intT)
-  , assumpType "productInt"  (vectorT intT ~> intT)
-  , assumpType "sum"      (vectorT intT ~> intT)
-  , assumpType "product"  (vectorT intT ~> intT)
-  , assumpType  "."  ((bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
-  , assumpType  "id"  (aT ~> aT)
-  , assumpType "const" (aT ~> bT ~> aT)
-  , assumpType "getHeight" intT
-  , assumpType "getSelf" boxT
-  , assumpType "getOutput" (intT ~> boxT)
-  , assumpType "getInput"  (intT ~> boxT)
-  , assumpType "getOutputs" (vectorT boxT)
-  , assumpType "getInputs" (vectorT boxT)
-  , assumpType "getBoxId" (boxT ~> textT)
-  , assumpType "getBoxValue" (boxT ~> intT)
-  , assumpType "getBoxScript" (boxT ~> scriptT)
-  , assumpType "getBoxArg" (boxT ~> textT ~> aT)
-  , assumpType "sha256" (textT ~> textT)
-  , assumpType "blake2b256" (textT ~> textT)
-  , assumpType "getVar" (textT ~> aT)
-  , assumpType "trace" (textT ~> aT ~> aT)
-  , assumpType "length" (vectorT aT ~> intT)
-  , assumpType "lengthText" (textT ~> intT)
-  , assumpType "showInt" (intT ~> textT)
-  , assumpType "showDouble" (intT ~> textT)
-  , assumpType "showBool" (boolT ~> textT)
-  , assumpType "showScript" (scriptT ~> textT)
-  , assumpType "&&" (boolT ~> boolT ~> boolT)
-  , assumpType "||" (boolT ~> boolT ~> boolT)
-  , assumpType "not" (boolT ~> boolT)
-  , assumpType "+" (intT ~> intT ~> intT)
-  , assumpType "-" (intT ~> intT ~> intT)
-  , assumpType "*" (intT ~> intT ~> intT)
-  , assumpType "/" (intT ~> intT ~> intT)
-  , assumpType "+." (intT ~> intT ~> intT)
-  , assumpType "-." (intT ~> intT ~> intT)
-  , assumpType "*." (intT ~> intT ~> intT)
-  , assumpType "/." (intT ~> intT ~> intT)
-  , assumpType "++" (vectorT aT ~> vectorT aT ~> vectorT aT)
-  , assumpType "<>" (textT ~> textT ~> textT)
-  , assumpType "map" ((aT ~> bT) ~> vectorT aT ~> vectorT bT)
-  , assumpType "fold" ((aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
-  , assumpType "length" (vectorT aT ~> intT)
-  , assumpType "pk" (textT ~> boolT)
-  , assumpType "!!" (vectorT aT ~> intT ~> aT)
-  , assumpType "==" (aT ~> aT ~> boolT)
-  , assumpType "/=" (aT ~> aT ~> boolT)
-  , assumpType "<" (aT ~> aT ~> boolT)
-  , assumpType "<=" (aT ~> aT ~> boolT)
-  , assumpType ">=" (aT ~> aT ~> boolT)
-  , assumpType ">" (aT ~> aT ~> boolT)
-  ]
+forAllT' :: H.Var -> Signature -> Signature
+forAllT' = forAllT noLoc
 
+assumpType :: H.Var -> Signature -> (H.Var, Signature)
+assumpType idx ty = (idx, ty)
+
+baseLibTypeContext :: H.Context Loc
+baseLibTypeContext = H.Context $ M.fromList $
+  [ assumpType "and" (monoT $ vectorT boolT ~> boolT)
+  , assumpType "or" (monoT $ vectorT boolT ~> boolT)
+  , assumpType "all" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
+  , assumpType "any" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
+  , assumpType "sumInt"      (monoT $ vectorT intT ~> intT)
+  , assumpType "productInt"  (monoT $ vectorT intT ~> intT)
+  , assumpType "sum"      (monoT $ vectorT intT ~> intT)
+  , assumpType "product"  (monoT $ vectorT intT ~> intT)
+  , assumpType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
+  , assumpType  "id"  (forA $ aT ~> aT)
+  , assumpType "const" (forAB $ aT ~> bT ~> aT)
+  , assumpType "getHeight" (monoT intT)
+  , assumpType "getSelf" (monoT boxT)
+  , assumpType "getOutput" (monoT $ intT ~> boxT)
+  , assumpType "getInput"  (monoT $ intT ~> boxT)
+  , assumpType "getOutputs" (monoT $ vectorT boxT)
+  , assumpType "getInputs" (monoT $ vectorT boxT)
+  , assumpType "getBoxId" (monoT $ boxT ~> textT)
+  , assumpType "getBoxValue" (monoT $ boxT ~> intT)
+  , assumpType "getBoxScript" (monoT $ boxT ~> scriptT)
+  , assumpType "getBoxArg" (forA $ boxT ~> textT ~> aT)
+  , assumpType "sha256" (monoT $ textT ~> textT)
+  , assumpType "blake2b256" (monoT $ textT ~> textT)
+  , assumpType "getVar" (forA $ textT ~> aT)
+  , assumpType "trace" (forA $ textT ~> aT ~> aT)
+  , assumpType "length" (forA $ vectorT aT ~> intT)
+  , assumpType "lengthText" (monoT $ textT ~> intT)
+  , assumpType "showInt" (monoT $ intT ~> textT)
+  , assumpType "showDouble" (monoT $ intT ~> textT)
+  , assumpType "showBool" (monoT $ boolT ~> textT)
+  , assumpType "showScript" (monoT $ scriptT ~> textT)
+  , assumpType "&&" (monoT $ boolT ~> boolT ~> boolT)
+  , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
+  , assumpType "not" (monoT $ boolT ~> boolT)
+  , assumpType "+" (monoT $ intT ~> intT ~> intT)
+  , assumpType "-" (monoT $ intT ~> intT ~> intT)
+  , assumpType "*" (monoT $ intT ~> intT ~> intT)
+  , assumpType "/" (monoT $ intT ~> intT ~> intT)
+  , assumpType "+." (monoT $ intT ~> intT ~> intT)
+  , assumpType "-." (monoT $ intT ~> intT ~> intT)
+  , assumpType "*." (monoT $ intT ~> intT ~> intT)
+  , assumpType "/." (monoT $ intT ~> intT ~> intT)
+  , assumpType "++" (forA $ vectorT aT ~> vectorT aT ~> vectorT aT)
+  , assumpType "<>" (monoT $ textT ~> textT ~> textT)
+  , assumpType "map" (forAB $ (aT ~> bT) ~> vectorT aT ~> vectorT bT)
+  , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
+  , assumpType "length" (forA $ vectorT aT ~> intT)
+  , assumpType "pk" (monoT $ textT ~> boolT)
+  , assumpType "!!" (forA $ vectorT aT ~> intT ~> aT)
+  , assumpType "==" (forA $ aT ~> aT ~> boolT)
+  , assumpType "/=" (forA $ aT ~> aT ~> boolT)
+  , assumpType "<" (forA $ aT ~> aT ~> boolT)
+  , assumpType "<=" (forA $ aT ~> aT ~> boolT)
+  , assumpType ">=" (forA $ aT ~> aT ~> boolT)
+  , assumpType ">" (forA $ aT ~> aT ~> boolT)
+  ]
+  where
+    forA = forAllT' "a" . monoT
+    forAB = forAllT' "a" . forAllT' "b" . monoT
+    forABC = forAllT' "a" . forAllT' "b" . forAllT' "c" . monoT
 
 all :: Lang -> Lang
-all = letIn "all" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
+all = letIn "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
+  where
+    z  = Fix $ PrimE noLoc $ PrimBool P.True
+    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
+
+any :: Lang -> Lang
+any = letIn "any" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
+  where
+    z  = Fix $ PrimE noLoc $ PrimBool P.False
+    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
+
+and :: Lang -> Lang
+and = letIn "and" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
     f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
     z = Fix $ PrimE noLoc $ PrimBool P.True
 
-any :: Lang -> Lang
-any = letIn "any" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
+or :: Lang -> Lang
+or = letIn "or" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
     f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
     z = Fix $ PrimE noLoc $ PrimBool P.False
@@ -383,6 +414,4 @@ fT ty = H.appT noLoc (varT "f") ty
 letIn :: Text -> Lang -> Lang -> Lang
 letIn var body x = singleLet noLoc (VarName noLoc var) body x
 
-assumpType :: H.Var -> Type -> Assump
-assumpType idx ty = Assump idx ty
 

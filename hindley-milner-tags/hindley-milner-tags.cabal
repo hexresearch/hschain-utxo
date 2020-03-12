@@ -27,7 +27,7 @@ license: MIT
 -- license-file:           LICENSE
 
 -- The package author(s).
-author:                 Michael B. Gale
+author:                 Michael B. Galem, Anton Kholomiov
 
 -- An email address to which users can send suggestions, bug reports, and
 -- patches.
@@ -92,6 +92,7 @@ library
     DeriveTraversable,
     FlexibleContexts,
     FlexibleInstances,
+    GeneralizedNewtypeDeriving,
     LambdaCase,
     OverloadedStrings,
     ScopedTypeVariables,

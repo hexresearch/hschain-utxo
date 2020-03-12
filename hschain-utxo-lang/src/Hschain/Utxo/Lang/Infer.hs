@@ -8,6 +8,7 @@ import Control.Monad.Trans
 import Data.Fix hiding ((~>))
 import Data.Vector (Vector)
 
+import Data.Either
 import Data.Function (on)
 import Data.Set (Set)
 
@@ -28,24 +29,13 @@ import Debug.Trace
 
 import qualified Language.HM as H
 
-inferExpr :: Lang -> Either (H.TypeError Loc) Type
-inferExpr = H.inferW defaultContext . reduceExpr
+checkMainModule :: H.Context Loc -> Module -> Maybe TypeError
+checkMainModule ctx m = either Just (const Nothing) $ inferExpr ctx $ either modErr id $ moduleToMainExpr m
+  where
+    modErr = error . mappend "Failed to load module with: "
 
-data Dep = Dep
-  { dep'lhs :: VarName
-  , dep'rhs :: Set VarName
-  }
-
-instance Eq Dep where
-  (==) = (==) `on` dep'lhs
-
-instance Ord Dep where
-  compare a b
-    | dep'lhs a `S.member` dep'rhs b = LT
-    | dep'lhs b `S.member` dep'rhs a = GT
-    | otherwise                      = EQ
-
-
+inferExpr :: H.Context Loc -> Lang -> Either TypeError Type
+inferExpr ctx = H.inferW ctx . reduceExpr
 
 reduceExpr :: Lang -> H.Term Loc
 reduceExpr (Fix expr) = case expr of
@@ -133,7 +123,7 @@ reduceExpr (Fix expr) = case expr of
         size = V.length vs
 
     fromVec _ expr = case expr of
-      NewVec loc vs      -> undefined
+      NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
       VecAppend loc a b  -> app2 loc appendVecVar a b
       VecAt loc a n      -> app2 loc vecAtVar a n
       VecLength loc      -> varE loc lengthVecVar
@@ -172,6 +162,9 @@ reduceExpr (Fix expr) = case expr of
     app3 loc var a b c = appE loc (app2 loc var a b) c
     appNs loc var as = foldl (\con a -> appE loc con a) (varE loc var) as
 
+    nilVec loc = varE loc nilVecVar
+    consVec loc = app2 loc consVecVar
+
 
 defaultContext :: H.Context Loc
 defaultContext = H.Context $ M.fromList $
@@ -201,6 +194,8 @@ defaultContext = H.Context $ M.fromList $
   , (lessThanEqualsVar, cmpOp2)
   , (greaterThanEqualsVar, cmpOp2)
   -- vec expressions
+  , (nilVecVar, forA $ monoT $ vectorT a)
+  , (consVecVar, forA $ monoT $ a `arr` (vectorT a `arr` vectorT a))
   , (appendVecVar, forA $ monoT $ vectorT a `arr` (vectorT a `arr` vectorT a))
   , (vecAtVar, forA $ monoT $ vectorT a `arr` (intT `arr` a))
   , (lengthVecVar, forA $ monoT $ vectorT a `arr` intT)
@@ -268,20 +263,20 @@ intVar = "Int"
 textVar = "Text"
 boolVar = "Bool"
 boxVar = "Box"
-scriptVar = "Script"
-notVar = "not"
-negateVar = "negate"
+scriptVar = secretVar "Script"
+notVar = secretVar "not"
+negateVar = secretVar "negate"
 
 tupleAtVar :: Int -> Int -> H.Var
-tupleAtVar size n = mconcat ["tupleAt-", showt size, "-", showt n]
+tupleAtVar size n = secretVar $ mconcat ["tupleAt-", showt size, "-", showt n]
 
 tupleConVar :: Int -> H.Var
-tupleConVar size = mappend "tuple" (showt size)
+tupleConVar size = secretVar $ mappend "tuple" (showt size)
 
 ifVar, pkVar :: H.Var
 
-ifVar = "if"
-pkVar = "pk"
+ifVar = secretVar "if"
+pkVar = secretVar "pk"
 
 intT :: H.Type Loc
 
@@ -292,60 +287,66 @@ andVar, orVar, plusVar, minusVar, timesVar, divVar,
   equalsVar, notEqualsVar, lessThanVar,
   greaterThanVar, lessThanEqualsVar, greaterThanEqualsVar :: H.Var
 
-andVar  = "and"
-orVar   = "or"
-plusVar = "plus"
-minusVar = "minus"
-timesVar = "times"
-divVar   = "div"
-equalsVar = "equals"
-notEqualsVar = "notEquals"
-lessThanVar  = "lessThan"
-greaterThanVar = "greaterThan"
-lessThanEqualsVar = "lessThanEquals"
-greaterThanEqualsVar = "greaterThanEquals"
+andVar  = secretVar "and"
+orVar   = secretVar "or"
+plusVar = secretVar "plus"
+minusVar = secretVar "minus"
+timesVar = secretVar "times"
+divVar   = secretVar "div"
+equalsVar = secretVar "equals"
+notEqualsVar = secretVar "notEquals"
+lessThanVar  = secretVar "lessThan"
+greaterThanVar = secretVar "greaterThan"
+lessThanEqualsVar = secretVar "lessThanEquals"
+greaterThanEqualsVar = secretVar "greaterThanEquals"
 
-appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar :: H.Var
+nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar :: H.Var
 
-appendVecVar = "appendVec"
-vecAtVar = "vecAt"
-lengthVecVar = "lengthVec"
-mapVecVar = "mapVec"
-foldVecVar = "foldVec"
+nilVecVar = secretVar "nilVec"
+consVecVar = secretVar "consVec"
+appendVecVar = secretVar "appendVec"
+vecAtVar = secretVar "vecAt"
+lengthVecVar = secretVar "lengthVec"
+mapVecVar = secretVar "mapVec"
+foldVecVar = secretVar "foldVec"
 
 appendTextVar, lengthTextVar :: H.Var
 
-appendTextVar = "appendText"
-lengthTextVar = "lengthText"
+appendTextVar = secretVar "appendText"
+lengthTextVar = secretVar "lengthText"
 
 convertToTextVar :: TextTypeTag -> H.Var
-convertToTextVar tag = mappend "convertToText" (showt tag)
+convertToTextVar tag = secretVar $ mappend "convertToText" (showt tag)
 
 textHashVar :: HashAlgo -> H.Var
-textHashVar hashAlgo = mappend "textHash" (showt hashAlgo)
+textHashVar hashAlgo = secretVar $ mappend "textHash" (showt hashAlgo)
 
 
 getBoxIdVar, getBoxValueVar, getBoxScriptVar, getBoxArgVar :: H.Var
 
-getBoxIdVar = "getBoxId"
-getBoxValueVar = "getBoxValue"
-getBoxScriptVar = "getBoxScript"
-getBoxArgVar = "getBoxArg"
+getBoxIdVar = secretVar "getBoxId"
+getBoxValueVar = secretVar "getBoxValue"
+getBoxScriptVar = secretVar "getBoxScript"
+getBoxArgVar = secretVar "getBoxArg"
 
 undefVar :: H.Var
-undefVar = "undefined"
+undefVar = secretVar "undefined"
 
 traceVar :: H.Var
-traceVar = "trace"
+traceVar = secretVar "trace"
 
 heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, getVarVar :: H.Var
 
-heightVar = "height"
-inputVar = "input"
-outputVar = "output"
-selfVar = "self"
-inputsVar = "inputs"
-outputsVar = "outputs"
-getVarVar = "getVar"
+heightVar = secretVar "height"
+inputVar = secretVar "input"
+outputVar = secretVar "output"
+selfVar = secretVar "self"
+inputsVar = secretVar "inputs"
+outputsVar = secretVar "outputs"
+getVarVar = secretVar "getVar"
+
+secretVar :: H.Var -> H.Var
+secretVar = mappend ":# "
+
 
 

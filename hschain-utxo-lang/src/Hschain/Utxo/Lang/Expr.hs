@@ -36,6 +36,7 @@ import qualified Data.Vector as V
 
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc
+type TypeError = H.TypeError Loc
 type Signature = H.Signature Loc
 
 noLoc :: Loc

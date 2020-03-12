@@ -8,10 +8,14 @@ module Language.HM.AlgorithmW (
     inferW,
 
     -- * Misc
-    genInOrder
+    genInOrder,
+    normaliseType,
+    normaliseSignature
 ) where
 
 --------------------------------------------------------------------------------
+
+import Control.Monad
 
 import Data.Fix
 import Data.Function (on)
@@ -28,7 +32,8 @@ import Language.HM.TypeError
 --------------------------------------------------------------------------------
 
 -- | Typing contexts.
-newtype Context src = Context { unContext :: M.Map Var (Signature src) }
+newtype Context src = Context { unContext :: M.Map Var (Signature src)
+  } deriving (Show, Eq, Semigroup, Monoid)
 
 -- | 'empty' is the empty typing context.
 emptyContext :: Context src
@@ -213,6 +218,33 @@ runW ctx term = fst `fmap` unW (infer term) ctx 0
 -- | 'inferW' @gamma term@ runs Algorithm W on @term@ with an initial context
 -- @gamma@ and returns the polymorphic type of the whole term.
 inferW :: Context src -> Term src -> Either (TypeError src) (Type src)
-inferW ctx term = (tyAnn . unTypedF . unFix) `fmap` runW ctx term
+inferW ctx term = either (Left . normaliseTypeError) (Right . normaliseType) $
+  (tyAnn . unTypedF . unFix) `fmap` runW ctx term
 
 --------------------------------------------------------------------------------
+-- normalise result type
+
+normaliseSignature :: Signature src -> Signature src
+normaliseSignature x = applySignature (normaliseSubst x) x
+
+normaliseType :: Type src -> Type src
+normaliseType x = applyType (normaliseSubst x) x
+
+normaliseTypeError :: TypeError src -> TypeError src
+normaliseTypeError = \case
+  OccursErr src text ty  -> OccursErr src text (normaliseType ty)
+  UnifyErr src tyA tyB   -> UnifyErr src (normaliseType tyA) (normaliseType tyB)
+  NotInScopeErr src name -> NotInScopeErr src name
+
+{- todo: implement and normalise runW
+normaliseTyTerm :: TyTerm src -> TyTerm src
+normaliseTyTerm x = applyTyTerm (normaliseSubst x) x
+-}
+normaliseSubst :: HasTypeVars m => m src -> Subst src
+normaliseSubst x =
+  Subst $ M.fromList $
+      zipWith (\(nameA, src) nameB -> (nameA, varT src nameB)) (tyVarsInOrder x) letters
+
+letters :: [Text]
+letters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+

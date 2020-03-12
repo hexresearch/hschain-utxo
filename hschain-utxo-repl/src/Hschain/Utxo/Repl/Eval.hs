@@ -17,8 +17,6 @@ import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Lib.Base
 
-import Type.Type
-
 import System.Console.Repline
 import System.Console.Haskeline.MonadException
 import System.Process
@@ -52,7 +50,7 @@ withTypeCheck expr cont = do
 evalExpr :: Lang -> Repl ()
 evalExpr lang = do
   closedExpr <- getClosureExpr lang
-  noTypeCheck closedExpr $ \expr -> do
+  withTypeCheck closedExpr $ \expr -> do
     tx       <- fmap replEnv'tx get
     let res = runExec (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
     liftIO $ case res of
@@ -66,12 +64,12 @@ evalBind :: VarName -> Lang -> Repl ()
 evalBind var lang = do
   closure <- fmap replEnv'closure get
   let closedExpr = closure lang
-  noTypeCheck closedExpr $ \expr -> do
+  withTypeCheck closedExpr $ \expr -> do
       tx <- fmap replEnv'tx get
       let res = runExec (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
       case res of
         Right (expr, _) -> do
-          modify' $ \st -> st { replEnv'closure = (\next -> singleLet noLoc var expr next) . closure
+          modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var expr next)
                               , replEnv'words   = varName'name var : replEnv'words st }
           return ()
         Left err   -> liftIO $ T.putStrLn $ renderText err

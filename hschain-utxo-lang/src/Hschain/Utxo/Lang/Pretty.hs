@@ -25,6 +25,9 @@ import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
+import qualified Language.HM as H
+import qualified Language.Haskell.Exts.SrcLoc as Hask
+
 import qualified Text.Show.Pretty as P
 
 renderText :: Pretty a => a -> Text
@@ -210,4 +213,21 @@ instance Pretty Error where
 
 prettyMap :: (Pretty a, Pretty b) => String -> M.Map a b -> Doc ann
 prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [pretty k, ":", pretty v]) $ M.toList m]
+
+instance Pretty TypeError where
+  pretty = \case
+    H.OccursErr src name ty  -> err src $ hsep ["Occurs error", pretty name, "with type", pretty ty]
+    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", pretty tyB, "expected", pretty tyA]
+    H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
+    where
+      err src msg = hsep ["Type error at", hsep [pretty src, ":"], msg]
+
+instance Pretty Loc where
+  pretty x = pretty $ Hask.srcInfoSpan x
+
+instance Pretty Hask.SrcSpan where
+  pretty Hask.SrcSpan{..} = hcat
+    [ pretty srcSpanFilename, ":"
+    , pretty srcSpanStartLine, ":"
+    , pretty srcSpanStartColumn ]
 

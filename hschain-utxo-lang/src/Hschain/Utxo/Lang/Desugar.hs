@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Desugar(
   , unfoldLetArg
   , unfoldInfixApply
   , singleLet
+  , app1
   , app2
   , app3
   , altToExpr
@@ -64,6 +65,9 @@ moduleToMainExpr prog = case findMain prog of
     isMain :: VarName -> Bool
     isMain = (== "main") . varName'name
 
+
+app1 :: Lang -> Lang -> Lang
+app1 f a = Fix (Apply (getLoc a) f a)
 
 app2 :: Lang -> Lang -> Lang -> Lang
 app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
