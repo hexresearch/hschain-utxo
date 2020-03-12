@@ -84,13 +84,8 @@ reduceExpr (Fix expr) = case expr of
 
     fromVarName VarName{..}  = varE varName'loc varName'name
 
-    fromLet _ binds expr = foldr bindToLet expr (orderBinds binds)
+    fromLet _ binds expr = foldr bindToLet expr (sortBindGroups binds)
       where
-        orderBinds bs =
-          fmap fst $
-          L.sortBy (compare `on` snd) $
-          fmap (\b -> (b, Dep (bind'name b) (maybe S.empty (freeVars . altToExpr) $ headMay $ bind'alts b))) bs
-
         bindToLet Bind{..} body = case bind'alts of
           [alt] -> altToLet bind'name bind'type alt
           _     -> body

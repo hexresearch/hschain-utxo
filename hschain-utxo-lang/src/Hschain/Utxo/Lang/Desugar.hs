@@ -36,10 +36,8 @@ unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
 -- Fix $ Apply loc (Fix (Apply loc (Fix $ Var loc v) a)) b
 
-bindGroupToLet :: [BindGroup Lang] -> Lang -> Lang
-bindGroupToLet bgs expr = foldr go expr bgs
-  where
-    go x res = Fix $ Let noLoc x res
+bindGroupToLet :: BindGroup Lang -> Lang -> Lang
+bindGroupToLet bgs expr = Fix $ Let noLoc bgs expr
 
 moduleToMainExpr :: Module -> Either String Lang
 moduleToMainExpr prog = case findMain prog of
@@ -47,13 +45,11 @@ moduleToMainExpr prog = case findMain prog of
   Just main -> Right $ bindGroupToLet (module'binds $ rmMain prog) (addBoolTypeCheck main)
   where
     findMain :: Module -> Maybe Lang
-    findMain Module{..} = L.firstJust onBg module'binds
+    findMain Module{..} = L.firstJust getMain module'binds
       where
-        onBg bs = foldr (<|>) Nothing $ fmap getMain bs
-          where
-            getMain Bind{..}
-              | isMain bind'name = altToLam bind'alts
-              | otherwise        = Nothing
+        getMain Bind{..}
+          | isMain bind'name = altToLam bind'alts
+          | otherwise        = Nothing
 
     altToLam alts = case alts of
       [alt] -> Just $ altToExpr alt
@@ -63,7 +59,7 @@ moduleToMainExpr prog = case findMain prog of
     addBoolTypeCheck expr = Fix $ Ascr (getLoc expr) expr boolT
 
     rmMain :: Module -> Module
-    rmMain m@Module{..} = m { module'binds = fmap rm module'binds }
+    rmMain m@Module{..} = m { module'binds = rm module'binds }
       where
         rm = filter noMain
 

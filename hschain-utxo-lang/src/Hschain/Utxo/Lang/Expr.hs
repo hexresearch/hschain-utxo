@@ -14,6 +14,7 @@ import Data.Fixed
 import Data.Function (on)
 import Data.Functor.Classes
 import Data.Foldable
+import Data.Graph
 import Data.Int
 import Data.Map.Strict (Map)
 import Data.String
@@ -53,14 +54,6 @@ data VarName = VarName
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
-{-
-fromVarName :: VarName -> Text
-fromVarName (VarName loc name) = Id loc name
-
-toVarName :: Id -> VarName
-toVarName (Id loc txt) = VarName loc txt
--}
-
 type Args = Map Text (Prim )
 
 newtype BoxId = BoxId { unBoxId :: Text }
@@ -87,7 +80,7 @@ data Pat
 
 data Module = Module
   { module'loc   :: !Loc
-  , module'binds :: ![BindGroup Lang]
+  , module'binds :: !(BindGroup Lang)
   } deriving (Show)
 
 data Alt a = Alt
@@ -351,11 +344,21 @@ freeVars = cata $ \case
     getBgNames :: BindGroup a -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
 
-    freeVarsBg = foldMap (foldMap freeVarsAlt . bind'alts)
+    freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+    localFreeVarsAlt Alt{..} = alt'expr `Set.difference` (freeVarsPat alt'pats)
 
-    freeVarsAlt Alt{..} = alt'expr `Set.difference` (freeVarsPat alt'pats)
+freeVarsPat :: [Pat] -> Set VarName
+freeVarsPat = Set.fromList . fmap (\(PVar _ name) -> name)
 
-    freeVarsPat = Set.fromList . fmap (\(PVar _ name) -> name)
+freeVarsAlt :: Alt Lang -> Set VarName
+freeVarsAlt Alt{..} = freeVars alt'expr `Set.difference` freeVarsPat alt'pats
+
+-------------------------------------------------------------------
+
+sortBindGroups :: BindGroup Lang -> BindGroup Lang
+sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
+   where
+     toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)
 
 -------------------------------------------------------------------
 

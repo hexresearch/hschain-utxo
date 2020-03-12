@@ -172,7 +172,7 @@ toLiteral loc = \case
         ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) x
 
 toHaskModule :: Module -> H.Module Loc
-toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl =<< bs)
+toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl bs)
 
 toDecl :: BindGroup Lang -> [H.Decl Loc]
 toDecl bs = toBind =<< bs

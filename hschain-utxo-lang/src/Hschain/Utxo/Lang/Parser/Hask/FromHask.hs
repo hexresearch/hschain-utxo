@@ -84,7 +84,7 @@ fromHaskModule = \case
   where
     err = ParseFailed (H.fromSrcInfo noLoc) "Failed to parse module"
 
-fromHaskDecl :: H.Decl Loc -> ParseResult [BindGroup Lang]
+fromHaskDecl :: H.Decl Loc -> ParseResult (BindGroup Lang)
 fromHaskDecl d = toBindGroup . return =<< toDecl d
 
 fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
@@ -120,10 +120,10 @@ toDecl x = case x of
       H.PVar loc name -> toName name
       other           -> parseFailedBy "Failed to parse synonym name" other
 
-fromBgs :: Lang -> [BindGroup Lang] -> Lang
-fromBgs rhs bgs = foldr (\a res -> Fix $ Let (HM.getLoc a) a res) rhs bgs
+fromBgs :: Lang -> BindGroup Lang -> Lang
+fromBgs rhs bgs = Fix $ Let (HM.getLoc rhs) bgs rhs
 
-fromBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult [BindGroup Lang]
+fromBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult (BindGroup Lang)
 fromBinds topExp = \case
   H.BDecls _ decls -> toBindGroup =<< mapM toDecl decls
   _                -> parseFailedBy "Failed to parse binding group for expression" topExp
