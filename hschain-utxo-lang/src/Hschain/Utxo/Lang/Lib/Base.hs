@@ -43,7 +43,6 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , lengthVec
   , lengthText
   , showInt
-  , showDouble
   , showBool
   , showScript
   , plus
@@ -141,8 +140,8 @@ baseTypeAssump =
   , assumpType  "any" (vectorT boolT ~> boolT)
   , assumpType "sumInt"      (vectorT intT ~> intT)
   , assumpType "productInt"  (vectorT intT ~> intT)
-  , assumpType "sum"      (vectorT doubleT ~> doubleT)
-  , assumpType "product"  (vectorT doubleT ~> doubleT)
+  , assumpType "sum"      (vectorT intT ~> intT)
+  , assumpType "product"  (vectorT intT ~> intT)
   , assumpType  "."  ((bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
   , assumpType  "id"  (aT ~> aT)
   , assumpType "const" (aT ~> bT ~> aT)
@@ -153,7 +152,7 @@ baseTypeAssump =
   , assumpType "getOutputs" (vectorT boxT)
   , assumpType "getInputs" (vectorT boxT)
   , assumpType "getBoxId" (boxT ~> textT)
-  , assumpType "getBoxValue" (boxT ~> doubleT)
+  , assumpType "getBoxValue" (boxT ~> intT)
   , assumpType "getBoxScript" (boxT ~> scriptT)
   , assumpType "getBoxArg" (boxT ~> textT ~> aT)
   , assumpType "sha256" (textT ~> textT)
@@ -163,7 +162,7 @@ baseTypeAssump =
   , assumpType "length" (vectorT aT ~> intT)
   , assumpType "lengthText" (textT ~> intT)
   , assumpType "showInt" (intT ~> textT)
-  , assumpType "showDouble" (doubleT ~> textT)
+  , assumpType "showDouble" (intT ~> textT)
   , assumpType "showBool" (boolT ~> textT)
   , assumpType "showScript" (scriptT ~> textT)
   , assumpType "&&" (boolT ~> boolT ~> boolT)
@@ -173,10 +172,10 @@ baseTypeAssump =
   , assumpType "-" (intT ~> intT ~> intT)
   , assumpType "*" (intT ~> intT ~> intT)
   , assumpType "/" (intT ~> intT ~> intT)
-  , assumpType "+." (doubleT ~> doubleT ~> doubleT)
-  , assumpType "-." (doubleT ~> doubleT ~> doubleT)
-  , assumpType "*." (doubleT ~> doubleT ~> doubleT)
-  , assumpType "/." (doubleT ~> doubleT ~> doubleT)
+  , assumpType "+." (intT ~> intT ~> intT)
+  , assumpType "-." (intT ~> intT ~> intT)
+  , assumpType "*." (intT ~> intT ~> intT)
+  , assumpType "/." (intT ~> intT ~> intT)
   , assumpType "++" (vectorT aT ~> vectorT aT ~> vectorT aT)
   , assumpType "<>" (textT ~> textT ~> textT)
   , assumpType "map" ((aT ~> bT) ~> vectorT aT ~> vectorT bT)
@@ -279,9 +278,6 @@ trace = letIn "trace" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Trace n
 
 showInt :: Lang -> Lang
 showInt = letIn "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText IntToText noLoc)) (Fix $ Var noLoc "x"))
-
-showDouble :: Lang -> Lang
-showDouble = letIn "showDouble" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText DoubleToText noLoc)) (Fix $ Var noLoc "x"))
 
 showBool :: Lang -> Lang
 showBool = letIn "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText BoolToText noLoc)) (Fix $ Var noLoc "x"))

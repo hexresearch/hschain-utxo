@@ -13,8 +13,8 @@ import Data.Fix
 import Data.Fixed
 import Data.Function (on)
 import Data.Functor.Classes
-
 import Data.Foldable
+import Data.Int
 import Data.Map.Strict (Map)
 import Data.String
 import Data.Set (Set)
@@ -22,8 +22,6 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 
 import GHC.Generics
-
--- import Language.HM ()
 
 import Text.Show.Deriving
 
@@ -42,7 +40,7 @@ type Signature = H.Signature Loc
 noLoc :: Loc
 noLoc = Hask.noSrcSpan
 
-type Money = Pico
+type Money = Int64
 
 newtype Expr a = Expr Lang
   deriving (Show, Eq)
@@ -86,11 +84,6 @@ data Box = Box
 data Pat
   = PVar Loc VarName
   deriving (Show, Eq, Ord)
-  -- | PWildcard Loc
-  -- | PLit Loc Prim
-  -- | PAs Id Pat
-  -- | PNpk Id Integer
-  -- | PCon Assump [Pat]
 
 data Module = Module
   { module'loc   :: !Loc
@@ -168,7 +161,7 @@ data VecExpr a
   | VecFold Loc
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data TextTypeTag = IntToText | DoubleToText | BoolToText | ScriptToText
+data TextTypeTag = IntToText | BoolToText | ScriptToText
   deriving (Eq, Show)
 
 data TextExpr a
@@ -182,8 +175,7 @@ data HashAlgo = Sha256 | Blake2b256
   deriving (Eq, Show)
 
 data Prim
-  = PrimInt     Int
-  | PrimDouble  Pico
+  = PrimInt     Int64
   | PrimString  Text
   | PrimBool    Bool
   | PrimSigma   (Sigma PublicKey)
@@ -206,7 +198,6 @@ data BoxField a = BoxFieldId | BoxFieldValue | BoxFieldScript | BoxFieldArg a
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
     PrimInt n      -> "int"    .= n
-    PrimDouble d   -> "double" .= d
     PrimString txt -> "text"   .= txt
     PrimBool b     -> "bool"   .= b
     PrimSigma s    -> "sigma"  .= toJSON s
@@ -216,7 +207,6 @@ instance ToJSON Prim where
 instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
         fmap PrimInt    (v .: "int")
-    <|> fmap PrimDouble (v .: "double")
     <|> fmap PrimString (v .: "text")
     <|> fmap PrimBool   (v .: "bool")
     <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))

@@ -7,6 +7,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Timeout
 
+import Data.Int
 import Data.Fix
 import Data.Either
 import Data.Maybe
@@ -46,7 +47,7 @@ aField = "a"
 halfGameScript :: Expr Text -> Expr Bool
 halfGameScript fullGameScriptHash =
   "out"            =: getOutput 0                      $ \out ->
-  "b"              =: getBoxArg out bobGuessField      $ \(b :: Expr Int) ->
+  "b"              =: getBoxArg out bobGuessField      $ \(b :: Expr Int64) ->
   "bobDeadline"    =: getBoxArg out bobDeadlineField   $ \bobDeadline ->
   "validBobInput"  =: (b ==* 0 ||* b ==* 1)            $ \validBobInput ->
       validBobInput
@@ -61,8 +62,8 @@ halfGameScript fullGameScriptHash =
 fullGameScript :: Expr Text -> Expr Text -> Expr Bool
 fullGameScript k alice =
   "s"              =: getVar sField                      $ \(s :: Expr Text) ->
-  "a"              =: getVar aField                      $ \(a :: Expr Int) ->
-  "b"              =: getBoxArg getSelf bobGuessField    $ \(b :: Expr Int) ->
+  "a"              =: getVar aField                      $ \(a :: Expr Int64) ->
+  "b"              =: getBoxArg getSelf bobGuessField    $ \(b :: Expr Int64) ->
   "bob"            =: getBoxArg getSelf bobPkField       $ \bob ->
   "bobDeadline"    =: getBoxArg getSelf bobDeadlineField $ \bobDeadline ->
       (pk bob &&* getHeight >* bobDeadline)
@@ -77,8 +78,8 @@ data Game = Game
   } deriving (Show, Eq)
 
 data Guess = Guess
-  { guess'alice   :: !Int
-  , guess'bob     :: !Int
+  { guess'alice   :: !Int64
+  , guess'bob     :: !Int64
   } deriving (Show, Eq)
 
 data GameResult = GameResult

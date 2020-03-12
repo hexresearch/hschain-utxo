@@ -169,18 +169,20 @@ fromType = \case
         cons = HM.varT loc $ mappend "Tuple" (showt $ length ts)
 
 fromLit :: H.Literal Loc -> ParseResult Prim
-fromLit = \case
+fromLit x = case x of
   H.String loc val _     -> return $ PrimString (fromString val)
   H.Int loc val _        -> return $ PrimInt (fromInteger val)
   H.PrimInt loc val _    -> return $ PrimInt (fromInteger val)
+  H.PrimString loc val _ -> return $ PrimString (fromString val)
   -- TODO FIXME: untyped literal numbers inconsistency.
   -- Here when we parse we also assign the type, but type is undefined here
   -- it can be any number. Not only double
-  H.PrimFloat loc val _  -> return $ PrimDouble (realToFrac val)
-  H.PrimDouble loc val _ -> return $ PrimDouble (realToFrac val)
-  H.Frac loc val _       -> return $ PrimDouble (realToFrac val)
-  H.PrimString loc val _ -> return $ PrimString (fromString val)
+  H.PrimFloat loc val _  -> floatsNotSupported
+  H.PrimDouble loc val _ -> floatsNotSupported
+  H.Frac loc val _       -> floatsNotSupported
   other                  -> parseFailedBy "Failed to parse literal" other
+  where
+    floatsNotSupported = parseFailedBy "floatsNotSupported" x
 
 parseBind :: String -> ParseResult (VarName, Lang)
 parseBind = getBind <=< H.parseDecl

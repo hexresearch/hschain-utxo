@@ -9,6 +9,7 @@ import Control.Monad.Except
 import Control.Timeout
 
 import Data.Boolean
+import Data.Int
 import Data.Maybe
 import Data.String
 import Data.Text (Text)
@@ -99,7 +100,7 @@ data SendDelayed = SendDelayed
   , sendDelayed'refund :: !BoxId
   , sendDelayed'amount :: !Money
   , sendDelayed'remain :: !Money
-  , sendDelayed'height :: !Int
+  , sendDelayed'height :: !Int64
   , sendDelayed'recepientWallet :: !Wallet -- we need it while sigma-proofs are not implemented yet
   }
 
@@ -112,7 +113,7 @@ data SendResultDelayed = SendRes
 ----------------------------------------
 -- transactions
 
-debugSendDelayed :: Bool -> Text -> Wallet -> BoxId -> Wallet -> Int -> Money -> App (Maybe SendResultDelayed)
+debugSendDelayed :: Bool -> Text -> Wallet -> BoxId -> Wallet -> Int64 -> Money -> App (Maybe SendResultDelayed)
 debugSendDelayed isSuccess msg from fromBox to heightDiff amount = do
   logTest msg
   eRes <- sendTxDelayed from fromBox to heightDiff amount
@@ -132,7 +133,7 @@ debugSendDelayed isSuccess msg from fromBox to heightDiff amount = do
     wait = sleep 0.25
 
 
-sendTxDelayed :: Wallet -> BoxId -> Wallet -> Int -> Money -> App (Either Text SendResultDelayed)
+sendTxDelayed :: Wallet -> BoxId -> Wallet -> Int64 -> Money -> App (Either Text SendResultDelayed)
 sendTxDelayed from fromBox to delayDiff amount = do
   toBox     <- allocAddress to
   backBox   <- allocAddress from

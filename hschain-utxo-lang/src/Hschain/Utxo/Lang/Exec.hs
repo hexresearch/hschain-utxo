@@ -20,6 +20,7 @@ import Data.Aeson
 import Data.Boolean
 import Data.Fix
 import Data.Fixed
+import Data.Int
 import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Monoid hiding (Alt)
@@ -155,7 +156,6 @@ execLang' (Fix x) = case x of
         fromNeg expr = case expr of
           Fix (PrimE loc1 a) -> case a of
             PrimInt n    -> prim loc1 $ PrimInt $ negate n
-            PrimDouble d -> prim loc1 $ PrimDouble $ negate d
             other        -> thisShouldNotHappen $ Fix $ PrimE loc1 other
           _                  -> thisShouldNotHappen x
 
@@ -216,15 +216,14 @@ execLang' (Fix x) = case x of
           return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaOr [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
-    fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+) (+))
-    fromMinus loc = fromNumOp2 loc Minus (NumOp2 (\x y -> x - y) (\x y -> x - y))
-    fromTimes loc = fromNumOp2 loc Times (NumOp2 (*) (*))
-    fromDiv   loc = fromNumOp2 loc Div   (NumOp2 (/) div)
+    fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+))
+    fromMinus loc = fromNumOp2 loc Minus (NumOp2 (\x y -> x - y))
+    fromTimes loc = fromNumOp2 loc Times (NumOp2 (*))
+    fromDiv   loc = fromNumOp2 loc Div   (NumOp2 div)
 
     fromNumOp2 loc op NumOp2{..} (Fix x) (Fix y) = case (x, y) of
       (PrimE locA1 a, PrimE locB1 b) -> case (a, b) of
         (PrimInt m, PrimInt n) -> prim locA1 $ PrimInt $ numOp2'int m n
-        (PrimDouble m, PrimDouble n) -> prim locA1 $ PrimDouble $ numOp2'double m n
         _ -> err
       _ -> err
       where
@@ -235,7 +234,6 @@ execLang' (Fix x) = case x of
         (PrimE locA1 a, PrimE _ b) -> case (a, b) of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 == a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 == a2
-          (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 == a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 == a2
         -- todo: we have to decide on mixed num types
           _ -> err
@@ -247,7 +245,6 @@ execLang' (Fix x) = case x of
         (PrimE locA1 a, PrimE _ b) -> case (a, b) of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 /= a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 /= a2
-          (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 /= a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 /= a2
           _ -> err
         _ -> err
@@ -258,7 +255,6 @@ execLang' (Fix x) = case x of
         (PrimE locA1 a, PrimE _ b) -> case (a, b) of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 < a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 < a2
-          (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 < a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 < a2
           _ -> err
         _ -> err
@@ -269,7 +265,6 @@ execLang' (Fix x) = case x of
         (PrimE locA1 a, PrimE _ b) -> case (a, b) of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 > a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 > a2
-          (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 > a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 > a2
           _ -> err
         _ -> err
@@ -280,7 +275,6 @@ execLang' (Fix x) = case x of
         (PrimE locA1 a, PrimE _ b) -> case (a, b) of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 <= a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 <= a2
-          (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 <= a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 <= a2
           _ -> err
         _ -> err
@@ -291,7 +285,6 @@ execLang' (Fix x) = case x of
         (PrimE locA1 a, PrimE _ b) -> case (a, b) of
           (PrimBool a1, PrimBool a2)     -> prim locA1 $ PrimBool $ a1 >= a2
           (PrimInt a1, PrimInt a2)       -> prim locA1 $ PrimBool $ a1 >= a2
-          (PrimDouble a1, PrimDouble a2) -> prim locA1 $ PrimBool $ a1 >= a2
           (PrimString a1, PrimString a2) -> prim locA1 $ PrimBool $ a1 >= a2
           _ -> err
         _ -> err
@@ -346,10 +339,10 @@ execLang' (Fix x) = case x of
           _ -> thisShouldNotHappen errVal
       Fix (VecE _ (VecLength _)) -> do
         arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim loc . PrimInt) $ vecSize arg'
+        maybe (thisShouldNotHappen arg') (prim loc . PrimInt . fromIntegral) $ vecSize arg'
       Fix (TextE _ (TextLength _)) -> do
         arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim loc . PrimInt) $ textSize arg'
+        maybe (thisShouldNotHappen arg') (prim loc . PrimInt . fromIntegral) $ textSize arg'
       Fix (TextE _ (ConvertToText _ _)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ convertToText arg'
@@ -412,7 +405,7 @@ execLang' (Fix x) = case x of
     fromEnv loc idx = do
       idx' <- mapM rec idx
       case idx' of
-        Height loc1  -> prim loc . PrimInt =<< getHeight
+        Height loc1  -> prim loc . PrimInt . fromIntegral =<< getHeight
         Input loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getInputs
         Output loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getOutputs
         Inputs loc1  -> fmap (toBoxes loc1) getInputs
@@ -424,7 +417,7 @@ execLang' (Fix x) = case x of
             _          -> noField (VarName loc argName)
         _      -> return $ Fix $ GetEnv loc idx
       where
-        toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? n
+        toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? (fromIntegral n)
         toBoxes loc1 vs = Fix $ VecE loc $ NewVec loc $ fmap (Fix . BoxE loc1 . PrimBox loc1) vs
 
     fromBoxExpr :: Loc -> BoxExpr Lang -> Exec Lang
@@ -438,7 +431,7 @@ execLang' (Fix x) = case x of
     getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
       BoxFieldId      -> prim loc $ PrimString $ unBoxId box'id
-      BoxFieldValue   -> prim loc $ PrimDouble $ box'value
+      BoxFieldValue   -> prim loc $ PrimInt $ box'value
       BoxFieldScript  -> prim loc $ PrimString $ unScript $ box'script
       BoxFieldArg txt -> case txt of
         Fix (PrimE loc1 (PrimString t)) -> maybe (noField $ VarName loc1 t) (prim loc1) $ M.lookup t box'args
@@ -459,7 +452,7 @@ execLang' (Fix x) = case x of
           Fix n' <- rec n
           let errVal = Fix $ VecE loc $ VecAt loc1 (Fix v') (Fix n')
           res <- case (v', n') of
-            (VecE _ (NewVec _ vs), PrimE _ (PrimInt idx)) -> maybe (outOfBound errVal) return $ vs V.!? idx
+            (VecE _ (NewVec _ vs), PrimE _ (PrimInt idx)) -> maybe (outOfBound errVal) return $ vs V.!? (fromIntegral idx)
             _ -> thisShouldNotHappen errVal
           rec res
         VecMap loc1 -> return $ Fix $ VecE loc $ VecMap loc1
@@ -496,7 +489,6 @@ execLang' (Fix x) = case x of
       where
         convertPrim = \case
           PrimInt n       -> showt n
-          PrimDouble d    -> showt d
           PrimString t    -> t
           PrimBool b      -> showt b
 
@@ -581,8 +573,7 @@ parseError loc msg = toError $ ParseError loc msg
 type Mono2 a = a -> a -> a
 
 data NumOp2 = NumOp2
-  { numOp2'double :: Mono2 Pico
-  , numOp2'int    :: Mono2 Int
+  { numOp2'int    :: Mono2 Int64
   }
 
 getInputExpr :: TxArg -> Expr Bool
@@ -601,7 +592,7 @@ substSelfIndex selfId (Expr x) = Expr $ cata phi x
   where
     phi = \case
       GetEnv loc idx -> Fix $ GetEnv loc $ case idx of
-        Self loc -> Input loc $ Fix $ PrimE loc $ PrimInt selfId
+        Self loc -> Input loc $ Fix $ PrimE loc $ PrimInt $ fromIntegral selfId
         _        -> idx
       other  -> Fix other
 

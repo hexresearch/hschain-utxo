@@ -107,7 +107,6 @@ reduceExpr (Fix expr) = case expr of
 
     fromPrim loc prim = ($ loc) $ case prim of
       PrimInt _    -> intE
-      PrimDouble _ -> doubleE
       PrimString _ -> textE
       PrimBool _   -> boolE
       PrimSigma _  -> boolE
@@ -190,7 +189,6 @@ defaultContext :: H.Context Loc
 defaultContext = H.Context $ M.fromList $
   -- primitives
   [ (intVar,    monoT intT)
-  , (doubleVar, monoT doubleT)
   , (textVar,   monoT textT)
   , (boolVar,   monoT boolT)
   -- if
@@ -263,7 +261,6 @@ defaultContext = H.Context $ M.fromList $
       [ (appendTextVar, monoT $ textT `arr` (textT `arr` textT))
       , (lengthTextVar, monoT $ textT `arr` intT)
       , convertExpr IntToText intT
-      , convertExpr DoubleToText doubleT
       , convertExpr BoolToText boolT
       , convertExpr ScriptToText scriptT
       ] ++ (fmap (\alg -> (textHashVar alg, monoT $ textT `arr` textT)) [Sha256, Blake2b256])
@@ -271,17 +268,15 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, doubleE, textE, boolE :: Loc -> H.Term Loc
+intE, textE, boolE :: Loc -> H.Term Loc
 
 intE loc = varE loc intVar
-doubleE loc = varE loc doubleVar
 textE loc = varE loc textVar
 boolE loc = varE loc boolVar
 
-intVar, doubleVar, textVar, boolVar, notVar, negateVar, boxVar, scriptVar :: H.Var
+intVar, textVar, boolVar, notVar, negateVar, boxVar, scriptVar :: H.Var
 
 intVar = "Int"
-doubleVar = "Double"
 textVar = "Text"
 boolVar = "Bool"
 boxVar = "Box"
@@ -300,10 +295,9 @@ ifVar, pkVar :: H.Var
 ifVar = "if"
 pkVar = "pk"
 
-intT, doubleT :: H.Type Loc
+intT :: H.Type Loc
 
 intT = conT noLoc intVar
-doubleT = conT noLoc doubleVar
 
 
 andVar, orVar, plusVar, minusVar, timesVar, divVar,

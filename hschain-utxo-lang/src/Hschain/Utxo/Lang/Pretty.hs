@@ -159,12 +159,8 @@ instance Pretty BinOp where
 instance Pretty Prim where
   pretty = \case
     PrimInt      n -> pretty n
-    PrimDouble   d -> pretty d
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
-
-instance Pretty Money where
-  pretty m = pretty $ removeZeroes $ show m
 
 removeZeroes = reverse . skipDot . skipZeroes . reverse
   where
@@ -176,7 +172,7 @@ instance Pretty a => Pretty (EnvId a) where
 
 prettyId :: EnvId (Doc ann) -> Doc ann
 prettyId = \case
-    Height _ -> "HEIGHT"
+    Height _         -> "HEIGHT"
     Input _  a       -> prettyVec "input"  a
     Output _ a       -> prettyVec "output" a
     Inputs _         -> "INPUTS"
