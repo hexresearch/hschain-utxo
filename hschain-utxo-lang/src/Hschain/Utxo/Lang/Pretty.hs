@@ -116,14 +116,11 @@ prettyBinds bs = vcat $ fmap prettyBind bs
     prettyBind :: Bind (Doc ann) -> Doc ann
     prettyBind Bind{..} = vcat
       [ maybe mempty (prettySignature bind'name) bind'type
-      , prettyAlts bind'name bind'alts
+      , prettyAlt bind'name bind'alt
       ]
 
     prettySignature :: VarName -> Signature -> Doc ann
     prettySignature name signature = hsep [ pretty name, "::",  pretty signature]
-
-    prettyAlts :: VarName -> [Alt (Doc ann)] -> Doc ann
-    prettyAlts name as = vcat $ fmap (prettyAlt name) as
 
     prettyAlt :: VarName -> Alt (Doc ann) -> Doc ann
     prettyAlt name Alt{..} =

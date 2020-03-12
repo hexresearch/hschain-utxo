@@ -378,13 +378,8 @@ execLang' (Fix x) = case x of
           [] -> rec e
           def:rest -> do
             let v = bind'name def
-            body <- execAlts $ bind'alts def
+            body <- execAlt $ bind'alt def
             execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
-
-        execAlts :: [Alt Lang] -> Exec Lang
-        execAlts as = case as of
-          a:_ -> execAlt a
-          _   -> thisShouldNotHappen $ Fix $ Let loc bg expr
 
         execAlt :: Alt Lang -> Exec Lang
         execAlt Alt{..} = return $ case alt'pats of
@@ -540,7 +535,7 @@ execLang' (Fix x) = case x of
 
         substBind x@Bind{..}
           | varName == bind'name = x
-          | otherwise            = x { bind'alts = fmap substAlt bind'alts }
+          | otherwise            = x { bind'alt = substAlt bind'alt }
 
         substAlt x@Alt{..}
           | isBinded varName alt'pats = x

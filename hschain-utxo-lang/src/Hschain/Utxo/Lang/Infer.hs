@@ -86,17 +86,10 @@ reduceExpr (Fix expr) = case expr of
 
     fromLet _ binds expr = foldr bindToLet expr (sortBindGroups binds)
       where
-        bindToLet Bind{..} body = case bind'alts of
-          [alt] -> altToLet bind'name bind'type alt
-          _     -> body
-
-        altToLet VarName{..} mTy alt =
-          absE varName'loc varName'name $ rec $ appTy $ altToExpr alt
-          where
-            appTy = case mTy of
-              Just ty -> \x -> Fix $ Ascr varName'loc x (H.stripSignature ty)
-              Nothing -> id
-
+        bindToLet Bind{..} body =
+          letE (varName'loc bind'name) (varName'name bind'name)
+               (reduceExpr $ altToExpr bind'alt)
+               body
 
     fromAscr loc a ty = H.assertTypeE loc a ty
 

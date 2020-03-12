@@ -81,7 +81,6 @@ renderToBinds funs tys = mapM toGroup names
                     Just ty  -> explGroup name f ty
 
 
-    implGroup name f = Bind name Nothing [f]
-
-    explGroup name f ty = Bind name (Just ty) [f]
+    implGroup name f = Bind name Nothing f
+    explGroup name f ty = Bind name (Just ty) f
 

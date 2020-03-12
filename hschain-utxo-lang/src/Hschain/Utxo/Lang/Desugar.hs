@@ -30,7 +30,7 @@ unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc args a)
 singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
 singleLet loc v body expr = Fix $ Let loc bg expr
   where
-    bg = [Bind v Nothing [Alt [] body]]
+    bg = [Bind v Nothing (Alt [] body)]
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
@@ -48,12 +48,8 @@ moduleToMainExpr prog = case findMain prog of
     findMain Module{..} = L.firstJust getMain module'binds
       where
         getMain Bind{..}
-          | isMain bind'name = altToLam bind'alts
+          | isMain bind'name = Just $ altToExpr bind'alt
           | otherwise        = Nothing
-
-    altToLam alts = case alts of
-      [alt] -> Just $ altToExpr alt
-      _     -> Nothing
 
     addBoolTypeCheck :: Lang -> Lang
     addBoolTypeCheck expr = Fix $ Ascr (getLoc expr) expr boolT

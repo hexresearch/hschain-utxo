@@ -178,10 +178,10 @@ toDecl :: BindGroup Lang -> [H.Decl Loc]
 toDecl bs = toBind =<< bs
   where
     toBind Bind{..} = case bind'type of
-      Nothing -> return $ H.FunBind (HM.getLoc bind'name) $ fmap (toMatch bind'name) bind'alts
+      Nothing -> return $ H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name bind'alt
       Just ty ->
         let signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name bind'name)] (toType ty)
-            funBind = H.FunBind (HM.getLoc bind'name) $ fmap (toMatch bind'name) bind'alts
+            funBind = H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name bind'alt
             tyLoc = HM.getLoc ty
         in  [ signature, funBind ]
 

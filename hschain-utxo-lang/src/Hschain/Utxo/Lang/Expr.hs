@@ -93,7 +93,7 @@ type BindGroup a = [Bind a]
 data Bind a = Bind
   { bind'name  :: VarName
   , bind'type  :: Maybe Signature
-  , bind'alts  :: [Alt a]
+  , bind'alt  :: Alt a
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 type Lang = Fix E
@@ -344,7 +344,7 @@ freeVars = cata $ \case
     getBgNames :: BindGroup a -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
 
-    freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+    freeVarsBg = foldMap (localFreeVarsAlt . bind'alt)
     localFreeVarsAlt Alt{..} = alt'expr `Set.difference` (freeVarsPat alt'pats)
 
 freeVarsPat :: [Pat] -> Set VarName
@@ -358,7 +358,7 @@ freeVarsAlt Alt{..} = freeVars alt'expr `Set.difference` freeVarsPat alt'pats
 sortBindGroups :: BindGroup Lang -> BindGroup Lang
 sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
    where
-     toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)
+     toNode s = (s, bind'name s, Set.toList $ freeVarsAlt $ bind'alt s)
 
 -------------------------------------------------------------------
 
