@@ -5,6 +5,8 @@ module Hschain.Utxo.Lang.Parser.Hask.FromHask(
   , parseBind
 ) where
 
+import Hex.Common.Text
+
 import Control.Applicative
 import Control.Monad
 
@@ -16,9 +18,6 @@ import Language.Haskell.Exts.Parser (
 
 import Language.Haskell.Exts.Pretty
 
-import Type.Loc
-import Type.Type
-
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
@@ -28,6 +27,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import qualified Language.HM as HM
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Parser as H
@@ -109,7 +109,7 @@ toDecl x = case x of
       where
 
     fromPat = \case
-      H.PVar loc name -> fmap (PVar loc) (toName' name)
+      H.PVar loc name -> fmap (PVar loc) (toName name)
       other           -> parseFailedBy "Failed to parse patter" other
 
     fromRhs = \case
@@ -121,7 +121,7 @@ toDecl x = case x of
       other           -> parseFailedBy "Failed to parse synonym name" other
 
 fromBgs :: Lang -> [BindGroup Lang] -> Lang
-fromBgs rhs bgs = foldr (\a res -> Fix $ Let (getLoc a) a res) rhs bgs
+fromBgs rhs bgs = foldr (\a res -> Fix $ Let (HM.getLoc a) a res) rhs bgs
 
 fromBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult [BindGroup Lang]
 fromBinds topExp = \case
@@ -134,11 +134,6 @@ fromPatToVar = \case
   other         -> parseFailedBy "Failed to parse patter" other
 
 
-toName' :: H.Name Loc -> ParseResult Id
-toName' = \case
-  H.Ident  loc name -> return $ Id loc (fromString name)
-  H.Symbol loc name -> return $ Id loc (fromString name)
-
 toName :: H.Name Loc -> ParseResult VarName
 toName = \case
   H.Ident  loc name -> return $ VarName loc (fromString name)
@@ -149,46 +144,29 @@ fromQName = \case
   H.UnQual loc name -> toName name
   other             -> parseFailedBy "Unexpected name" other
 
-fromQName' :: H.QName Loc -> ParseResult Id
-fromQName' = \case
-  H.UnQual loc name -> toName' name
-  other             -> parseFailedBy "Unexpected name" other
-
-fromQualType :: H.Type Loc -> ParseResult (Qual Type)
-fromQualType = \case
-  H.TyForall loc Nothing mContext ty -> liftA2 (Qual loc) (fromContext mContext) (fromType ty)
-  ty -> fmap (Qual (H.ann ty) []) $ fromType ty
-
-fromContext :: Maybe (H.Context Loc) -> ParseResult [Pred]
-fromContext = maybe (pure []) (mapM extract . getAssts)
+fromQualType :: H.Type Loc -> ParseResult Signature
+fromQualType x = case x of
+  H.TyForall loc Nothing mContext ty -> err
+  ty -> fmap HM.monoT $ fromType ty
   where
-    extract x = case x of
-      H.ClassA loc qname ts -> case ts of
-        [t] -> liftA2 (IsIn (H.ann t)) (fromQName' qname) (fromType t)
-        _   -> err
-      _                     -> err
-      where
-        err = parseFailedBy "Failed to parse context" x
-
-
-    getAssts = \case
-      H.CxSingle _ asst -> [asst]
-      H.CxTuple _ assts -> assts
-      _                 -> []
-
+    err = parseFailedBy "Contexts are not allowed" x
 
 fromType :: H.Type Loc -> ParseResult Type
 fromType = \case
-  H.TyFun loc a b -> liftA2 (TFun loc) (rec a) (rec b)
-  H.TyTuple loc H.Boxed ts -> fmap (TTuple loc) (mapM rec ts)
-  H.TyApp loc a b -> liftA2 (TAp loc) (rec a) (rec b)
-  H.TyVar loc name -> fmap (\v -> TVar loc $ Tyvar (getLoc v) (fromVarName v) (Star (getLoc v))) $ toName name
-  H.TyCon loc name -> fmap (\v -> TCon loc $ Tycon (getLoc v) (fromVarName v) (Star (getLoc v))) $ fromQName name
+  H.TyFun loc a b -> liftA2 (HM.arrowT loc) (rec a) (rec b)
+  H.TyTuple loc H.Boxed ts -> fmap (fromTyTuple loc) (mapM rec ts)
+  H.TyApp loc a b -> liftA2 (HM.appT loc) (rec a) (rec b)
+  H.TyVar _ name -> fmap (\VarName{..} -> HM.varT varName'loc varName'name) $ toName name
+  H.TyCon _ name -> fmap (\VarName{..} -> HM.conT varName'loc varName'name) $ fromQName name
   H.TyParen loc ty -> rec ty
   H.TyKind _ ty _ -> rec ty
   other -> parseFailedBy  "Failed to parse type for" other
   where
     rec = fromType
+
+    fromTyTuple loc ts = foldl (\z a -> HM.appT loc z a) cons ts
+      where
+        cons = HM.varT loc $ mappend "Tuple" (showt $ length ts)
 
 fromLit :: H.Literal Loc -> ParseResult Prim
 fromLit = \case

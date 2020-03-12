@@ -27,9 +27,6 @@ import qualified Hschain.Utxo.Lang.Sigma as S
 
 import qualified Text.Show.Pretty as P
 
-import Type.Type
-import Type.Pretty
-
 renderText :: Pretty a => a -> Text
 renderText = renderStrict . layoutPretty defaultLayoutOptions . pretty
 
@@ -114,21 +111,16 @@ instance Pretty VarName where
   pretty (VarName _ txt) = pretty txt
 
 prettyBinds :: BindGroup (Doc ann) -> Doc ann
-prettyBinds BindGroup{..} = vcat
-  [ vcat $ fmap prettyExpl bindGroup'expl
-  , vcat $ concat $ fmap2 prettyImpl $ bindGroup'impl]
+prettyBinds bs = vcat $ fmap prettyBind bs
   where
-    prettyExpl :: Expl (Doc ann) -> Doc ann
-    prettyExpl Expl{..} = vcat
-      [ prettySignature (toVarName expl'name) expl'type
-      , prettyAlts (toVarName expl'name) expl'alts
+    prettyBind :: Bind (Doc ann) -> Doc ann
+    prettyBind Bind{..} = vcat
+      [ maybe mempty (prettySignature bind'name) bind'type
+      , prettyAlts bind'name bind'alts
       ]
 
-    prettyImpl :: Impl (Doc ann) -> Doc ann
-    prettyImpl Impl{..} = prettyAlts (toVarName impl'name) impl'alts
-
-    prettySignature :: VarName -> Scheme -> Doc ann
-    prettySignature name scheme = hsep [ pretty name, "::",  pretty scheme]
+    prettySignature :: VarName -> Signature -> Doc ann
+    prettySignature name signature = hsep [ pretty name, "::",  pretty signature]
 
     prettyAlts :: VarName -> [Alt (Doc ann)] -> Doc ann
     prettyAlts name as = vcat $ fmap (prettyAlt name) as
@@ -147,7 +139,7 @@ instance Pretty UnOp where
   pretty = \case
     Not -> "not"
     Neg -> "negate"
-    TupleAt n -> op1 "tuple-at" (pretty n)
+    TupleAt size n -> op1 (pretty $ mconcat ["tuple", show size, "-at"]) (pretty n)
 
 instance Pretty BinOp where
   pretty = \case

@@ -8,11 +8,12 @@ import qualified Prelude as P
 import Prelude (($))
 import Data.Text (Text)
 
-import Type.Type
 import Data.Fix hiding ((~>))
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Infer
+
+import qualified Language.HM as H
 
 -- | Prelude functions
 importBase :: Lang -> Lang
@@ -125,6 +126,14 @@ baseNames =
   , "<="
   , ">="
   ]
+
+data Assump = Assump
+  { assump'id   :: H.Var
+  , assump'type :: Type
+  } deriving (P.Show, P.Eq)
+
+(~>) :: Type -> Type -> Type
+(~>) a b = H.arrowT noLoc a b
 
 baseTypeAssump :: [Assump]
 baseTypeAssump =
@@ -367,17 +376,17 @@ y = Fix $ Var noLoc "y"
 aT, bT, cT :: Type
 fT :: Type -> Type
 
-aT = var "a"
-bT = var "b"
-cT = var "c"
-fT ty = TAp noLoc (TVar noLoc (Tyvar noLoc "f" (Kfun noLoc (Star noLoc) (Star noLoc)))) ty
+varT :: H.Var -> Type
+varT = H.varT noLoc
+
+aT = varT "a"
+bT = varT "b"
+cT = varT "c"
+fT ty = H.appT noLoc (varT "f") ty
 
 letIn :: Text -> Lang -> Lang -> Lang
 letIn var body x = singleLet noLoc (VarName noLoc var) body x
 
-assumpType :: Id -> Type -> Assump
-assumpType idx ty = idx :>: (Forall noLoc [Star noLoc] $ Qual noLoc [] ty)
-
-assumpType' :: Id -> Id -> Type -> Type -> Assump
-assumpType' idx cls var ty = idx :>: (Forall noLoc [Star noLoc] $ Qual noLoc [IsIn noLoc cls var] ty)
+assumpType :: H.Var -> Type -> Assump
+assumpType idx ty = Assump idx ty
 

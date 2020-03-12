@@ -3,7 +3,6 @@ module Hschain.Utxo.Lang.Desugar(
   , unfoldLetArg
   , unfoldInfixApply
   , singleLet
-  , explToImpl
   , app2
   , app3
   , altToExpr
@@ -31,14 +30,7 @@ unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc args a)
 singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
 singleLet loc v body expr = Fix $ Let loc bg expr
   where
-    bg = BindGroup expl impl
-
-    expl = []
-
-    impl = [[Impl v [Alt [] body]]]
-
-explToImpl :: Expl a -> Impl a
-explToImpl Expl{..} = Impl expl'name expl'alts
+    bg = [Bind v Nothing [Alt [] body]]
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
@@ -57,18 +49,11 @@ moduleToMainExpr prog = case findMain prog of
     findMain :: Module -> Maybe Lang
     findMain Module{..} = L.firstJust onBg module'binds
       where
-        onBg BindGroup{..} = onImpl bindGroup'impl <|> onExpl bindGroup'expl
+        onBg bs = foldr (<|>) Nothing $ fmap getMain bs
           where
-            onImpl = L.firstJust getMainImpl . concat
-            onExpl = L.firstJust getMainExpl
-
-            getMainImpl Impl{..}
-              | isMain impl'name  = altToLam impl'alts
-              | otherwise         = Nothing
-
-            getMainExpl Expl{..}
-              | isMain expl'name  = altToLam expl'alts
-              | otherwise         = Nothing
+            getMain Bind{..}
+              | isMain bind'name = altToLam bind'alts
+              | otherwise        = Nothing
 
     altToLam alts = case alts of
       [alt] -> Just $ altToExpr alt
@@ -80,13 +65,9 @@ moduleToMainExpr prog = case findMain prog of
     rmMain :: Module -> Module
     rmMain m@Module{..} = m { module'binds = fmap rm module'binds }
       where
-        rm bg@BindGroup{..} = bg
-          { bindGroup'impl = fmap (filter noMainImpl) bindGroup'impl
-          , bindGroup'expl = filter (noMainExpl) bindGroup'expl
-          }
+        rm = filter noMain
 
-        noMainImpl = not . isMain . impl'name
-        noMainExpl = not . isMain . expl'name
+        noMain = not . isMain . bind'name
 
     isMain :: VarName -> Bool
     isMain = (== "main") . varName'name
@@ -104,6 +85,5 @@ altToExpr Alt{..} = case alt'pats of
   pats -> Fix $ LamList (getLoc alt'expr) (fmap toArg pats) $ alt'expr
   where
     toArg (PVar _ var) = var
-
 
 

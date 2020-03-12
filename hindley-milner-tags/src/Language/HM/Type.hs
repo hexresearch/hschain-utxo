@@ -18,6 +18,7 @@ module Language.HM.Type (
     Signature(..),
     forAllT,
     monoT,
+    stripSignature,
 
     HasTypeVars(..),
     VarSet(..),
@@ -183,6 +184,13 @@ differenceVarSet (VarSet a) (VarSet b) = VarSet $ a `M.difference` b
 
 getVar :: VarSet src -> Text -> Maybe src
 getVar (VarSet m) var = M.lookup var m
+
+stripSignature :: Signature src -> Type src
+stripSignature = cata go . unSignature
+  where
+    go = \case
+      ForAllT _ _ r -> r
+      MonoT ty -> ty
 
 $(deriveShow1 ''TypeF)
 $(deriveShow1 ''SignatureF)

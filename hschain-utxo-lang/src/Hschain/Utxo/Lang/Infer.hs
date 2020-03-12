@@ -1,5 +1,6 @@
 module Hschain.Utxo.Lang.Infer where
 
+import Hex.Common.Control
 import Hex.Common.Text
 
 import Control.Monad.Except
@@ -7,7 +8,12 @@ import Control.Monad.Trans
 import Data.Fix hiding ((~>))
 import Data.Vector (Vector)
 
+import Data.Function (on)
+import Data.Set (Set)
+
 import Language.HM (appE, varE, absE, letE, varT, appT, conT, monoT, forAllT, arrowT)
+
+import Safe
 
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
@@ -25,6 +31,22 @@ import qualified Language.HM as H
 inferExpr :: Lang -> Either (H.TypeError Loc) Type
 inferExpr = H.inferW defaultContext . reduceExpr
 
+data Dep = Dep
+  { dep'lhs :: VarName
+  , dep'rhs :: Set VarName
+  }
+
+instance Eq Dep where
+  (==) = (==) `on` dep'lhs
+
+instance Ord Dep where
+  compare a b
+    | dep'lhs a `S.member` dep'rhs b = LT
+    | dep'lhs b `S.member` dep'rhs a = GT
+    | otherwise                      = EQ
+
+
+
 reduceExpr :: Lang -> H.Term Loc
 reduceExpr (Fix expr) = case expr of
   Var loc var               -> fromVarName var
@@ -32,7 +54,9 @@ reduceExpr (Fix expr) = case expr of
   InfixApply loc a name b   -> fromInfixApply loc (rec a) name (rec b)
   Lam loc var a             -> absE loc (varName'name var) (rec a)
   LamList loc vs a          -> rec $ unfoldLamList loc vs a
+  Let loc binds a           -> fromLet loc binds (rec a)
   LetRec loc var a b        -> undefined
+  Ascr loc a ty             -> fromAscr loc (rec a) ty
   PrimE loc prim            -> fromPrim loc prim
   If loc cond t e           -> fromIf loc (rec cond) (rec t) (rec e)
   Pk loc a                  -> fromPk loc (rec a)
@@ -52,10 +76,6 @@ reduceExpr (Fix expr) = case expr of
   Trace loc a b             -> fromTrace loc (rec a) (rec b)
   -- environment
   GetEnv loc envId          -> fromGetEnv loc $ fmap rec envId
-  {-
-  Let Loc (BindGroup a) a
-  Ascr Loc a Type
--}
   where
     rec = reduceExpr
 
@@ -63,6 +83,27 @@ reduceExpr (Fix expr) = case expr of
       appE loc (appE (H.getLoc name) (fromVarName name) a) b
 
     fromVarName VarName{..}  = varE varName'loc varName'name
+
+    fromLet _ binds expr = foldr bindToLet expr (orderBinds binds)
+      where
+        orderBinds bs =
+          fmap fst $
+          L.sortBy (compare `on` snd) $
+          fmap (\b -> (b, Dep (bind'name b) (maybe S.empty (freeVars . altToExpr) $ headMay $ bind'alts b))) bs
+
+        bindToLet Bind{..} body = case bind'alts of
+          [alt] -> altToLet bind'name bind'type alt
+          _     -> body
+
+        altToLet VarName{..} mTy alt =
+          absE varName'loc varName'name $ rec $ appTy $ altToExpr alt
+          where
+            appTy = case mTy of
+              Just ty -> \x -> Fix $ Ascr varName'loc x (H.stripSignature ty)
+              Nothing -> id
+
+
+    fromAscr loc a ty = H.assertTypeE loc a ty
 
     fromPrim loc prim = ($ loc) $ case prim of
       PrimInt _    -> intE
@@ -228,6 +269,7 @@ defaultContext = H.Context $ M.fromList $
       ] ++ (fmap (\alg -> (textHashVar alg, monoT $ textT `arr` textT)) [Sha256, Blake2b256])
       where
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
+
 
 intE, doubleE, textE, boolE :: Loc -> H.Term Loc
 

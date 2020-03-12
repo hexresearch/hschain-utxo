@@ -198,6 +198,10 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
 
             -- return the annotated let binding
             return (s1 <@> s0, t1, tyLetE src (Typed x pt) te0 te1 t1)
+        go (AssertType _ x ty) = do
+            (s0, t0, tx) <- x
+            s1 <- unify t0 ty
+            return (s1 <@> s0, ty, tx)
 
 --------------------------------------------------------------------------------
 

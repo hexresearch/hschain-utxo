@@ -17,9 +17,6 @@ import Language.Haskell.Exts.Parser (
 
 import Language.Haskell.Exts.Pretty
 
-import Type.Loc
-import Type.Type
-
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies

@@ -14,8 +14,10 @@ import Data.Fixed
 import Data.Function (on)
 import Data.Functor.Classes
 
+import Data.Foldable
 import Data.Map.Strict (Map)
 import Data.String
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -29,6 +31,9 @@ import Hschain.Utxo.Lang.Sigma
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
+
+import qualified Data.Set as Set
+import qualified Data.Vector as V
 
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc
@@ -97,21 +102,12 @@ data Alt a = Alt
   , alt'expr :: a
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
-data BindGroup a = BindGroup
-  { bindGroup'expl :: [Expl a]
-  , bindGroup'impl :: [[Impl a]]
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+type BindGroup a = [Bind a]
 
-
-data Expl a = Expl
-  { expl'name  :: VarName
-  , expl'type  :: Signature
-  , expl'alts  :: [Alt a]
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
-
-data Impl a = Impl
-  { impl'name  :: VarName
-  , impl'alts  :: [Alt a]
+data Bind a = Bind
+  { bind'name  :: VarName
+  , bind'type  :: Maybe Signature
+  , bind'alts  :: [Alt a]
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 type Lang = Fix E
@@ -311,23 +307,15 @@ instance H.HasLoc a => H.HasLoc (Alt a) where
   type Loc (Alt a) = H.Loc a
   getLoc = H.getLoc . alt'expr
 
-instance H.HasLoc (Expl a) where
-  type Loc (Expl a) = Loc
-  getLoc = H.getLoc . expl'name
-
-instance H.HasLoc (Impl a) where
-  type Loc (Impl a) = Loc
-  getLoc = H.getLoc . impl'name
+instance H.HasLoc (Bind a) where
+  type Loc (Bind a) = Loc
+  getLoc = H.getLoc . bind'name
 
 instance H.HasLoc (BindGroup Lang) where
   type Loc (BindGroup Lang) = Loc
-  getLoc BindGroup{..} = case bindGroup'expl of
-    a:_ -> H.getLoc $ expl'name a
-    []  -> case bindGroup'impl of
-      iss:_ -> case iss of
-        is:_ -> H.getLoc $ impl'name is
-        []   -> noLoc
-      []   -> noLoc
+  getLoc = \case
+    []  -> noLoc
+    a:_ -> H.getLoc a
 
 -------------------------------------------------------------------
 -- unique instances for Eq and Ord (ingnores source location)
@@ -345,13 +333,44 @@ instance Eq VarName where
 instance Ord VarName where
   compare = compare `on` uniqueVarName
 
+-------------------------------------------------------------------
+
+freeVars :: Lang -> Set VarName
+freeVars = cata $ \case
+  Var _ v         -> Set.singleton v
+  InfixApply _ a _ b -> a <> b
+  Apply _ a b     -> a <> b
+  Lam _ v a       -> Set.filter (/= v) a
+  LamList _ vs a  -> a `Set.difference` (Set.fromList vs)
+  Let _ bg a      -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
+  LetRec _ v a b  -> a <> Set.filter (/= v) b
+  Ascr _ a _      -> a
+  PrimE _ _       -> Set.empty
+  If _ a b c      -> mconcat [a, b, c]
+  Pk _ a          -> a
+  Tuple _ vs      -> fold $ V.toList vs
+  UnOpE _ _ a     -> a
+  BinOpE _ _ a b  -> mconcat [a, b]
+  GetEnv _ env    -> fold env
+  VecE _ vec      -> fold vec
+  TextE _ txt     -> fold txt
+  BoxE _ box      -> fold box
+  Undef _         -> Set.empty
+  Trace _ a b     -> mconcat [a, b]
+  where
+    getBgNames :: BindGroup a -> Set VarName
+    getBgNames bs = Set.fromList $ fmap bind'name bs
+
+    freeVarsBg = foldMap (foldMap freeVarsAlt . bind'alts)
+
+    freeVarsAlt Alt{..} = alt'expr `Set.difference` (freeVarsPat alt'pats)
+
+    freeVarsPat = Set.fromList . fmap (\(PVar _ name) -> name)
 
 -------------------------------------------------------------------
 
 $(deriveShow1 ''Alt)
-$(deriveShow1 ''Impl)
-$(deriveShow1 ''Expl)
-$(deriveShow1 ''BindGroup)
+$(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)
 $(deriveShow1 ''BoxField)

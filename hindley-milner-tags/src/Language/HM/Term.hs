@@ -16,10 +16,11 @@ import Language.HM.Type
 type Var = Text
 
 data TermF src v r
-    = Var src v                 -- ^ Variables.
-    | App src r r               -- ^ Applications.
-    | Abs src v r               -- ^ Abstractions.
-    | Let src v r r             -- ^ Let bindings.
+    = Var src v                   -- ^ Variables.
+    | App src r r                 -- ^ Applications.
+    | Abs src v r                 -- ^ Abstractions.
+    | Let src v r r               -- ^ Let bindings.
+    | AssertType src r (Type src) -- ^ Assert type.
     deriving (Show, Functor, Foldable, Traversable)
 
 -- | The type of terms.
@@ -40,6 +41,9 @@ absE src x e = Fix $ Abs src x e
 -- | 'letE' @x e0 e1@ constructs a binding of @e0@ to @x@ in @e1@.
 letE :: src -> Var -> Term src -> Term src -> Term src
 letE src x e0 e1 = Fix $ Let src x e0 e1
+
+assertTypeE :: src -> Term src -> Type src -> Term src
+assertTypeE src a ty = Fix $ AssertType src a ty
 
 --------------------------------------------------------------------------------
 

@@ -27,9 +27,6 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Type.Loc
-import Type.Type
-
 import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
@@ -148,7 +145,7 @@ execLang' (Fix x) = case x of
       case uo of
         Not         -> fromNot x'
         Neg         -> fromNeg x'
-        TupleAt n   -> fromTupleAt n x'
+        TupleAt _ n -> fromTupleAt n x'
       where
         fromNot expr = case expr of
           Fix (PrimE loc1 (PrimBool b))  -> prim loc1 $ PrimBool $ not b
@@ -182,7 +179,6 @@ execLang' (Fix x) = case x of
         GreaterThan -> fromGt loc a b
         LessThanEquals -> fromLte loc a b
         GreaterThanEquals -> fromGte loc a b
-        ComposeFun -> fromComposeFun loc a b
 
     fromAnd, fromOr :: Loc -> Lang -> Lang -> Exec Lang
 
@@ -302,12 +298,6 @@ execLang' (Fix x) = case x of
       where
         err = thisShouldNotHappen $ Fix $ BinOpE loc GreaterThanEquals (Fix x) (Fix y)
 
-    fromComposeFun loc (Fix x) (Fix y) = case (x, y) of
-      (Lam loc1 v2 f2, Lam loc2 v1 f1) -> rec $ Fix $ Lam loc v1 (Fix $ Apply loc1 (Fix $ Lam loc2 v2 f2) f1)
-      _ -> err
-      where
-        err = thisShouldNotHappen $ Fix $ BinOpE loc ComposeFun (Fix x) (Fix y)
-
     fromIf loc cond t e  = do
       Fix cond' <- rec cond
       case cond' of
@@ -389,17 +379,13 @@ execLang' (Fix x) = case x of
 
 
 
-    fromLet loc bg expr = execDefs defs expr
+    fromLet loc bg expr = execDefs bg expr
       where
-        defs = concat
-          [ fmap explToImpl (bindGroup'expl bg)
-          , concat $ bindGroup'impl bg ]
-
         execDefs ds e = case ds of
           [] -> rec e
           def:rest -> do
-            let v = toVarName $ impl'name def
-            body <- execAlts $ impl'alts def
+            let v = bind'name def
+            body <- execAlts $ bind'alts def
             execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
 
         execAlts :: [Alt Lang] -> Exec Lang
@@ -412,7 +398,7 @@ execLang' (Fix x) = case x of
           [] -> alt'expr
           ps -> Fix $ LamList loc (fmap toVars ps) $ alt'expr
           where
-            toVars (PVar _ var) = toVarName var
+            toVars (PVar _ var) = var
 
     fromLetRec loc v lc1 lc2 = do
       insertVar v lc1
@@ -558,24 +544,17 @@ execLang' (Fix x) = case x of
 
         rec x = subst x varName sub
 
-        substBindGroup BindGroup{..} = BindGroup
-          { bindGroup'expl = fmap  substExpl bindGroup'expl
-          , bindGroup'impl = fmap2 substImpl bindGroup'impl
-          }
+        substBindGroup = fmap substBind
 
-        substExpl x@Expl{..}
-          | varName == toVarName expl'name = x
-          | otherwise                      = x { expl'alts = fmap substAlt expl'alts }
-
-        substImpl x@Impl{..}
-          | varName == toVarName impl'name = x
-          | otherwise                      = x { impl'alts = fmap substAlt impl'alts }
+        substBind x@Bind{..}
+          | varName == bind'name = x
+          | otherwise            = x { bind'alts = fmap substAlt bind'alts }
 
         substAlt x@Alt{..}
           | isBinded varName alt'pats = x
           | otherwise                 = x{ alt'expr = rec alt'expr }
           where
-            isBinded v ps = fromVarName v `elem` (foldMap getBinds ps)
+            isBinded v ps = v `elem` (foldMap getBinds ps)
 
             getBinds = \case
               PVar _ idx -> [idx]

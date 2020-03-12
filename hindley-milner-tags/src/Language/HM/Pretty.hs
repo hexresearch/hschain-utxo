@@ -24,3 +24,10 @@ instance Pretty (Type src) where
 
       isComposite a = isJust $ L.find (== ' ') $ show a
 
+instance Pretty (Signature src) where
+  pretty = cata go . unSignature
+    where
+      go = \case
+        ForAllT _ _ r -> r
+        MonoT ty      -> pretty ty
+

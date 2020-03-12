@@ -33,7 +33,6 @@ import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Type.Type (Loc, noLoc)
 import qualified Data.Vector as V
 
 import Hschain.Utxo.Lang.Desugar
@@ -94,10 +93,10 @@ pair :: Expr a -> Expr b -> Expr (a, b)
 pair (Expr a) (Expr b) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b]
 
 pairAt1 :: Expr (a, b) -> Expr a
-pairAt1 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 0) a
+pairAt1 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 0) a
 
 pairAt2 :: Expr (a, b) -> Expr b
-pairAt2 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 1) a
+pairAt2 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 1) a
 
 tuple3 :: Expr a -> Expr b -> Expr c -> Expr (a, b, c)
 tuple3 (Expr a) (Expr b) (Expr c) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b, c]

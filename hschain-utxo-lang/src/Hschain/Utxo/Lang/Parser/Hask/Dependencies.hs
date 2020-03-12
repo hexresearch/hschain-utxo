@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Parser.Hask.Dependencies(
     Decl(..)
   , toBindGroup
+  , freeVars
 ) where
 
 import Hex.Common.Control
@@ -18,9 +19,6 @@ import Data.Text (Text)
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
 
-import Type.Loc
-import Type.Type
-
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Lib.Base
@@ -31,17 +29,18 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.List as L
 import qualified Data.Vector as V
+import qualified Language.HM as H
 
 -- import Debug.Trace
 
-type TypeMap  = Map VarName (Qual Type)
+type TypeMap  = Map VarName Signature
 type FunMap   = Map VarName (Alt Lang)
 type Deps     = Map VarName [VarName]
 type FunOrder = [VarName]
 
 data Decl
   = FunDecl Loc [(VarName, Alt Lang)]
-  | TypeSig Loc [VarName] (Qual Type)
+  | TypeSig Loc [VarName] Signature
 
 toBindGroup :: [Decl] -> ParseResult [BindGroup Lang]
 toBindGroup ds = do
@@ -91,35 +90,6 @@ getDeps = fmap (Set.toList . (`Set.difference` baseNamesSet) . freeVars . altToE
   where
     baseNamesSet = Set.fromList $ fmap (VarName noLoc) baseNames
 
-    freeVars :: Lang -> Set VarName
-    freeVars = cata $ \case
-      Var _ v         -> Set.singleton v
-      InfixApply _ a _ b -> a <> b
-      Apply _ a b     -> a <> b
-      Lam _ v a       -> Set.filter (/= v) a
-      LamList _ vs a  -> a `Set.difference` (Set.fromList vs)
-      Let _ bg a      -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
-      LetRec _ v a b  -> a <> Set.filter (/= v) b
-      Ascr _ a _      -> a
-      PrimE _ _       -> Set.empty
-      If _ a b c      -> mconcat [a, b, c]
-      Pk _ a          -> a
-      Tuple _ vs      -> fold $ V.toList vs
-      UnOpE _ _ a     -> a
-      BinOpE _ _ a b  -> mconcat [a, b]
-      GetEnv _ env    -> fold env
-      VecE _ vec      -> fold vec
-      TextE _ txt     -> fold txt
-      BoxE _ box      -> fold box
-      Undef _         -> Set.empty
-      Trace _ a b     -> mconcat [a, b]
-
-    getBgNames :: BindGroup a -> Set VarName
-    getBgNames BindGroup{..} = Set.fromList $
-      fmap toVarName $ concat $ fmap expl'name bindGroup'expl : (fmap2 impl'name bindGroup'impl)
-
-    freeVarsBg = fold
-
 
 orderDeps :: Deps -> ParseResult FunOrder
 orderDeps deps
@@ -156,10 +126,10 @@ renderToBinds funs tys names = mapM toGroup names
       Nothing  -> parseFailedVar "Undefined variable" name
       Just f   -> return $ case Map.lookup name tys of
                     Nothing  -> implGroup name f
-                    Just ty  -> explGroup name f $ Forall (getLoc ty) [] ty
+                    Just ty  -> explGroup name f ty
 
 
-    implGroup name f = BindGroup [] [[Impl (fromVarName name) [f]]]
+    implGroup name f = [Bind name Nothing [f]]
 
-    explGroup name f ty = BindGroup [Expl (fromVarName name) ty [f]] []
+    explGroup name f ty = [Bind name (Just ty) [f]]
 

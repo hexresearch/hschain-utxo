@@ -177,23 +177,15 @@ toHaskModule :: Module -> H.Module Loc
 toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl =<< bs)
 
 toDecl :: BindGroup Lang -> [H.Decl Loc]
-toDecl BindGroup{..} = concat
-  [ toDeclExpl =<< bindGroup'expl
-  , concat $ fmap (toDeclImpl =<< ) bindGroup'impl
-  ]
+toDecl bs = toBind =<< bs
   where
-    toDeclImpl :: Impl Lang -> [H.Decl Loc]
-    toDeclImpl Impl{..} = return $ H.FunBind (HM.getLoc impl'name) $ fmap (toMatch impl'name) impl'alts
-
-    toDeclExpl :: Expl Lang -> [H.Decl Loc]
-    toDeclExpl Expl{..} =
-      [ signature
-      , funBind ]
-      where
-        signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name expl'name)] (toType expl'type)
-        funBind = H.FunBind (HM.getLoc expl'name) $ fmap (toMatch expl'name) expl'alts
-
-        tyLoc = HM.getLoc expl'type
+    toBind Bind{..} = case bind'type of
+      Nothing -> return $ H.FunBind (HM.getLoc bind'name) $ fmap (toMatch bind'name) bind'alts
+      Just ty ->
+        let signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name bind'name)] (toType ty)
+            funBind = H.FunBind (HM.getLoc bind'name) $ fmap (toMatch bind'name) bind'alts
+            tyLoc = HM.getLoc ty
+        in  [ signature, funBind ]
 
     toMatch :: VarName -> Alt Lang -> H.Match Loc
     toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) Nothing
