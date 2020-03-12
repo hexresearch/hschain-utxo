@@ -17,8 +17,6 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 import Control.Monad.IO.Class
 
-import Type.Type
-
 import Data.Fix
 import Data.Either
 
@@ -70,10 +68,10 @@ getScriptFile = fmap replEnv'scriptFile get
 getTxFile :: Repl (Maybe FilePath)
 getTxFile = fmap replEnv'txFile get
 
-checkType :: Lang -> Repl (Either TypeError (Qual Type))
+checkType :: Lang -> Repl (Either TypeError Type)
 checkType expr = do
   closure  <- fmap replEnv'closure get
-  return $ runInferExpr baseTypeAssump $ closure expr
+  return $ inferExpr langTypeContext $ closure expr
 
 hasType :: Lang -> Repl Bool
 hasType = fmap isRight . checkType

@@ -12,8 +12,6 @@ import Data.String
 import Data.ByteString.Lazy (ByteString)
 import Hschain.Utxo.Lang.Parser.Hask
 
-import Type.Type
-import Type.Pretty
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Exec
 import Hschain.Utxo.Lang.Types
@@ -53,10 +51,7 @@ compile input output = do
         ParseFailed _ err -> Left err
 
 checkType :: Module -> Maybe TypeError
-checkType lang =
-  case runInferExpr baseTypeAssump =<< (either (Left . TypeError [noLoc] . pure . fromString) (Right . importBase) $ moduleToMainExpr lang) of
-    Right _  -> Nothing
-    Left err -> Just err
+checkType = checkMainModule langTypeContext
 
 ----------------------------------------
 -- generate secret

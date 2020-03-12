@@ -25,10 +25,10 @@ import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
-import qualified Text.Show.Pretty as P
+import qualified Language.HM as H
+import qualified Language.Haskell.Exts.SrcLoc as Hask
 
-import Type.Type
-import Type.Pretty
+import qualified Text.Show.Pretty as P
 
 renderText :: Pretty a => a -> Text
 renderText = renderStrict . layoutPretty defaultLayoutOptions . pretty
@@ -114,24 +114,16 @@ instance Pretty VarName where
   pretty (VarName _ txt) = pretty txt
 
 prettyBinds :: BindGroup (Doc ann) -> Doc ann
-prettyBinds BindGroup{..} = vcat
-  [ vcat $ fmap prettyExpl bindGroup'expl
-  , vcat $ concat $ fmap2 prettyImpl $ bindGroup'impl]
+prettyBinds bs = vcat $ fmap prettyBind bs
   where
-    prettyExpl :: Expl (Doc ann) -> Doc ann
-    prettyExpl Expl{..} = vcat
-      [ prettySignature (toVarName expl'name) expl'type
-      , prettyAlts (toVarName expl'name) expl'alts
+    prettyBind :: Bind (Doc ann) -> Doc ann
+    prettyBind Bind{..} = vcat
+      [ maybe mempty (prettySignature bind'name) bind'type
+      , prettyAlt bind'name bind'alt
       ]
 
-    prettyImpl :: Impl (Doc ann) -> Doc ann
-    prettyImpl Impl{..} = prettyAlts (toVarName impl'name) impl'alts
-
-    prettySignature :: VarName -> Scheme -> Doc ann
-    prettySignature name scheme = hsep [ pretty name, "::",  pretty scheme]
-
-    prettyAlts :: VarName -> [Alt (Doc ann)] -> Doc ann
-    prettyAlts name as = vcat $ fmap (prettyAlt name) as
+    prettySignature :: VarName -> Signature -> Doc ann
+    prettySignature name signature = hsep [ pretty name, "::",  pretty signature]
 
     prettyAlt :: VarName -> Alt (Doc ann) -> Doc ann
     prettyAlt name Alt{..} =
@@ -147,7 +139,7 @@ instance Pretty UnOp where
   pretty = \case
     Not -> "not"
     Neg -> "negate"
-    TupleAt n -> op1 "tuple-at" (pretty n)
+    TupleAt size n -> op1 (pretty $ mconcat ["tuple", show size, "-at"]) (pretty n)
 
 instance Pretty BinOp where
   pretty = \case
@@ -167,12 +159,8 @@ instance Pretty BinOp where
 instance Pretty Prim where
   pretty = \case
     PrimInt      n -> pretty n
-    PrimDouble   d -> pretty d
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
-
-instance Pretty Money where
-  pretty m = pretty $ removeZeroes $ show m
 
 removeZeroes = reverse . skipDot . skipZeroes . reverse
   where
@@ -184,7 +172,7 @@ instance Pretty a => Pretty (EnvId a) where
 
 prettyId :: EnvId (Doc ann) -> Doc ann
 prettyId = \case
-    Height _ -> "HEIGHT"
+    Height _         -> "HEIGHT"
     Input _  a       -> prettyVec "input"  a
     Output _ a       -> prettyVec "output" a
     Inputs _         -> "INPUTS"
@@ -225,4 +213,21 @@ instance Pretty Error where
 
 prettyMap :: (Pretty a, Pretty b) => String -> M.Map a b -> Doc ann
 prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [pretty k, ":", pretty v]) $ M.toList m]
+
+instance Pretty TypeError where
+  pretty = \case
+    H.OccursErr src name ty  -> err src $ hsep ["Occurs error", pretty name, "with type", pretty ty]
+    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", pretty tyB, "expected", pretty tyA]
+    H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
+    where
+      err src msg = hsep ["Type error at", hsep [pretty src, ":"], msg]
+
+instance Pretty Loc where
+  pretty x = pretty $ Hask.srcInfoSpan x
+
+instance Pretty Hask.SrcSpan where
+  pretty Hask.SrcSpan{..} = hcat
+    [ pretty srcSpanFilename, ":"
+    , pretty srcSpanStartLine, ":"
+    , pretty srcSpanStartColumn ]
 

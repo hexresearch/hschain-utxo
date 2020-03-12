@@ -4,6 +4,7 @@ module Hschain.Utxo.Test.Client.Scripts.ReversibleAddress(
 
 import Prelude hiding ((<*))
 
+import Data.Int
 import Data.Fix
 import Data.Fixed
 import Data.Text (Text)
@@ -17,7 +18,7 @@ bobDeadline = "bob-deadline"
 bobPubKey :: Text
 bobPubKey = "bob-public-key"
 
-getBobDeadline :: Expr Box -> Expr Int
+getBobDeadline :: Expr Box -> Expr Int64
 getBobDeadline box = getBoxArg box (text bobDeadline)
 
 getBobPubKey :: Expr Box -> Expr Text

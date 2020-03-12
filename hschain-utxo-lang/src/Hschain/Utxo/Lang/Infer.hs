@@ -1,498 +1,352 @@
 module Hschain.Utxo.Lang.Infer where
 
+import Hex.Common.Control
+import Hex.Common.Text
+
 import Control.Monad.Except
 import Control.Monad.Trans
 import Data.Fix hiding ((~>))
 import Data.Vector (Vector)
 
-import Type.ClassEnv
-import Type.Infer
-import Type.Loc
-import Type.Subst
-import Type.Type
-import Type.Pretty
+import Data.Either
+import Data.Function (on)
+import Data.Set (Set)
+
+import Language.HM (appE, varE, absE, letE, varT, appT, conT, monoT, forAllT, arrowT)
+
+import Safe
 
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 
 import qualified Data.List as L
+import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
 import Debug.Trace
 
-infixr ~>
+import qualified Language.HM as H
 
-(~>) = fn
-
-inferPrim :: Loc -> Prim -> Infer (Qual Type)
-inferPrim loc = \case
-  PrimInt _     -> numT loc
-  PrimDouble _  -> numT loc
-  PrimString _  -> return $ Qual loc [] (textT' loc)
-  PrimBool _    -> return $ Qual loc [] (boolT' loc)
+checkMainModule :: H.Context Loc -> Module -> Maybe TypeError
+checkMainModule ctx m = either Just (const Nothing) $ inferExpr ctx $ either modErr id $ moduleToMainExpr m
   where
-    numT loc = do
-      v <- newTVar (Star loc)
-      return $ Qual loc [IsIn loc (Id loc "Num") v] v
+    modErr = error . mappend "Failed to load module with: "
 
-inferExpr :: [Assump] -> Lang -> Infer (Qual Type)
-inferExpr as (Fix x) = case x of
-  Var loc varName        -> fromVar loc as varName
-  Apply loc a b          -> fromApply loc as a b
-  InfixApply loc a v b   -> inferExpr as $ unfoldInfixApply loc a v b
-  Lam loc varName a      -> fromLam loc as varName a
-  LamList loc vars a     -> fromLamList loc as vars a
-  Let loc varName a      -> fromLet loc as varName a
-  LetRec loc varName a b -> fromLetRec loc as varName a b
-  Ascr loc a ty          -> fromAscr loc as a ty
-  -- primitives
-  PrimE loc p            -> fromPrim loc p
-  -- logic
-  If loc a b c           -> fromIf loc as a b c
-  Pk loc a               -> fromPk loc as a
-  -- tuples
-  Tuple loc t            -> fromTuple loc as t
+inferExpr :: H.Context Loc -> Lang -> Either TypeError Type
+inferExpr ctx = H.inferW ctx . reduceExpr
+
+reduceExpr :: Lang -> H.Term Loc
+reduceExpr (Fix expr) = case expr of
+  Var loc var               -> fromVarName var
+  Apply loc a b             -> appE loc (rec a) (rec b)
+  InfixApply loc a name b   -> fromInfixApply loc (rec a) name (rec b)
+  Lam loc var a             -> absE loc (varName'name var) (rec a)
+  LamList loc vs a          -> rec $ unfoldLamList loc vs a
+  Let loc binds a           -> fromLet loc binds (rec a)
+  LetRec loc var a b        -> undefined
+  Ascr loc a ty             -> fromAscr loc (rec a) ty
+  PrimE loc prim            -> fromPrim loc prim
+  If loc cond t e           -> fromIf loc (rec cond) (rec t) (rec e)
+  Pk loc a                  -> fromPk loc (rec a)
   -- operations
-  UnOpE loc op a         -> fromUnOp loc as op a
-  BinOpE loc op a b      -> fromBinOp loc as op a b
-  -- environment
-  GetEnv loc envId       -> fromGetEnv loc as envId
+  UnOpE loc unOp a          -> fromUnOp loc unOp (rec a)
+  BinOpE loc binOp a b      -> fromBinOp loc binOp (rec a) (rec b)
+  Tuple loc vs              -> fromTuple loc $ fmap rec vs
   -- vectors
-  VecE loc vec           -> fromVec loc as vec
+  VecE loc v                -> fromVec loc $ fmap rec v
   -- text
-  TextE loc txt          -> fromText loc as txt
+  TextE loc txt             -> fromText loc $ fmap rec txt
   -- boxes
-  BoxE loc box           -> fromBox loc as box
-  -- undef value
-  Undef loc              -> fromUndef loc
+  BoxE loc box              -> fromBox loc $ fmap rec box
+  -- undefined
+  Undef loc                 -> varE loc undefVar
   -- debug
-  Trace loc a b          -> fromTrace loc as a b
-
-fromVar :: Loc -> [Assump] -> VarName -> Infer (Qual Type)
-fromVar loc as v = do
-  sc <- findAssump (fromVarName v) as
-  freshInst sc
-
-fromApply :: Loc -> [Assump] -> Lang -> Lang -> Infer (Qual Type)
-fromApply loc as f a = do
-  Qual _ pf tf <- inferExpr as f
-  Qual _ pa ta <- inferExpr as a
-  t <- newTVar (Star loc)
-  unify (ta `fn` t) tf
-  return $ Qual loc (pf ++ pa) t
-
-fromLam :: Loc -> [Assump] -> VarName -> Lang -> Infer (Qual Type)
-fromLam loc as v b = inferExpr as $ lam v b
+  Trace loc a b             -> fromTrace loc (rec a) (rec b)
+  -- environment
+  GetEnv loc envId          -> fromGetEnv loc $ fmap rec envId
   where
-    -- toLet :: VarName -> Lang -> Lang
-    -- toLet arg body = singleLet loc (VarName loc "f") (Fix $ Lam loc (VarName loc "x") body) (Fix $ Var loc (VarName loc "f"))
+    rec = reduceExpr
 
-    lam :: VarName -> Lang -> Lang
-    lam arg body = Fix $ Let (getLoc arg) (BindGroup [] [[Impl "f" [(Alt [PVar (getLoc arg) (fromVarName arg)] body)]]]) (Fix $ Var (getLoc body) "f")
+    fromInfixApply loc a name b =
+      appE loc (appE (H.getLoc name) (fromVarName name) a) b
 
-fromLamList :: Loc -> [Assump] -> [VarName] -> Lang -> Infer (Qual Type)
-fromLamList loc as args body = inferExpr as $ unfoldLamList loc args body
+    fromVarName VarName{..}  = varE varName'loc varName'name
 
-fromLet loc as bg e = do
-  (ps, as') <- inferBindGroup as bg
-  Qual _ qs t <- inferExpr (as' ++ as) e
-  return $ Qual loc (ps ++ qs) t
-
-fromLetRec loc = undefined
-
-fromAscr loc as a t = do
-  Qual _ aPs aT <- inferExpr as a
-  unify aT t
-  return $ Qual loc aPs t
-
-fromPrim :: Loc -> Prim -> Infer (Qual Type)
-fromPrim loc = inferPrim loc
-
-fromIf :: Loc -> [Assump] -> Lang -> Lang -> Lang -> Infer (Qual Type)
-fromIf loc as cond a b = do
-  Qual _ condPs condT <- inferExpr as cond
-  Qual _ aPs aT <- inferExpr as a
-  Qual _ bPs bT <- inferExpr as b
-  unify condT boolT
-  unify aT bT
-  return $ Qual loc (condPs ++ aPs ++ bPs) aT
-
-fromPk :: Loc -> [Assump] -> Lang -> Infer (Qual Type)
-fromPk loc as a = do
-  Qual _ aPs aT <- inferExpr as a
-  unify aT textT
-  return $ Qual loc aPs textT
-
-fromTuple :: Loc -> [Assump] -> Vector Lang -> Infer (Qual Type)
-fromTuple loc as vs = do
-      ts <- mapM (newTVar . Star . getLoc) vs
-      qs <- mapM (inferExpr as) vs
-      let ts' = fmap (\(Qual _ _ t) -> t) qs
-          ps  = fmap (\(Qual _ p _) -> p) qs
-      zipWithM unify (V.toList ts) (V.toList ts')
-      return $ Qual loc (concat $ V.toList ps) (tupleT' loc $ V.toList ts')
-
-fromVec :: Loc -> [Assump] -> VecExpr Lang -> Infer (Qual Type)
-fromVec _ as = \case
-  NewVec loc vs -> do
-    t <- newTVar (Star loc)
-    ps <- fmap concat $ mapM ((\(Qual _ ps ty) -> unify t ty >> return ps) <=< inferExpr as) vs
-    return $ Qual loc ps $ vectorT t
-  VecAppend loc a b -> do
-    Qual _ aPs aT <- inferExpr as a
-    Qual _ bPs bT <- inferExpr as b
-    t <- newTVar (Star loc)
-    unify (vectorT t) aT
-    unify (vectorT t) bT
-    return $ Qual loc (aPs ++ bPs) (vectorT t)
-  VecAt loc a b -> do
-    t <- newTVar (Star loc)
-    Qual _ aPs aT <- inferExpr as a
-    Qual _ bPs bT <- inferExpr as b
-    unify (vectorT t) aT
-    unify bT intT
-    return $ Qual loc aPs t
-  VecLength loc -> do
-    t <- newTVar (Star loc)
-    return $ Qual loc [] (t ~> intT)
-  VecMap loc -> do
-    a <- newTVar (Star loc)
-    b <- newTVar (Star loc)
-    return $ Qual loc [] ( (a ~> b) ~> vectorT a ~> vectorT b)
-  VecFold loc    -> do
-    a <- newTVar (Star loc)
-    b <- newTVar (Star loc)
-    return $ Qual loc [] ( (a ~> b ~> a) ~> a ~> vectorT b ~> a)
-
-fromUnOp :: Loc -> [Assump] -> UnOp -> Lang -> Infer (Qual Type)
-fromUnOp loc as = \case
-  Not       -> fromNot
-  Neg       -> fromNeg
-  TupleAt n -> fromTupleAt n
-  where
-    fromNot a = do
-      Qual _ _ aT <- inferExpr as a
-      unify aT boolT
-      return $ Qual loc [] (boolT' loc)
-
-    fromNeg a = do
-      t <- newTVar (Star loc)
-      Qual _ aPs aT <- inferExpr as a
-      unify t aT
-      return $ Qual loc ([IsIn loc (Id loc "Num") t] ++ aPs) t
-
-    fromTupleAt n vs = do
-      Qual _ ps ts <- inferExpr as vs
-      extractTuple n ps ts
+    fromLet _ binds expr = foldr bindToLet expr (sortBindGroups binds)
       where
-        extractTuple n ps ts = case (V.fromList $ tupleArgs ts) V.!? n of
-          Just t   -> return $ Qual loc ps t
-          Nothing  -> throwError $ singleTypeError loc "Wrong size tuple"
+        bindToLet Bind{..} body =
+          letE (varName'loc bind'name) (varName'name bind'name)
+               (reduceExpr $ altToExpr bind'alt)
+               body
 
-        tupleArgs = reverse . go []
+    fromAscr loc a ty = H.assertTypeE loc a ty
+
+    fromPrim loc prim = ($ loc) $ case prim of
+      PrimInt _    -> intE
+      PrimString _ -> textE
+      PrimBool _   -> boolE
+      PrimSigma _  -> boolE
+
+    fromIf loc cond t e = app3 loc ifVar cond t e
+
+    fromPk loc a = appE loc (varE loc pkVar) a
+
+    fromUnOp loc op a = case op of
+      Not              -> not' a
+      Neg              -> negate' a
+      TupleAt size idx -> tupleAt size idx a
+      where
+        not' = appE loc (varE loc notVar)
+        negate' = appE loc (varE loc negateVar)
+        tupleAt size n = appE loc (varE loc $ tupleAtVar size n)
+
+    fromBinOp loc op = op2 $ case op of
+      And                 -> andVar
+      Or                  -> orVar
+      Plus                -> plusVar
+      Minus               -> minusVar
+      Times               -> timesVar
+      Div                 -> divVar
+      Equals              -> equalsVar
+      NotEquals           -> notEqualsVar
+      LessThan            -> lessThanVar
+      GreaterThan         -> greaterThanVar
+      LessThanEquals      -> lessThanEqualsVar
+      GreaterThanEquals   -> greaterThanEqualsVar
+      where
+        op2 = app2 loc
+
+    fromTuple loc vs = appNs loc (tupleConVar size) $ V.toList vs
+      where
+        size = V.length vs
+
+    fromVec _ expr = case expr of
+      NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
+      VecAppend loc a b  -> app2 loc appendVecVar a b
+      VecAt loc a n      -> app2 loc vecAtVar a n
+      VecLength loc      -> varE loc lengthVecVar
+      VecMap loc         -> varE loc mapVecVar
+      VecFold loc        -> varE loc foldVecVar
+
+    fromText _ expr = case expr of
+      TextAppend loc a b            -> app2 loc appendTextVar a b
+      ConvertToText textTypeTag loc -> varE loc (convertToTextVar textTypeTag)
+      TextLength loc                -> varE loc lengthTextVar
+      TextHash loc hashAlgo         -> varE loc (textHashVar hashAlgo)
+
+    fromBox _ expr = case expr of
+      PrimBox loc _     -> varE loc boxVar
+      BoxAt loc a field -> fromBoxField loc a field
+
+    fromBoxField loc a field = case field of
+      BoxFieldId       -> app1 loc getBoxIdVar a
+      BoxFieldValue    -> app1 loc getBoxValueVar a
+      BoxFieldScript   -> app1 loc getBoxScriptVar a
+      BoxFieldArg arg  -> app2 loc getBoxArgVar a arg
+
+    fromTrace loc msg a = app2 loc traceVar msg a
+
+    fromGetEnv _ expr = case expr of
+      Height loc    -> varE loc heightVar
+      Input loc  a  -> app1 loc inputVar a
+      Output loc a  -> app1 loc outputVar a
+      Self loc      -> varE loc selfVar
+      Inputs loc    -> varE loc inputsVar
+      Outputs loc   -> varE loc outputsVar
+      GetVar loc a  -> app1 loc getVarVar a
+
+    app1 loc var a = appE loc (varE loc var) a
+    app2 loc var a b = appE loc (appE loc (varE loc var) a) b
+    app3 loc var a b c = appE loc (app2 loc var a b) c
+    appNs loc var as = foldl (\con a -> appE loc con a) (varE loc var) as
+
+    nilVec loc = varE loc nilVecVar
+    consVec loc = app2 loc consVecVar
+
+
+defaultContext :: H.Context Loc
+defaultContext = H.Context $ M.fromList $
+  -- primitives
+  [ (intVar,    monoT intT)
+  , (textVar,   monoT textT)
+  , (boolVar,   monoT boolT)
+  -- if
+  , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
+  -- pk
+  , (pkVar,     monoT $ textT `arr` boolT)
+  -- operations
+  --  unary
+  , (notVar,    monoT $ boolT `arr` boolT)
+  , (negateVar, monoT $ intT `arr` intT)
+  -- binary
+  , (andVar,    boolOp2)
+  , (orVar,     boolOp2)
+  , (plusVar,   intOp2)
+  , (minusVar,  intOp2)
+  , (timesVar,  intOp2)
+  , (divVar,    intOp2)
+  , (equalsVar, cmpOp2 )
+  , (notEqualsVar, cmpOp2)
+  , (lessThanVar, cmpOp2)
+  , (greaterThanVar, cmpOp2)
+  , (lessThanEqualsVar, cmpOp2)
+  , (greaterThanEqualsVar, cmpOp2)
+  -- vec expressions
+  , (nilVecVar, forA $ monoT $ vectorT a)
+  , (consVecVar, forA $ monoT $ a `arr` (vectorT a `arr` vectorT a))
+  , (appendVecVar, forA $ monoT $ vectorT a `arr` (vectorT a `arr` vectorT a))
+  , (vecAtVar, forA $ monoT $ vectorT a `arr` (intT `arr` a))
+  , (lengthVecVar, forA $ monoT $ vectorT a `arr` intT)
+  , (mapVecVar, forAB $ monoT $ (a `arr` b) `arr` (vectorT a `arr` vectorT b))
+  , (foldVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (vectorT a `arr` b)))
+  , (getBoxIdVar, monoT $ boxT `arr` textT)
+  , (getBoxValueVar, monoT $ boxT `arr` intT)
+  , (getBoxScriptVar, monoT $ boxT `arr` scriptT)
+  , (getBoxArgVar, forA $ monoT $ boxT `arr` (textT `arr` a))
+  , (undefVar, forA $ monoT a)
+  , (traceVar, forA $ monoT $ textT `arr` (a `arr` a))
+  , (heightVar, monoT intT)
+  , (inputVar, monoT $ intT `arr` boxT)
+  , (outputVar, monoT $ intT `arr` boxT)
+  , (selfVar, monoT boxT)
+  , (inputsVar, monoT $ vectorT boxT)
+  , (outputsVar, monoT $ vectorT boxT)
+  , (getVarVar, forA $ monoT $ intT `arr` a)
+  ] ++ tupleVars ++ textExprVars
+  where
+    forA = forAllT noLoc "a"
+    forAB = forA . forAllT noLoc "b"
+    a = varT noLoc "a"
+    b = varT noLoc "b"
+    arr = arrowT noLoc
+
+    opT2 x = monoT $ x `arr` (x `arr` x)
+    boolOp2 = opT2 boolT
+    intOp2 = opT2 intT
+    cmpOp2 = forA $ monoT $ a `arr` (a `arr` boolT)
+
+    tupleVars = [ toTuple size idx | size <- [2..6], idx <- [1 .. size]]
+      where
+        toTuple :: Int -> Int -> (H.Var, H.Signature Loc)
+        toTuple size idx = (tupleAtVar size idx, tupleAtType size idx)
+
+        tupleAtType :: Int -> Int -> H.Signature Loc
+        tupleAtType size idx = pred $ monoT $ ty `arr` (varT noLoc $ v idx)
           where
-            go res ts = case ts of
-              TAp _ a b -> go (b : res) a
-              _         -> res
+            pred = foldr (.) id $ fmap (\n -> forAllT noLoc (v n)) [1 .. size]
+            ty = foldl (\z n -> appT noLoc z (varT noLoc $ v n)) (conT noLoc (mappend "Tuple" (showt size))) [1 .. size]
 
-fromBinOp :: Loc -> [Assump] -> BinOp -> Lang -> Lang -> Infer (Qual Type)
-fromBinOp loc as = \case
-  And                 -> boolOp
-  Or                  -> boolOp
-  Plus                -> numOp
-  Minus               -> numOp
-  Times               -> numOp
-  Div                 -> numOp
-  Equals              -> eqOp
-  NotEquals           -> eqOp
-  LessThan            -> ordOp
-  GreaterThan         -> ordOp
-  LessThanEquals      -> ordOp
-  GreaterThanEquals   -> ordOp
-  ComposeFun          -> funOp
-  where
-    boolOp a b = do
-      Qual _ aPs aT <- inferExpr as a
-      Qual _ bPs bT <- inferExpr as b
-      unify aT boolT
-      unify bT boolT
-      return $ Qual loc [] (boolT' loc)
+            v n = mappend "a" (showt n)
 
-    numOp a b = do
-      t <- newTVar (Star loc)
-      Qual _ aPs aT <- inferExpr as a
-      Qual _ bPs bT <- inferExpr as b
-      unify t aT
-      unify t bT
-      unify aT bT
-      return $ Qual loc ((IsIn loc (Id loc "Num") t) : (aPs ++ bPs)) t
-
-    eqOp a b = do
-      t <- newTVar (Star loc)
-      Qual _ aPs aT <- inferExpr as a
-      Qual _ bPs bT <- inferExpr as b
-      unify t aT
-      unify t bT
-      return $ Qual loc [] (boolT' loc)
-
-    ordOp a b = do
-      t <- newTVar (Star loc)
-      Qual _ aPs aT <- inferExpr as a
-      Qual _ bPs bT <- inferExpr as b
-      unify t aT
-      unify t bT
-      return $ Qual loc [] (boolT' loc)
-
-    funOp f g = do
-      Qual _ fPs fT <- inferExpr as f
-      Qual _ gPs gT <- inferExpr as g
-      aT <- newTVar (Star loc)
-      bT <- newTVar (Star loc)
-      cT <- newTVar (Star loc)
-      unify fT (bT ~> cT)
-      unify gT (aT ~> bT)
-      return $ Qual loc (fPs ++ gPs) ((bT ~> cT) ~> (aT ~> bT) ~> aT ~> cT)
-
-fromGetEnv :: Loc -> [Assump] -> EnvId Lang -> Infer (Qual Type)
-fromGetEnv _ as = \case
-  Height loc      -> return $ Qual loc [] (intT' loc)
-  Input loc a     -> fromBoxGet loc a
-  Output loc a    -> fromBoxGet loc a
-  Self loc        -> return $ Qual loc [] (boxT' loc)
-  Inputs loc      -> vecBox loc
-  Outputs loc     -> vecBox loc
-  GetVar loc a    -> fromGetVar loc a
-  where
-    vecBox loc = return $ Qual loc [] $ vectorT' loc (boxT' loc)
-
-    fromBoxGet loc a = do
-      Qual _ _ aT <- inferExpr as a
-      unify aT intT
-      return $ Qual loc [] (boxT' loc)
-
-    fromGetVar loc arg = do
-      t <- newTVar (Star loc)
-      Qual _ _ argT <- inferExpr as arg
-      unify argT textT
-      return $ Qual loc [] t
-
-fromText :: Loc -> [Assump] -> TextExpr Lang -> Infer (Qual Type)
-fromText _ as = \case
-  TextAppend loc a b -> do
-    Qual _ _ aT <- inferExpr as a
-    Qual _ _ bT <- inferExpr as b
-    unify aT textT
-    unify bT textT
-    return $ Qual loc [] (textT' loc)
-  -- todo: use text tag to restrict type inference here
-  ConvertToText _ loc  -> do
-    t <- newTVar (Star loc)
-    return $ Qual loc [] $ fn' loc t (textT' loc)
-  TextLength loc     -> return $ Qual loc [] $ fn' loc (textT' loc) (intT' loc)
-  TextHash loc _     -> return $ Qual loc [] $ fn' loc (textT' loc) (textT' loc)
-
-fromBox :: Loc -> [Assump] -> BoxExpr Lang -> Infer (Qual Type)
-fromBox _ as = \case
-  PrimBox loc _ -> return $ Qual loc [] (boxT' loc)
-  BoxAt loc box field -> fromBoxField loc box field
-  where
-    fromBoxField loc box field = do
-      Qual _ _boxPs bT <- inferExpr as box
-      unify bT boxT
-      case field of
-        BoxFieldId      -> return $ Qual loc [] (textT' loc)
-        BoxFieldValue   -> return $ Qual loc [] (doubleT' loc)
-        BoxFieldScript  -> return $ Qual loc [] (scriptT' loc)
-        BoxFieldArg txt -> do
-          t <- newTVar (Star loc)
-          Qual _ txtPs txtT <- inferExpr as txt
-          unify txtT textT
-          return $ Qual loc [] t
+    textExprVars =
+      [ (appendTextVar, monoT $ textT `arr` (textT `arr` textT))
+      , (lengthTextVar, monoT $ textT `arr` intT)
+      , convertExpr IntToText intT
+      , convertExpr BoolToText boolT
+      , convertExpr ScriptToText scriptT
+      ] ++ (fmap (\alg -> (textHashVar alg, monoT $ textT `arr` textT)) [Sha256, Blake2b256])
+      where
+        convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-fromUndef :: Loc -> Infer (Qual Type)
-fromUndef loc = fmap (Qual loc []) $ newTVar (Star loc)
+intE, textE, boolE :: Loc -> H.Term Loc
 
-fromTrace :: Loc -> [Assump] -> Lang -> Lang -> Infer (Qual Type)
-fromTrace loc as msg arg = do
-  Qual _ msgPs msgT <- inferExpr as msg
-  Qual _ argPs argT <- inferExpr as arg
-  unify msgT textT
-  return $ Qual loc (msgPs ++ argPs) argT
+intE loc = varE loc intVar
+textE loc = varE loc textVar
+boolE loc = varE loc boolVar
 
+intVar, textVar, boolVar, notVar, negateVar, boxVar, scriptVar :: H.Var
 
-inferBindGroup :: [Assump] -> BindGroup Lang -> Infer ([Pred], [Assump])
-inferBindGroup as BindGroup{..} = do
-  ce <- getClassEnv
-  (ps, as'') <- inferSeq inferImpl (as' ++ as) bindGroup'impl
-  qss <- mapM (inferExpl (as'' ++ as' ++ as)) bindGroup'expl
-  return $ (ps ++ concat qss, as'' ++ as')
-  where
-    as' = fmap toAssump bindGroup'expl
+intVar = "Int"
+textVar = "Text"
+boolVar = "Bool"
+boxVar = "Box"
+scriptVar = secretVar "Script"
+notVar = secretVar "not"
+negateVar = secretVar "negate"
 
-    toAssump Expl{..} = expl'name :>: expl'type
+tupleAtVar :: Int -> Int -> H.Var
+tupleAtVar size n = secretVar $ mconcat ["tupleAt-", showt size, "-", showt n]
 
+tupleConVar :: Int -> H.Var
+tupleConVar size = secretVar $ mappend "tuple" (showt size)
 
-inferSeq :: ([Assump] -> e -> Infer ([Pred], [Assump])) ->
-            ([Assump] -> [e] -> Infer ([Pred], [Assump]))
-inferSeq infer as = \case
-  []     -> return ([], [])
-  bs:bss -> do
-    ce <- getClassEnv
-    (ps, as')  <- infer as bs
-    (qs, as'') <- inferSeq infer (as' ++ as) bss
-    return (ps ++ qs, as'' ++ as')
+ifVar, pkVar :: H.Var
 
-inferModule :: ClassEnv -> [Assump] -> Module -> Either TypeError [Assump]
-inferModule ce as (Module _ bgs) = (\inf -> runInfer inf ce) $ do
-  (ps, as') <- inferSeq inferBindGroup as bgs
-  s <- getSubst
-  rs <- Infer $ lift $ reduce ce (apply s ps)
-  s' <- defaultSubst ce [] rs
-  return $ apply (s' `compose` s) as'
+ifVar = secretVar "if"
+pkVar = secretVar "pk"
 
-inferAlt :: [Assump] -> Alt Lang -> Infer (Qual Type)
-inferAlt as alt@(Alt pats e) = do
-  (ps, as', ts) <- inferPats pats
-  Qual _ qs t <- inferExpr (as' ++ as) e
-  return $ Qual (getLoc alt) (ps ++ qs) (foldr fn t ts)
+intT :: H.Type Loc
 
-inferAlts :: [Assump] -> [Alt Lang] -> Type -> Infer [Pred]
-inferAlts as alts t = do
-  psts <- mapM (inferAlt as) alts
-  mapM_ (unify t) (fmap (\(Qual _ _ x) -> x) psts)
-  return $ concat $ fmap (\(Qual _ x _) -> x) psts
-
-split :: [Tyvar] -> [Tyvar] -> [Pred] -> Infer ([Pred], [Pred])
-split fs gs ps = do
-  ce <- getClassEnv
-  ps' <- Infer $ lift $ reduce ce ps
-  let (ds, rs) = L.partition (all (`elem` fs) . getVars) ps'
-  rs' <- defaultedPreds ce (fs ++ gs) rs
-  return (ds, rs L.\\ rs')
-
-inferExpl :: [Assump] -> Expl Lang -> Infer [Pred]
-inferExpl as expl@Expl{..} = do
-  let loc = getLoc expl
-  ce <- getClassEnv
-  Qual _ qs t <- freshInst expl'type
-  ps <- inferAlts as expl'alts t
-  s <- getSubst
-  let qs' = apply s qs
-      t'  = apply s t
-      fs  = getVars (apply s as)
-      gs  = getVars t' S.\\ fs
-      sc' = quantify (S.toList gs) (Qual loc qs' t')
-      ps' = filter (not . entail ce qs') (apply s ps)
-  (ds, rs) <- split (S.toList fs) (S.toList gs) ps'
-  if expl'type /= sc'
-    then throwError $ singleTypeError loc "Signature too general"
-    else if not (null rs)
-            then throwError $ singleTypeError loc "context too weak"
-            else return ds
+intT = conT noLoc intVar
 
 
-restricted :: [Impl a] -> Bool
-restricted bs = any simple bs
-  where
-    simple Impl{..} = any (null . alt'pats) impl'alts
+andVar, orVar, plusVar, minusVar, timesVar, divVar,
+  equalsVar, notEqualsVar, lessThanVar,
+  greaterThanVar, lessThanEqualsVar, greaterThanEqualsVar :: H.Var
 
-inferImpl :: [Assump] -> [Impl Lang] -> Infer ([Pred], [Assump])
-inferImpl as bs = do
-  ts <- mapM (newTVar . Star . getLoc) bs
-  let is    = fmap impl'name bs
-      scs   = fmap toScheme ts
-      as'   = zipWith (:>:) is scs ++ as
-      altss = fmap impl'alts bs
-  pss <- zipWithM (inferAlts as') altss ts
-  s <- getSubst
-  let ps'   = apply s (concat pss)
-      ts'   = apply s ts
-      fs    = getVars (apply s as)
-      vss   = fmap getVars ts'
-      gs    = L.foldr1 S.union vss S.\\ fs
-  (ds, rs) <- split (S.toList fs) (S.toList $ foldr1 S.intersection vss) ps'
-  if restricted bs
-    then
-      let gs'  = gs S.\\ getVars rs
-          scs' = fmap (quantify (S.toList gs') . (\t -> Qual (getLoc t) [] t)) ts'
-       in return (ds ++ rs, zipWith (:>:) is scs')
-    else
-      let scs' = fmap (quantify (S.toList gs) . (\t -> Qual (getLoc t) [] t)) ts'
-      in  return (ds, zipWith (:>:) is scs')
+andVar  = secretVar "and"
+orVar   = secretVar "or"
+plusVar = secretVar "plus"
+minusVar = secretVar "minus"
+timesVar = secretVar "times"
+divVar   = secretVar "div"
+equalsVar = secretVar "equals"
+notEqualsVar = secretVar "notEquals"
+lessThanVar  = secretVar "lessThan"
+greaterThanVar = secretVar "greaterThan"
+lessThanEqualsVar = secretVar "lessThanEquals"
+greaterThanEqualsVar = secretVar "greaterThanEquals"
 
-inferPats :: [Pat] -> Infer ([Pred], [Assump], [Type])
-inferPats pats = do
-  psasts <- mapM inferPat pats
-  let ps = concat $ fmap (\(p, _, _) -> p) psasts
-      as = concat $ fmap (\(_, a, _) -> a) psasts
-      ts = fmap (\(_, _, t) -> t) psasts
-  return (ps, as, ts)
+nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar :: H.Var
 
-inferPat :: Pat -> Infer ([Pred], [Assump], Type)
-inferPat = \case
-  PVar loc idx -> do
-    v <- newTVar (Star loc)
-    return ([], [idx :>: toScheme v], v)
-  {-
-  PWildcard loc -> do
-    v <- newTVar (Star loc)
-    return ([], [], v)
-  PLit loc lit -> do
-    (Qual _ ps t) <- inferPrim lit
-    return (ps, [], t)
-  -}
+nilVecVar = secretVar "nilVec"
+consVecVar = secretVar "consVec"
+appendVecVar = secretVar "appendVec"
+vecAtVar = secretVar "vecAt"
+lengthVecVar = secretVar "lengthVec"
+mapVecVar = secretVar "mapVec"
+foldVecVar = secretVar "foldVec"
 
--------------------------------------------
---
+appendTextVar, lengthTextVar :: H.Var
 
-runInferModule :: [Assump] -> Lang -> Either TypeError (Qual Type)
-runInferModule = undefined
+appendTextVar = secretVar "appendText"
+lengthTextVar = secretVar "lengthText"
 
-runInferExpr :: [Assump] -> Lang -> Either TypeError (Qual Type)
-runInferExpr as expr = do
-  ce <- defaultClassEnv
-  runInfer (infer ce) ce
-  where
-    infer ce = do
-      (Qual loc ps exprT) <- inferExpr as expr
-      s <- getSubst
-      rs <- Infer $ lift $ reduce ce (apply s ps)
-      s' <- defaultSubst ce [] rs
-      let mainSubst = s' `compose` s
-          resExprT = apply mainSubst exprT
-          normS = normalizeSubst resExprT
-      return $ Qual loc (removeCons $ apply (normS `compose` mainSubst) rs) $ apply normS resExprT
+convertToTextVar :: TextTypeTag -> H.Var
+convertToTextVar tag = secretVar $ mappend "convertToText" (showt tag)
 
-    tr x = trace (T.unpack $ pp x) x
+textHashVar :: HashAlgo -> H.Var
+textHashVar hashAlgo = secretVar $ mappend "textHash" (showt hashAlgo)
 
-defaultClassEnv :: Either TypeError ClassEnv
-defaultClassEnv = addCoreClasses initialEnv
 
-addCoreClasses :: EnvTransformer
-addCoreClasses =
-      addClass "Eq" [] eqInsts
-  <:> addClass "Ord" ["Eq"] ordInsts
-  <:> addClass "Show" [] showInsts
-  <:> addClass "Num" [] numInsts
-  where
-    eqInsts = instBy eq
-      where eq = qual "Eq"
+getBoxIdVar, getBoxValueVar, getBoxScriptVar, getBoxArgVar :: H.Var
 
-    ordInsts = instBy ord
-      where ord = qual "Ord"
+getBoxIdVar = secretVar "getBoxId"
+getBoxValueVar = secretVar "getBoxValue"
+getBoxScriptVar = secretVar "getBoxScript"
+getBoxArgVar = secretVar "getBoxArg"
 
-    instBy f = fmap f [boolT, textT, intT, doubleT]
+undefVar :: H.Var
+undefVar = secretVar "undefined"
 
-    numInsts = fmap num [intT, doubleT]
-      where num = qual "Num"
+traceVar :: H.Var
+traceVar = secretVar "trace"
 
-    showInsts = fmap sh [intT, doubleT, textT, boolT]
-      where sh = qual "Show"
+heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, getVarVar :: H.Var
 
-    qual idx ty = Qual noLoc [] (IsIn noLoc idx ty)
+heightVar = secretVar "height"
+inputVar = secretVar "input"
+outputVar = secretVar "output"
+selfVar = secretVar "self"
+inputsVar = secretVar "inputs"
+outputsVar = secretVar "outputs"
+getVarVar = secretVar "getVar"
+
+secretVar :: H.Var -> H.Var
+secretVar = mappend ":# "
 
 
 

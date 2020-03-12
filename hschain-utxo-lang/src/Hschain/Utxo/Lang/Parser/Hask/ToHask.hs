@@ -3,6 +3,8 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskModule
 ) where
 
+import Hex.Common.Text
+
 import Control.Monad
 
 import Data.Fix
@@ -12,8 +14,6 @@ import Language.Haskell.Exts.Parser (
 
 import Language.Haskell.Exts.Pretty
 
-import Type.Loc
-import Type.Type
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
@@ -26,17 +26,19 @@ import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Parser as H
 
+import qualified Language.HM as HM
+
 
 toHaskExp :: Lang -> H.Exp Loc
 toHaskExp (Fix expr) = case expr of
   Var loc name -> toVar loc name
   Apply loc a b -> H.App loc (rec a) (rec b)
-  InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (getLoc v) $ toSymbolQName' v) (rec b)
-  Lam loc name a -> H.Lambda loc [H.PVar (getLoc name) $ toIdentName' name] (rec a)
-  LamList loc vs a -> H.Lambda loc (fmap (\v -> H.PVar (getLoc v) $ toIdentName' v) vs) (rec a)
+  InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (HM.getLoc v) $ toSymbolQName v) (rec b)
+  Lam loc name a -> H.Lambda loc [H.PVar (HM.getLoc name) $ toIdentName name] (rec a)
+  LamList loc vs a -> H.Lambda loc (fmap (\v -> H.PVar (HM.getLoc v) $ toIdentName v) vs) (rec a)
   Let loc bg a -> H.Let loc (toLetBinds loc bg) (toHaskExp a)
   LetRec loc name a b -> undefined
-  Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType (Forall loc [] (Qual loc [] ty)))
+  Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType (HM.Signature $ Fix $ HM.MonoT ty))
   -- primitives
   PrimE loc p -> toLiteral loc p
   -- logic
@@ -61,8 +63,8 @@ toHaskExp (Fix expr) = case expr of
   Trace loc a b -> ap2 (VarName loc "trace") a b
   where
     rec = toHaskExp
-    ap f x = H.App (getLoc f) (toVar (getLoc f) f) (rec x)
-    ap2 f x y = H.App (getLoc y) (H.App (getLoc f) (toVar (getLoc f) f) (rec x)) (rec y)
+    ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
+    ap2 f x y = H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)
 --    op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toSymbolQName' f) (rec y)
 
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
@@ -70,7 +72,7 @@ toHaskExp (Fix expr) = case expr of
     fromUnOp loc op a = case op of
       Not       -> ap (VarName loc "not") a
       Neg       -> ap (VarName loc "negate") a
-      TupleAt n -> ap2 (VarName loc "tupleAt") (Fix $ PrimE loc $ PrimInt n) a
+      TupleAt size n -> ap2 (VarName loc $ mconcat ["tuple", showt size, "At"]) (Fix $ PrimE loc $ PrimInt $ fromIntegral n) a
 
     fromBimOp loc op = case op of
       And                   -> op2' "&&"
@@ -85,7 +87,6 @@ toHaskExp (Fix expr) = case expr of
       GreaterThan           -> op2' ">"
       LessThanEquals        -> op2' "<="
       GreaterThanEquals     -> op2' ">="
-      ComposeFun            -> op2' "."
       where
         op2' name a b = op2 loc name (rec a) (rec b)
 
@@ -116,7 +117,6 @@ toHaskExp (Fix expr) = case expr of
       where
         fromTextTag = \case
           IntToText    -> "Int"
-          DoubleToText -> "Double"
           ScriptToText -> "Script"
           BoolToText   -> "Bool"
 
@@ -127,12 +127,12 @@ toHaskExp (Fix expr) = case expr of
 
     fromPrimBox loc Box{..} = H.RecConstr loc (qname "Box")
       [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
-      , field "box'value"  $ prim $ PrimDouble  $ box'value
+      , field "box'value"  $ prim $ PrimInt  $ box'value
       , field "box'script" $ prim $ PrimString $ unScript box'script
       , field "box'args"   $ Fix $ VecE loc $ NewVec loc (V.fromList $ fmap (\(a, b) -> Fix $ Tuple loc (V.fromList [a, b])) args)
       ]
       where
-        qname a = toQName' $ VarName loc a
+        qname a = toQName $ VarName loc a
         field name a = H.FieldUpdate loc (qname name) (rec a)
         prim = Fix . PrimE loc
         args = fmap (\(txt, val) -> (Fix $ PrimE loc $ PrimString txt, Fix $ PrimE loc val)) $ M.toList box'args
@@ -152,7 +152,6 @@ op2 loc name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc 
 toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral loc = \case
   PrimInt x -> lit $ H.Int loc (fromIntegral x) (show x)
-  PrimDouble x -> lit $ H.Frac loc (realToFrac x) (show x)
   PrimString x -> lit $ H.String loc (T.unpack x) (T.unpack x)
   PrimBool x -> H.Con loc $ bool loc x
   PrimSigma x -> sigma loc x
@@ -170,32 +169,24 @@ toLiteral loc = \case
           SigmaAnd as  -> foldl1 (op2 loc "&&") as
           SigmaOr  as  -> foldl1 (op2 loc "||") as
 
-        ap f x = H.App (getLoc f) (toVar (getLoc f) f) x
+        ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) x
 
 toHaskModule :: Module -> H.Module Loc
-toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl =<< bs)
+toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl bs)
 
 toDecl :: BindGroup Lang -> [H.Decl Loc]
-toDecl BindGroup{..} = concat
-  [ toDeclExpl =<< bindGroup'expl
-  , concat $ fmap (toDeclImpl =<< ) bindGroup'impl
-  ]
+toDecl bs = toBind =<< bs
   where
-    toDeclImpl :: Impl Lang -> [H.Decl Loc]
-    toDeclImpl Impl{..} = return $ H.FunBind (getLoc impl'name) $ fmap (toMatch impl'name) impl'alts
+    toBind Bind{..} = case bind'type of
+      Nothing -> return $ H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name bind'alt
+      Just ty ->
+        let signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name bind'name)] (toType ty)
+            funBind = H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name bind'alt
+            tyLoc = HM.getLoc ty
+        in  [ signature, funBind ]
 
-    toDeclExpl :: Expl Lang -> [H.Decl Loc]
-    toDeclExpl Expl{..} =
-      [ signature
-      , funBind ]
-      where
-        signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ id'name expl'name)] (toType expl'type)
-        funBind = H.FunBind (getLoc expl'name) $ fmap (toMatch expl'name) expl'alts
-
-        tyLoc = getLoc expl'type
-
-    toMatch :: Id -> Alt Lang -> H.Match Loc
-    toMatch name alt = H.Match (getLoc name) (toIdentName name) (toPats alt) (toRhs alt) Nothing
+    toMatch :: VarName -> Alt Lang -> H.Match Loc
+    toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) Nothing
 
     toPats :: Alt a -> [H.Pat Loc]
     toPats = fmap toPat . alt'pats
@@ -204,58 +195,44 @@ toDecl BindGroup{..} = concat
     toPat (PVar loc var) = H.PVar loc (toIdentName var)
 
     toRhs :: Alt Lang -> H.Rhs Loc
-    toRhs Alt{..} = H.UnGuardedRhs (getLoc alt'expr) (toHaskExp alt'expr)
+    toRhs Alt{..} = H.UnGuardedRhs (HM.getLoc alt'expr) (toHaskExp alt'expr)
 
 
-toIdentName :: Id -> H.Name Loc
-toIdentName Id{..} = H.Ident id'loc (T.unpack id'name)
+toIdentName :: VarName -> H.Name Loc
+toIdentName (VarName loc name) = H.Ident loc (T.unpack name)
 
-toIdentName' :: VarName -> H.Name Loc
-toIdentName' (VarName loc name) = H.Ident loc (T.unpack name)
-
-toSymbolName :: Id -> H.Name Loc
-toSymbolName Id{..} = H.Symbol id'loc (T.unpack id'name)
-
-toSymbolName' :: VarName -> H.Name Loc
-toSymbolName' (VarName loc name) = H.Symbol loc (T.unpack name)
+toSymbolName :: VarName -> H.Name Loc
+toSymbolName VarName{..} = H.Symbol varName'loc (T.unpack varName'name)
 
 
-toType :: Scheme -> H.Type Loc
-toType (Forall loc _ (Qual _ ps ty)) = case ps of
-  [] -> noPreds ty
-  _  -> withPreds ps ty
+toType :: Signature -> H.Type Loc
+toType x = case splitToPreds x of
+  (_, ty) -> singleType ty
   where
-    noPreds = singleType
-    withPreds ps ty = H.TyForall loc Nothing (Just $ toContext ps) (singleType ty)
+    splitToPreds = cata go . HM.unSignature
+      where
+        go = \case
+          HM.MonoT ty                  -> ([], ty)
+          HM.ForAllT loc name (xs, ty) -> (VarName loc name : xs, ty)
 
-    singleType = \case
-      TVar loc var  -> H.TyVar loc (toIdentName $ (\(Tyvar _ v _) -> v) var)
-      TCon loc con  -> H.TyCon loc (toQName $ (\(Tycon _ idx _) -> idx) con)
-      TFun loc a b  -> H.TyFun loc (singleType a) (singleType b)
-      TTuple loc as -> H.TyTuple loc H.Boxed (fmap singleType as)
-      TAp loc a b   -> H.TyApp loc (singleType a) (singleType b)
-      TGen loc n    -> H.TyCon loc (H.UnQual loc $ H.Ident loc $ mappend "Gen-" $ show n)
-
-    toContext ps = case ps of
-      [p] -> H.CxSingle (getLoc p) $ toAsst p
-      p:_ -> H.CxTuple (getLoc p) $ fmap toAsst ps
-      []  -> H.CxEmpty loc
-
-    toAsst (IsIn loc1 cls ty) = H.ClassA loc1 (toQName cls) [singleType ty]
+    singleType :: HM.Type Loc -> H.Type Loc
+    singleType = cata go . HM.unType
+      where
+        go = \case
+          HM.VarT loc var   -> H.TyVar loc (toIdentName $ VarName loc var)
+          HM.ConT loc con   -> H.TyCon loc (toQName $ VarName loc con)
+          HM.ArrowT loc a b -> H.TyFun loc a b
+          -- TODO: How to express typles?
+          -- TTuple loc as -> H.TyTuple loc H.Boxed (fmap singleType as)
+          HM.AppT loc a b   -> H.TyApp loc a b
 
 
-toQName :: Id -> H.QName Loc
-toQName x = H.UnQual (getLoc x) $ toIdentName x
+toQName :: VarName -> H.QName Loc
+toQName x = H.UnQual (HM.getLoc x) $ toIdentName x
 
-toQName' :: VarName -> H.QName Loc
-toQName' x@(VarName loc _) = H.UnQual loc $ toIdentName' x
-
-toSymbolQName :: Id -> H.QName Loc
-toSymbolQName x = H.UnQual (getLoc x) $ toSymbolName x
-
-toSymbolQName' :: VarName -> H.QName Loc
-toSymbolQName' x@(VarName loc _) = H.UnQual loc $ toSymbolName' x
+toSymbolQName :: VarName -> H.QName Loc
+toSymbolQName x@(VarName loc _) = H.UnQual loc $ toSymbolName x
 
 toVar :: Loc -> VarName -> H.Exp Loc
-toVar loc name = H.Var loc (toQName $ fromVarName name)
+toVar loc name = H.Var loc (toQName name)
 

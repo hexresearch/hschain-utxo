@@ -3,8 +3,6 @@ module Hschain.Utxo.Lang.Parser.Hask.Utils where
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
 
-import Type.Type
-
 import Hschain.Utxo.Lang.Expr
 
 import qualified Data.Text as Text

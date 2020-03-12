@@ -13,22 +13,36 @@ import Data.Fix
 import Data.Fixed
 import Data.Function (on)
 import Data.Functor.Classes
-
+import Data.Foldable
+import Data.Graph
+import Data.Int
 import Data.Map.Strict (Map)
 import Data.String
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import GHC.Generics
 
-import Type.Loc
-import Type.Type
-
 import Text.Show.Deriving
 
 import Hschain.Utxo.Lang.Sigma
 
-type Money = Pico
+import qualified Language.HM as H
+import qualified Language.Haskell.Exts.SrcLoc as Hask
+
+import qualified Data.Set as Set
+import qualified Data.Vector as V
+
+type Loc = Hask.SrcSpanInfo
+type Type = H.Type Loc
+type TypeError = H.TypeError Loc
+type Signature = H.Signature Loc
+
+noLoc :: Loc
+noLoc = Hask.noSrcSpan
+
+type Money = Int64
 
 newtype Expr a = Expr Lang
   deriving (Show, Eq)
@@ -40,12 +54,6 @@ data VarName = VarName
 
 instance IsString VarName where
   fromString = VarName noLoc . fromString
-
-fromVarName :: VarName -> Id
-fromVarName (VarName loc name) = Id loc name
-
-toVarName :: Id -> VarName
-toVarName (Id loc txt) = VarName loc txt
 
 type Args = Map Text (Prim )
 
@@ -68,17 +76,12 @@ data Box = Box
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 data Pat
-  = PVar Loc Id
+  = PVar Loc VarName
   deriving (Show, Eq, Ord)
-  -- | PWildcard Loc
-  -- | PLit Loc Prim
-  -- | PAs Id Pat
-  -- | PNpk Id Integer
-  -- | PCon Assump [Pat]
 
 data Module = Module
   { module'loc   :: !Loc
-  , module'binds :: ![BindGroup Lang]
+  , module'binds :: !(BindGroup Lang)
   } deriving (Show)
 
 data Alt a = Alt
@@ -86,21 +89,12 @@ data Alt a = Alt
   , alt'expr :: a
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
-data BindGroup a = BindGroup
-  { bindGroup'expl :: [Expl a]
-  , bindGroup'impl :: [[Impl a]]
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+type BindGroup a = [Bind a]
 
-
-data Expl a = Expl
-  { expl'name  :: Id
-  , expl'type  :: Scheme
-  , expl'alts  :: [Alt a]
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
-
-data Impl a = Impl
-  { impl'name  :: Id
-  , impl'alts  :: [Alt a]
+data Bind a = Bind
+  { bind'name  :: VarName
+  , bind'type  :: Maybe Signature
+  , bind'alt  :: Alt a
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 type Lang = Fix E
@@ -139,13 +133,12 @@ data E a
   | Trace Loc a a
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data UnOp = Not | Neg | TupleAt Int
+data UnOp = Not | Neg | TupleAt Int Int
   deriving (Show, Eq)
 
 data BinOp
   = And | Or | Plus | Minus | Times | Div
   | Equals | NotEquals | LessThan | GreaterThan | LessThanEquals | GreaterThanEquals
-  | ComposeFun
   deriving (Show, Eq)
 
 data BoxExpr a
@@ -162,7 +155,7 @@ data VecExpr a
   | VecFold Loc
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data TextTypeTag = IntToText | DoubleToText | BoolToText | ScriptToText
+data TextTypeTag = IntToText | BoolToText | ScriptToText
   deriving (Eq, Show)
 
 data TextExpr a
@@ -176,8 +169,7 @@ data HashAlgo = Sha256 | Blake2b256
   deriving (Eq, Show)
 
 data Prim
-  = PrimInt     Int
-  | PrimDouble  Pico
+  = PrimInt     Int64
   | PrimString  Text
   | PrimBool    Bool
   | PrimSigma   (Sigma PublicKey)
@@ -200,7 +192,6 @@ data BoxField a = BoxFieldId | BoxFieldValue | BoxFieldScript | BoxFieldArg a
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
     PrimInt n      -> "int"    .= n
-    PrimDouble d   -> "double" .= d
     PrimString txt -> "text"   .= txt
     PrimBool b     -> "bool"   .= b
     PrimSigma s    -> "sigma"  .= toJSON s
@@ -210,7 +201,6 @@ instance ToJSON Prim where
 instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
         fmap PrimInt    (v .: "int")
-    <|> fmap PrimDouble (v .: "double")
     <|> fmap PrimString (v .: "text")
     <|> fmap PrimBool   (v .: "bool")
     <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))
@@ -226,44 +216,45 @@ scriptT = scriptT' noLoc
 textT = textT' noLoc
 
 boxT' :: Loc -> Type
-boxT' loc = TCon loc (Tycon loc (Id loc "Box") (Star loc))
+boxT' loc = H.conT loc "Box"
 
 textT' :: Loc -> Type
-textT' loc = TCon loc (Tycon loc (Id loc "Text") (Star loc))
+textT' loc = H.conT loc "Text"
 
 boolT' :: Loc -> Type
-boolT' loc = TCon loc (Tycon loc (Id loc "Bool") (Star loc))
+boolT' loc = H.conT loc "Bool"
 
 scriptT' :: Loc -> Type
-scriptT' loc = TCon loc (Tycon loc (Id loc "Script") (Star loc))
+scriptT' loc = H.conT loc "Script"
 
 vectorT :: Type -> Type
 vectorT = vectorT' noLoc
 
 vectorT' :: Loc -> Type -> Type
-vectorT' loc a = TAp loc (TCon loc (Tycon loc (Id loc "Vector") (Kfun loc (Star loc) (Star loc)))) a
+vectorT' loc a = H.appT loc (H.conT loc "Vector") a
 
 tupleT :: [Type] -> Type
 tupleT = tupleT' noLoc
 
 tupleT' :: Loc -> [Type] -> Type
-tupleT' loc ts = foldl (TAp loc) cons ts
+tupleT' loc ts = foldl (H.appT loc) cons ts
   where
     arity = length ts
-
-    kind = foldr1 (Kfun loc) $ replicate arity (Star loc)
-    cons = TCon loc $ Tycon loc (Id loc $ mappend "Tuple" (showt arity)) kind
+    cons = H.conT loc $ mappend "Tuple" (showt arity)
 
 --------------------------------
 -- instances
 
-instance HasLoc VarName where
+instance H.HasLoc VarName where
+  type Loc VarName = Loc
   getLoc (VarName loc _) = loc
 
-instance HasLoc Lang where
-  getLoc (Fix expr) = getLoc expr
+instance H.HasLoc Lang where
+  type Loc Lang = Loc
+  getLoc (Fix expr) = H.getLoc expr
 
-instance Show a => HasLoc (E a) where
+instance Show a => H.HasLoc (E a) where
+  type Loc (E a) = Loc
   getLoc = \case
     Var loc _ -> loc
     Apply loc _ _ -> loc
@@ -296,23 +287,19 @@ instance Show a => HasLoc (E a) where
     -- debug
     Trace loc _ _ -> loc
 
-instance HasLoc a => HasLoc (Alt a) where
-  getLoc = getLoc . alt'expr
+instance H.HasLoc a => H.HasLoc (Alt a) where
+  type Loc (Alt a) = H.Loc a
+  getLoc = H.getLoc . alt'expr
 
-instance HasLoc (Expl a) where
-  getLoc = getLoc . expl'name
+instance H.HasLoc (Bind a) where
+  type Loc (Bind a) = Loc
+  getLoc = H.getLoc . bind'name
 
-instance HasLoc (Impl a) where
-  getLoc = getLoc . impl'name
-
-instance HasLoc (BindGroup Lang) where
-  getLoc BindGroup{..} = case bindGroup'expl of
-    a:_ -> getLoc $ expl'name a
-    []  -> case bindGroup'impl of
-      iss:_ -> case iss of
-        is:_ -> getLoc $ impl'name is
-        []   -> noLoc
-      []   -> noLoc
+instance H.HasLoc (BindGroup Lang) where
+  type Loc (BindGroup Lang) = Loc
+  getLoc = \case
+    []  -> noLoc
+    a:_ -> H.getLoc a
 
 -------------------------------------------------------------------
 -- unique instances for Eq and Ord (ingnores source location)
@@ -330,13 +317,54 @@ instance Eq VarName where
 instance Ord VarName where
   compare = compare `on` uniqueVarName
 
+-------------------------------------------------------------------
+
+freeVars :: Lang -> Set VarName
+freeVars = cata $ \case
+  Var _ v         -> Set.singleton v
+  InfixApply _ a _ b -> a <> b
+  Apply _ a b     -> a <> b
+  Lam _ v a       -> Set.filter (/= v) a
+  LamList _ vs a  -> a `Set.difference` (Set.fromList vs)
+  Let _ bg a      -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
+  LetRec _ v a b  -> a <> Set.filter (/= v) b
+  Ascr _ a _      -> a
+  PrimE _ _       -> Set.empty
+  If _ a b c      -> mconcat [a, b, c]
+  Pk _ a          -> a
+  Tuple _ vs      -> fold $ V.toList vs
+  UnOpE _ _ a     -> a
+  BinOpE _ _ a b  -> mconcat [a, b]
+  GetEnv _ env    -> fold env
+  VecE _ vec      -> fold vec
+  TextE _ txt     -> fold txt
+  BoxE _ box      -> fold box
+  Undef _         -> Set.empty
+  Trace _ a b     -> mconcat [a, b]
+  where
+    getBgNames :: BindGroup a -> Set VarName
+    getBgNames bs = Set.fromList $ fmap bind'name bs
+
+    freeVarsBg = foldMap (localFreeVarsAlt . bind'alt)
+    localFreeVarsAlt Alt{..} = alt'expr `Set.difference` (freeVarsPat alt'pats)
+
+freeVarsPat :: [Pat] -> Set VarName
+freeVarsPat = Set.fromList . fmap (\(PVar _ name) -> name)
+
+freeVarsAlt :: Alt Lang -> Set VarName
+freeVarsAlt Alt{..} = freeVars alt'expr `Set.difference` freeVarsPat alt'pats
+
+-------------------------------------------------------------------
+
+sortBindGroups :: BindGroup Lang -> BindGroup Lang
+sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
+   where
+     toNode s = (s, bind'name s, Set.toList $ freeVarsAlt $ bind'alt s)
 
 -------------------------------------------------------------------
 
 $(deriveShow1 ''Alt)
-$(deriveShow1 ''Impl)
-$(deriveShow1 ''Expl)
-$(deriveShow1 ''BindGroup)
+$(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)
 $(deriveShow1 ''BoxField)

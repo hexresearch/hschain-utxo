@@ -1,6 +1,5 @@
 module Hschain.Utxo.Lang.Build(
     int
-  , double
   , text
   , pk
   , pk'
@@ -29,11 +28,11 @@ module Hschain.Utxo.Lang.Build(
 import Data.Boolean
 import Data.Fix
 import Data.Fixed
+import Data.Int
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Type.Type (Loc, noLoc)
 import qualified Data.Vector as V
 
 import Hschain.Utxo.Lang.Desugar
@@ -49,11 +48,8 @@ import qualified Hschain.Utxo.Lang.Sigma as S
 primExpr :: Prim -> Expr a
 primExpr p = Expr $ Fix $ PrimE noLoc p
 
-int :: Int -> Expr Int
+int :: Int64 -> Expr Int64
 int x = primExpr $ PrimInt x
-
-double :: Pico -> Expr Double
-double x = primExpr $ PrimDouble x
 
 text :: Text -> Expr Text
 text x = primExpr $ PrimString x
@@ -94,10 +90,10 @@ pair :: Expr a -> Expr b -> Expr (a, b)
 pair (Expr a) (Expr b) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b]
 
 pairAt1 :: Expr (a, b) -> Expr a
-pairAt1 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 0) a
+pairAt1 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 0) a
 
 pairAt2 :: Expr (a, b) -> Expr b
-pairAt2 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 1) a
+pairAt2 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 1) a
 
 tuple3 :: Expr a -> Expr b -> Expr c -> Expr (a, b, c)
 tuple3 (Expr a) (Expr b) (Expr c) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b, c]
@@ -118,8 +114,7 @@ instance IsString (Expr Text) where
 class PrimTy a where
 
 instance PrimTy Double
-instance PrimTy Int
-instance PrimTy Money
+instance PrimTy Int64
 instance PrimTy Bool
 instance PrimTy Text
 
@@ -139,10 +134,10 @@ pk (Expr key) = Expr $ Fix $ Pk noLoc key
 getSelf :: Expr Box
 getSelf = Expr $ Fix $ GetEnv noLoc (Self noLoc)
 
-getInput :: Expr Int -> Expr Box
+getInput :: Expr Int64 -> Expr Box
 getInput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Input noLoc n
 
-getOutput :: Expr Int -> Expr Box
+getOutput :: Expr Int64 -> Expr Box
 getOutput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Output noLoc n
 
 getBoxId :: Expr Box -> Expr Text
@@ -157,7 +152,7 @@ getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScri
 getBoxArg :: Expr Box -> Expr Text -> Expr a
 getBoxArg (Expr box) (Expr field) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArg field)
 
-getHeight :: Expr Int
+getHeight :: Expr Int64
 getHeight = Expr $ Fix $ GetEnv noLoc (Height noLoc)
 
 getVar :: Expr Text -> Expr a
@@ -184,7 +179,7 @@ mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ Ve
 foldVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
 foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z) v
 
-lengthVec :: Expr (Vector a) -> Expr Int
+lengthVec :: Expr (Vector a) -> Expr Int64
 lengthVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) v
 
 concatVec :: Expr (Vector a) -> Expr (Vector a) -> Expr (Vector a)
@@ -197,24 +192,16 @@ anyVec :: Expr (Vector Bool) -> Expr Bool
 anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
 
 type instance BooleanOf (Expr Bool) = Expr Bool
-type instance BooleanOf (Expr Int) = Expr Bool
-type instance BooleanOf (Expr Money) = Expr Bool
-type instance BooleanOf (Expr Double) = Expr Bool
+type instance BooleanOf (Expr Int64) = Expr Bool
 type instance BooleanOf (Expr Text) = Expr Bool
 type instance BooleanOf (Expr Script) = Expr Bool
 type instance BooleanOf (Expr (a, b)) = Expr Bool
 type instance BooleanOf (Expr (a, b, c)) = Expr Bool
 
-instance IfB (Expr Int) where
+instance IfB (Expr Int64) where
   ifB = ifExpr
 
 instance IfB (Expr Bool) where
-  ifB = ifExpr
-
-instance IfB (Expr Money) where
-  ifB = ifExpr
-
-instance IfB (Expr Double) where
   ifB = ifExpr
 
 instance IfB (Expr Text) where
@@ -238,7 +225,7 @@ ifExprLang cond t e = Fix $ If noLoc cond t e
 -------------------------------------------------
 -- numeric
 
-instance Num (Expr Int) where
+instance Num (Expr Int64) where
   (+) = op2 (BinOpE noLoc Plus)
   (*) = op2 (BinOpE noLoc Times)
   negate = op1 (UnOpE noLoc Neg)
@@ -246,39 +233,14 @@ instance Num (Expr Int) where
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
 
-instance Num (Expr Double) where
-  (+) = op2 (BinOpE noLoc Plus)
-  (*) = op2 (BinOpE noLoc Times)
-  negate = op1 (UnOpE noLoc Neg)
-  fromInteger n = primExpr $ PrimDouble $ fromIntegral n
-  abs = error "abs is not defined for Expr"
-  signum = error "signum is not defined for Expr"
-
-instance Num (Expr Money) where
-  (+) = op2 (BinOpE noLoc Plus)
-  (*) = op2 (BinOpE noLoc Times)
-  negate = op1 (UnOpE noLoc Neg)
-  fromInteger n = primExpr $ PrimDouble $ fromIntegral n
-  abs = error "abs is not defined for Expr"
-  signum = error "signum is not defined for Expr"
-
-
 -- equals
 --
 
-instance EqB (Expr Int) where
+instance EqB (Expr Int64) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
 instance EqB (Expr Text) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
-
-instance EqB (Expr Double) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
-
-instance EqB (Expr Money) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
@@ -288,16 +250,10 @@ instance EqB (Expr Script) where
 
 -- order
 
-instance OrdB (Expr Int) where
+instance OrdB (Expr Int64) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
 instance OrdB (Expr Text) where
-  (<*) = op2 (BinOpE noLoc LessThan)
-
-instance OrdB (Expr Double) where
-  (<*) = op2 (BinOpE noLoc LessThan)
-
-instance OrdB (Expr Money) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
 --------------------------
@@ -306,10 +262,10 @@ instance OrdB (Expr Money) where
 concatText :: Expr Text -> Expr Text -> Expr Text
 concatText (Expr a) (Expr b) = Expr $ Fix $ TextE noLoc $ TextAppend noLoc a b
 
-lengthText :: Expr Text -> Expr Int
+lengthText :: Expr Text -> Expr Int64
 lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
 
-showInt :: Expr Int -> Expr Text
+showInt :: Expr Int64 -> Expr Text
 showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText IntToText noLoc)) a
 
 showScript :: Expr Script -> Expr Text
