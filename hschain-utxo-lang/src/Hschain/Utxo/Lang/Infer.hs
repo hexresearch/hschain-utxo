@@ -29,6 +29,9 @@ import Debug.Trace
 
 import qualified Language.HM as H
 
+maxTupleSize :: Int
+maxTupleSize = 6
+
 checkMainModule :: H.Context Loc -> Module -> Maybe TypeError
 checkMainModule ctx m = either Just (const Nothing) $ inferExpr ctx $ either modErr id $ moduleToMainExpr m
   where
@@ -214,7 +217,7 @@ defaultContext = H.Context $ M.fromList $
   , (inputsVar, monoT $ vectorT boxT)
   , (outputsVar, monoT $ vectorT boxT)
   , (getVarVar, forA $ monoT $ intT `arr` a)
-  ] ++ tupleVars ++ textExprVars
+  ] ++ tupleConVars ++ tupleAtVars ++ textExprVars
   where
     forA = forAllT noLoc "a"
     forAB = forA . forAllT noLoc "b"
@@ -227,18 +230,31 @@ defaultContext = H.Context $ M.fromList $
     intOp2 = opT2 intT
     cmpOp2 = forA $ monoT $ a `arr` (a `arr` boolT)
 
-    tupleVars = [ toTuple size idx | size <- [2..6], idx <- [1 .. size]]
+    tupleConVars = fmap toTuple [2..maxTupleSize]
+      where
+        toTuple :: Int -> (H.Var, H.Signature Loc)
+        toTuple size = (tupleConVar size, tupleConType size)
+
+        tupleConType :: Int -> Signature
+        tupleConType size = foldr (\v mt -> forAllT noLoc v mt) (monoT ty) vs
+          where
+            vs = fmap v [0 .. size-1]
+            ty = foldr (\lhs rhs -> arrowT noLoc (varT noLoc lhs) rhs) (tupleCon size) vs
+
+    tupleAtVars = [ toTuple size idx | size <- [2..maxTupleSize], idx <- [0 .. size-1]]
       where
         toTuple :: Int -> Int -> (H.Var, H.Signature Loc)
         toTuple size idx = (tupleAtVar size idx, tupleAtType size idx)
 
         tupleAtType :: Int -> Int -> H.Signature Loc
-        tupleAtType size idx = pred $ monoT $ ty `arr` (varT noLoc $ v idx)
+        tupleAtType size idx = pred $ monoT $ (tupleCon size) `arr` (varT noLoc $ v idx)
           where
-            pred = foldr (.) id $ fmap (\n -> forAllT noLoc (v n)) [1 .. size]
-            ty = foldl (\z n -> appT noLoc z (varT noLoc $ v n)) (conT noLoc (mappend "Tuple" (showt size))) [1 .. size]
+            pred = foldr (.) id $ fmap (\n -> forAllT noLoc (v n)) [0 .. size-1]
 
-            v n = mappend "a" (showt n)
+    tupleCon :: Int -> Type
+    tupleCon size = tupleT $ fmap (varT noLoc . v) [0..size-1]
+
+    v n = mappend "a" (showt n)
 
     textExprVars =
       [ (appendTextVar, monoT $ textT `arr` (textT `arr` textT))
