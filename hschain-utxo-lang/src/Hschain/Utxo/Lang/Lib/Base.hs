@@ -5,6 +5,8 @@ module Hschain.Utxo.Lang.Lib.Base(
   , langTypeContext
 ) where
 
+import Hex.Common.Text
+
 import qualified Prelude as P
 import Prelude ((.))
 import Prelude (($))
@@ -26,7 +28,7 @@ langTypeContext =
 
 -- | Prelude functions
 importBase :: Lang -> Lang
-importBase = P.foldl (\f g x -> f (g x)) P.id
+importBase = P.foldl (\f g x -> f (g x)) P.id $
   [ all
   , any
   , and
@@ -79,7 +81,9 @@ importBase = P.foldl (\f g x -> f (g x)) P.id
   , gt
   , lteq
   , gteq
-  ]
+  , fst
+  , snd
+  ] P.++ tupleFuns
 
 baseNames :: [Text]
 baseNames =
@@ -137,7 +141,15 @@ baseNames =
   , ">"
   , "<="
   , ">="
-  ]
+  , "fst"
+  , "snd"
+  ] P.++ tupleNames
+
+tupleNames :: [Text]
+tupleNames = P.fmap (P.uncurry toTupleName) tupleIndices
+
+toTupleName :: P.Int -> P.Int -> Text
+toTupleName size idx = P.mconcat ["tupleAt", showt size, "_", showt idx]
 
 (~>) :: Type -> Type -> Type
 (~>) a b = H.arrowT noLoc a b
@@ -205,11 +217,30 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "<=" (forA $ aT ~> aT ~> boolT)
   , assumpType ">=" (forA $ aT ~> aT ~> boolT)
   , assumpType ">" (forA $ aT ~> aT ~> boolT)
-  ]
+  , assumpType "fst" (forAB $ tupleT [aT, bT] ~> aT)
+  , assumpType "snd" (forAB $ tupleT [aT, bT] ~> bT)
+  ] P.++ tupleTypes
   where
     forA = forAllT' "a" . monoT
     forAB = forAllT' "a" . forAllT' "b" . monoT
     forABC = forAllT' "a" . forAllT' "b" . forAllT' "c" . monoT
+
+    tupleTypes = P.fmap (P.uncurry toTupleType) tupleIndices
+      where
+        toTupleType size idx = assumpType (toTupleName size idx) (tupleAtType size idx)
+
+        tupleAtType :: P.Int -> P.Int -> Signature
+        tupleAtType size idx = pred $ monoT $ (tupleCon size) ~> (varT $ v idx)
+          where
+            pred :: Signature -> Signature
+            pred = P.foldr (.) P.id $ P.fmap (\n -> forAllT noLoc (v n)) [0 .. size P.- 1]
+
+        tupleCon size = tupleT $ P.fmap (varT . v) [0..size P.- 1]
+
+        v n = P.mappend "a" (showt n)
+
+tupleIndices :: [(P.Int, P.Int)]
+tupleIndices = [ (size, idx) | size <- [2 .. maxTupleSize], idx <- [0 .. size P.- 1] ]
 
 all :: Lang -> Lang
 all = letIn "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
@@ -393,6 +424,23 @@ atVec = letIn "!!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt no
 
 pk :: Lang -> Lang
 pk = letIn "pk" (Fix $ Lam noLoc "x" $ Fix $ Pk noLoc x)
+
+fst :: Lang -> Lang
+fst = letIn "fst" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 0) (var' "x"))
+
+snd :: Lang -> Lang
+snd = letIn "snd" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 1) (var' "x"))
+
+tupleFuns :: [Lang -> Lang]
+tupleFuns = P.fmap (P.uncurry toFun) tupleIndices
+  where
+    toFun size idx = letIn (toTupleName size idx) $ lam' "x"  $ Fix $ UnOpE noLoc (TupleAt size idx) (var' "x")
+
+lam' :: Text -> Lang -> Lang
+lam' name expr = Fix $ Lam noLoc (VarName noLoc name) expr
+
+var' :: Text -> Lang
+var' name = Fix $ Var noLoc (VarName noLoc name)
 
 f, x, y :: Lang
 

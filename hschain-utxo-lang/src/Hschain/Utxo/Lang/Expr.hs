@@ -233,14 +233,20 @@ vectorT = vectorT' noLoc
 vectorT' :: Loc -> Type -> Type
 vectorT' loc a = H.appT loc (H.conT loc "Vector") a
 
+{-
 tupleT :: [Type] -> Type
 tupleT = tupleT' noLoc
-
+-}
 tupleT' :: Loc -> [Type] -> Type
 tupleT' loc ts = foldl (H.appT loc) cons ts
   where
     arity = length ts
     cons = H.conT loc $ mappend "Tuple" (showt arity)
+
+tupleT :: [Type] -> Type
+tupleT vs = foldl (\z n -> H.appT noLoc z n) (H.conT noLoc (mappend "Tuple" (showt size))) vs
+  where
+    size = length vs
 
 --------------------------------
 -- instances
