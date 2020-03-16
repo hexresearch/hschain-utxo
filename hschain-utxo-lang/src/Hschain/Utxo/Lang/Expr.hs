@@ -84,6 +84,30 @@ data Module = Module
   , module'binds :: !(BindGroup Lang)
   } deriving (Show)
 
+type TypeContext = H.Context Loc
+
+newtype ExecContext = ExecContext
+  { unExecContext :: Map VarName Lang
+  } deriving newtype (Show, Eq, Semigroup, Monoid)
+
+-- | Evaluated module
+data ModuleCtx = ModuleCtx
+  { moduleCtx'types  :: TypeContext
+  , moduleCtx'exprs  :: ExecContext
+  } deriving (Show, Eq)
+
+instance Semigroup ModuleCtx where
+  (<>) a b = ModuleCtx
+    { moduleCtx'types = moduleCtx'types a <> moduleCtx'types b
+    , moduleCtx'exprs = moduleCtx'exprs a <> moduleCtx'exprs b
+    }
+
+instance Monoid ModuleCtx where
+  mempty = ModuleCtx
+    { moduleCtx'types = mempty
+    , moduleCtx'exprs = mempty
+    }
+
 data Alt a = Alt
   { alt'pats :: [Pat]
   , alt'expr :: a

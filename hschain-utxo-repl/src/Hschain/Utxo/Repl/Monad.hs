@@ -8,6 +8,8 @@ module Hschain.Utxo.Repl.Monad(
   , Arg
   , getScriptFile
   , getTxFile
+  , getTypeContext
+  , getExecContext
   , checkType
   , hasType
 ) where
@@ -37,11 +39,12 @@ type CmdName = String
 type Arg = String
 
 data ReplEnv = ReplEnv
-  { replEnv'tx          :: !TxArg
-  , replEnv'closure     :: Lang -> Lang
-  , replEnv'words       :: ![Text]
-  , replEnv'scriptFile  :: Maybe FilePath
-  , replEnv'txFile      :: Maybe FilePath
+  { replEnv'tx             :: !TxArg
+  , replEnv'loadedModules  :: ModuleCtx
+  , replEnv'closure        :: Lang -> Lang
+  , replEnv'words          :: ![Text]
+  , replEnv'scriptFile     :: Maybe FilePath
+  , replEnv'txFile         :: Maybe FilePath
   }
 
 newtype ReplM a = ReplM { unReplM :: StateT ReplEnv IO a }
@@ -55,23 +58,32 @@ runReplM tx (ReplM app) = evalStateT app defEnv
   where
     defEnv =
       ReplEnv
-        { replEnv'tx          = tx
-        , replEnv'closure     = importBase
-        , replEnv'words       = baseNames
-        , replEnv'scriptFile  = Nothing
-        , replEnv'txFile      = Nothing
+        { replEnv'tx            = tx
+        , replEnv'loadedModules = baseModuleCtx
+        , replEnv'closure       = id
+        , replEnv'words         = baseNames
+        , replEnv'scriptFile    = Nothing
+        , replEnv'txFile        = Nothing
         }
 
 getScriptFile :: Repl (Maybe FilePath)
 getScriptFile = fmap replEnv'scriptFile get
+
+getTypeContext :: Repl TypeContext
+getTypeContext =
+  fmap ((defaultContext <>) . moduleCtx'types . replEnv'loadedModules) get
+
+getExecContext :: Repl ExecContext
+getExecContext =
+  fmap (moduleCtx'exprs . replEnv'loadedModules) get
 
 getTxFile :: Repl (Maybe FilePath)
 getTxFile = fmap replEnv'txFile get
 
 checkType :: Lang -> Repl (Either TypeError Type)
 checkType expr = do
-  closure  <- fmap replEnv'closure get
-  return $ inferExpr langTypeContext $ closure expr
+  ctx <- getTypeContext
+  return $ inferExpr ctx expr
 
 hasType :: Lang -> Repl Bool
 hasType = fmap isRight . checkType

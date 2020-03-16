@@ -2,6 +2,7 @@ module Hschain.Utxo.Lang.Exec(
     exec
   , execLang
   , execToSigma
+  , evalModule
   , runExec
   , Error(..)
   , BoolExprResult(..)
@@ -31,6 +32,7 @@ import Data.Vector (Vector)
 import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Lib.Base
@@ -41,6 +43,7 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
+import qualified Language.HM as H
 
 removeAscr :: Lang -> Lang
 removeAscr = cata $ \case
@@ -62,6 +65,23 @@ data Error
   | OutOfBound Lang
   | NoField VarName
   deriving (Show)
+
+evalModule :: TypeContext -> Module -> Either TypeError ModuleCtx
+evalModule typeCtx Module{..} = fmap toModuleCtx $ evalStateT (mapM checkBind module'binds) typeCtx
+  where
+    toModuleCtx :: BindGroup Lang -> ModuleCtx
+    toModuleCtx bs = ModuleCtx (H.Context $ M.fromList $ catMaybes types) (ExecContext $ M.fromList exprs)
+      where
+        types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
+
+        exprs = fmap (\Bind{..} -> (bind'name, altToExpr bind'alt)) bs
+
+    checkBind :: Bind Lang -> StateT TypeContext (Either TypeError) (Bind Lang)
+    checkBind bind@Bind{..} = do
+      ctx <- get
+      ty <- fmap H.typeToSignature $ lift $ inferExpr ctx (altToExpr bind'alt)
+      put $ ctx <> H.Context (M.singleton (varName'name bind'name) ty)
+      return $ bind { bind'type = Just ty }
 
 data Ctx = Ctx
   { ctx'vars       :: !(Map VarName Lang)
@@ -95,11 +115,11 @@ saveTrace :: Text -> Exec ()
 saveTrace msg =
   modify' $ \st -> st { ctx'debug = T.unlines [ctx'debug st, msg] }
 
-runExec :: Args -> Integer -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
-runExec args height inputs outputs (Exec st) =
+runExec :: ExecContext -> Args -> Integer -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
+runExec (ExecContext binds) args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
-    emptyCtx = Ctx M.empty args height inputs outputs mempty
+    emptyCtx = Ctx binds args height inputs outputs mempty
 
 applyBase :: Expr a -> Expr a
 applyBase (Expr a) = Expr $ importBase a
@@ -358,6 +378,9 @@ execLang' (Fix x) = case x of
           Lam _ varName body -> do
             arg' <- rec arg
             rec $ subst body varName arg'
+          LamList loc vars a -> do
+            f <- fromLamList loc vars a
+            fromApply loc f arg
           VecE loc1 (VecMap loc2) -> do
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix (VecE loc1 (VecMap loc2))) arg'
@@ -611,15 +634,15 @@ traceFun name f x =
 
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
-exec :: TxArg -> (Bool, Text)
-exec tx
+exec :: ExecContext -> TxArg -> (Bool, Text)
+exec ctx tx
   | txPreservesValue tx = case res of
         Right (SigmaBool sigma) -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
         Right (ConstBool bool)  -> (bool, "")
         Left err    -> (False, err)
   | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
   where
-    (res, debug) = execToSigma tx
+    (res, debug) = execToSigma ctx tx
     mProof = txArg'proof tx
 
 data BoolExprResult
@@ -638,11 +661,11 @@ instance FromJSON BoolExprResult where
     <|> (SigmaBool <$> obj .: "sigma")
 
 
-execToSigma :: TxArg -> (Either Text BoolExprResult, Text)
-execToSigma tx@TxArg{..} = execExpr $ getInputExpr tx
+execToSigma :: ExecContext -> TxArg -> (Either Text BoolExprResult, Text)
+execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
   where
     execExpr (Expr x) =
-      case runExec txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
+      case runExec ctx txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
         Right (Fix (PrimE _ (PrimSigma b)), msg)  -> (Right $ SigmaBool b, msg)
         Right (Fix (PrimE _ (PrimBool b)), msg)   -> (Right $ ConstBool b, msg)
         Right _                                   -> (Left noSigmaExpr, noSigmaExpr)

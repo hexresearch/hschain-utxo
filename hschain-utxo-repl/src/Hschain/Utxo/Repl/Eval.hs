@@ -51,8 +51,9 @@ evalExpr :: Lang -> Repl ()
 evalExpr lang = do
   closedExpr <- getClosureExpr lang
   withTypeCheck closedExpr $ \expr -> do
-    tx       <- fmap replEnv'tx get
-    let res = runExec (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
+    tx    <- fmap replEnv'tx get
+    ctx   <- getExecContext
+    let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
     liftIO $ case res of
       Right (expr, debugTxt) -> do
         T.putStrLn $ renderText expr
@@ -65,8 +66,9 @@ evalBind var lang = do
   closure <- fmap replEnv'closure get
   let closedExpr = closure lang
   withTypeCheck closedExpr $ \expr -> do
-      tx <- fmap replEnv'tx get
-      let res = runExec (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
+      tx  <- fmap replEnv'tx get
+      ctx <- getExecContext
+      let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
       case res of
         Right (expr, _) -> do
           modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var expr next)

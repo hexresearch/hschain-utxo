@@ -79,8 +79,10 @@ loadScript file = do
   str <- liftIO $ readFile file
   case P.parseModule str of
     P.ParseOk m           -> do
-     let moduleClosure = bindGroupToLet (module'binds m)
-     modify' $ \st -> st { replEnv'closure = moduleClosure . replEnv'closure st }
+      typeCtx <- getTypeContext
+      case evalModule typeCtx m of
+        Right modCtx   -> modify' $ \st -> st { replEnv'loadedModules = replEnv'loadedModules st <> modCtx }
+        Left typeError -> liftIO $ T.putStrLn $ renderText typeError
     P.ParseFailed loc err -> showErr loc err
   where
     showErr _ msg = liftIO $ putStrLn $ unlines
