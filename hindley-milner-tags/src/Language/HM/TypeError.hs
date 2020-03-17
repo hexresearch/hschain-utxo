@@ -12,9 +12,9 @@ import Language.HM.Type
 
 -- | Type errors.
 data TypeError src
-    = OccursErr src Text (Type src)
-    | UnifyErr src (Type src) (Type src)
-    | NotInScopeErr src Text
+    = OccursErr (Maybe src) Text (Type src)
+    | UnifyErr (Maybe src) (Type src) (Type src)
+    | NotInScopeErr (Maybe src) Text
     deriving (Eq, Show)
 
 --------------------------------------------------------------------------------

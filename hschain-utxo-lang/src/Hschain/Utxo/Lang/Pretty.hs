@@ -220,7 +220,7 @@ instance Pretty TypeError where
     H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", pretty tyB, "expected", pretty tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     where
-      err src msg = hsep ["Type error at", hsep [pretty src, ":"], msg]
+      err src msg = hsep [hcat [pretty src, ":"], msg]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x

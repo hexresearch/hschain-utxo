@@ -16,6 +16,7 @@ module Language.HM.AlgorithmW (
 
 --------------------------------------------------------------------------------
 
+import Control.Applicative
 import Control.Monad
 
 import Data.Fix
@@ -70,7 +71,7 @@ instance Monad (W src) where
 --------------------------------------------------------------------------------
 
 -- | 'fresh' returns a fresh type variable.
-fresh :: src -> W src (Type src)
+fresh :: Maybe src -> W src (Type src)
 fresh src = W $ \_ n -> return (varT src (mconcat ["$", fromString $ show n]), n + 1)
 
 typeError :: TypeError src -> W src a
@@ -120,10 +121,10 @@ lookupType x = W $ \ctx n -> return (M.lookup x $ unContext ctx, n)
 
 -- | 'requireType' @x@ looks up the type of @x@ in the context. A type error
 -- is raised if @x@ is not typed in the context.
-requireType :: src -> Var -> W src (Signature src)
+requireType :: Maybe src -> Var -> W src (Signature src)
 requireType src x = lookupType x >>= \r -> case r of
     Nothing -> typeError $ NotInScopeErr src x
-    Just t  -> return t
+    Just t  -> return $ (maybe id setLoc src) t
 
 --------------------------------------------------------------------------------
 
@@ -131,13 +132,15 @@ requireType src x = lookupType x >>= \r -> case r of
 bind :: Text -> TypeF src (Fix (TypeF src)) -> W src (Subst src)
 bind x (VarT _ y) | x == y = return $ Subst M.empty
 bind x t = case getVar (tyVars (Type $ Fix t)) x of
-  Just src -> typeError $ OccursErr src x (Type $ Fix t)
+  Just src -> typeError $ OccursErr (src <|> src2) x (Type $ Fix t)
   Nothing  -> return $ Subst $ M.singleton x (Type $ Fix t)
+  where
+    src2 = getLoc (Type $ Fix t)
 
 -- | 'unify' @t0 t1@ unifies two types @t0@ and @t1@. If the two types can be
 -- unified, a substitution is returned which unifies them.
-unify :: Type src -> Type src -> W src (Subst src)
-unify (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
+unify :: Show src => Maybe src -> Type src -> Type src -> W src (Subst src)
+unify topLoc (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
     where
         go (VarT _ x) t = bind x t
         go t (VarT _ x) = bind x t
@@ -145,7 +148,11 @@ unify (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
         go (AppT _ f x) (AppT _ g y) = unifyPair (f, x) (g, y)
         go (ArrowT _ f x) (ArrowT _ g y) = unifyPair (f, x) (g, y)
         -- without base types etc., all types are unifiable
-        go t0 t1 = typeError $ UnifyErr (getLoc $ Type $ Fix t0) (Type $ Fix t0) (Type $ Fix t1)
+        go t0 t1 =
+          let toLoc = getLoc . Type . Fix
+              loc = toLoc t0 <|> toLoc t1 <|> topLoc
+          in  typeError $ UnifyErr loc (Type $ Fix t0) (Type $ Fix t1)
+
 
         unifyPair (f, x) (g, y) = do
             s0 <- go (unFix f) (unFix g)
@@ -155,7 +162,7 @@ unify (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
 --------------------------------------------------------------------------------
 
 -- | 'infer' @term@ reconstructs types in @term@.
-infer :: forall src . Term src -> W src (TyTerm src)
+infer :: forall src . Show src => Term src -> W src (TyTerm src)
 infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
     where
         go :: TermF src Var (W src (Subst src, Type src, TyTerm src)) -> W src (Subst src, Type src, TyTerm src)
@@ -177,7 +184,7 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
             mt <- fresh src
 
             -- unify the types
-            s2 <- unify t0 (arrowT src t1 mt)
+            s2 <- unify src t0 (arrowT src t1 mt)
 
             -- return the annotated application
             return (s2 <@> s1 <@> s0, applyType s2 mt, tyAppE src tf tx mt)
@@ -188,7 +195,7 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
             --
             (s0, t0, te) <- withContext (Context . M.insert x (monoT mt) . unContext) e
 
-            let rt = arrowT src mt t0
+            let rt = arrowT src (setLoc' src mt) t0
 
             -- return the annotated abstraction
             return (s0, applyType s0 rt, tyAbsE src (Typed x (monoT mt)) te rt)
@@ -204,21 +211,21 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
 
             -- return the annotated let binding
             return (s1 <@> s0, t1, tyLetE src (Typed x pt) te0 te1 t1)
-        go (AssertType _ x ty) = do
+        go (AssertType src x ty) = do
             (s0, t0, tx) <- x
-            s1 <- unify t0 ty
+            s1 <- unify src t0 ty
             return (s1 <@> s0, ty, tx)
 
 --------------------------------------------------------------------------------
 
 -- | 'runW' @gamma term@ runs Algorithm W on @term@ with an initial context
 -- @gamma@ and returns an updated @term@ with explicit type annotations.
-runW :: Context src -> Term src -> Either (TypeError src) (TyTerm src)
+runW :: Show src => Context src -> Term src -> Either (TypeError src) (TyTerm src)
 runW ctx term = fst `fmap` unW (infer term) ctx 0
 
 -- | 'inferW' @gamma term@ runs Algorithm W on @term@ with an initial context
 -- @gamma@ and returns the polymorphic type of the whole term.
-inferW :: Context src -> Term src -> Either (TypeError src) (Type src)
+inferW :: Show src => Context src -> Term src -> Either (TypeError src) (Type src)
 inferW ctx term = either (Left . normaliseTypeError) (Right . normaliseType) $
   (tyAnn . unTypedF . unFix) `fmap` runW ctx term
 
@@ -254,4 +261,6 @@ typeToSignature ty = (foldr (.) id $ fmap (uncurry $ flip forAllT) vs) (monoT ty
   where
     vs = tyVarsInOrder ty
 
+setLoc' :: SetLoc t => Maybe (Loc t) -> t -> t
+setLoc' = maybe id setLoc
 

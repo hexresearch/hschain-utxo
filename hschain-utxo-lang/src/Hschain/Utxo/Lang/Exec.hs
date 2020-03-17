@@ -154,7 +154,7 @@ execLang' (Fix x) = case x of
   where
     rec = execLang'
 
-    getVar :: Loc -> VarName -> Exec Lang
+    getVar :: Maybe Loc -> VarName -> Exec Lang
     getVar loc name = do
       vars <- fmap ctx'vars get
       case M.lookup name vars of
@@ -200,7 +200,7 @@ execLang' (Fix x) = case x of
         LessThanEquals -> fromLte loc a b
         GreaterThanEquals -> fromGte loc a b
 
-    fromAnd, fromOr :: Loc -> Lang -> Lang -> Exec Lang
+    fromAnd, fromOr :: Maybe Loc -> Lang -> Lang -> Exec Lang
 
     -- todo: maybe it's worth to make it lazy
     fromAnd loc x y = do
@@ -336,7 +336,7 @@ execLang' (Fix x) = case x of
         PrimE loc1 (PrimString pkeyTxt) ->
           case publicKeyFromText pkeyTxt of
             Just pkey  -> return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaPk pkey
-            Nothing    -> parseError loc1 $ mconcat ["Failed to convert parse public key from string: ", pkeyTxt]
+            Nothing    -> parseError (fromMaybe noLoc loc1) $ mconcat ["Failed to convert parse public key from string: ", pkeyTxt]
         _                                    -> thisShouldNotHappen x
 
     fromInfixApply loc a v b = rec $ unfoldInfixApply loc a v b
@@ -438,7 +438,7 @@ execLang' (Fix x) = case x of
         toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? (fromIntegral n)
         toBoxes loc1 vs = Fix $ VecE loc $ NewVec loc $ fmap (Fix . BoxE loc1 . PrimBox loc1) vs
 
-    fromBoxExpr :: Loc -> BoxExpr Lang -> Exec Lang
+    fromBoxExpr :: Maybe Loc -> BoxExpr Lang -> Exec Lang
     fromBoxExpr loc x = do
       x' <- mapM rec x
       case x' of
@@ -446,7 +446,7 @@ execLang' (Fix x) = case x of
         BoxAt loc1 (Fix (BoxE _ (PrimBox _ box))) field -> getBoxField loc1 box field
         _ -> thisShouldNotHappen $ Fix $ BoxE loc x
 
-    getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
+    getBoxField :: Maybe Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
       BoxFieldId      -> prim loc $ PrimString $ unBoxId box'id
       BoxFieldValue   -> prim loc $ PrimInt $ box'value
@@ -570,7 +570,7 @@ execLang' (Fix x) = case x of
               PVar _ idx -> [idx]
           --     _          -> []
 
-prim :: Loc -> Prim -> Exec Lang
+prim :: Maybe Loc -> Prim -> Exec Lang
 prim loc p = return $ Fix $ PrimE loc p
 
 toError :: Error -> Exec a

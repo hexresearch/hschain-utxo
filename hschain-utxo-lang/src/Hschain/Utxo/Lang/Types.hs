@@ -75,7 +75,7 @@ data Env = Env
 
 parseScript :: Text -> Either Text (Expr Bool)
 parseScript txt =
-  case parseExp $ T.unpack txt of
+  case parseExp (Just "<parseSrcipt>") $ T.unpack txt of
     ParseOk expr        -> Right $ Expr expr
     ParseFailed loc msg -> Left $ mconcat ["Parse failed at ", showt loc, " with ", T.pack msg]
 

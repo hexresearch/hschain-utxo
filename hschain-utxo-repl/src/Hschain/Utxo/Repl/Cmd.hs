@@ -119,7 +119,7 @@ reload = do
   mapM_ loadTx     =<< getTxFile
 
 showType :: String -> Repl ()
-showType str = case P.parseExp str of
+showType str = case P.parseExp (Just "<repl>") str of
   P.ParseOk expr      -> do
     eTy <- checkType expr
     liftIO $ case eTy of

@@ -19,6 +19,6 @@ parseFailedBy :: (H.Annotated f, H.Pretty (f Loc)) => String -> f Loc -> ParseRe
 parseFailedBy msg exp = ParseFailed (H.fromSrcInfo $ H.ann exp) $ mconcat [msg, ": ", H.prettyPrint exp]
 
 parseFailedVar :: String -> VarName -> ParseResult a
-parseFailedVar msg v = ParseFailed (H.fromSrcInfo $ varName'loc v) $ mconcat [msg, ": ", Text.unpack $ varName'name v]
+parseFailedVar msg v = ParseFailed (maybe H.noLoc H.fromSrcInfo $ varName'loc v) $ mconcat [msg, ": ", Text.unpack $ varName'name v]
 
 

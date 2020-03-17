@@ -46,7 +46,7 @@ loadCtx file ctx imp@Imports{..} = updateCurrent $ imp
 load :: MonadIO io => FilePath -> Imports -> io (Either ImportError Imports)
 load file imp = liftIO $ do
   str <- readFile file
-  case P.parseModule str of
+  case P.parseModule (Just file) str of
     P.ParseOk m -> do
       let typeCtx = moduleCtx'types $ imports'current imp
       case evalModule typeCtx m of

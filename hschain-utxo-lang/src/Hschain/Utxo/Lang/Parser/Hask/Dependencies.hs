@@ -55,7 +55,7 @@ getTypeMap = foldM accumTypeMap Map.empty . concat . catMaybes . fmap getTypeSig
 
     accumTypeMap m (v, ty) = case Map.lookup v m of
       Nothing -> return $ Map.insert v ty m
-      Just _  -> parseFailed (varName'loc v) $ mconcat ["Type signature for variable ", Text.unpack $ varName'name v, " is defined twice"]
+      Just _  -> parseFailed (fromMaybe noLoc $ varName'loc v) $ mconcat ["Type signature for variable ", Text.unpack $ varName'name v, " is defined twice"]
 
 getFunMap :: [Decl] -> ParseResult FunMap
 getFunMap = fmap Map.fromList . mapM toSingleName . catMaybes . fmap getFunDecl
@@ -67,7 +67,7 @@ getFunMap = fmap Map.fromList . mapM toSingleName . catMaybes . fmap getFunDecl
     toSingleName (loc, xs) = case xs of
       [(v, alt)] -> return (v, alt)
       []         -> parseFailed loc "No cases are defined"
-      (v, _):_   -> parseFailed (varName'loc v) $ mconcat ["Too many functional cases are defined for: ", Text.unpack $ varName'name v]
+      (v, _):_   -> parseFailed (fromMaybe noLoc $ varName'loc v) $ mconcat ["Too many functional cases are defined for: ", Text.unpack $ varName'name v]
 
 renderToBinds :: FunMap -> TypeMap -> ParseResult (BindGroup Lang)
 renderToBinds funs tys = mapM toGroup names

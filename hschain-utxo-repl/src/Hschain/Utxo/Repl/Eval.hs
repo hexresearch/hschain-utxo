@@ -71,13 +71,13 @@ evalBind var lang = do
       let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
       case res of
         Right (expr, _) -> do
-          modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var expr next)
+          modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet Nothing var expr next)
                               , replEnv'words   = varName'name var : replEnv'words st }
           return ()
         Left err   -> liftIO $ T.putStrLn $ renderText err
 
 parseExpr :: String -> Either String ParseRes
-parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp input
+parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp (Just "<repl>") input
 
 parseBind :: String -> Either String ParseRes
 parseBind input =

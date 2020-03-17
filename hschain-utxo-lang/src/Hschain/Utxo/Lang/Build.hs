@@ -46,7 +46,7 @@ import qualified Hschain.Utxo.Lang.Sigma as S
 (=:) = def
 
 primExpr :: Prim -> Expr a
-primExpr p = Expr $ Fix $ PrimE noLoc p
+primExpr p = Expr $ Fix $ PrimE Nothing p
 
 int :: Int64 -> Expr Int64
 int x = primExpr $ PrimInt x
@@ -66,40 +66,40 @@ op2 f (Expr a) (Expr b) = Expr $ Fix $ f a b
 -- variables
 
 var :: Text -> Expr a
-var name = Expr $ Fix $ Var noLoc $ VarName noLoc name
+var name = Expr $ Fix $ Var Nothing $ VarName Nothing name
 
 def :: Text -> Expr a -> (Expr a -> Expr b) -> Expr b
 def name (Expr a) bodyFun =
   case (bodyFun (var name)) of
-    Expr body -> Expr $ singleLet noLoc (VarName noLoc name) a body
+    Expr body -> Expr $ singleLet Nothing (VarName Nothing name) a body
 
 lam :: Text -> (Expr a -> Expr b) -> Expr (a -> b)
 lam name bodyFun =
   case bodyFun (var name) of
-    Expr body -> Expr $ Fix $ Lam noLoc (VarName noLoc name) body
+    Expr body -> Expr $ Fix $ Lam Nothing (VarName Nothing name) body
 
 lam2 :: Text -> Text -> (Expr a -> Expr b -> Expr c) -> Expr (a -> b -> c)
 lam2 v1 v2  bodyFun =
   case bodyFun (var v1) (var v2) of
-    Expr body -> Expr $ Fix $ LamList noLoc [VarName noLoc v1, VarName noLoc v2] body
+    Expr body -> Expr $ Fix $ LamList Nothing [VarName Nothing v1, VarName Nothing v2] body
 
 app :: Expr (a -> b) -> Expr a -> Expr b
-app (Expr fun) (Expr arg) = Expr $ Fix $ Apply noLoc fun arg
+app (Expr fun) (Expr arg) = Expr $ Fix $ Apply Nothing fun arg
 
 pair :: Expr a -> Expr b -> Expr (a, b)
-pair (Expr a) (Expr b) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b]
+pair (Expr a) (Expr b) = Expr $ Fix $ Tuple Nothing $ V.fromList [a, b]
 
 pairAt1 :: Expr (a, b) -> Expr a
-pairAt1 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 0) a
+pairAt1 (Expr a) = Expr $ Fix $ UnOpE Nothing (TupleAt 2 0) a
 
 pairAt2 :: Expr (a, b) -> Expr b
-pairAt2 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 1) a
+pairAt2 (Expr a) = Expr $ Fix $ UnOpE Nothing (TupleAt 2 1) a
 
 tuple3 :: Expr a -> Expr b -> Expr c -> Expr (a, b, c)
-tuple3 (Expr a) (Expr b) (Expr c) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b, c]
+tuple3 (Expr a) (Expr b) (Expr c) = Expr $ Fix $ Tuple Nothing $ V.fromList [a, b, c]
 
 tuple4 :: Expr a -> Expr b -> Expr c -> Expr d -> Expr (a, b, c, d)
-tuple4 (Expr a) (Expr b) (Expr c) (Expr d) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b, c, d]
+tuple4 (Expr a) (Expr b) (Expr c) (Expr d) = Expr $ Fix $ Tuple Nothing $ V.fromList [a, b, c, d]
 
 ----------------------------------------------
 -- string
@@ -121,42 +121,42 @@ instance PrimTy Text
 instance Boolean (Expr Bool) where
   true = mkBool True
   false = mkBool False
-  notB = op1 (UnOpE noLoc Not)
-  (&&*) = op2 (BinOpE noLoc And)
-  (||*) = op2 (BinOpE noLoc Or)
+  notB = op1 (UnOpE Nothing Not)
+  (&&*) = op2 (BinOpE Nothing And)
+  (||*) = op2 (BinOpE Nothing Or)
 
 pk' :: PublicKey -> Expr Bool
 pk' = pk . text . publicKeyToText
 
 pk :: Expr Text -> Expr Bool
-pk (Expr key) = Expr $ Fix $ Pk noLoc key
+pk (Expr key) = Expr $ Fix $ Pk Nothing key
 
 getSelf :: Expr Box
-getSelf = Expr $ Fix $ GetEnv noLoc (Self noLoc)
+getSelf = Expr $ Fix $ GetEnv Nothing (Self Nothing)
 
 getInput :: Expr Int64 -> Expr Box
-getInput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Input noLoc n
+getInput (Expr n) = Expr $ Fix $ GetEnv Nothing $ Input Nothing n
 
 getOutput :: Expr Int64 -> Expr Box
-getOutput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Output noLoc n
+getOutput (Expr n) = Expr $ Fix $ GetEnv Nothing $ Output Nothing n
 
 getBoxId :: Expr Box -> Expr Text
-getBoxId (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldId
+getBoxId (Expr box) = Expr $ Fix $ BoxE Nothing $ BoxAt Nothing box BoxFieldId
 
 getBoxValue :: Expr Box -> Expr Money
-getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
+getBoxValue (Expr box) = Expr $ Fix $ BoxE Nothing $ BoxAt Nothing box BoxFieldValue
 
 getBoxScript :: Expr Box -> Expr Script
-getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScript
+getBoxScript (Expr box) = Expr $ Fix $ BoxE Nothing $ BoxAt Nothing box BoxFieldScript
 
 getBoxArg :: Expr Box -> Expr Text -> Expr a
-getBoxArg (Expr box) (Expr field) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArg field)
+getBoxArg (Expr box) (Expr field) = Expr $ Fix $ BoxE Nothing $ BoxAt Nothing box (BoxFieldArg field)
 
 getHeight :: Expr Int64
-getHeight = Expr $ Fix $ GetEnv noLoc (Height noLoc)
+getHeight = Expr $ Fix $ GetEnv Nothing (Height Nothing)
 
 getVar :: Expr Text -> Expr a
-getVar (Expr arg) = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc arg
+getVar (Expr arg) = Expr $ Fix $ GetEnv Nothing $ GetVar Nothing arg
 
 toScriptBytes :: Expr Bool -> Expr Script
 toScriptBytes expr = unsafeCoerceExpr $ text $ unScript $ toScript expr
@@ -165,31 +165,31 @@ unsafeCoerceExpr :: Expr a -> Expr b
 unsafeCoerceExpr (Expr a) = Expr a
 
 getInputs :: Expr (Vector Box)
-getInputs = Expr $ Fix $ GetEnv noLoc (Inputs noLoc)
+getInputs = Expr $ Fix $ GetEnv Nothing (Inputs Nothing)
 
 getOutputs :: Expr (Vector Box)
-getOutputs = Expr $ Fix $ GetEnv noLoc (Outputs noLoc)
+getOutputs = Expr $ Fix $ GetEnv Nothing (Outputs Nothing)
 
 fromVec :: Vector (Expr a) -> Expr (Vector a)
-fromVec vs = Expr $ Fix $ VecE noLoc $ NewVec noLoc $ fmap (\(Expr a) -> a) vs
+fromVec vs = Expr $ Fix $ VecE Nothing $ NewVec Nothing $ fmap (\(Expr a) -> a) vs
 
 mapVec :: Expr (a -> b) -> Expr (Vector a) -> Expr (Vector b)
-mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecMap noLoc)) f) v
+mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply Nothing (Fix $ Apply Nothing (Fix $ VecE Nothing (VecMap Nothing)) f) v
 
 foldVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
-foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z) v
+foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply Nothing (Fix $ Apply Nothing (Fix $ Apply Nothing (Fix $ VecE Nothing (VecFold Nothing)) f) z) v
 
 lengthVec :: Expr (Vector a) -> Expr Int64
-lengthVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) v
+lengthVec (Expr v) = Expr $ Fix $ Apply Nothing (Fix $ VecE Nothing (VecLength Nothing)) v
 
 concatVec :: Expr (Vector a) -> Expr (Vector a) -> Expr (Vector a)
-concatVec (Expr a) (Expr b) = Expr $ Fix $ VecE noLoc $ VecAppend noLoc a b
+concatVec (Expr a) (Expr b) = Expr $ Fix $ VecE Nothing $ VecAppend Nothing a b
 
 allVec :: Expr (Vector Bool) -> Expr Bool
-allVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "all") v
+allVec (Expr v) = Expr $ Fix $ Apply Nothing (Fix $ Var Nothing "all") v
 
 anyVec :: Expr (Vector Bool) -> Expr Bool
-anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
+anyVec (Expr v) = Expr $ Fix $ Apply Nothing (Fix $ Var Nothing "any") v
 
 type instance BooleanOf (Expr Bool) = Expr Bool
 type instance BooleanOf (Expr Int64) = Expr Bool
@@ -220,15 +220,15 @@ ifExpr :: Expr Bool -> Expr a -> Expr a -> Expr a
 ifExpr (Expr cond) (Expr t) (Expr e) =  Expr $ ifExprLang cond t e
 
 ifExprLang :: Lang -> Lang -> Lang -> Lang
-ifExprLang cond t e = Fix $ If noLoc cond t e
+ifExprLang cond t e = Fix $ If Nothing cond t e
 
 -------------------------------------------------
 -- numeric
 
 instance Num (Expr Int64) where
-  (+) = op2 (BinOpE noLoc Plus)
-  (*) = op2 (BinOpE noLoc Times)
-  negate = op1 (UnOpE noLoc Neg)
+  (+) = op2 (BinOpE Nothing Plus)
+  (*) = op2 (BinOpE Nothing Times)
+  negate = op1 (UnOpE Nothing Neg)
   fromInteger n = primExpr $ PrimInt $ fromIntegral n
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
@@ -237,45 +237,45 @@ instance Num (Expr Int64) where
 --
 
 instance EqB (Expr Int64) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
+  (==*) = op2 (BinOpE Nothing Equals)
+  (/=*) = op2 (BinOpE Nothing NotEquals)
 
 instance EqB (Expr Text) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
+  (==*) = op2 (BinOpE Nothing Equals)
+  (/=*) = op2 (BinOpE Nothing NotEquals)
 
 instance EqB (Expr Script) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
+  (==*) = op2 (BinOpE Nothing Equals)
+  (/=*) = op2 (BinOpE Nothing NotEquals)
 
 -- order
 
 instance OrdB (Expr Int64) where
-  (<*) = op2 (BinOpE noLoc LessThan)
+  (<*) = op2 (BinOpE Nothing LessThan)
 
 instance OrdB (Expr Text) where
-  (<*) = op2 (BinOpE noLoc LessThan)
+  (<*) = op2 (BinOpE Nothing LessThan)
 
 --------------------------
 -- text
 
 concatText :: Expr Text -> Expr Text -> Expr Text
-concatText (Expr a) (Expr b) = Expr $ Fix $ TextE noLoc $ TextAppend noLoc a b
+concatText (Expr a) (Expr b) = Expr $ Fix $ TextE Nothing $ TextAppend Nothing a b
 
 lengthText :: Expr Text -> Expr Int64
-lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
+lengthText (Expr a) = Expr $ Fix $ Apply Nothing (Fix $ TextE Nothing (TextLength Nothing)) a
 
 showInt :: Expr Int64 -> Expr Text
-showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText IntToText noLoc)) a
+showInt (Expr a) = Expr $ Fix $ Apply Nothing (Fix $ TextE Nothing (ConvertToText IntToText Nothing)) a
 
 showScript :: Expr Script -> Expr Text
-showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText ScriptToText noLoc)) a
+showScript (Expr a) = Expr $ Fix $ Apply Nothing (Fix $ TextE Nothing (ConvertToText ScriptToText Nothing)) a
 
 sha256 :: Expr Text -> Expr Text
-sha256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) a
+sha256 (Expr a) = Expr $ Fix $ Apply Nothing (Fix $ TextE Nothing $ TextHash Nothing Sha256) a
 
 blake2b256 :: Expr Text -> Expr Text
-blake2b256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Blake2b256) a
+blake2b256 (Expr a) = Expr $ Fix $ Apply Nothing (Fix $ TextE Nothing $ TextHash Nothing Blake2b256) a
 
 -------------------------------
 -- monoids
@@ -296,6 +296,6 @@ instance Monoid (Expr (Vector a)) where
 -- debug
 
 trace :: Expr Text -> Expr a -> Expr a
-trace (Expr str) (Expr a) = Expr $ Fix $ Trace noLoc str a
+trace (Expr str) (Expr a) = Expr $ Fix $ Trace Nothing str a
 
 
