@@ -31,6 +31,7 @@ import Hschain.Utxo.Lang.Sigma
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
+import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 
@@ -83,6 +84,33 @@ data Module = Module
   { module'loc   :: !Loc
   , module'binds :: !(BindGroup Lang)
   } deriving (Show)
+
+type TypeContext = H.Context Loc
+
+newtype ExecContext = ExecContext
+  { unExecContext :: Map VarName Lang
+  } deriving newtype (Show, Eq, Semigroup, Monoid)
+
+-- | Evaluated module
+data ModuleCtx = ModuleCtx
+  { moduleCtx'types  :: TypeContext
+  , moduleCtx'exprs  :: ExecContext
+  } deriving (Show, Eq)
+
+getModuleCtxNames :: ModuleCtx -> [Text]
+getModuleCtxNames = M.keys . H.unContext . moduleCtx'types
+
+instance Semigroup ModuleCtx where
+  (<>) a b = ModuleCtx
+    { moduleCtx'types = moduleCtx'types a <> moduleCtx'types b
+    , moduleCtx'exprs = moduleCtx'exprs a <> moduleCtx'exprs b
+    }
+
+instance Monoid ModuleCtx where
+  mempty = ModuleCtx
+    { moduleCtx'types = mempty
+    , moduleCtx'exprs = mempty
+    }
 
 data Alt a = Alt
   { alt'pats :: [Pat]

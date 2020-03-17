@@ -45,7 +45,7 @@ parseInput input =
 -- Tab Completion: return a completion for partial words entered
 completer :: WordCompleter ReplM
 completer n = do
-  names <- fmap replEnv'words get
+  names <- fmap getEnvWords get
   return $ fmap T.unpack $ filter (T.isPrefixOf n') names
   where
     n' = T.pack n

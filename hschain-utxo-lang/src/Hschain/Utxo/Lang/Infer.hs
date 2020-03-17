@@ -1,4 +1,9 @@
-module Hschain.Utxo.Lang.Infer where
+module Hschain.Utxo.Lang.Infer(
+    inferExpr
+  , checkMainModule
+  , maxTupleSize
+  , intT
+) where
 
 import Hex.Common.Control
 import Hex.Common.Text
@@ -38,7 +43,7 @@ checkMainModule ctx m = either Just (const Nothing) $ inferExpr ctx $ either mod
     modErr = error . mappend "Failed to load module with: "
 
 inferExpr :: H.Context Loc -> Lang -> Either TypeError Type
-inferExpr ctx = H.inferW ctx . reduceExpr
+inferExpr ctx = H.inferW (defaultContext <> ctx) . reduceExpr
 
 reduceExpr :: Lang -> H.Term Loc
 reduceExpr (Fix expr) = case expr of

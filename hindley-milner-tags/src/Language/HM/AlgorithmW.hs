@@ -10,7 +10,8 @@ module Language.HM.AlgorithmW (
     -- * Misc
     genInOrder,
     normaliseType,
-    normaliseSignature
+    normaliseSignature,
+    typeToSignature
 ) where
 
 --------------------------------------------------------------------------------
@@ -247,4 +248,10 @@ normaliseSubst x =
 
 letters :: [Text]
 letters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+
+typeToSignature :: Type src -> Signature src
+typeToSignature ty = (foldr (.) id $ fmap (uncurry $ flip forAllT) vs) (monoT ty)
+  where
+    vs = tyVarsInOrder ty
+
 
