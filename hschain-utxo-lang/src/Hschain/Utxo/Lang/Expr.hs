@@ -31,6 +31,7 @@ import Hschain.Utxo.Lang.Sigma
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
+import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 
@@ -95,6 +96,9 @@ data ModuleCtx = ModuleCtx
   { moduleCtx'types  :: TypeContext
   , moduleCtx'exprs  :: ExecContext
   } deriving (Show, Eq)
+
+getModuleCtxNames :: ModuleCtx -> [Text]
+getModuleCtxNames = M.keys . H.unContext . moduleCtx'types
 
 instance Semigroup ModuleCtx where
   (<>) a b = ModuleCtx

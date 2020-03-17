@@ -33,8 +33,7 @@ baseModuleCtx = ModuleCtx
   }
 
 langTypeContext :: H.Context Loc
-langTypeContext =
-  P.mappend defaultContext baseLibTypeContext
+langTypeContext = baseLibTypeContext
 
 -- | Prelude functions
 importBase :: Lang -> Lang

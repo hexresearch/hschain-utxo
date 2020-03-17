@@ -12,6 +12,7 @@ import Data.String
 import Data.Text (Text)
 import Hschain.Utxo.Repl.Eval
 import Hschain.Utxo.Repl.Monad
+import Hschain.Utxo.Repl.Imports (Imports(..), ImportError(..))
 
 import Safe
 
@@ -27,6 +28,8 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
+
+import qualified Hschain.Utxo.Repl.Imports as I
 
 evalCmd :: String -> String -> Repl ()
 evalCmd x args = case x of
@@ -74,18 +77,18 @@ load args = mapM_ loadScript $ getFiles args
 
 loadScript :: FilePath -> Repl ()
 loadScript file = do
-  resetEvalCtx
-  saveScriptFile file
-  str <- liftIO $ readFile file
-  case P.parseModule str of
-    P.ParseOk m           -> do
-      typeCtx <- getTypeContext
-      case evalModule typeCtx m of
-        Right modCtx   -> modify' $ \st -> st { replEnv'loadedModules = replEnv'loadedModules st <> modCtx }
-        Left typeError -> liftIO $ T.putStrLn $ renderText typeError
-    P.ParseFailed loc err -> showErr loc err
+  st <- get
+  eRes <- I.load file $ replEnv'imports st
+  case eRes of
+    Right imp -> put $ st { replEnv'imports = imp }
+    Left err  -> printErr err
   where
-    showErr _ msg = liftIO $ putStrLn $ unlines
+    printErr err = liftIO $
+      case err of
+        ImportTypeError tyErr    -> T.putStrLn $ renderText tyErr
+        ImportParseError loc err -> showParseErr loc err
+
+    showParseErr _ msg = putStrLn $ unlines
       [ mconcat ["Failed to load script ", file]
       , "Parsing exited with error:"
       , msg
@@ -94,11 +97,7 @@ loadScript file = do
 resetEvalCtx :: Repl ()
 resetEvalCtx = modify' $ \st ->
   st { replEnv'closure   = id
-     , replEnv'words     = baseNames }
-
-saveScriptFile :: FilePath -> Repl ()
-saveScriptFile file =
-  modify' $ \st -> st { replEnv'scriptFile = Just file }
+     , replEnv'words     = [] }
 
 loadTx :: FilePath -> Repl ()
 loadTx file = do
@@ -116,7 +115,7 @@ saveTxFile file =
 reload :: Repl ()
 reload = do
   resetEvalCtx
-  mapM_ loadScript =<< getScriptFile
+  mapM_ loadScript =<< getImportFiles
   mapM_ loadTx     =<< getTxFile
 
 showType :: String -> Repl ()

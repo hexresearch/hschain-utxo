@@ -1,5 +1,6 @@
 module Hschain.Utxo.Lang.Parser.Hask(
     ParseResult(..)
+  , SrcLoc(..)
   , parseExp
   , parseModule
   , parseBind
@@ -11,6 +12,9 @@ import Control.Applicative
 import Control.Monad
 
 import Data.Fix
+
+import Language.Haskell.Exts.SrcLoc (
+    SrcLoc(..))
 
 import Language.Haskell.Exts.Parser (
     ParseResult(..))

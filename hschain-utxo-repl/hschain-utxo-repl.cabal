@@ -21,10 +21,13 @@ library
   exposed-modules:     Hschain.Utxo.Repl
                        Hschain.Utxo.Repl.Cmd
                        Hschain.Utxo.Repl.Eval
+                       Hschain.Utxo.Repl.Imports
                        Hschain.Utxo.Repl.Monad
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , containers
+                     , data-default
                      , data-fix
                      , haskeline
                      , hex-common
