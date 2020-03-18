@@ -19,6 +19,7 @@ import Crypto.Hash
 
 import Data.Aeson
 import Data.Boolean
+import Data.Either
 import Data.Fix
 import Data.Fixed
 import Data.Int
@@ -45,6 +46,9 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Language.HM as H
 
+import Debug.Trace
+import Text.Show.Pretty (ppShow)
+
 removeAscr :: Lang -> Lang
 removeAscr = cata $ \case
   Ascr _ a _ -> a
@@ -66,6 +70,9 @@ data Error
   | NoField VarName
   deriving (Show)
 
+trace' :: Show a => a -> a
+trace' x = trace (ppShow x) x
+
 evalModule :: TypeContext -> Module -> Either TypeError ModuleCtx
 evalModule typeCtx Module{..} = fmap toModuleCtx $ evalStateT (mapM checkBind module'binds) typeCtx
   where
@@ -80,8 +87,18 @@ evalModule typeCtx Module{..} = fmap toModuleCtx $ evalStateT (mapM checkBind mo
     checkBind bind@Bind{..} = do
       ctx <- get
       ty <- fmap H.typeToSignature $ lift $ inferExpr ctx (altToExpr bind'alt)
-      put $ ctx <> H.Context (M.singleton (varName'name bind'name) ty)
-      return $ bind { bind'type = Just ty }
+      let typeIsOk =
+            case bind'type of
+              Just userTy -> if (isRight $ H.subtypeOf mempty userTy ty) then Nothing else (Just userTy)
+              Nothing     -> Nothing
+      case typeIsOk of
+        Just userTy -> do
+          lift $ Left $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) (H.stripSignature ty)
+        Nothing     -> do
+          let resTy = fromMaybe ty bind'type
+          put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
+          return $ bind { bind'type = Just resTy }
+
 
 data Ctx = Ctx
   { ctx'vars       :: !(Map VarName Lang)

@@ -33,7 +33,7 @@ import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Data.Fix
 import Data.Function (on)
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import Data.Text (Text)
 import qualified Data.List as L
 import qualified Data.Map as M

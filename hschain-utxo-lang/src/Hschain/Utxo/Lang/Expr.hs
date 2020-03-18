@@ -93,8 +93,8 @@ newtype ExecContext = ExecContext
 
 -- | Evaluated module
 data ModuleCtx = ModuleCtx
-  { moduleCtx'types  :: TypeContext
-  , moduleCtx'exprs  :: ExecContext
+  { moduleCtx'types  :: !TypeContext
+  , moduleCtx'exprs  :: !ExecContext
   } deriving (Show, Eq)
 
 getModuleCtxNames :: ModuleCtx -> [Text]
@@ -136,7 +136,7 @@ data E a
   | LamList (Maybe Loc) [VarName] a
   | Let (Maybe Loc) (BindGroup a) a
   | LetRec (Maybe Loc) VarName a a
-  | Ascr (Maybe Loc) a Type
+  | Ascr (Maybe Loc) a Signature
   -- primitives
   | PrimE (Maybe Loc) Prim
   -- logic

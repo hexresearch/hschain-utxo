@@ -6,6 +6,7 @@ module Language.HM.AlgorithmW (
     -- * External interface
     runW,
     inferW,
+    subtypeOf,
 
     -- * Misc
     genInOrder,
@@ -24,13 +25,17 @@ import Data.Function (on)
 import Data.String
 import Data.Text (Text)
 import qualified Data.List as L
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 
 import Language.HM.Term
 import Language.HM.Subst
 import Language.HM.Type
 import Language.HM.TypeError
 
+{-
+import Debug.Trace
+import Text.Show.Pretty (ppShow)
+-}
 --------------------------------------------------------------------------------
 
 -- | Typing contexts.
@@ -159,6 +164,27 @@ unify topLoc (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
             s1 <- go (unFix $ unType $ applyType s0 $ Type x) (unFix $ unType $ applyType s0 $ Type y)
             return (s1 <@> s0)
 
+subtypeOf' :: Show src => Type src -> Type src -> W src (Subst src)
+subtypeOf' (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
+  where
+    go (VarT _ x) t@(VarT _ _) = bind x t
+    go t (VarT _ x) = bind x t
+    go (ConT _ a) (ConT _ b) | a == b = return emptySubst
+    go (AppT _ f x) (AppT _ g y) = subPair (f, x) (g, y)
+    go (ArrowT _ f x) (ArrowT _ g y) = subPair (f, x) (g, y)
+    -- without base types etc., all types are unifiable
+    go t0 t1 =
+      let toLoc = getLoc . Type . Fix
+          loc = toLoc t1 <|> toLoc t0
+      in  typeError $ UnifyErr loc (Type $ Fix t0) (Type $ Fix t1)
+
+    subPair (f, x) (g, y) = do
+        s0 <- go (unFix f) (unFix g)
+        s1 <- go (unFix $ unType $ applyType s0 $ Type x) (unFix $ unType $ applyType s0 $ Type y)
+        return (s1 <@> s0)
+
+
+
 --------------------------------------------------------------------------------
 
 -- | 'infer' @term@ reconstructs types in @term@.
@@ -211,11 +237,15 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go term
 
             -- return the annotated let binding
             return (s1 <@> s0, t1, tyLetE src (Typed x pt) te0 te1 t1)
-        go (AssertType src x ty) = do
+        go (AssertType _ x sign) = do
             (s0, t0, tx) <- x
-            s1 <- unify src t0 ty
+            ty <- inst sign
+            s1 <- subtypeOf' ty t0
             return (s1 <@> s0, ty, tx)
-
+{-
+trace' x = trace (ppShow x) x
+trace1 msg x = trace (mconcat [msg, ": " , ppShow x]) x
+-}
 --------------------------------------------------------------------------------
 
 -- | 'runW' @gamma term@ runs Algorithm W on @term@ with an initial context
@@ -228,6 +258,9 @@ runW ctx term = fst `fmap` unW (infer term) ctx 0
 inferW :: Show src => Context src -> Term src -> Either (TypeError src) (Type src)
 inferW ctx term = either (Left . normaliseTypeError) (Right . normaliseType) $
   (tyAnn . unTypedF . unFix) `fmap` runW ctx term
+
+subtypeOf :: Show src => Context src -> Signature src -> Signature src -> Either (TypeError src) (Subst src)
+subtypeOf ctx ta tb = fst `fmap` unW (join $ liftA2 subtypeOf' (inst ta) (inst tb)) ctx 0
 
 --------------------------------------------------------------------------------
 -- normalise result type
@@ -256,7 +289,7 @@ normaliseSubst x =
 letters :: [Text]
 letters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
-typeToSignature :: Type src -> Signature src
+typeToSignature :: Show src => Type src -> Signature src
 typeToSignature ty = (foldr (.) id $ fmap (uncurry $ flip forAllT) vs) (monoT ty)
   where
     vs = tyVarsInOrder ty

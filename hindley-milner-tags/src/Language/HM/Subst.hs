@@ -7,7 +7,7 @@ module Language.HM.Subst where
 
 import Data.Fix
 import Data.Text (Text)
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 
 import Language.HM.Type
 import Language.HM.Term

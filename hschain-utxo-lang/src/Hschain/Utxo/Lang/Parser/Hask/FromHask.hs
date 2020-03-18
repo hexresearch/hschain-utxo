@@ -41,7 +41,7 @@ fromHaskExp topExp = case topExp of
     [p] -> fromLam (Just loc) p body
     _   -> fromLamList (Just loc) ps body
   H.Let loc binds exp -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec exp)
-  H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr (Just loc) x y) (rec exp) (fromType ty)
+  H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr (Just loc) x (HM.typeToSignature y)) (rec exp) (fromType ty)
   H.Lit loc lit -> fmap (Fix . PrimE (Just loc)) $ fromLit lit
   H.If loc a b c -> liftA3 (\x y z -> Fix $ If (Just loc) x y z) (rec a) (rec b) (rec c)
   H.Tuple loc H.Boxed es -> fmap (Fix . Tuple (Just loc) . V.fromList) (mapM rec es)
@@ -147,7 +147,7 @@ fromQName = \case
 fromQualType :: H.Type Loc -> ParseResult Signature
 fromQualType x = case x of
   H.TyForall loc Nothing mContext ty -> err
-  ty -> fmap HM.monoT $ fromType ty
+  ty -> fmap HM.typeToSignature $ fromType ty
   where
     err = parseFailedBy "Contexts are not allowed" x
 

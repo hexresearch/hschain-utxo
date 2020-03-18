@@ -1,26 +1,18 @@
---------------------------------------------------------------------------------
-
 -- | Capture-avoiding substitutions.
 module Language.HM.Subst where
 
---------------------------------------------------------------------------------
-
 import Data.Fix
 import Data.Text (Text)
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 
 import Language.HM.Type
 import Language.HM.Term
-
---------------------------------------------------------------------------------
 
 -- | Substitutions of type variables for monomorphic types.
 newtype Subst src = Subst { unSubst :: M.Map Text (Tau src) }
 
 emptySubst :: Subst src
 emptySubst = Subst M.empty
-
---------------------------------------------------------------------------------
 
 applyTau :: forall src . Subst src -> Tau src -> Tau src
 applyTau (Subst s) = cata g . unTau
@@ -53,4 +45,3 @@ applyTyped app s (Typed x t) = Typed x (app s t)
 (<@>) :: Subst src -> Subst src -> Subst src
 (Subst s1) <@> (Subst s2) = Subst $ M.map (applyTau (Subst s1)) s2 `M.union` s1
 
---------------------------------------------------------------------------------

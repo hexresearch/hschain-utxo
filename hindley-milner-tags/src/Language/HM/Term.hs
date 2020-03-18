@@ -1,16 +1,10 @@
---------------------------------------------------------------------------------
-
 -- | This module contains the abstract syntax tree of the term language.
 module Language.HM.Term where
-
---------------------------------------------------------------------------------
 
 import Data.Fix
 import Data.Text (Text)
 
 import Language.HM.Type
-
---------------------------------------------------------------------------------
 
 -- | The type of variable names.
 type Var = Text
@@ -20,7 +14,7 @@ data TermF src v r
     | App (Maybe src) r r                 -- ^ Applications.
     | Abs (Maybe src) v r                 -- ^ Abstractions.
     | Let (Maybe src) v r r               -- ^ Let bindings.
-    | AssertType (Maybe src) r (Type src) -- ^ Assert type.
+    | AssertType (Maybe src) r (Signature src) -- ^ Assert type.
     deriving (Show, Functor, Foldable, Traversable)
 
 -- | The type of terms.
@@ -42,7 +36,7 @@ absE src x e = Fix $ Abs src x e
 letE :: Maybe src -> Var -> Term src -> Term src -> Term src
 letE src x e0 e1 = Fix $ Let src x e0 e1
 
-assertTypeE :: Maybe src -> Term src -> Type src -> Term src
+assertTypeE :: Maybe src -> Term src -> Signature src -> Term src
 assertTypeE src a ty = Fix $ AssertType src a ty
 
 --------------------------------------------------------------------------------

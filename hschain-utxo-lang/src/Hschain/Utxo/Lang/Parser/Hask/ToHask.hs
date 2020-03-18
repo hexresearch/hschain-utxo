@@ -39,7 +39,7 @@ toHaskExp (Fix expr) = fmap (fromMaybe noLoc) $ case expr of
   LamList loc vs a -> H.Lambda loc (fmap (\v -> H.PVar (HM.getLoc v) $ toIdentName v) vs) (rec a)
   Let loc bg a -> H.Let loc (toLetBinds loc bg) (rec a)
   LetRec loc name a b -> undefined
-  Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType (HM.Signature $ Fix $ HM.MonoT ty))
+  Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType ty)
   -- primitives
   PrimE loc p -> toLiteral loc p
   -- logic
