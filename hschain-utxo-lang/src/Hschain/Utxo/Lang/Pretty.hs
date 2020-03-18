@@ -195,7 +195,7 @@ prettyBoxField = \case
 
 instance Pretty Error where
   pretty = \case
-    ParseError _ txt               -> err "Parse error" txt
+    ParseError loc txt             -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
     AppliedNonFunction lang        -> err "Applied non-function" lang
     PoorlyTypedApplication lang    -> err "Poorly typed application" lang
     UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]
@@ -230,4 +230,10 @@ instance Pretty Hask.SrcSpan where
     [ pretty srcSpanFilename, ":"
     , pretty srcSpanStartLine, ":"
     , pretty srcSpanStartColumn ]
+
+instance Pretty Hask.SrcLoc where
+  pretty Hask.SrcLoc{..} = hcat
+    [ pretty srcFilename, ":"
+    , pretty srcLine, ":"
+    , pretty srcColumn ]
 

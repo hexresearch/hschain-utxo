@@ -37,6 +37,20 @@ parseExp mFile = withFile mFile (\mode -> fromHaskExp <=< H.parseExpWithMode mod
 parseModule :: Maybe FilePath -> String -> ParseResult Module
 parseModule mFile = withFile mFile (\mode -> fromHaskModule <=< H.parseModuleWithMode mode)
 
+parseBind :: Maybe FilePath -> String -> ParseResult (VarName, Lang)
+parseBind mFile = withFile mFile (\mode -> getBind <=< H.parseDeclWithMode mode)
+  where
+    getBind x = do
+      decl <- toDecl x
+      case decl of
+        FunDecl _ binds -> case binds of
+          [(var, alt)] -> return (var, altToExpr alt)
+          _            -> err
+        _ -> err
+
+    err = parseFailed noLoc "Failed to parse bind"
+
+
 withFile :: Maybe FilePath -> (H.ParseMode -> String -> ParseResult a) -> (String -> ParseResult a)
 withFile mFile parseWith = parseWith (setFile H.defaultParseMode)
   where

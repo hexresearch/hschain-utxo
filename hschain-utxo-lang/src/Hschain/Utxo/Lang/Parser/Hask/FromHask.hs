@@ -2,7 +2,7 @@ module Hschain.Utxo.Lang.Parser.Hask.FromHask(
     fromHaskExp
   , fromHaskModule
   , fromHaskDecl
-  , parseBind
+  , toDecl
 ) where
 
 import Hex.Common.Text
@@ -183,18 +183,5 @@ fromLit x = case x of
   other                  -> parseFailedBy "Failed to parse literal" other
   where
     floatsNotSupported = parseFailedBy "floatsNotSupported" x
-
-parseBind :: String -> ParseResult (VarName, Lang)
-parseBind = getBind <=< H.parseDecl
-  where
-    getBind x = do
-      decl <- toDecl x
-      case decl of
-        FunDecl _ binds -> case binds of
-          [(var, alt)] -> return (var, altToExpr alt)
-          _            -> err
-        _ -> err
-
-    err = parseFailed noLoc "Failed to parse bind"
 
 
