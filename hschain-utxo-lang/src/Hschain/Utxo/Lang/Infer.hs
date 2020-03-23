@@ -222,11 +222,11 @@ defaultContext = H.Context $ M.fromList $
   , (getVarVar, forA $ monoT $ intT `arr` a)
   ] ++ tupleConVars ++ tupleAtVars ++ textExprVars
   where
-    forA = forAllT Nothing "a"
-    forAB = forA . forAllT Nothing "b"
-    a = varT Nothing "a"
-    b = varT Nothing "b"
-    arr = arrowT Nothing
+    forA = forAllT noLoc "a"
+    forAB = forA . forAllT noLoc "b"
+    a = varT noLoc "a"
+    b = varT noLoc "b"
+    arr = arrowT noLoc
 
     opT2 x = monoT $ x `arr` (x `arr` x)
     boolOp2 = opT2 boolT
@@ -239,10 +239,10 @@ defaultContext = H.Context $ M.fromList $
         toTuple size = (tupleConVar size, tupleConType size)
 
         tupleConType :: Int -> Signature
-        tupleConType size = foldr (\v mt -> forAllT Nothing v mt) (monoT ty) vs
+        tupleConType size = foldr (\v mt -> forAllT noLoc v mt) (monoT ty) vs
           where
             vs = fmap v [0 .. size-1]
-            ty = foldr (\lhs rhs -> arrowT Nothing (varT Nothing lhs) rhs) (tupleCon size) vs
+            ty = foldr (\lhs rhs -> arrowT noLoc (varT noLoc lhs) rhs) (tupleCon size) vs
 
     tupleAtVars = [ toTuple size idx | size <- [2..maxTupleSize], idx <- [0 .. size-1]]
       where
@@ -250,12 +250,12 @@ defaultContext = H.Context $ M.fromList $
         toTuple size idx = (tupleAtVar size idx, tupleAtType size idx)
 
         tupleAtType :: Int -> Int -> H.Signature Loc
-        tupleAtType size idx = pred $ monoT $ (tupleCon size) `arr` (varT Nothing $ v idx)
+        tupleAtType size idx = pred $ monoT $ (tupleCon size) `arr` (varT noLoc $ v idx)
           where
-            pred = foldr (.) id $ fmap (\n -> forAllT Nothing (v n)) [0 .. size-1]
+            pred = foldr (.) id $ fmap (\n -> forAllT noLoc (v n)) [0 .. size-1]
 
     tupleCon :: Int -> Type
-    tupleCon size = tupleT $ fmap (varT Nothing . v) [0..size-1]
+    tupleCon size = tupleT $ fmap (varT noLoc . v) [0..size-1]
 
     v n = mappend "a" (showt n)
 
@@ -270,7 +270,7 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, textE, boolE :: Maybe Loc -> H.Term Loc
+intE, textE, boolE :: Loc -> H.Term Loc
 
 intE loc = varE loc intVar
 textE loc = varE loc textVar
@@ -299,7 +299,7 @@ pkVar = secretVar "pk"
 
 intT :: H.Type Loc
 
-intT = conT Nothing intVar
+intT = conT noLoc intVar
 
 
 andVar, orVar, plusVar, minusVar, timesVar, divVar,

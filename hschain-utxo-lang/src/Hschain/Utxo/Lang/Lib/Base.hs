@@ -169,10 +169,10 @@ toTupleName :: P.Int -> P.Int -> Text
 toTupleName size idx = P.mconcat ["tupleAt", showt size, "_", showt idx]
 
 (~>) :: Type -> Type -> Type
-(~>) a b = H.arrowT P.Nothing a b
+(~>) a b = H.arrowT noLoc a b
 
 forAllT' :: H.Var -> Signature -> Signature
-forAllT' = forAllT P.Nothing
+forAllT' = forAllT noLoc
 
 assumpType :: H.Var -> Signature -> (H.Var, Signature)
 assumpType idx ty = (idx, ty)
@@ -250,7 +250,7 @@ baseLibTypeContext = H.Context $ M.fromList $
         tupleAtType size idx = pred $ monoT $ (tupleCon size) ~> (varT $ v idx)
           where
             pred :: Signature -> Signature
-            pred = P.foldr (.) P.id $ P.fmap (\n -> forAllT P.Nothing (v n)) [0 .. size P.- 1]
+            pred = P.foldr (.) P.id $ P.fmap (\n -> forAllT noLoc (v n)) [0 .. size P.- 1]
 
         tupleCon size = tupleT $ P.fmap (varT . v) [0..size P.- 1]
 
@@ -260,118 +260,118 @@ tupleIndices :: [(P.Int, P.Int)]
 tupleIndices = [ (size, idx) | size <- [2 .. maxTupleSize], idx <- [0 .. size P.- 1] ]
 
 all :: Bind Lang
-all = bind "all" $ Fix $ LamList P.Nothing ["f", "xs"] $ app3 (Fix $ VecE P.Nothing (VecFold P.Nothing)) go z (Fix $ Var P.Nothing "xs")
+all = bind "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
   where
-    z  = Fix $ PrimE P.Nothing $ PrimBool P.True
-    go = Fix $ LamList P.Nothing ["x", "y"] $ Fix $ BinOpE P.Nothing And (Fix $ Var P.Nothing "x") (app1 (Fix $ Var P.Nothing "f") $ Fix $ Var P.Nothing "y")
+    z  = Fix $ PrimE noLoc $ PrimBool P.True
+    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
 
 any :: Bind Lang
-any = bind "any" $ Fix $ LamList P.Nothing ["f", "xs"] $ app3 (Fix $ VecE P.Nothing (VecFold P.Nothing)) go z (Fix $ Var P.Nothing "xs")
+any = bind "any" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
   where
-    z  = Fix $ PrimE P.Nothing $ PrimBool P.False
-    go = Fix $ LamList P.Nothing ["x", "y"] $ Fix $ BinOpE P.Nothing Or (Fix $ Var P.Nothing "x") (app1 (Fix $ Var P.Nothing "f") $ Fix $ Var P.Nothing "y")
+    z  = Fix $ PrimE noLoc $ PrimBool P.False
+    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
 
 and :: Bind Lang
-and = bind "and" (Fix (Apply P.Nothing (Fix $ Apply P.Nothing (Fix $ VecE P.Nothing (VecFold P.Nothing)) f) z))
+and = bind "and" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
-    f = Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ BinOpE P.Nothing And (Fix $ Var P.Nothing "x") (Fix $ Var P.Nothing "y")
-    z = Fix $ PrimE P.Nothing $ PrimBool P.True
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimBool P.True
 
 or :: Bind Lang
-or = bind "or" (Fix (Apply P.Nothing (Fix $ Apply P.Nothing (Fix $ VecE P.Nothing (VecFold P.Nothing)) f) z))
+or = bind "or" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
-    f = Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ BinOpE P.Nothing Or (Fix $ Var P.Nothing "x") (Fix $ Var P.Nothing "y")
-    z = Fix $ PrimE P.Nothing $ PrimBool P.False
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimBool P.False
 
 sumInt :: Bind Lang
-sumInt = bind "sum" (Fix (Apply P.Nothing (Fix $ Apply P.Nothing (Fix $ VecE P.Nothing (VecFold P.Nothing)) f) z))
+sumInt = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
-    f = Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ BinOpE P.Nothing Plus (Fix $ Var P.Nothing "x") (Fix $ Var P.Nothing "y")
-    z = Fix $ PrimE P.Nothing $ PrimInt 0
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Plus (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimInt 0
 
 productInt :: Bind Lang
-productInt = bind "product" (Fix (Apply P.Nothing (Fix $ Apply P.Nothing (Fix $ VecE P.Nothing (VecFold P.Nothing)) f) z))
+productInt = bind "product" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
-    f = Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ BinOpE P.Nothing Times (Fix $ Var P.Nothing "x") (Fix $ Var P.Nothing "y")
-    z = Fix $ PrimE P.Nothing $ PrimInt 1
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Times (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimInt 1
 
 sum :: Bind Lang
-sum = bind "sum" (Fix (Apply P.Nothing (Fix $ Apply P.Nothing (Fix $ VecE P.Nothing (VecFold P.Nothing)) f) z))
+sum = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
-    f = Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ BinOpE P.Nothing Plus (Fix $ Var P.Nothing "x") (Fix $ Var P.Nothing "y")
-    z = Fix $ PrimE P.Nothing $ PrimInt 0
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Plus (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimInt 0
 
 product :: Bind Lang
-product = bind "product" (Fix (Apply P.Nothing (Fix $ Apply P.Nothing (Fix $ VecE P.Nothing (VecFold P.Nothing)) f) z))
+product = bind "product" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z))
   where
-    f = Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ BinOpE P.Nothing Times (Fix $ Var P.Nothing "x") (Fix $ Var P.Nothing "y")
-    z = Fix $ PrimE P.Nothing $ PrimInt 1
+    f = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Times (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
+    z = Fix $ PrimE noLoc $ PrimInt 1
 
 id :: Bind Lang
-id = bind "id" $ Fix $ Lam P.Nothing "x" $ Fix $ Var P.Nothing "x"
+id = bind "id" $ Fix $ Lam noLoc "x" $ Fix $ Var noLoc "x"
 
 const :: Bind Lang
-const = bind "const" (Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ Var P.Nothing "x")
+const = bind "const" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Var noLoc "x")
 
 getHeight :: Bind Lang
-getHeight = bind "getHeight" (Fix $ GetEnv P.Nothing (Height P.Nothing))
+getHeight = bind "getHeight" (Fix $ GetEnv noLoc (Height noLoc))
 
 getSelf :: Bind Lang
-getSelf = bind "getSelf" (Fix $ GetEnv P.Nothing (Self P.Nothing))
+getSelf = bind "getSelf" (Fix $ GetEnv noLoc (Self noLoc))
 
 getOutput :: Bind Lang
-getOutput = bind "getOutput" (Fix $ Lam P.Nothing "x" $ Fix $ GetEnv P.Nothing $ Output P.Nothing $ Fix $ Var P.Nothing "x")
+getOutput = bind "getOutput" (Fix $ Lam noLoc "x" $ Fix $ GetEnv noLoc $ Output noLoc $ Fix $ Var noLoc "x")
 
 getInput :: Bind Lang
-getInput = bind "getInput" (Fix $ Lam P.Nothing "x" $ Fix $ GetEnv P.Nothing $ Input P.Nothing $ Fix $ Var P.Nothing "x")
+getInput = bind "getInput" (Fix $ Lam noLoc "x" $ Fix $ GetEnv noLoc $ Input noLoc $ Fix $ Var noLoc "x")
 
 getOutputs :: Bind Lang
-getOutputs = bind "getOutputs" (Fix $ GetEnv P.Nothing $ Outputs P.Nothing)
+getOutputs = bind "getOutputs" (Fix $ GetEnv noLoc $ Outputs noLoc)
 
 getInputs :: Bind Lang
-getInputs = bind "getInputs" (Fix $ GetEnv P.Nothing $ Inputs P.Nothing)
+getInputs = bind "getInputs" (Fix $ GetEnv noLoc $ Inputs noLoc)
 
 getBoxId :: Bind Lang
-getBoxId = bind "getBoxId" (Fix $ Lam P.Nothing "x" $ Fix $ BoxE P.Nothing $ BoxAt P.Nothing (Fix $ Var P.Nothing "x") BoxFieldId)
+getBoxId = bind "getBoxId" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldId)
 
 getBoxValue :: Bind Lang
-getBoxValue = bind "getBoxValue" (Fix $ Lam P.Nothing "x" $ Fix $ BoxE P.Nothing $ BoxAt P.Nothing (Fix $ Var P.Nothing "x") BoxFieldValue)
+getBoxValue = bind "getBoxValue" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldValue)
 
 getBoxScript :: Bind Lang
-getBoxScript = bind "getBoxScript" (Fix $ Lam P.Nothing "x" $ Fix $ BoxE P.Nothing $ BoxAt P.Nothing (Fix $ Var P.Nothing "x") BoxFieldScript)
+getBoxScript = bind "getBoxScript" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldScript)
 
 getBoxArg :: Bind Lang
-getBoxArg = bind "getBoxArg" (Fix $ Lam P.Nothing "arg" $ Fix $ Lam P.Nothing "box" $ Fix $ BoxE P.Nothing $ BoxAt P.Nothing (Fix $ Var P.Nothing "box") (BoxFieldArg $ Fix $ Var P.Nothing "arg"))
+getBoxArg = bind "getBoxArg" (Fix $ Lam noLoc "arg" $ Fix $ Lam noLoc "box" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "box") (BoxFieldArg $ Fix $ Var noLoc "arg"))
 
 sha256 :: Bind Lang
-sha256 = bind "sha256" (Fix $ Lam P.Nothing "x" $ Fix $ Apply P.Nothing (Fix $ TextE P.Nothing $ TextHash P.Nothing Sha256) (Fix $ Var P.Nothing "x"))
+sha256 = bind "sha256" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) (Fix $ Var noLoc "x"))
 
 blake2b256 :: Bind Lang
-blake2b256 = bind "blake2b256" (Fix $ Lam P.Nothing "x" $ Fix $ Apply P.Nothing (Fix $ TextE P.Nothing $ TextHash P.Nothing Blake2b256) (Fix $ Var P.Nothing "x"))
+blake2b256 = bind "blake2b256" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Blake2b256) (Fix $ Var noLoc "x"))
 
 getVar :: Bind Lang
-getVar = bind "getVar" (Fix $ Lam P.Nothing "x" $ Fix $ GetEnv P.Nothing $ GetVar P.Nothing $ Fix $ Var P.Nothing "x")
+getVar = bind "getVar" (Fix $ Lam noLoc "x" $ Fix $ GetEnv noLoc $ GetVar noLoc $ Fix $ Var noLoc "x")
 
 trace :: Bind Lang
-trace = bind "trace" (Fix $ Lam P.Nothing "x" $ Fix $ Lam P.Nothing "y" $ Fix $ Trace P.Nothing (Fix $ Var P.Nothing "x") (Fix $ Var P.Nothing "y"))
+trace = bind "trace" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Trace noLoc (Fix $ Var noLoc "x") (Fix $ Var noLoc "y"))
 
 showInt :: Bind Lang
-showInt = bind "showInt" (Fix $ Lam P.Nothing "x" $ Fix $ Apply P.Nothing (Fix $ TextE P.Nothing (ConvertToText IntToText P.Nothing)) (Fix $ Var P.Nothing "x"))
+showInt = bind "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText IntToText noLoc)) (Fix $ Var noLoc "x"))
 
 showBool :: Bind Lang
-showBool = bind "showBool" (Fix $ Lam P.Nothing "x" $ Fix $ Apply P.Nothing (Fix $ TextE P.Nothing (ConvertToText BoolToText P.Nothing)) (Fix $ Var P.Nothing "x"))
+showBool = bind "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText BoolToText noLoc)) (Fix $ Var noLoc "x"))
 
 showScript :: Bind Lang
-showScript = bind "showScript" (Fix $ Lam P.Nothing "x" $ Fix $ Apply P.Nothing (Fix $ TextE P.Nothing (ConvertToText ScriptToText P.Nothing)) (Fix $ Var P.Nothing "x"))
+showScript = bind "showScript" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText ScriptToText noLoc)) (Fix $ Var noLoc "x"))
 
 lengthVec :: Bind Lang
-lengthVec = bind "length" (Fix $ Lam P.Nothing "x" $ Fix $ Apply P.Nothing (Fix $ VecE P.Nothing (VecLength P.Nothing)) (Fix $ Var P.Nothing "x"))
+lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))
 
 lengthText :: Bind Lang
-lengthText = bind "lengthText" (Fix $ Lam P.Nothing "x" $ Fix $ Apply P.Nothing (Fix $ TextE P.Nothing (TextLength P.Nothing)) (Fix $ Var P.Nothing "x"))
+lengthText = bind "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))
 
-biOp name op = bind name (Fix $ LamList P.Nothing ["x", "y"] $ Fix $ BinOpE P.Nothing op x y)
-unOp name op = bind name (Fix $ Lam P.Nothing "x" $ Fix $ UnOpE P.Nothing op x)
+biOp name op = bind name (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc op x y)
+unOp name op = bind name (Fix $ Lam noLoc "x" $ Fix $ UnOpE noLoc op x)
 
 eq :: Bind Lang
 eq = biOp "==" Equals
@@ -425,65 +425,65 @@ divisionDouble :: Bind Lang
 divisionDouble = biOp "/." Div
 
 mapVec :: Bind Lang
-mapVec = bind "map" (Fix $ LamList P.Nothing ["f", "x"] $ app2 (Fix $ VecE P.Nothing (VecMap P.Nothing)) f x)
+mapVec = bind "map" (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
 
 foldVec :: Bind Lang
-foldVec = bind "fold" (Fix $ LamList P.Nothing ["f", "x", "y"] $ app3 (Fix $ VecE P.Nothing (VecFold P.Nothing)) f x y)
+foldVec = bind "fold" (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) f x y)
 
 appendVec :: Bind Lang
-appendVec = bind "++" (Fix $ LamList P.Nothing ["x", "y"] $ Fix $ VecE P.Nothing $ VecAppend P.Nothing x y)
+appendVec = bind "++" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)
 
 appendText :: Bind Lang
-appendText = bind "<>" (Fix $ LamList P.Nothing ["x", "y"] $ Fix $ TextE P.Nothing $ TextAppend P.Nothing x y)
+appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
 
 atVec :: Bind Lang
-atVec = bind "!!" (Fix $ LamList P.Nothing ["x", "y"] $ Fix $ VecE P.Nothing $ VecAt P.Nothing x y)
+atVec = bind "!!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
 
 pk :: Bind Lang
-pk = bind "pk" (Fix $ Lam P.Nothing "x" $ Fix $ Pk P.Nothing x)
+pk = bind "pk" (Fix $ Lam noLoc "x" $ Fix $ Pk noLoc x)
 
 fst :: Bind Lang
-fst = bind "fst" (lam' "x" $ Fix $ UnOpE P.Nothing (TupleAt 2 0) (var' "x"))
+fst = bind "fst" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 0) (var' "x"))
 
 snd :: Bind Lang
-snd = bind "snd" (lam' "x" $ Fix $ UnOpE P.Nothing (TupleAt 2 1) (var' "x"))
+snd = bind "snd" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 1) (var' "x"))
 
 tupleFuns :: [Bind Lang]
 tupleFuns = P.fmap (P.uncurry toFun) tupleIndices
   where
-    toFun size idx = bind (toTupleName size idx) $ lam' "x"  $ Fix $ UnOpE P.Nothing (TupleAt size idx) (var' "x")
+    toFun size idx = bind (toTupleName size idx) $ lam' "x"  $ Fix $ UnOpE noLoc (TupleAt size idx) (var' "x")
 
 lam' :: Text -> Lang -> Lang
-lam' name expr = Fix $ Lam P.Nothing (VarName P.Nothing name) expr
+lam' name expr = Fix $ Lam noLoc (VarName noLoc name) expr
 
 var' :: Text -> Lang
-var' name = Fix $ Var P.Nothing (VarName P.Nothing name)
+var' name = Fix $ Var noLoc (VarName noLoc name)
 
 f, x, y :: Lang
 
-f = Fix $ Var P.Nothing "f"
-x = Fix $ Var P.Nothing "x"
-y = Fix $ Var P.Nothing "y"
+f = Fix $ Var noLoc "f"
+x = Fix $ Var noLoc "x"
+y = Fix $ Var noLoc "y"
 
 aT, bT, cT :: Type
 fT :: Type -> Type
 
 varT :: H.Var -> Type
-varT = H.varT P.Nothing
+varT = H.varT noLoc
 
 aT = varT "a"
 bT = varT "b"
 cT = varT "c"
-fT ty = H.appT P.Nothing (varT "f") ty
+fT ty = H.appT noLoc (varT "f") ty
 
 bind :: Text -> Lang -> Bind Lang
 bind var body = Bind
-  { bind'name = VarName P.Nothing var
+  { bind'name = VarName noLoc var
   , bind'type = P.Nothing
   , bind'alt  = Alt [] body
   }
 
 letIn :: Text -> Lang -> Lang -> Lang
-letIn var body x = singleLet P.Nothing (VarName P.Nothing var) body x
+letIn var body x = singleLet noLoc (VarName noLoc var) body x
 
 

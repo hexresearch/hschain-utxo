@@ -35,25 +35,25 @@ import qualified Language.Haskell.Exts.Pretty as H
 
 fromHaskExp :: H.Exp Loc -> ParseResult Lang
 fromHaskExp topExp = case topExp of
-  H.Var loc qname -> fmap (Fix . Var (Just loc)) $ fromQName qname
-  H.App loc a b -> liftA2 (\x y -> Fix $ Apply (Just loc) x y) (rec a) (rec b)
+  H.Var loc qname -> fmap (Fix . Var loc) $ fromQName qname
+  H.App loc a b -> liftA2 (\x y -> Fix $ Apply loc x y) (rec a) (rec b)
   H.Lambda loc ps body -> case ps of
-    [p] -> fromLam (Just loc) p body
-    _   -> fromLamList (Just loc) ps body
+    [p] -> fromLam loc p body
+    _   -> fromLamList loc ps body
   H.Let loc binds exp -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec exp)
-  H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr (Just loc) x (HM.typeToSignature y)) (rec exp) (fromType ty)
-  H.Lit loc lit -> fmap (Fix . PrimE (Just loc)) $ fromLit lit
-  H.If loc a b c -> liftA3 (\x y z -> Fix $ If (Just loc) x y z) (rec a) (rec b) (rec c)
-  H.Tuple loc H.Boxed es -> fmap (Fix . Tuple (Just loc) . V.fromList) (mapM rec es)
+  H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr loc x (HM.typeToSignature y)) (rec exp) (fromType ty)
+  H.Lit loc lit -> fmap (Fix . PrimE loc) $ fromLit lit
+  H.If loc a b c -> liftA3 (\x y z -> Fix $ If loc x y z) (rec a) (rec b) (rec c)
+  H.Tuple loc H.Boxed es -> fmap (Fix . Tuple loc . V.fromList) (mapM rec es)
   H.Con loc qname -> do
     n <- fromQName qname
-    let bool b = Fix $ PrimE (Just loc) $ PrimBool b
+    let bool b = Fix $ PrimE loc $ PrimBool b
     case varName'name n of
       "True"  -> return $ bool True
       "False" -> return $ bool False
       _       -> parseFailedBy "Failed to parse expression" topExp
-  H.List loc es -> fmap (Fix . VecE (Just loc) . NewVec (Just loc) . V.fromList) (mapM rec es)
-  H.InfixApp loc a op b -> fromInfixApp (Just loc) op a b
+  H.List loc es -> fmap (Fix . VecE loc . NewVec loc . V.fromList) (mapM rec es)
+  H.InfixApp loc a op b -> fromInfixApp loc op a b
   H.Paren _ exp         -> rec exp
   H.LeftSection loc a op  -> rec $ unfoldLeftSection loc a op
   H.RightSection loc op a -> rec $ unfoldRightSection loc op a
@@ -79,7 +79,7 @@ fromHaskExp topExp = case topExp of
 
 fromHaskModule :: H.Module Loc -> ParseResult Module
 fromHaskModule = \case
-  H.Module loc Nothing [] [] decls -> fromDecls (Just loc) decls
+  H.Module loc Nothing [] [] decls -> fromDecls loc decls
   _                                -> err
   where
     err = ParseFailed (H.fromSrcInfo noLoc) "Failed to parse module"
@@ -87,7 +87,7 @@ fromHaskModule = \case
 fromHaskDecl :: H.Decl Loc -> ParseResult (BindGroup Lang)
 fromHaskDecl d = toBindGroup . return =<< toDecl d
 
-fromDecls :: Maybe Loc -> [H.Decl Loc] -> ParseResult Module
+fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
 fromDecls loc ds = fmap (Module loc) $ toBindGroup =<< mapM toDecl ds
 
 toDecl :: H.Decl Loc -> ParseResult Decl
@@ -109,7 +109,7 @@ toDecl x = case x of
       where
 
     fromPat = \case
-      H.PVar loc name -> fmap (PVar $ Just loc) (toName name)
+      H.PVar loc name -> fmap (PVar loc) (toName name)
       other           -> parseFailedBy "Failed to parse patter" other
 
     fromRhs = \case
@@ -136,8 +136,8 @@ fromPatToVar = \case
 
 toName :: H.Name Loc -> ParseResult VarName
 toName = \case
-  H.Ident  loc name -> return $ VarName (Just loc) (fromString name)
-  H.Symbol loc name -> return $ VarName (Just loc) (fromString name)
+  H.Ident  loc name -> return $ VarName loc (fromString name)
+  H.Symbol loc name -> return $ VarName loc (fromString name)
 
 fromQName :: H.QName Loc -> ParseResult VarName
 fromQName = \case
@@ -153,9 +153,9 @@ fromQualType x = case x of
 
 fromType :: H.Type Loc -> ParseResult Type
 fromType = \case
-  H.TyFun loc a b -> liftA2 (HM.arrowT $ Just loc) (rec a) (rec b)
-  H.TyTuple loc H.Boxed ts -> fmap (fromTyTuple $ Just loc) (mapM rec ts)
-  H.TyApp loc a b -> liftA2 (HM.appT $ Just loc) (rec a) (rec b)
+  H.TyFun loc a b -> liftA2 (HM.arrowT loc) (rec a) (rec b)
+  H.TyTuple loc H.Boxed ts -> fmap (fromTyTuple loc) (mapM rec ts)
+  H.TyApp loc a b -> liftA2 (HM.appT loc) (rec a) (rec b)
   H.TyVar _ name -> fmap (\VarName{..} -> HM.varT varName'loc varName'name) $ toName name
   H.TyCon _ name -> fmap (\VarName{..} -> HM.conT varName'loc varName'name) $ fromQName name
   H.TyParen loc ty -> rec ty

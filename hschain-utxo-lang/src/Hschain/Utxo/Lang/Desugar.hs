@@ -23,22 +23,22 @@ import Hschain.Utxo.Lang.Expr
 import qualified Data.List as L
 import qualified Data.List.Extra as L
 
-unfoldLamList :: Maybe Loc -> [VarName] -> Lang -> Lang
+unfoldLamList :: Loc -> [VarName] -> Lang -> Lang
 unfoldLamList loc vars a = L.foldl' (\z a -> z . Fix . Lam loc a) id vars a
 
-unfoldLetArg :: Maybe Loc -> VarName -> [VarName] -> Lang -> Lang -> Lang
+unfoldLetArg :: Loc -> VarName -> [VarName] -> Lang -> Lang -> Lang
 unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc args a)
 
-singleLet :: Maybe Loc -> VarName -> Lang -> Lang -> Lang
+singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
 singleLet loc v body expr = Fix $ Let loc bg expr
   where
     bg = [Bind v Nothing (Alt [] body)]
 
-unfoldInfixApply :: Maybe Loc -> Lang -> VarName -> Lang -> Lang
+unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
 
 bindGroupToLet :: BindGroup Lang -> Lang -> Lang
-bindGroupToLet bgs expr = Fix $ Let Nothing bgs expr
+bindGroupToLet bgs expr = Fix $ Let noLoc bgs expr
 
 moduleToMainExpr :: Module -> Either String Lang
 moduleToMainExpr prog = case findMain prog of

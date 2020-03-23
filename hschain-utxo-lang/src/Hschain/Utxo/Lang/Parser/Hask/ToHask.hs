@@ -31,7 +31,7 @@ import qualified Language.HM as HM
 
 
 toHaskExp :: Lang -> H.Exp Loc
-toHaskExp (Fix expr) = fmap (fromMaybe noLoc) $ case expr of
+toHaskExp (Fix expr) = case expr of
   Var loc name -> toVar loc name
   Apply loc a b -> H.App loc (rec a) (rec b)
   InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (HM.getLoc v) $ toSymbolQName v) (rec b)
@@ -63,7 +63,7 @@ toHaskExp (Fix expr) = fmap (fromMaybe noLoc) $ case expr of
   -- debug
   Trace loc a b -> ap2 (VarName loc "trace") a b
   where
-    rec = fmap Just . toHaskExp
+    rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
     ap2 f x y = H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)
 --    op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toSymbolQName' f) (rec y)
@@ -145,11 +145,11 @@ toHaskExp (Fix expr) = fmap (fromMaybe noLoc) $ case expr of
       where
         get name = ap (VarName loc name) a
 
-op2 :: Maybe Loc -> String -> H.Exp (Maybe Loc) -> H.Exp (Maybe Loc) -> H.Exp (Maybe Loc)
+op2 :: Loc -> String -> H.Exp Loc -> H.Exp Loc -> H.Exp Loc
 op2 loc name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc name) b
 
 
-toLiteral :: Maybe Loc -> Prim -> H.Exp (Maybe Loc)
+toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral loc = \case
   PrimInt x -> lit $ H.Int loc (fromIntegral x) (show x)
   PrimString x -> lit $ H.String loc (T.unpack x) (T.unpack x)
@@ -159,10 +159,10 @@ toLiteral loc = \case
     lit = H.Lit loc
     bool loc x = H.UnQual loc $ H.Ident loc $ show x
 
-    sigma :: Maybe Loc -> Sigma PublicKey -> H.Exp (Maybe Loc)
+    sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma loc x = cata go x
       where
-        go :: SigmaExpr PublicKey (H.Exp (Maybe Loc)) -> H.Exp (Maybe Loc)
+        go :: SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
           SigmaPk pkey -> let keyTxt = publicKeyToText pkey
                             in  ap (VarName loc "pk") $ lit $ H.String loc (T.unpack keyTxt) (T.unpack keyTxt)
@@ -171,10 +171,10 @@ toLiteral loc = \case
 
         ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) x
 
-toHaskModule :: Module -> H.Module (Maybe Loc)
+toHaskModule :: Module -> H.Module Loc
 toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl bs)
 
-toDecl :: BindGroup Lang -> [H.Decl (Maybe Loc)]
+toDecl :: BindGroup Lang -> [H.Decl Loc]
 toDecl bs = toBind =<< bs
   where
     toBind Bind{..} = case bind'type of
@@ -185,27 +185,27 @@ toDecl bs = toBind =<< bs
             tyLoc = HM.getLoc ty
         in  [ signature, funBind ]
 
-    toMatch :: VarName -> Alt Lang -> H.Match (Maybe Loc)
+    toMatch :: VarName -> Alt Lang -> H.Match Loc
     toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) Nothing
 
-    toPats :: Alt a -> [H.Pat (Maybe Loc)]
+    toPats :: Alt a -> [H.Pat Loc]
     toPats = fmap toPat . alt'pats
 
-    toPat :: Pat -> H.Pat (Maybe Loc)
+    toPat :: Pat -> H.Pat Loc
     toPat (PVar loc var) = H.PVar loc (toIdentName var)
 
-    toRhs :: Alt Lang -> H.Rhs (Maybe Loc)
-    toRhs Alt{..} = H.UnGuardedRhs (HM.getLoc alt'expr) (fmap Just $ toHaskExp alt'expr)
+    toRhs :: Alt Lang -> H.Rhs Loc
+    toRhs Alt{..} = H.UnGuardedRhs (HM.getLoc alt'expr) (toHaskExp alt'expr)
 
 
-toIdentName :: VarName -> H.Name (Maybe Loc)
+toIdentName :: VarName -> H.Name Loc
 toIdentName (VarName loc name) = H.Ident loc (T.unpack name)
 
-toSymbolName :: VarName -> H.Name (Maybe Loc)
+toSymbolName :: VarName -> H.Name Loc
 toSymbolName VarName{..} = H.Symbol varName'loc (T.unpack varName'name)
 
 
-toType :: Signature -> H.Type (Maybe Loc)
+toType :: Signature -> H.Type Loc
 toType x = case splitToPreds x of
   (_, ty) -> singleType ty
   where
@@ -215,7 +215,7 @@ toType x = case splitToPreds x of
           HM.MonoT ty                  -> ([], ty)
           HM.ForAllT loc name (xs, ty) -> (VarName loc name : xs, ty)
 
-    singleType :: HM.Type Loc -> H.Type (Maybe Loc)
+    singleType :: HM.Type Loc -> H.Type Loc
     singleType = cata go . HM.unType
       where
         go = \case
@@ -227,12 +227,12 @@ toType x = case splitToPreds x of
           HM.AppT loc a b   -> H.TyApp loc a b
 
 
-toQName :: VarName -> H.QName (Maybe Loc)
+toQName :: VarName -> H.QName Loc
 toQName x = H.UnQual (HM.getLoc x) $ toIdentName x
 
-toSymbolQName :: VarName -> H.QName (Maybe Loc)
+toSymbolQName :: VarName -> H.QName Loc
 toSymbolQName x@(VarName loc _) = H.UnQual loc $ toSymbolName x
 
-toVar :: Maybe Loc -> VarName -> H.Exp (Maybe Loc)
+toVar :: Loc -> VarName -> H.Exp Loc
 toVar loc name = H.Var loc (toQName name)
 

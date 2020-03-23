@@ -49,12 +49,12 @@ newtype Expr a = Expr Lang
   deriving (Show, Eq)
 
 data VarName = VarName
-  { varName'loc   :: Maybe Loc
+  { varName'loc   :: Loc
   , varName'name  :: Text
   } deriving (Show)
 
 instance IsString VarName where
-  fromString = VarName Nothing . fromString
+  fromString = VarName noLoc . fromString
 
 type Args = Map Text (Prim )
 
@@ -77,11 +77,11 @@ data Box = Box
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 data Pat
-  = PVar (Maybe Loc) VarName
+  = PVar Loc VarName
   deriving (Show, Eq, Ord)
 
 data Module = Module
-  { module'loc   :: !(Maybe Loc)
+  { module'loc   :: !Loc
   , module'binds :: !(BindGroup Lang)
   } deriving (Show)
 
@@ -129,36 +129,36 @@ type Lang = Fix E
 
 data E a
   -- lambda calculus
-  = Var (Maybe Loc) VarName
-  | Apply (Maybe Loc) a a
-  | InfixApply (Maybe Loc) a VarName a
-  | Lam (Maybe Loc) VarName a
-  | LamList (Maybe Loc) [VarName] a
-  | Let (Maybe Loc) (BindGroup a) a
-  | LetRec (Maybe Loc) VarName a a
-  | Ascr (Maybe Loc) a Signature
+  = Var Loc VarName
+  | Apply Loc a a
+  | InfixApply Loc a VarName a
+  | Lam Loc VarName a
+  | LamList Loc [VarName] a
+  | Let Loc (BindGroup a) a
+  | LetRec Loc VarName a a
+  | Ascr Loc a Signature
   -- primitives
-  | PrimE (Maybe Loc) Prim
+  | PrimE Loc Prim
   -- logic
-  | If (Maybe Loc) a a a
-  | Pk (Maybe Loc) a
+  | If Loc a a a
+  | Pk Loc a
   -- tuples
-  | Tuple (Maybe Loc) (Vector a)
+  | Tuple Loc (Vector a)
   -- operations
-  | UnOpE (Maybe Loc) UnOp a
-  | BinOpE (Maybe Loc) BinOp a a
+  | UnOpE Loc UnOp a
+  | BinOpE Loc BinOp a a
   -- environment
-  | GetEnv (Maybe Loc) (EnvId a)
+  | GetEnv Loc (EnvId a)
   -- vectors
-  | VecE (Maybe Loc) (VecExpr a)
+  | VecE Loc (VecExpr a)
   -- text
-  | TextE (Maybe Loc) (TextExpr a)
+  | TextE Loc (TextExpr a)
   -- boxes
-  | BoxE (Maybe Loc) (BoxExpr a)
+  | BoxE Loc (BoxExpr a)
   -- undefined
-  | Undef (Maybe Loc)
+  | Undef Loc
   -- debug
-  | Trace (Maybe Loc) a a
+  | Trace Loc a a
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data UnOp = Not | Neg | TupleAt Int Int
@@ -170,27 +170,27 @@ data BinOp
   deriving (Show, Eq)
 
 data BoxExpr a
-  = PrimBox (Maybe Loc) Box
-  | BoxAt (Maybe Loc) a (BoxField a)
+  = PrimBox Loc Box
+  | BoxAt Loc a (BoxField a)
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data VecExpr a
-  = NewVec (Maybe Loc) (Vector a)
-  | VecAppend (Maybe Loc) a a
-  | VecAt (Maybe Loc) a a
-  | VecLength (Maybe Loc)
-  | VecMap (Maybe Loc)
-  | VecFold (Maybe Loc)
+  = NewVec Loc (Vector a)
+  | VecAppend Loc a a
+  | VecAt Loc a a
+  | VecLength Loc
+  | VecMap Loc
+  | VecFold Loc
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data TextTypeTag = IntToText | BoolToText | ScriptToText
   deriving (Eq, Show)
 
 data TextExpr a
-  = TextAppend (Maybe Loc) a a
-  | ConvertToText TextTypeTag (Maybe Loc)
-  | TextLength (Maybe Loc)
-  | TextHash (Maybe Loc) HashAlgo
+  = TextAppend Loc a a
+  | ConvertToText TextTypeTag Loc
+  | TextLength Loc
+  | TextHash Loc HashAlgo
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data HashAlgo = Sha256 | Blake2b256
@@ -204,13 +204,13 @@ data Prim
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 data EnvId a
-  = Height (Maybe Loc)
-  | Input (Maybe Loc)  a
-  | Output (Maybe Loc) a
-  | Self (Maybe Loc)
-  | Inputs (Maybe Loc)
-  | Outputs (Maybe Loc)
-  | GetVar (Maybe Loc) a
+  = Height Loc
+  | Input Loc  a
+  | Output Loc a
+  | Self Loc
+  | Inputs Loc
+  | Outputs Loc
+  | GetVar Loc a
   -- ^ refers to the box where it's defined
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
@@ -238,41 +238,41 @@ instance FromJSON Prim where
 
 boolT, boxT, scriptT, textT :: Type
 
-boolT = boolT' Nothing
-boxT  = boxT' Nothing
-scriptT = scriptT' Nothing
-textT = textT' Nothing
+boolT = boolT' noLoc
+boxT  = boxT' noLoc
+scriptT = scriptT' noLoc
+textT = textT' noLoc
 
-boxT' :: Maybe Loc -> Type
+boxT' :: Loc -> Type
 boxT' loc = H.conT loc "Box"
 
-textT' :: Maybe Loc -> Type
+textT' :: Loc -> Type
 textT' loc = H.conT loc "Text"
 
-boolT' :: Maybe Loc -> Type
+boolT' :: Loc -> Type
 boolT' loc = H.conT loc "Bool"
 
-scriptT' :: Maybe Loc -> Type
+scriptT' :: Loc -> Type
 scriptT' loc = H.conT loc "Script"
 
 vectorT :: Type -> Type
-vectorT = vectorT' Nothing
+vectorT = vectorT' noLoc
 
-vectorT' :: Maybe Loc -> Type -> Type
+vectorT' :: Loc -> Type -> Type
 vectorT' loc a = H.appT loc (H.conT loc "Vector") a
 
 {-
 tupleT :: [Type] -> Type
-tupleT = tupleT' Nothing
+tupleT = tupleT' noLoc
 -}
-tupleT' :: Maybe Loc -> [Type] -> Type
+tupleT' :: Loc -> [Type] -> Type
 tupleT' loc ts = foldl (H.appT loc) cons ts
   where
     arity = length ts
     cons = H.conT loc $ mappend "Tuple" (showt arity)
 
 tupleT :: [Type] -> Type
-tupleT vs = foldl (\z n -> H.appT Nothing z n) (H.conT Nothing (mappend "Tuple" (showt size))) vs
+tupleT vs = foldl (\z n -> H.appT noLoc z n) (H.conT noLoc (mappend "Tuple" (showt size))) vs
   where
     size = length vs
 
@@ -332,7 +332,7 @@ instance H.HasLoc (Bind a) where
 instance H.HasLoc (BindGroup Lang) where
   type Loc (BindGroup Lang) = Loc
   getLoc = \case
-    []  -> Nothing
+    []  -> noLoc
     a:_ -> H.getLoc a
 
 -------------------------------------------------------------------
