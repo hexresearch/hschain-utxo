@@ -43,8 +43,14 @@ loadCtx file ctx imp@Imports{..} = updateCurrent $ imp
   { imports'loaded = M.insert file ctx imports'loaded
   }
 
+rmLoaded :: FilePath -> Imports -> Imports
+rmLoaded file imp@Imports{..} = imp
+  { imports'loaded = M.delete file imports'loaded
+  }
+
 load :: MonadIO io => FilePath -> Imports -> io (Either ImportError Imports)
-load file imp = liftIO $ do
+load file imp0 = liftIO $ do
+  let imp = updateCurrent $ rmLoaded file imp0
   str <- readFile file
   case P.parseModule (Just file) str of
     P.ParseOk m -> do
