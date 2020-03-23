@@ -17,6 +17,9 @@ import Language.HM.Term
 -- | Substitutions of type variables for monomorphic types.
 newtype Subst src = Subst { unSubst :: M.Map Text (Type src) }
 
+instance Functor Subst where
+  fmap f = Subst . fmap (fmap f) . unSubst
+
 emptySubst :: Subst src
 emptySubst = Subst M.empty
 
@@ -42,7 +45,7 @@ applySignature s = cata g . unSignature
 
 -- instance CanApply TyTerm where
 applyTyTerm :: Subst src -> TyTerm src -> TyTerm src
-applyTyTerm s = cata g
+applyTyTerm s = TyTerm . cata g . unTyTerm
   where
       g (TypedF t) = Fix $ TypedF (applyTyped applyType s t)
 
