@@ -8,6 +8,7 @@ import Hex.Common.Text
 import Control.Monad
 
 import Data.Fix
+import Data.Maybe
 
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
@@ -36,9 +37,9 @@ toHaskExp (Fix expr) = case expr of
   InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (HM.getLoc v) $ toSymbolQName v) (rec b)
   Lam loc name a -> H.Lambda loc [H.PVar (HM.getLoc name) $ toIdentName name] (rec a)
   LamList loc vs a -> H.Lambda loc (fmap (\v -> H.PVar (HM.getLoc v) $ toIdentName v) vs) (rec a)
-  Let loc bg a -> H.Let loc (toLetBinds loc bg) (toHaskExp a)
+  Let loc bg a -> H.Let loc (toLetBinds loc bg) (rec a)
   LetRec loc name a b -> undefined
-  Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType (HM.Signature $ Fix $ HM.MonoT ty))
+  Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType ty)
   -- primitives
   PrimE loc p -> toLiteral loc p
   -- logic
@@ -120,7 +121,6 @@ toHaskExp (Fix expr) = case expr of
           ScriptToText -> "Script"
           BoolToText   -> "Bool"
 
-    fromBox :: Loc -> BoxExpr Lang -> H.Exp Loc
     fromBox _ = \case
       PrimBox loc box     -> fromPrimBox loc box
       BoxAt loc a field   -> fromBoxField loc a field

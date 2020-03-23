@@ -32,7 +32,7 @@ import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Data.Fix
 import Data.Function (on)
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import Data.Text (Text)
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -57,7 +57,7 @@ instance HasLoc (Type src) where
 instance HasLoc (Signature src) where
   type Loc (Signature src) = src
   getLoc (Signature (Fix x)) = case x of
-    MonoT ty      -> getLoc ty
+    MonoT ty        -> getLoc ty
     ForAllT loc _ _ -> loc
 
 data TypeF src r
@@ -97,6 +97,22 @@ data SignatureF src r
 -- | Polymorphic types.
 newtype Signature src = Signature { unSignature :: Fix (SignatureF src)
   } deriving (Show, Eq, Ord)
+
+instance Functor Signature where
+  fmap f (Signature x) = Signature $ cata go x
+    where
+      go = \case
+        ForAllT src var a -> Fix $ ForAllT (f src) var a
+        MonoT ty          -> Fix $ MonoT $ fmap f ty
+
+instance Functor Type where
+  fmap f (Type x) = Type $ cata go x
+    where
+      go = \case
+        VarT src name -> Fix $ VarT (f src) name
+        ConT src name -> Fix $ ConT (f src) name
+        AppT src a b  -> Fix $ AppT (f src) a b
+        ArrowT src a b -> Fix $ ArrowT (f src) a b
 
 -- | 'forAllT' @x t@ universally quantifies @x@ in @t@.
 forAllT :: src -> Text -> Signature src -> Signature src

@@ -30,8 +30,6 @@ import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-import Debug.Trace
-
 import qualified Language.HM as H
 
 maxTupleSize :: Int

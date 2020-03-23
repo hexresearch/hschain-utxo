@@ -195,7 +195,7 @@ prettyBoxField = \case
 
 instance Pretty Error where
   pretty = \case
-    ParseError _ txt               -> err "Parse error" txt
+    ParseError loc txt             -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
     AppliedNonFunction lang        -> err "Applied non-function" lang
     PoorlyTypedApplication lang    -> err "Poorly typed application" lang
     UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]
@@ -220,7 +220,7 @@ instance Pretty TypeError where
     H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", pretty tyB, "expected", pretty tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     where
-      err src msg = hsep ["Type error at", hsep [pretty src, ":"], msg]
+      err src msg = hsep [hcat [pretty src, ":"], msg]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x
@@ -230,4 +230,10 @@ instance Pretty Hask.SrcSpan where
     [ pretty srcSpanFilename, ":"
     , pretty srcSpanStartLine, ":"
     , pretty srcSpanStartColumn ]
+
+instance Pretty Hask.SrcLoc where
+  pretty Hask.SrcLoc{..} = hcat
+    [ pretty srcFilename, ":"
+    , pretty srcLine, ":"
+    , pretty srcColumn ]
 

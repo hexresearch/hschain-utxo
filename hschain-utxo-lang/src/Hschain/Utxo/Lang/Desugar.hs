@@ -9,13 +9,14 @@ module Hschain.Utxo.Lang.Desugar(
   , altToExpr
   , moduleToMainExpr
   , bindGroupToLet
+  , bindBodyToExpr
 ) where
 
 import Control.Applicative
 
 import Data.Fix
 
-import Language.HM (getLoc)
+import Language.HM (getLoc, stripSignature, monoT)
 
 import Hschain.Utxo.Lang.Expr
 
@@ -35,7 +36,6 @@ singleLet loc v body expr = Fix $ Let loc bg expr
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
--- Fix $ Apply loc (Fix (Apply loc (Fix $ Var loc v) a)) b
 
 bindGroupToLet :: BindGroup Lang -> Lang -> Lang
 bindGroupToLet bgs expr = Fix $ Let noLoc bgs expr
@@ -53,7 +53,7 @@ moduleToMainExpr prog = case findMain prog of
           | otherwise        = Nothing
 
     addBoolTypeCheck :: Lang -> Lang
-    addBoolTypeCheck expr = Fix $ Ascr (getLoc expr) expr boolT
+    addBoolTypeCheck expr = Fix $ Ascr (getLoc expr) expr (monoT boolT)
 
     rmMain :: Module -> Module
     rmMain m@Module{..} = m { module'binds = rm module'binds }
@@ -81,5 +81,10 @@ altToExpr Alt{..} = case alt'pats of
   pats -> Fix $ LamList (getLoc alt'expr) (fmap toArg pats) $ alt'expr
   where
     toArg (PVar _ var) = var
+
+bindBodyToExpr :: Bind Lang -> Lang
+bindBodyToExpr Bind{..} = addSignatureCheck $ altToExpr bind'alt
+  where
+    addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
 
 

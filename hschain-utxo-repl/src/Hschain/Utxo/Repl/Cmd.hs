@@ -88,10 +88,9 @@ loadScript file = do
         ImportTypeError tyErr    -> T.putStrLn $ renderText tyErr
         ImportParseError loc err -> showParseErr loc err
 
-    showParseErr _ msg = putStrLn $ unlines
-      [ mconcat ["Failed to load script ", file]
-      , "Parsing exited with error:"
-      , msg
+    showParseErr loc msg = T.putStrLn $ T.unlines
+      [ mconcat ["Failed to load script ", T.pack file]
+      , mappend (renderText loc) " Parsing exited with error"
       ]
 
 resetEvalCtx :: Repl ()
@@ -119,7 +118,7 @@ reload = do
   mapM_ loadTx     =<< getTxFile
 
 showType :: String -> Repl ()
-showType str = case P.parseExp str of
+showType str = case P.parseExp (Just "<repl>") str of
   P.ParseOk expr      -> do
     eTy <- checkType expr
     liftIO $ case eTy of

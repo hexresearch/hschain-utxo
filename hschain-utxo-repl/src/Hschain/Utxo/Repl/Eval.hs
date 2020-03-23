@@ -77,18 +77,16 @@ evalBind var lang = do
         Left err   -> liftIO $ T.putStrLn $ renderText err
 
 parseExpr :: String -> Either String ParseRes
-parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp input
+parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp (Just "<repl>") input
 
 parseBind :: String -> Either String ParseRes
 parseBind input =
-  case P.parseBind input of
+  case P.parseBind (Just "<repl>") input of
     P.ParseOk (var, expr) -> Right $ ParseBind var expr
-    P.ParseFailed _ msg   -> Left msg
+    P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
 
 fromParseResult :: P.ParseResult a -> Either String a
 fromParseResult = \case
-  P.ParseOk a           -> Right a
-  P.ParseFailed loc err -> Left $ toError loc err
-  where
-    toError _ msg = msg
+  P.ParseOk a             -> Right a
+  P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
 

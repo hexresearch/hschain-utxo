@@ -2,7 +2,7 @@ module Hschain.Utxo.Lang.Parser.Hask.FromHask(
     fromHaskExp
   , fromHaskModule
   , fromHaskDecl
-  , parseBind
+  , toDecl
 ) where
 
 import Hex.Common.Text
@@ -41,7 +41,7 @@ fromHaskExp topExp = case topExp of
     [p] -> fromLam loc p body
     _   -> fromLamList loc ps body
   H.Let loc binds exp -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec exp)
-  H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr loc x y) (rec exp) (fromType ty)
+  H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr loc x (HM.typeToSignature y)) (rec exp) (fromType ty)
   H.Lit loc lit -> fmap (Fix . PrimE loc) $ fromLit lit
   H.If loc a b c -> liftA3 (\x y z -> Fix $ If loc x y z) (rec a) (rec b) (rec c)
   H.Tuple loc H.Boxed es -> fmap (Fix . Tuple loc . V.fromList) (mapM rec es)
@@ -99,13 +99,13 @@ toDecl x = case x of
   where
     fromPatBind m loc pat rhs mBinds = liftA2 (\name alt -> FunDecl loc [(name, alt)])
         (getPatName pat)
-        (liftA2 (toAlt loc []) (fromRhs rhs) (mapM (fromBinds m) mBinds))
+        (liftA2 (toAlt []) (fromRhs rhs) (mapM (fromBinds m) mBinds))
 
     fromMatch = \case
-      m@(H.Match loc name pats rhs mBinds) -> liftA2 (,) (toName name) (liftA3 (toAlt loc) (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
+      m@(H.Match loc name pats rhs mBinds) -> liftA2 (,) (toName name) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
       other                                -> parseFailedBy "Failed to parse function bind" other
 
-    toAlt loc pats rhs mBinds = Alt pats (maybe rhs (fromBgs rhs) mBinds)
+    toAlt pats rhs mBinds = Alt pats (maybe rhs (fromBgs rhs) mBinds)
       where
 
     fromPat = \case
@@ -147,7 +147,7 @@ fromQName = \case
 fromQualType :: H.Type Loc -> ParseResult Signature
 fromQualType x = case x of
   H.TyForall loc Nothing mContext ty -> err
-  ty -> fmap HM.monoT $ fromType ty
+  ty -> fmap HM.typeToSignature $ fromType ty
   where
     err = parseFailedBy "Contexts are not allowed" x
 
@@ -183,18 +183,5 @@ fromLit x = case x of
   other                  -> parseFailedBy "Failed to parse literal" other
   where
     floatsNotSupported = parseFailedBy "floatsNotSupported" x
-
-parseBind :: String -> ParseResult (VarName, Lang)
-parseBind = getBind <=< H.parseDecl
-  where
-    getBind x = do
-      decl <- toDecl x
-      case decl of
-        FunDecl _ binds -> case binds of
-          [(var, alt)] -> return (var, altToExpr alt)
-          _            -> err
-        _ -> err
-
-    err = parseFailed noLoc "Failed to parse bind"
 
 
