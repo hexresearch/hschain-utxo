@@ -48,7 +48,8 @@ reduceExpr (Fix expr) = case expr of
   Var loc var               -> fromVarName var
   Apply loc a b             -> appE loc (rec a) (rec b)
   InfixApply loc a name b   -> fromInfixApply loc (rec a) name (rec b)
-  Lam loc var a             -> absE loc (varName'name var) (rec a)
+  -- todo: implement for generic patterns not only for plain vars
+  Lam loc (PVar _ var) a    -> absE loc (varName'name var) (rec a)
   LamList loc vs a          -> rec $ unfoldLamList loc vs a
   Let loc binds a           -> fromLet loc binds (rec a)
   LetRec loc var a b        -> undefined

@@ -11,6 +11,7 @@ import Control.Applicative
 import Control.Monad
 
 import Data.Fix
+import Data.Maybe
 import Data.String
 
 import Language.Haskell.Exts.Parser (
@@ -48,15 +49,16 @@ fromHaskExp topExp = case topExp of
   H.Con loc qname -> do
     n <- fromQName qname
     let bool b = Fix $ PrimE loc $ PrimBool b
-    case varName'name n of
-      "True"  -> return $ bool True
-      "False" -> return $ bool False
-      _       -> parseFailedBy "Failed to parse expression" topExp
+    return $ case varName'name n of
+      "True"  -> bool True
+      "False" -> bool False
+      _       -> Fix $ Cons loc (varToConsName n) V.empty
   H.List loc es -> fmap (Fix . VecE loc . NewVec loc . V.fromList) (mapM rec es)
   H.InfixApp loc a op b -> fromInfixApp loc op a b
   H.Paren _ exp         -> rec exp
   H.LeftSection loc a op  -> rec $ unfoldLeftSection loc a op
   H.RightSection loc op a -> rec $ unfoldRightSection loc op a
+  H.Case loc expr alts -> liftA2 (fromCase loc) (rec expr) (mapM fromCaseAlt alts)
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
@@ -67,8 +69,8 @@ fromHaskExp topExp = case topExp of
     unfoldRightSection loc op a = H.Lambda loc [H.PVar loc x] (H.InfixApp loc (H.Var loc $ H.UnQual loc x) op a)
       where x = H.Ident loc "x"
 
-    fromLam loc p body = liftA2  (\x y -> Fix $ Lam loc x y) (fromPatToVar p) (rec body)
-    fromLamList loc ps body = liftA2  (\x y -> Fix $ LamList loc x y) (mapM fromPatToVar ps) (rec body)
+    fromLam loc p body = liftA2  (\x y -> Fix $ Lam loc x y) (fromPat p) (rec body)
+    fromLamList loc ps body = liftA2  (\x y -> Fix $ LamList loc x y) (mapM fromPat ps) (rec body)
 
     fromInfixApp loc op a b =
       liftA3 (\x v y -> Fix $ InfixApply loc x v y) (rec a) (fromOp op) (rec b)
@@ -76,6 +78,24 @@ fromHaskExp topExp = case topExp of
     fromOp = \case
       H.QVarOp loc qname -> fromQName qname
       other              -> parseFailedBy "Failed to parse infix application" other
+
+    fromCase loc expr alts = Fix $ GenCaseOf loc expr alts
+
+    fromCaseAlt :: H.Alt Loc -> ParseResult (CaseExpr Lang)
+    fromCaseAlt (H.Alt loc pat rhs mBinds)
+      | noBinds mBinds = liftA2 CaseExpr (fromPat pat) (fromRhs rhs)
+      | otherwise      = bindsNotSupported
+      where
+        bindsNotSupported = parseFailedBy "Binds for case expressions are not supported" topExp
+        guardsNotSupported = parseFailedBy "Guards for case expressions are not supported" topExp
+        noBinds = isNothing
+
+        fromRhs rhs = case rhs of
+          H.UnGuardedRhs _ expr -> fromHaskExp expr
+          H.GuardedRhss _ _ -> guardsNotSupported
+
+
+
 
 fromHaskModule :: H.Module Loc -> ParseResult Module
 fromHaskModule = \case
@@ -108,10 +128,6 @@ toDecl x = case x of
     toAlt pats rhs mBinds = Alt pats (maybe rhs (fromBgs rhs) mBinds)
       where
 
-    fromPat = \case
-      H.PVar loc name -> fmap (PVar loc) (toName name)
-      other           -> parseFailedBy "Failed to parse patter" other
-
     fromRhs = \case
       H.UnGuardedRhs _ exp -> fromHaskExp exp
       other                -> parseFailedBy "Failed to parse function" other
@@ -119,6 +135,16 @@ toDecl x = case x of
     getPatName = \case
       H.PVar loc name -> toName name
       other           -> parseFailedBy "Failed to parse synonym name" other
+
+fromPat :: H.Pat Loc -> ParseResult Pat
+fromPat = \case
+  H.PVar loc name -> fmap (PVar loc) (toName name)
+  H.PLit loc _ lit -> fmap (PPrim loc) (fromLit lit)
+  H.PApp loc name ps -> liftA2 (PCons loc) (toConsName name) (mapM fromPatToVar ps)
+  H.PTuple loc _ ps -> fmap (PTuple loc) (mapM fromPatToVar ps)
+  H.PParen _ x    -> fromPat x
+  H.PWildCard loc -> return $ PWildCard loc
+  other           -> parseFailedBy "Failed to parse patter" other
 
 fromBgs :: Lang -> BindGroup Lang -> Lang
 fromBgs rhs bgs = Fix $ Let (HM.getLoc rhs) bgs rhs
@@ -133,6 +159,11 @@ fromPatToVar = \case
   H.PVar _ name -> toName name
   other         -> parseFailedBy "Failed to parse patter" other
 
+varToConsName :: VarName -> ConsName
+varToConsName VarName{..} = ConsName varName'loc varName'name
+
+toConsName :: H.QName Loc -> ParseResult ConsName
+toConsName = fmap varToConsName . fromQName
 
 toName :: H.Name Loc -> ParseResult VarName
 toName = \case

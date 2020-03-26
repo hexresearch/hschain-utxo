@@ -76,12 +76,12 @@ def name (Expr a) bodyFun =
 lam :: Text -> (Expr a -> Expr b) -> Expr (a -> b)
 lam name bodyFun =
   case bodyFun (var name) of
-    Expr body -> Expr $ Fix $ Lam noLoc (VarName noLoc name) body
+    Expr body -> Expr $ Fix $ Lam noLoc (PVar noLoc $ VarName noLoc name) body
 
 lam2 :: Text -> Text -> (Expr a -> Expr b -> Expr c) -> Expr (a -> b -> c)
 lam2 v1 v2  bodyFun =
   case bodyFun (var v1) (var v2) of
-    Expr body -> Expr $ Fix $ LamList noLoc [VarName noLoc v1, VarName noLoc v2] body
+    Expr body -> Expr $ Fix $ LamList noLoc [PVar noLoc $ VarName noLoc v1, PVar noLoc $ VarName noLoc v2] body
 
 app :: Expr (a -> b) -> Expr a -> Expr b
 app (Expr fun) (Expr arg) = Expr $ Fix $ Apply noLoc fun arg

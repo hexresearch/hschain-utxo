@@ -441,10 +441,12 @@ execLang' (Fix x) = case x of
       Fix (TextE _ (TextHash _ Blake2b256)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ blake2b256 arg'
+      Fix (Cons loc name vs) -> rec $ Fix $ Cons loc name (mappend vs $ V.singleton arg)
       _ -> do
         Fix fun' <- rec fun
         case fun' of
-          Lam _ varName body -> do
+          -- todo: implement for generic Patterns bot only for vars!!!
+          Lam _ (PVar _ varName) body -> do
             arg' <- rec arg
             rec $ subst body varName arg'
           LamList loc vars a -> do
@@ -474,11 +476,7 @@ execLang' (Fix x) = case x of
             execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
 
         execAlt :: Alt Lang -> Exec Lang
-        execAlt Alt{..} = return $ case alt'pats of
-          [] -> alt'expr
-          ps -> Fix $ LamList loc (fmap toVars ps) $ alt'expr
-          where
-            toVars (PVar _ var) = var
+        execAlt alt = return $ altToExpr alt
 
     fromLetRec loc v lc1 lc2 = do
       insertVar v lc1
@@ -602,8 +600,9 @@ execLang' (Fix x) = case x of
       Apply loc a b                            -> Fix $ Apply loc (rec a) (rec b)
       InfixApply loc a v b     | v == varName  -> subInfix loc sub a b
       InfixApply loc a v b     | otherwise     -> Fix $ InfixApply loc (rec a) v (rec b)
-      e@(Lam loc v1 body1)     | v1 == varName -> Fix $ e
-                               | otherwise     -> Fix $ Lam loc v1 (rec body1)
+      e@(Lam loc (PVar loc2 v1) body1)
+                               | v1 == varName -> Fix e
+                               | otherwise     -> Fix $ Lam loc (PVar loc2 v1) (rec body1)
       If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
       Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (rec e)
       LetRec loc v1 a1 a2      | v1 == varName -> Fix $ LetRec loc v1 a1 (rec a2)

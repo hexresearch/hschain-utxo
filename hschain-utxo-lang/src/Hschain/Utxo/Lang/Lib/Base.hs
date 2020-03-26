@@ -454,7 +454,7 @@ tupleFuns = P.fmap (P.uncurry toFun) tupleIndices
     toFun size idx = bind (toTupleName size idx) $ lam' "x"  $ Fix $ UnOpE noLoc (TupleAt size idx) (var' "x")
 
 lam' :: Text -> Lang -> Lang
-lam' name expr = Fix $ Lam noLoc (VarName noLoc name) expr
+lam' name expr = Fix $ Lam noLoc (PVar noLoc $ VarName noLoc name) expr
 
 var' :: Text -> Lang
 var' name = Fix $ Var noLoc (VarName noLoc name)

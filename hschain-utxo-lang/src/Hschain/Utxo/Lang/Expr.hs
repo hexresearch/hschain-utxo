@@ -100,6 +100,9 @@ data Pat
   | PWildCard Loc
   deriving (Show, Eq, Ord)
 
+instance IsString Pat where
+  fromString = PVar noLoc . fromString
+
 data Module = Module
   { module'loc   :: !Loc
   , module'binds :: !(BindGroup Lang)
@@ -152,8 +155,8 @@ data E a
   = Var Loc VarName
   | Apply Loc a a
   | InfixApply Loc a VarName a
-  | Lam Loc VarName a
-  | LamList Loc [VarName] a
+  | Lam Loc Pat a
+  | LamList Loc [Pat] a
   | Let Loc (BindGroup a) a
   | LetRec Loc VarName a a
   | Ascr Loc a Signature
@@ -335,6 +338,15 @@ instance H.HasLoc Lang where
   type Loc Lang = Loc
   getLoc (Fix expr) = H.getLoc expr
 
+instance H.HasLoc Pat where
+  type Loc Pat = Loc
+  getLoc = \case
+    PVar loc _ -> loc
+    PPrim loc _ -> loc
+    PCons loc _ _ -> loc
+    PTuple loc _ -> loc
+    PWildCard loc -> loc
+
 instance Show a => H.HasLoc (E a) where
   type Loc (E a) = Loc
   getLoc = \case
@@ -412,8 +424,8 @@ freeVars = cata $ \case
   Var _ v         -> Set.singleton v
   InfixApply _ a _ b -> a <> b
   Apply _ a b     -> a <> b
-  Lam _ v a       -> Set.filter (/= v) a
-  LamList _ vs a  -> a `Set.difference` (Set.fromList vs)
+  Lam _ v a       -> a `Set.difference`  freeVarsPat v
+  LamList _ vs a  -> a `Set.difference` (foldMap freeVarsPat vs)
   Let _ bg a      -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
   LetRec _ v a b  -> a <> Set.filter (/= v) b
   Ascr _ a _      -> a

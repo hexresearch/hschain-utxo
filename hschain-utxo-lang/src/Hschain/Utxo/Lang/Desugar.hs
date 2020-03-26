@@ -15,6 +15,7 @@ module Hschain.Utxo.Lang.Desugar(
 ) where
 
 import Control.Applicative
+import Control.Monad.State.Strict
 
 import Data.Fix
 
@@ -25,11 +26,14 @@ import Hschain.Utxo.Lang.Expr
 import qualified Data.List as L
 import qualified Data.List.Extra as L
 
-unfoldLamList :: Loc -> [VarName] -> Lang -> Lang
-unfoldLamList loc vars a = L.foldl' (\z a -> z . Fix . Lam loc a) id vars a
+unfoldLamList :: Loc -> [Pat] -> Lang -> Lang
+unfoldLamList loc pats a = L.foldl' (\z a -> z . Fix . Lam loc a) id pats a
 
 unfoldLetArg :: Loc -> VarName -> [VarName] -> Lang -> Lang -> Lang
-unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc args a)
+unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc (fmap varToPat args) a)
+
+varToPat :: VarName -> Pat
+varToPat v = PVar (getLoc v) v
 
 singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
 singleLet loc v body expr = Fix $ Let loc bg expr
@@ -78,11 +82,9 @@ app3 :: Lang -> Lang -> Lang -> Lang -> Lang
 app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 
 altToExpr :: Alt Lang -> Lang
-altToExpr Alt{..} = case alt'pats of
-  []   -> alt'expr
-  pats -> Fix $ LamList (getLoc alt'expr) (fmap toArg pats) $ alt'expr
+altToExpr Alt{..} = foldr toArg alt'expr alt'pats
   where
-    toArg (PVar _ var) = var
+    toArg pat body = Fix $ Lam (getLoc pat) pat body
 
 bindBodyToExpr :: Bind Lang -> Lang
 bindBodyToExpr Bind{..} = addSignatureCheck $ altToExpr bind'alt
