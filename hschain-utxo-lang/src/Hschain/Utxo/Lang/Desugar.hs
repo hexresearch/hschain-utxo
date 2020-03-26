@@ -10,6 +10,8 @@ module Hschain.Utxo.Lang.Desugar(
   , moduleToMainExpr
   , bindGroupToLet
   , bindBodyToExpr
+  , fromGenCaseOf
+  , simpleBind
 ) where
 
 import Control.Applicative
@@ -87,4 +89,12 @@ bindBodyToExpr Bind{..} = addSignatureCheck $ altToExpr bind'alt
   where
     addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
 
+
+fromGenCaseOf :: Loc -> VarName -> Lang -> [CaseExpr Lang] -> Lang
+fromGenCaseOf loc freshVar expr cases =
+  singleLet (getLoc freshVar) freshVar expr $
+    Fix $ CaseOf loc freshVar cases
+
+simpleBind :: VarName -> Lang -> Bind Lang
+simpleBind v a = Bind v Nothing (Alt [] a)
 

@@ -14,6 +14,7 @@ import Hex.Common.Text
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.State.Strict
+import Data.List.Extra (firstJust)
 
 import Crypto.Hash
 
@@ -27,6 +28,7 @@ import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Data.Set (Set)
+import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -68,6 +70,7 @@ data Error
   | IllegalRecursion Lang
   | OutOfBound Lang
   | NoField VarName
+  | NonExaustiveCase Loc Lang
   deriving (Show)
 
 trace' :: Show a => a -> a
@@ -107,6 +110,7 @@ data Ctx = Ctx
   , ctx'inputs     :: !(Vector Box)
   , ctx'outputs    :: !(Vector Box)
   , ctx'debug      :: !Text
+  , ctx'freshVarId :: !Int
   }
 
 newtype Exec a = Exec (StateT Ctx (Either Error) a)
@@ -125,6 +129,14 @@ insertVar :: VarName -> Lang -> Exec ()
 insertVar varName expr =
   modify' $ \st -> st { ctx'vars = M.insert varName expr $ ctx'vars st }
 
+getFreshVar :: Loc -> Exec VarName
+getFreshVar loc = do
+  idx <- fmap ctx'freshVarId get
+  modify' $ \st -> st { ctx'freshVarId = ctx'freshVarId st + 1 }
+  return $ toName idx
+  where
+    toName n = VarName loc $ fromString $ '$' : show n
+
 getUserArgs :: Exec Args
 getUserArgs = fmap  ctx'userArgs get
 
@@ -136,7 +148,7 @@ runExec :: ExecContext -> Args -> Integer -> Vector Box -> Vector Box -> Exec a 
 runExec (ExecContext binds) args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
-    emptyCtx = Ctx binds args height inputs outputs mempty
+    emptyCtx = Ctx binds args height inputs outputs mempty 0
 
 applyBase :: Expr a -> Expr a
 applyBase (Expr a) = Expr $ importBase a
@@ -150,6 +162,9 @@ execLang' (Fix x) = case x of
     PrimE loc p  -> pure $ Fix $ PrimE loc p
     Tuple loc as -> Fix . Tuple loc <$> mapM rec as
     Ascr loc a t -> fmap (\x -> Fix $ Ascr loc x t) $ rec a
+    -- case of
+    GenCaseOf loc a xs -> fromGenCase loc a xs
+    CaseOf loc v xs -> fromCaseOf loc v xs
     -- operations
     UnOpE loc uo x -> fromUnOp loc uo x
     BinOpE loc bi a b -> fromBiOp loc bi a b
@@ -177,6 +192,43 @@ execLang' (Fix x) = case x of
       case M.lookup name vars of
         Just res -> return res
         Nothing  -> Exec $ lift $ Left $ UnboundVariables [name]
+
+    fromGenCase loc expr cases = do
+      v <- getFreshVar loc
+      rec $ fromGenCaseOf loc v expr cases
+
+    fromCaseOf loc v xs = do
+      res <- getVar loc v
+      maybe err rec $ firstJust (matchCase res) xs
+      where
+        err = nonExaustiveCase loc $ Fix $ CaseOf loc v xs
+
+        matchCase :: Lang -> CaseExpr Lang -> Maybe Lang
+        matchCase expr CaseExpr{..} =
+          case caseExpr'lhs of
+            PVar _ v              -> Just $ singleLet (H.getLoc v) v expr caseExpr'rhs
+            PPrim _ p             -> matchPrim p expr caseExpr'rhs
+            PCons _ consName vs   -> matchCons consName expr vs caseExpr'rhs
+            PTuple _ vs           -> matchTuple expr vs caseExpr'rhs
+            PWildCard _           -> Just caseExpr'rhs
+
+        matchPrim p (Fix expr) rhs =
+          case expr of
+            PrimE _ k | k == p -> Just rhs
+            _                  -> Nothing
+
+        matchCons consName (Fix expr) vs rhs =
+          case expr of
+            Cons loc exprName args ->
+              if exprName == consName
+                then Just $ Fix $ Let loc (zipWith simpleBind vs (V.toList args)) rhs
+                else Nothing
+            _ -> Nothing
+
+        matchTuple (Fix expr) vs rhs =
+          case expr of
+            Tuple loc args -> Just $ Fix $ Let loc (zipWith simpleBind vs (V.toList args)) rhs
+            _              -> Nothing
 
     fromUnOp loc uo x = do
       x' <- rec x
@@ -554,8 +606,6 @@ execLang' (Fix x) = case x of
                                | otherwise     -> Fix $ Lam loc v1 (rec body1)
       If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
       Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (rec e)
-                        -- | v1 == varName -> Fix $ Let v1 a1 (rec a2)
-                        -- | otherwise     -> Fix $ Let v1 (rec a1) (rec a2)
       LetRec loc v1 a1 a2      | v1 == varName -> Fix $ LetRec loc v1 a1 (rec a2)
                                | otherwise     -> Fix $ LetRec loc v1 (rec a1) (rec a2)
       Pk loc a                                 -> Fix $ Pk loc $ rec a
@@ -566,6 +616,11 @@ execLang' (Fix x) = case x of
       BoxE loc box                             -> Fix $ BoxE loc $ fmap rec box
       LamList loc vs a                         -> rec $ unfoldLamList loc vs a
       Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
+      FailCase loc                             -> Fix $ FailCase loc
+      AltE loc a b                             -> Fix $ AltE loc (rec a) (rec b)
+      GenCaseOf loc expr cases                 -> Fix $ GenCaseOf loc (rec expr) (fmap2 rec cases)
+      CaseOf loc v cases                       -> Fix $ CaseOf loc v (fmap2 rec cases)
+      Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
       where
         subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
 
@@ -601,6 +656,9 @@ noField = toError . NoField
 
 outOfBound :: Lang -> Exec Lang
 outOfBound = toError . OutOfBound
+
+nonExaustiveCase :: Loc -> Lang -> Exec Lang
+nonExaustiveCase loc expr = toError $ NonExaustiveCase loc expr
 
 parseError :: Loc -> Text -> Exec Lang
 parseError loc msg = toError $ ParseError loc msg

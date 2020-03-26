@@ -43,18 +43,34 @@ type Signature = H.Signature Loc
 noLoc :: Loc
 noLoc = Hask.noSrcSpan
 
+newtype UserTypeCtx = UserTypeCtx (Map VarName UserType)
+  deriving newtype (Show, Eq, Semigroup, Monoid)
+
+data UserType = UserType
+  { userType'name  :: !VarName
+  , userType'cases :: !(Map ConsName (Vector Signature))
+  } deriving (Show, Eq)
+
 type Money = Int64
 
 newtype Expr a = Expr Lang
   deriving (Show, Eq)
 
 data VarName = VarName
-  { varName'loc   :: Loc
-  , varName'name  :: Text
+  { varName'loc   :: !Loc
+  , varName'name  :: !Text
   } deriving (Show)
 
 instance IsString VarName where
   fromString = VarName noLoc . fromString
+
+data ConsName = ConsName
+  { consName'loc  :: !Loc
+  , consName'name :: !Text
+  } deriving (Show)
+
+instance IsString ConsName where
+  fromString = ConsName noLoc . fromString
 
 type Args = Map Text (Prim )
 
@@ -78,6 +94,10 @@ data Box = Box
 
 data Pat
   = PVar Loc VarName
+  | PPrim Loc Prim
+  | PCons Loc ConsName [VarName]
+  | PTuple Loc [VarName]
+  | PWildCard Loc
   deriving (Show, Eq, Ord)
 
 data Module = Module
@@ -137,6 +157,18 @@ data E a
   | Let Loc (BindGroup a) a
   | LetRec Loc VarName a a
   | Ascr Loc a Signature
+  -- case
+  | Cons Loc ConsName (Vector a)
+  | CaseOf Loc VarName [CaseExpr a]
+  | GenCaseOf Loc a [CaseExpr a]
+  | CaseSel Loc a [a]
+  -- user types
+  | UnpackProduct Loc ConsName a a
+  | UnpackSum Loc ConsName a a
+  | SelAt Loc ConsName Int a
+  -- Alternatives
+  | AltE Loc a a
+  | FailCase Loc
   -- primitives
   | PrimE Loc Prim
   -- logic
@@ -168,6 +200,18 @@ data BinOp
   = And | Or | Plus | Minus | Times | Div
   | Equals | NotEquals | LessThan | GreaterThan | LessThanEquals | GreaterThanEquals
   deriving (Show, Eq)
+
+data CaseExpr a
+  = CaseExpr
+      { caseExpr'lhs :: Pat
+      , caseExpr'rhs :: a
+      }
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+data CaseLhs = CaseLhs
+  { caseLhs'cons :: ConsName
+  , caseLhs'vars :: [VarName]
+  } deriving (Eq, Show)
 
 data BoxExpr a
   = PrimBox Loc Box
@@ -283,6 +327,10 @@ instance H.HasLoc VarName where
   type Loc VarName = Loc
   getLoc (VarName loc _) = loc
 
+instance H.HasLoc ConsName where
+  type Loc ConsName = Loc
+  getLoc (ConsName loc _) = loc
+
 instance H.HasLoc Lang where
   type Loc Lang = Loc
   getLoc (Fix expr) = H.getLoc expr
@@ -298,6 +346,10 @@ instance Show a => H.HasLoc (E a) where
     Let loc _ _ -> loc
     LetRec loc _ _ _ -> loc
     Ascr loc _ _ -> loc
+    -- case-expr
+    Cons loc _ _ -> loc
+    CaseOf loc _ _ -> loc
+    GenCaseOf loc _ _ -> loc
     -- primitives
     PrimE loc _ -> loc
     -- logic
@@ -320,6 +372,8 @@ instance Show a => H.HasLoc (E a) where
     Undef loc -> loc
     -- debug
     Trace loc _ _ -> loc
+    AltE loc _ _ -> loc
+    FailCase loc -> loc
 
 instance H.HasLoc a => H.HasLoc (Alt a) where
   type Loc (Alt a) = H.Loc a
@@ -339,17 +393,17 @@ instance H.HasLoc (BindGroup Lang) where
 -- unique instances for Eq and Ord (ingnores source location)
 --
 
-data VarName' = VarName' Text
-  deriving (Eq, Ord)
-
-uniqueVarName :: VarName -> VarName'
-uniqueVarName (VarName _ name) = VarName' name
-
 instance Eq VarName where
-  (==) = (==) `on` uniqueVarName
+  (==) = (==) `on` varName'name
 
 instance Ord VarName where
-  compare = compare `on` uniqueVarName
+  compare = compare `on` varName'name
+
+instance Eq ConsName where
+  (==) = (==) `on` consName'name
+
+instance Ord ConsName where
+  compare = compare `on` consName'name
 
 -------------------------------------------------------------------
 
@@ -363,6 +417,9 @@ freeVars = cata $ \case
   Let _ bg a      -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
   LetRec _ v a b  -> a <> Set.filter (/= v) b
   Ascr _ a _      -> a
+  Cons _ _ vs     -> mconcat $ V.toList vs
+  GenCaseOf _ a v -> mappend a (foldMap freeCaseExpr v)
+  CaseOf _ v alts -> mappend (Set.singleton v) (foldMap freeCaseExpr alts)
   PrimE _ _       -> Set.empty
   If _ a b c      -> mconcat [a, b, c]
   Pk _ a          -> a
@@ -375,18 +432,28 @@ freeVars = cata $ \case
   BoxE _ box      -> fold box
   Undef _         -> Set.empty
   Trace _ a b     -> mconcat [a, b]
+  AltE _ a b      -> mappend a b
+  FailCase _      -> Set.empty
   where
     getBgNames :: BindGroup a -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
 
     freeVarsBg = foldMap (localFreeVarsAlt . bind'alt)
-    localFreeVarsAlt Alt{..} = alt'expr `Set.difference` (freeVarsPat alt'pats)
+    localFreeVarsAlt Alt{..} = alt'expr `Set.difference` (foldMap freeVarsPat alt'pats)
 
-freeVarsPat :: [Pat] -> Set VarName
-freeVarsPat = Set.fromList . fmap (\(PVar _ name) -> name)
+    freeCaseExpr CaseExpr{..} = caseExpr'rhs `Set.difference` (freeVarsPat caseExpr'lhs)
+
+
+freeVarsPat :: Pat -> Set VarName
+freeVarsPat = \case
+  PVar _ name -> Set.singleton name
+  PPrim _ _ -> Set.empty
+  PCons _ _ vs -> Set.fromList vs
+  PTuple _ vs -> Set.fromList vs
+  PWildCard _ -> Set.empty
 
 freeVarsAlt :: Alt Lang -> Set VarName
-freeVarsAlt Alt{..} = freeVars alt'expr `Set.difference` freeVarsPat alt'pats
+freeVarsAlt Alt{..} = freeVars alt'expr `Set.difference` foldMap freeVarsPat alt'pats
 
 -------------------------------------------------------------------
 
@@ -401,6 +468,7 @@ $(deriveShow1 ''Alt)
 $(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)
+$(deriveShow1 ''CaseExpr)
 $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''VecExpr)
