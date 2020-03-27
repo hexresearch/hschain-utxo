@@ -48,7 +48,8 @@ newtype UserTypeCtx = UserTypeCtx (Map VarName UserType)
 
 data UserType = UserType
   { userType'name  :: !VarName
-  , userType'cases :: !(Map ConsName (Vector Signature))
+  , userType'args  :: ![VarName]
+  , userType'cases :: !(Map ConsName (Vector Type))
   } deriving (Show, Eq)
 
 type Money = Int64

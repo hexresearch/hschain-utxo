@@ -170,7 +170,7 @@ execLang' (Fix x) = case x of
     BinOpE loc bi a b -> fromBiOp loc bi a b
     Apply loc a b -> fromApply loc a b
     InfixApply loc a v b -> fromInfixApply loc a v b
-    Lam loc varName b -> fromLam loc varName b
+    Lam loc pat b -> fromLam loc pat b
     LamList loc vars a -> fromLamList loc vars a
     Let loc varName a -> fromLet loc varName a
     LetRec loc varName b c -> fromLetRec loc varName b c
@@ -388,7 +388,13 @@ execLang' (Fix x) = case x of
       where
         err = thisShouldNotHappen $ Fix $ If loc cond t e
 
-    fromLam loc name b = return $ Fix $ Lam loc name b
+    -- we transform generic patterns in lambdas to simple lambdas with case-expressions.
+    fromLam loc pat b = case pat of
+      PVar _ _ -> return $ Fix $ Lam loc pat b
+      _        -> do
+        v <- getFreshVar loc
+        return $ Fix $ Lam loc (PVar loc v) $ Fix $ CaseOf loc v [CaseExpr pat b]
+
     fromLamList loc vars a = rec $ unfoldLamList loc vars a
 
     fromTrace _ str a = do
@@ -604,7 +610,7 @@ execLang' (Fix x) = case x of
                                | v1 == varName -> Fix e
                                | otherwise     -> Fix $ Lam loc (PVar loc2 v1) (rec body1)
       If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
-      Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (rec e)
+      Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
       LetRec loc v1 a1 a2      | v1 == varName -> Fix $ LetRec loc v1 a1 (rec a2)
                                | otherwise     -> Fix $ LetRec loc v1 (rec a1) (rec a2)
       Pk loc a                                 -> Fix $ Pk loc $ rec a
@@ -617,13 +623,17 @@ execLang' (Fix x) = case x of
       Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
       FailCase loc                             -> Fix $ FailCase loc
       AltE loc a b                             -> Fix $ AltE loc (rec a) (rec b)
-      GenCaseOf loc expr cases                 -> Fix $ GenCaseOf loc (rec expr) (fmap2 rec cases)
-      CaseOf loc v cases                       -> Fix $ CaseOf loc v (fmap2 rec cases)
+      GenCaseOf loc expr cases                 -> Fix $ GenCaseOf loc (rec expr) (fmap substCase cases)
+      CaseOf loc v cases                       -> Fix $ CaseOf loc v (fmap substCase cases)
       Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
       where
         subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
 
         rec x = subst x varName sub
+
+        recBy bindVars x
+          | S.member varName bindVars = x
+          | otherwise                   = subst x varName sub
 
         substBindGroup = fmap substBind
 
@@ -635,11 +645,13 @@ execLang' (Fix x) = case x of
           | isBinded varName alt'pats = x
           | otherwise                 = x{ alt'expr = rec alt'expr }
           where
-            isBinded v ps = v `elem` (foldMap getBinds ps)
+            isBinded v ps = v `elem` (foldMap freeVarsPat ps)
 
-            getBinds = \case
-              PVar _ idx -> [idx]
-          --     _          -> []
+        bindVars = S.fromList . fmap bind'name
+
+        substCase x@CaseExpr{..} = fmap (recBy binds) x
+          where
+            binds = freeVarsPat caseExpr'lhs
 
 prim :: Loc -> Prim -> Exec Lang
 prim loc p = return $ Fix $ PrimE loc p
