@@ -181,8 +181,9 @@ toLiteral loc = \case
 
         ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) x
 
+-- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc
-toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl bs)
+toHaskModule (Module loc _ bs) = H.Module loc Nothing [] [] (toDecl bs)
 
 toDecl :: BindGroup Lang -> [H.Decl Loc]
 toDecl bs = toBind =<< bs

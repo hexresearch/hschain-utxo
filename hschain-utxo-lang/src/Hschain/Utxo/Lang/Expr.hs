@@ -105,8 +105,9 @@ instance IsString Pat where
   fromString = PVar noLoc . fromString
 
 data Module = Module
-  { module'loc   :: !Loc
-  , module'binds :: !(BindGroup Lang)
+  { module'loc       :: !Loc
+  , module'userTypes :: !UserTypeCtx
+  , module'binds     :: !(BindGroup Lang)
   } deriving (Show)
 
 type TypeContext = H.Context Loc

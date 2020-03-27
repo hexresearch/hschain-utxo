@@ -36,6 +36,7 @@ type FunMap   = Map VarName (Alt Lang)
 data Decl
   = FunDecl Loc [(VarName, Alt Lang)]
   | TypeSig Loc [VarName] Signature
+  | DataDecl UserType
 
 toBindGroup :: [Decl] -> ParseResult (BindGroup Lang)
 toBindGroup = fmap sortBindGroups . parseBinds
