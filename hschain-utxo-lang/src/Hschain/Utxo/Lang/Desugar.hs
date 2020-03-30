@@ -10,14 +10,15 @@ module Hschain.Utxo.Lang.Desugar(
   , moduleToMainExpr
   , bindGroupToLet
   , bindBodyToExpr
-  , fromGenCaseOf
   , simpleBind
+  , caseToLet
 ) where
 
 import Control.Applicative
 import Control.Monad.State.Strict
 
 import Data.Fix
+import Data.Text (Text)
 
 import Language.HM (getLoc, stripSignature, monoT)
 
@@ -36,9 +37,7 @@ varToPat :: VarName -> Pat
 varToPat v = PVar (getLoc v) v
 
 singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
-singleLet loc v body expr = Fix $ Let loc bg expr
-  where
-    bg = [Bind v Nothing (Alt [] body)]
+singleLet loc v body expr = Fix $ Let loc [simpleBind v body] expr
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
@@ -91,12 +90,28 @@ bindBodyToExpr Bind{..} = addSignatureCheck $ altToExpr bind'alt
   where
     addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
 
-
-fromGenCaseOf :: Loc -> VarName -> Lang -> [CaseExpr Lang] -> Lang
-fromGenCaseOf loc freshVar expr cases =
-  singleLet (getLoc freshVar) freshVar expr $
-    Fix $ CaseOf loc freshVar cases
-
 simpleBind :: VarName -> Lang -> Bind Lang
 simpleBind v a = Bind v Nothing (Alt [] a)
+
+caseToLet :: (ConsName -> Int -> Text) -> Loc -> Lang -> [CaseExpr Lang] -> Lang
+caseToLet toSelectorName loc var cases = foldr (\a rest -> Fix $ AltE loc a rest) failCase $ fmap fromCase cases
+  where
+    fromCase CaseExpr{..} = case caseExpr'lhs of
+      PVar ploc pvar -> Fix $ Let ploc [simpleBind pvar var] caseExpr'rhs
+      PWildCard loc -> caseExpr'rhs
+      PPrim ploc p -> Fix $ If ploc (eqPrim ploc var p) caseExpr'rhs failCase
+      PCons ploc cons vs ->
+          let bg = zipWith (\n v -> simpleBind v (Fix $ Apply (varName'loc v) (selector ploc cons n) var)) [0..] vs
+          in  Fix $ Let loc bg caseExpr'rhs
+      PTuple ploc vs ->
+          let size = length vs
+              bg = zipWith (\n v -> simpleBind v (Fix $ UnOpE (varName'loc v) (TupleAt size n) $ var)) [0..] vs
+          in  Fix $ Let loc bg caseExpr'rhs
+
+    selector ploc cons n = Fix $ Var ploc (VarName ploc (toSelectorName cons n))
+
+    failCase = Fix $ FailCase loc
+
+    eqPrim ploc v p = Fix $ BinOpE ploc Equals var (Fix $ PrimE ploc p)
+
 

@@ -164,9 +164,7 @@ data E a
   | Ascr Loc a Signature
   -- case
   | Cons Loc ConsName (Vector a)
-  | CaseOf Loc VarName [CaseExpr a]
-  | GenCaseOf Loc a [CaseExpr a]
-  | CaseSel Loc a [a]
+  | CaseOf Loc a [CaseExpr a]
   -- user types
   | UnpackProduct Loc ConsName a a
   | UnpackSum Loc ConsName a a
@@ -363,7 +361,6 @@ instance Show a => H.HasLoc (E a) where
     -- case-expr
     Cons loc _ _ -> loc
     CaseOf loc _ _ -> loc
-    GenCaseOf loc _ _ -> loc
     -- primitives
     PrimE loc _ -> loc
     -- logic
@@ -432,8 +429,7 @@ freeVars = cata $ \case
   LetRec _ v a b  -> a <> Set.filter (/= v) b
   Ascr _ a _      -> a
   Cons _ _ vs     -> mconcat $ V.toList vs
-  GenCaseOf _ a v -> mappend a (foldMap freeCaseExpr v)
-  CaseOf _ v alts -> mappend (Set.singleton v) (foldMap freeCaseExpr alts)
+  CaseOf _ a alts -> mappend a (foldMap freeCaseExpr alts)
   PrimE _ _       -> Set.empty
   If _ a b c      -> mconcat [a, b, c]
   Pk _ a          -> a

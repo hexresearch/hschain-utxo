@@ -77,10 +77,15 @@ trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
 
 evalModule :: TypeContext -> Module -> Either TypeError ModuleCtx
-evalModule typeCtx Module{..} = fmap toModuleCtx $ evalStateT (mapM checkBind module'binds) typeCtx
+evalModule typeCtx Module{..} = fmap toModuleCtx $ evalStateT (mapM checkBind module'binds) (typeCtx <> userTypeCtx)
   where
+    userTypeCtx = userTypesToTypeContext module'userTypes
+
     toModuleCtx :: BindGroup Lang -> ModuleCtx
-    toModuleCtx bs = ModuleCtx (H.Context $ M.fromList $ catMaybes types) (ExecContext $ M.fromList exprs)
+    toModuleCtx bs = ModuleCtx
+      { moduleCtx'types = (H.Context $ M.fromList $ catMaybes types) <> userTypeCtx
+      , moduleCtx'exprs = ExecContext $ M.fromList exprs
+      }
       where
         types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
 
@@ -162,8 +167,8 @@ execLang' (Fix x) = case x of
     PrimE loc p  -> pure $ Fix $ PrimE loc p
     Tuple loc as -> Fix . Tuple loc <$> mapM rec as
     Ascr loc a t -> fmap (\x -> Fix $ Ascr loc x t) $ rec a
+    Cons loc name vs -> fmap (Fix . Cons loc name) $ mapM rec vs
     -- case of
-    GenCaseOf loc a xs -> fromGenCase loc a xs
     CaseOf loc v xs -> fromCaseOf loc v xs
     -- operations
     UnOpE loc uo x -> fromUnOp loc uo x
@@ -193,12 +198,8 @@ execLang' (Fix x) = case x of
         Just res -> return res
         Nothing  -> Exec $ lift $ Left $ UnboundVariables [name]
 
-    fromGenCase loc expr cases = do
-      v <- getFreshVar loc
-      rec $ fromGenCaseOf loc v expr cases
-
     fromCaseOf loc v xs = do
-      res <- getVar loc v
+      res <- rec v
       maybe err rec $ firstJust (matchCase res) xs
       where
         err = nonExaustiveCase loc $ Fix $ CaseOf loc v xs
@@ -393,7 +394,7 @@ execLang' (Fix x) = case x of
       PVar _ _ -> return $ Fix $ Lam loc pat b
       _        -> do
         v <- getFreshVar loc
-        return $ Fix $ Lam loc (PVar loc v) $ Fix $ CaseOf loc v [CaseExpr pat b]
+        return $ Fix $ Lam loc (PVar loc v) $ Fix $ CaseOf loc (Fix $ Var loc v) [CaseExpr pat b]
 
     fromLamList loc vars a = rec $ unfoldLamList loc vars a
 
@@ -468,8 +469,8 @@ execLang' (Fix x) = case x of
             a' <- rec a
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix $ Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a') arg'
+          Cons loc name vs -> rec $ Fix $ Cons loc name (mappend vs $ V.singleton arg)
           other              -> Exec $ lift $ Left $ AppliedNonFunction $ Fix other
-
 
 
     fromLet loc bg expr = execDefs bg expr
@@ -606,9 +607,7 @@ execLang' (Fix x) = case x of
       Apply loc a b                            -> Fix $ Apply loc (rec a) (rec b)
       InfixApply loc a v b     | v == varName  -> subInfix loc sub a b
       InfixApply loc a v b     | otherwise     -> Fix $ InfixApply loc (rec a) v (rec b)
-      e@(Lam loc (PVar loc2 v1) body1)
-                               | v1 == varName -> Fix e
-                               | otherwise     -> Fix $ Lam loc (PVar loc2 v1) (rec body1)
+      Lam loc pat body1                        -> Fix $ Lam loc pat $ recBy (freeVarsPat pat) body1
       If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
       Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
       LetRec loc v1 a1 a2      | v1 == varName -> Fix $ LetRec loc v1 a1 (rec a2)
@@ -623,8 +622,7 @@ execLang' (Fix x) = case x of
       Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
       FailCase loc                             -> Fix $ FailCase loc
       AltE loc a b                             -> Fix $ AltE loc (rec a) (rec b)
-      GenCaseOf loc expr cases                 -> Fix $ GenCaseOf loc (rec expr) (fmap substCase cases)
-      CaseOf loc v cases                       -> Fix $ CaseOf loc v (fmap substCase cases)
+      CaseOf loc expr cases                    -> Fix $ CaseOf loc (rec expr) (fmap substCase cases)
       Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
       where
         subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)

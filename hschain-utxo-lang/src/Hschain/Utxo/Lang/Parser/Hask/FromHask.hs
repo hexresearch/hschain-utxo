@@ -79,7 +79,7 @@ fromHaskExp topExp = case topExp of
       H.QVarOp loc qname -> fromQName qname
       other              -> parseFailedBy "Failed to parse infix application" other
 
-    fromCase loc expr alts = Fix $ GenCaseOf loc expr alts
+    fromCase loc expr alts = Fix $ CaseOf loc expr alts
 
     fromCaseAlt :: H.Alt Loc -> ParseResult (CaseExpr Lang)
     fromCaseAlt (H.Alt loc pat rhs mBinds)

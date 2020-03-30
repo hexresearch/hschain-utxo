@@ -42,8 +42,7 @@ toHaskExp (Fix expr) = case expr of
   Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType ty)
   -- case
   Cons loc name args -> foldl (\f z -> H.App loc f z) (toCon loc name) $ fmap rec args
-  CaseOf loc var alts -> H.Case loc (toVar loc var) (fmap (toCaseAlt loc) alts)
-  GenCaseOf loc expr alts -> H.Case loc (rec expr) (fmap (toCaseAlt loc) alts)
+  CaseOf loc expr alts -> H.Case loc (rec expr) (fmap (toCaseAlt loc) alts)
   -- primitives
   PrimE loc p -> toLiteral loc p
   -- logic
