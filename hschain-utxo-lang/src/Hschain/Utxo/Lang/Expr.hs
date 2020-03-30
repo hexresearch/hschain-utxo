@@ -165,10 +165,6 @@ data E a
   -- case
   | Cons Loc ConsName (Vector a)
   | CaseOf Loc a [CaseExpr a]
-  -- user types
-  | UnpackProduct Loc ConsName a a
-  | UnpackSum Loc ConsName a a
-  | SelAt Loc ConsName Int a
   -- Alternatives
   | AltE Loc a a
   | FailCase Loc
