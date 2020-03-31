@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Desugar(
   , app1
   , app2
   , app3
+  , altGroupToExpr
   , altToExpr
   , moduleToMainExpr
   , bindGroupToLet
@@ -57,7 +58,7 @@ moduleToMainExpr prog = case findMain prog of
     findMain Module{..} = L.firstJust getMain module'binds
       where
         getMain Bind{..}
-          | isMain bind'name = Just $ altToExpr bind'alt
+          | isMain bind'name = Just $ altGroupToExpr bind'alts
           | otherwise        = Nothing
 
     addBoolTypeCheck :: Lang -> Lang
@@ -83,18 +84,21 @@ app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
 app3 :: Lang -> Lang -> Lang -> Lang -> Lang
 app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 
+altGroupToExpr :: [Alt Lang] -> Lang
+altGroupToExpr = undefined
+
 altToExpr :: Alt Lang -> Lang
 altToExpr Alt{..} = foldr toArg alt'expr alt'pats
   where
     toArg pat body = Fix $ Lam (getLoc pat) pat body
 
 bindBodyToExpr :: Bind Lang -> Lang
-bindBodyToExpr Bind{..} = addSignatureCheck $ altToExpr bind'alt
+bindBodyToExpr Bind{..} = addSignatureCheck $ altGroupToExpr bind'alts
   where
     addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
 
 simpleBind :: VarName -> Lang -> Bind Lang
-simpleBind v a = Bind v Nothing (Alt [] a)
+simpleBind v a = Bind v Nothing [Alt [] a]
 
 -----------------------------------------------------------------
 

@@ -39,6 +39,7 @@ import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Lib.Base
+import Hschain.Utxo.Lang.Exec.Subst
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
@@ -89,12 +90,12 @@ evalModule typeCtx Module{..} = fmap toModuleCtx $ evalStateT (mapM checkBind mo
       where
         types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
 
-        exprs = fmap (\Bind{..} -> (bind'name, altToExpr bind'alt)) bs
+        exprs = fmap (\Bind{..} -> (bind'name, altGroupToExpr bind'alts)) bs
 
     checkBind :: Bind Lang -> StateT TypeContext (Either TypeError) (Bind Lang)
     checkBind bind@Bind{..} = do
       ctx <- get
-      ty <- fmap H.typeToSignature $ lift $ inferExpr ctx (altToExpr bind'alt)
+      ty <- fmap H.typeToSignature $ lift $ inferExpr ctx (altGroupToExpr bind'alts)
       let typeIsOk =
             case bind'type of
               Just userTy -> if (isRight $ H.subtypeOf mempty userTy ty) then Nothing else (Just userTy)
@@ -495,11 +496,11 @@ execLang' (Fix x) = case x of
           [] -> rec e
           def:rest -> do
             let v = bind'name def
-            body <- execAlt $ bind'alt def
+            body <- execAlt $ bind'alts def
             execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
 
-        execAlt :: Alt Lang -> Exec Lang
-        execAlt alt = return $ altToExpr alt
+        execAlt :: [Alt Lang] -> Exec Lang
+        execAlt alt = return $ altGroupToExpr alt
 
     fromLetRec loc v lc1 lc2 = do
       insertVar v lc1
@@ -612,60 +613,6 @@ execLang' (Fix x) = case x of
       where
         hashText = showt . hashWith Blake2b_256 . T.encodeUtf8
 
-    subst :: Lang -> VarName -> Lang -> Lang
-    subst (Fix body) varName sub = case body of
-      Var loc e                | e == varName  -> sub
-                               | otherwise     -> Fix $ Var loc e
-      PrimE _ p                                -> Fix body
-      Ascr loc lc t                            -> Fix $ Ascr loc (rec lc) t
-      UnOpE loc uo lc                          -> Fix $ UnOpE loc uo $ rec lc
-      BinOpE loc bo a b                        -> Fix $ BinOpE loc bo (rec a) (rec b)
-      Apply loc a b                            -> Fix $ Apply loc (rec a) (rec b)
-      InfixApply loc a v b     | v == varName  -> subInfix loc sub a b
-      InfixApply loc a v b     | otherwise     -> Fix $ InfixApply loc (rec a) v (rec b)
-      Lam loc pat body1                        -> Fix $ Lam loc pat $ recBy (freeVarsPat pat) body1
-      If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
-      Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
-      LetRec loc v1 a1 a2      | v1 == varName -> Fix $ LetRec loc v1 a1 (rec a2)
-                               | otherwise     -> Fix $ LetRec loc v1 (rec a1) (rec a2)
-      Pk loc a                                 -> Fix $ Pk loc $ rec a
-      Tuple loc as                             -> Fix $ Tuple loc $ fmap rec as
-      GetEnv loc idx                           -> Fix $ GetEnv loc $ fmap rec idx
-      VecE loc vec                             -> Fix $ VecE loc $ fmap rec vec
-      TextE loc txt                            -> Fix $ TextE loc $ fmap rec txt
-      BoxE loc box                             -> Fix $ BoxE loc $ fmap rec box
-      LamList loc vs a                         -> rec $ unfoldLamList loc vs a
-      Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
-      FailCase loc                             -> Fix $ FailCase loc
-      AltE loc a b                             -> Fix $ AltE loc (rec a) (rec b)
-      CaseOf loc expr cases                    -> Fix $ CaseOf loc (rec expr) (fmap substCase cases)
-      Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
-      where
-        subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
-
-        rec x = subst x varName sub
-
-        recBy bindVars x
-          | S.member varName bindVars = x
-          | otherwise                   = subst x varName sub
-
-        substBindGroup = fmap substBind
-
-        substBind x@Bind{..}
-          | varName == bind'name = x
-          | otherwise            = x { bind'alt = substAlt bind'alt }
-
-        substAlt x@Alt{..}
-          | isBinded varName alt'pats = x
-          | otherwise                 = x{ alt'expr = rec alt'expr }
-          where
-            isBinded v ps = v `elem` (foldMap freeVarsPat ps)
-
-        bindVars = S.fromList . fmap bind'name
-
-        substCase x@CaseExpr{..} = fmap (recBy binds) x
-          where
-            binds = freeVarsPat caseExpr'lhs
 
 prim :: Loc -> Prim -> Exec Lang
 prim loc p = return $ Fix $ PrimE loc p

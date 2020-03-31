@@ -42,7 +42,7 @@ importBase = bindGroupToLet baseFuns
 baseLibExecContext :: ExecContext
 baseLibExecContext = ExecContext $ M.fromList $ P.fmap fromBindToExec baseFuns
   where
-    fromBindToExec Bind{..} = (bind'name, altToExpr bind'alt)
+    fromBindToExec Bind{..} = (bind'name, altGroupToExpr bind'alts)
 
 baseFuns :: [Bind Lang]
 baseFuns =
@@ -482,11 +482,7 @@ cT = varT "c"
 fT ty = H.appT noLoc (varT "f") ty
 
 bind :: Text -> Lang -> Bind Lang
-bind var body = Bind
-  { bind'name = VarName noLoc var
-  , bind'type = P.Nothing
-  , bind'alt  = Alt [] body
-  }
+bind var body = simpleBind (VarName noLoc var) body
 
 letIn :: Text -> Lang -> Lang -> Lang
 letIn var body x = singleLet noLoc (VarName noLoc var) body x

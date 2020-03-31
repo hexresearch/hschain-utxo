@@ -117,7 +117,7 @@ reduceExpr (Fix expr) = case expr of
           letE (varName'loc bind'name) (varName'name bind'name)
                alt
                body)
-               (rec $ altToExpr bind'alt)
+               (rec $ altGroupToExpr bind'alts)
 
     fromAscr loc a ty = H.assertTypeE loc a ty
 

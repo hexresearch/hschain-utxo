@@ -119,7 +119,7 @@ prettyBinds bs = vcat $ fmap prettyBind bs
     prettyBind :: Bind (Doc ann) -> Doc ann
     prettyBind Bind{..} = vcat
       [ maybe mempty (prettySignature bind'name) bind'type
-      , prettyAlt bind'name bind'alt
+      , vcat $ fmap (prettyAlt bind'name) bind'alts
       ]
 
     prettySignature :: VarName -> Signature -> Doc ann
