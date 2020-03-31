@@ -3,19 +3,25 @@ module Hschain.Utxo.Lang.Infer(
   , checkMainModule
   , maxTupleSize
   , intT
+  , userTypesToTypeContext
 ) where
 
 import Hex.Common.Control
 import Hex.Common.Text
 
+import Control.Applicative
 import Control.Monad.Except
+import Control.Monad.State.Strict
 import Control.Monad.Trans
+
 import Data.Fix hiding ((~>))
+import Data.Foldable
 import Data.Vector (Vector)
 
 import Data.Either
 import Data.Function (on)
 import Data.Set (Set)
+import Data.String
 
 import Language.HM (appE, varE, absE, letE, varT, appT, conT, monoT, forAllT, arrowT)
 
@@ -41,37 +47,60 @@ checkMainModule ctx m = either Just (const Nothing) $ inferExpr ctx $ either mod
     modErr = error . mappend "Failed to load module with: "
 
 inferExpr :: H.Context Loc -> Lang -> Either TypeError Type
-inferExpr ctx = H.inferW (defaultContext <> ctx) . reduceExpr
+inferExpr ctx = H.inferW (defaultContext <> ctx) . runFreshVar . reduceExpr
 
-reduceExpr :: Lang -> H.Term Loc
+newtype FreshVar a = FreshVar (State Int a)
+  deriving newtype (Functor, Applicative, Monad, MonadState Int)
+
+instance MonadFreshVar FreshVar where
+  getFreshVarName = do
+    freshIdx <- get
+    modify' (+ 1)
+    return $ toName freshIdx
+    where
+      toName = fromString . ('$' : ) . show
+
+runFreshVar :: FreshVar a -> a
+runFreshVar (FreshVar st) = evalState st 0
+
+reduceExpr :: Lang -> FreshVar (H.Term Loc)
 reduceExpr (Fix expr) = case expr of
-  Var loc var               -> fromVarName var
-  Apply loc a b             -> appE loc (rec a) (rec b)
-  InfixApply loc a name b   -> fromInfixApply loc (rec a) name (rec b)
-  Lam loc var a             -> absE loc (varName'name var) (rec a)
+  Var loc var               -> pure $ fromVarName var
+  Apply loc a b             -> liftA2 (appE loc) (rec a) (rec b)
+  InfixApply loc a name b   -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
+  Cons loc name args        -> fmap (fromCons loc name) (mapM rec $ V.toList args)
+  Lam loc pat a             -> case pat of
+                                  PVar _ var -> fmap (absE loc (varName'name var)) (rec a)
+                                  _          -> do
+                                    v <- getFreshVar loc
+                                    rec $ Fix $ Lam loc (PVar loc v) (Fix $ CaseOf loc (Fix $ Var loc v) [CaseExpr pat a])
   LamList loc vs a          -> rec $ unfoldLamList loc vs a
-  Let loc binds a           -> fromLet loc binds (rec a)
-  LetRec loc var a b        -> undefined
-  Ascr loc a ty             -> fromAscr loc (rec a) ty
-  PrimE loc prim            -> fromPrim loc prim
-  If loc cond t e           -> fromIf loc (rec cond) (rec t) (rec e)
-  Pk loc a                  -> fromPk loc (rec a)
+  Let loc binds a           -> fromLet loc binds =<< (rec a)
+  LetRec loc var a b        -> pure $ undefined
+  -- cases
+  CaseOf loc expr alts      -> rec =<< caseToLet selectorNameVar loc expr alts
+  Ascr loc a ty             -> fmap (\term -> fromAscr loc term ty) (rec a)
+  PrimE loc prim            -> pure $ fromPrim loc prim
+  If loc cond t e           -> liftA3 (fromIf loc) (rec cond) (rec t) (rec e)
+  Pk loc a                  -> fmap (fromPk loc) (rec a)
   -- operations
-  UnOpE loc unOp a          -> fromUnOp loc unOp (rec a)
-  BinOpE loc binOp a b      -> fromBinOp loc binOp (rec a) (rec b)
-  Tuple loc vs              -> fromTuple loc $ fmap rec vs
+  UnOpE loc unOp a          -> fmap (fromUnOp loc unOp) (rec a)
+  BinOpE loc binOp a b      -> liftA2 (fromBinOp loc binOp) (rec a) (rec b)
+  Tuple loc vs              -> fmap (fromTuple loc) $ mapM rec vs
   -- vectors
-  VecE loc v                -> fromVec loc $ fmap rec v
+  VecE loc v                -> fmap (fromVec loc) $ mapM rec v
   -- text
-  TextE loc txt             -> fromText loc $ fmap rec txt
+  TextE loc txt             -> fmap (fromText loc) $ mapM rec txt
   -- boxes
-  BoxE loc box              -> fromBox loc $ fmap rec box
+  BoxE loc box              -> fmap (fromBox loc) $ mapM rec box
   -- undefined
-  Undef loc                 -> varE loc undefVar
+  Undef loc                 -> pure $ varE loc undefVar
   -- debug
-  Trace loc a b             -> fromTrace loc (rec a) (rec b)
+  Trace loc a b             -> liftA2 (fromTrace loc) (rec a) (rec b)
   -- environment
-  GetEnv loc envId          -> fromGetEnv loc $ fmap rec envId
+  GetEnv loc envId          -> fmap (fromGetEnv loc) $ mapM rec envId
+  AltE loc a b              -> liftA2 (app2 loc altVar) (rec a) (rec b)
+  FailCase loc              -> return $ varE loc failCaseVar
   where
     rec = reduceExpr
 
@@ -80,12 +109,15 @@ reduceExpr (Fix expr) = case expr of
 
     fromVarName VarName{..}  = varE varName'loc varName'name
 
-    fromLet _ binds expr = foldr bindToLet expr (sortBindGroups binds)
+    fromCons loc cons args = foldl (\f arg -> appE (H.getLoc arg) f arg) (varE loc (consName'name cons)) args
+
+    fromLet _ binds expr = foldrM bindToLet expr (sortBindGroups binds)
       where
-        bindToLet Bind{..} body =
+        bindToLet Bind{..} body = fmap (\alt ->
           letE (varName'loc bind'name) (varName'name bind'name)
-               (reduceExpr $ altToExpr bind'alt)
-               body
+               alt
+               body)
+               (rec $ altToExpr bind'alt)
 
     fromAscr loc a ty = H.assertTypeE loc a ty
 
@@ -220,6 +252,8 @@ defaultContext = H.Context $ M.fromList $
   , (inputsVar, monoT $ vectorT boxT)
   , (outputsVar, monoT $ vectorT boxT)
   , (getVarVar, forA $ monoT $ intT `arr` a)
+  , (altVar, forA $ monoT $ a `arr` (a `arr` a))
+  , (failCaseVar, forA $ monoT a)
   ] ++ tupleConVars ++ tupleAtVars ++ textExprVars
   where
     forA = forAllT noLoc "a"
@@ -364,8 +398,47 @@ inputsVar = secretVar "inputs"
 outputsVar = secretVar "outputs"
 getVarVar = secretVar "getVar"
 
+altVar, failCaseVar :: H.Var
+
+altVar = secretVar "altCases"
+failCaseVar = secretVar "failCase"
+
+
 secretVar :: H.Var -> H.Var
 secretVar = mappend ":# "
 
+---------------------------------------------------------
 
+userTypesToTypeContext :: UserTypeCtx -> H.Context Loc
+userTypesToTypeContext (UserTypeCtx m) =
+     foldMap fromUserType m
+  <> foldMap getSelectors m
+  where
+    fromUserType u@UserType{..} = H.Context $ M.fromList $ fmap fromCase $ M.toList userType'cases
+      where
+        resT = toResT u
+        appArgsT = toArgsT u
+        fromCase (cons, args) = (consName'name cons, ty)
+          where
+            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT args
+
+    getSelectors ut@UserType{..} = M.foldMapWithKey toSel userType'cases
+      where
+        resT = toResT ut
+        appArgsT = toArgsT ut
+        toSelType cons n ty = appArgsT $ monoT $ arrowT noLoc resT ty
+
+        toSel cons ts = H.Context $ M.fromList $
+          zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] $ V.toList ts
+
+    toResT UserType{..} =
+      foldl (\c arg -> appT noLoc c (var' arg)) (con' userType'name) userType'args
+
+    toArgsT UserType{..} ty = foldr (\a res -> forAllT noLoc (varName'name a) res) ty userType'args
+
+    con' VarName{..} = conT varName'loc varName'name
+    var' VarName{..} = varT varName'loc varName'name
+
+selectorNameVar :: ConsName -> Int -> H.Var
+selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]
 

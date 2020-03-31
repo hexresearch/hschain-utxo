@@ -11,6 +11,7 @@ import Control.Applicative
 import Control.Monad
 
 import Data.Fix
+import Data.Maybe
 import Data.String
 
 import Language.Haskell.Exts.Parser (
@@ -48,15 +49,16 @@ fromHaskExp topExp = case topExp of
   H.Con loc qname -> do
     n <- fromQName qname
     let bool b = Fix $ PrimE loc $ PrimBool b
-    case varName'name n of
-      "True"  -> return $ bool True
-      "False" -> return $ bool False
-      _       -> parseFailedBy "Failed to parse expression" topExp
+    return $ case varName'name n of
+      "True"  -> bool True
+      "False" -> bool False
+      _       -> Fix $ Cons loc (varToConsName n) V.empty
   H.List loc es -> fmap (Fix . VecE loc . NewVec loc . V.fromList) (mapM rec es)
   H.InfixApp loc a op b -> fromInfixApp loc op a b
   H.Paren _ exp         -> rec exp
   H.LeftSection loc a op  -> rec $ unfoldLeftSection loc a op
   H.RightSection loc op a -> rec $ unfoldRightSection loc op a
+  H.Case loc expr alts -> liftA2 (fromCase loc) (rec expr) (mapM fromCaseAlt alts)
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
@@ -67,8 +69,8 @@ fromHaskExp topExp = case topExp of
     unfoldRightSection loc op a = H.Lambda loc [H.PVar loc x] (H.InfixApp loc (H.Var loc $ H.UnQual loc x) op a)
       where x = H.Ident loc "x"
 
-    fromLam loc p body = liftA2  (\x y -> Fix $ Lam loc x y) (fromPatToVar p) (rec body)
-    fromLamList loc ps body = liftA2  (\x y -> Fix $ LamList loc x y) (mapM fromPatToVar ps) (rec body)
+    fromLam loc p body = liftA2  (\x y -> Fix $ Lam loc x y) (fromPat p) (rec body)
+    fromLamList loc ps body = liftA2  (\x y -> Fix $ LamList loc x y) (mapM fromPat ps) (rec body)
 
     fromInfixApp loc op a b =
       liftA3 (\x v y -> Fix $ InfixApply loc x v y) (rec a) (fromOp op) (rec b)
@@ -76,6 +78,24 @@ fromHaskExp topExp = case topExp of
     fromOp = \case
       H.QVarOp loc qname -> fromQName qname
       other              -> parseFailedBy "Failed to parse infix application" other
+
+    fromCase loc expr alts = Fix $ CaseOf loc expr alts
+
+    fromCaseAlt :: H.Alt Loc -> ParseResult (CaseExpr Lang)
+    fromCaseAlt (H.Alt loc pat rhs mBinds)
+      | noBinds mBinds = liftA2 CaseExpr (fromPat pat) (fromRhs rhs)
+      | otherwise      = bindsNotSupported
+      where
+        bindsNotSupported = parseFailedBy "Binds for case expressions are not supported" topExp
+        guardsNotSupported = parseFailedBy "Guards for case expressions are not supported" topExp
+        noBinds = isNothing
+
+        fromRhs rhs = case rhs of
+          H.UnGuardedRhs _ expr -> fromHaskExp expr
+          H.GuardedRhss _ _ -> guardsNotSupported
+
+
+
 
 fromHaskModule :: H.Module Loc -> ParseResult Module
 fromHaskModule = \case
@@ -88,13 +108,25 @@ fromHaskDecl :: H.Decl Loc -> ParseResult (BindGroup Lang)
 fromHaskDecl d = toBindGroup . return =<< toDecl d
 
 fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
-fromDecls loc ds = fmap (Module loc) $ toBindGroup =<< mapM toDecl ds
+fromDecls loc ds = do
+  decls <- mapM toDecl ds
+  bg <- toBindGroup decls
+  return $ Module loc (toUserTypes decls) bg
+
+toUserTypes :: [Decl] -> UserTypeCtx
+toUserTypes ds =
+  UserTypeCtx $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
+  where
+    getTypeDecl = \case
+      DataDecl userType -> Just userType
+      _                 -> Nothing
 
 toDecl :: H.Decl Loc -> ParseResult Decl
 toDecl x = case x of
-  H.TypeSig loc names ty -> liftA2 (TypeSig loc) (mapM toName names) (fromQualType ty)
+  H.TypeSig loc names ty -> fmap (TypeSig loc (fmap toName names)) (fromQualType ty)
   H.FunBind loc matches  -> fmap (FunDecl loc) $ mapM fromMatch matches
   H.PatBind loc pat rhs mBinds -> fromPatBind x loc pat rhs mBinds
+  H.DataDecl loc dataOrNew mCtx declHead cons mDeriving -> fromDataDecl loc dataOrNew mCtx declHead cons mDeriving
   other -> parseFailedBy "Unexpeceted declaration" other
   where
     fromPatBind m loc pat rhs mBinds = liftA2 (\name alt -> FunDecl loc [(name, alt)])
@@ -102,23 +134,78 @@ toDecl x = case x of
         (liftA2 (toAlt []) (fromRhs rhs) (mapM (fromBinds m) mBinds))
 
     fromMatch = \case
-      m@(H.Match loc name pats rhs mBinds) -> liftA2 (,) (toName name) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
+      m@(H.Match loc name pats rhs mBinds) -> fmap (toName name, ) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
       other                                -> parseFailedBy "Failed to parse function bind" other
 
     toAlt pats rhs mBinds = Alt pats (maybe rhs (fromBgs rhs) mBinds)
       where
-
-    fromPat = \case
-      H.PVar loc name -> fmap (PVar loc) (toName name)
-      other           -> parseFailedBy "Failed to parse patter" other
 
     fromRhs = \case
       H.UnGuardedRhs _ exp -> fromHaskExp exp
       other                -> parseFailedBy "Failed to parse function" other
 
     getPatName = \case
-      H.PVar loc name -> toName name
+      H.PVar loc name -> return $ toName name
       other           -> parseFailedBy "Failed to parse synonym name" other
+
+    fromDataDecl loc dataOrNew mCtx declHead cons mDeriving =
+      case dataOrNew of
+        H.DataType _ -> case mDeriving of
+          [] -> case mCtx of
+            Just _ -> parseFailedBy "Context declaration for type is not supported" x
+            Nothing -> getDataDecl declHead cons
+          _ -> parseFailedBy "Deriving declaration is not supported" x
+        H.NewType _ -> parseFailedBy "Newtype declaration is not supported" x
+
+    getDataDecl declHead cons =
+      liftA3 (\name args cases -> DataDecl $ UserType name args cases)
+        (getName declHead)
+        (pure $ getArgs declHead)
+        (getCases cons)
+      where
+        getName = \case
+          H.DHead loc name -> return $ toName name
+          H.DHInfix loc _ _ -> parseFailedBy "Infix data declarations are not allowed" x
+          H.DHParen _ a -> getName a
+          H.DHApp _ f _ -> getName f
+
+        getArgs = reverse . go []
+          where
+            go res = \case
+              H.DHead _ _ -> res
+              H.DHInfix _ _ _ -> res
+              H.DHParen _ a -> go res a
+              H.DHApp _ f a -> go (fromTyVarBind a : res) f
+
+        fromTyVarBind = toName . \case
+          H.KindedVar _ name _ -> name
+          H.UnkindedVar _ name -> name
+
+        getCases xs = fmap M.fromList $ mapM getCase xs
+
+        getCase (H.QualConDecl _ _ _ conDecl) = case conDecl of
+          H.ConDecl loc name args -> fmap (\tys -> (varToConsName $ toName name, V.fromList tys)) $ mapM fromType args
+          H.InfixConDecl _ _ _ _ -> parseFailedBy "Infix type declarations are not supported" x
+          H.RecDecl _ _ _ -> parseFailedBy "Record type declarations are not supported" x
+
+fromPat :: H.Pat Loc -> ParseResult Pat
+fromPat topPat = case topPat of
+  H.PVar loc name -> return $ PVar loc (toName name)
+  H.PLit loc _ lit -> fmap (PPrim loc) (fromLit lit)
+  H.PApp loc name ps -> do
+      cons <- toConsName name
+      case consName'name cons of
+        "True"  -> onEmpty cons ps $ PPrim loc (PrimBool True)
+        "False" -> onEmpty cons ps $ PPrim loc (PrimBool False)
+        _       -> fmap (PCons loc cons) (mapM fromPat ps)
+  H.PTuple loc _ ps -> fmap (PTuple loc) (mapM fromPat ps)
+  H.PParen _ x    -> fromPat x
+  H.PWildCard loc -> return $ PWildCard loc
+  other           -> parseFailedBy "Failed to parse patter" other
+  where
+    onEmpty ConsName{..} ps x
+      | null ps   = return x
+      | otherwise = parseFailedBy (mconcat ["Constant pattern ", T.unpack consName'name, " should have no arguments"]) topPat
 
 fromBgs :: Lang -> BindGroup Lang -> Lang
 fromBgs rhs bgs = Fix $ Let (HM.getLoc rhs) bgs rhs
@@ -130,18 +217,23 @@ fromBinds topExp = \case
 
 fromPatToVar :: H.Pat Loc -> ParseResult VarName
 fromPatToVar = \case
-  H.PVar _ name -> toName name
+  H.PVar _ name -> return $ toName name
   other         -> parseFailedBy "Failed to parse patter" other
 
+varToConsName :: VarName -> ConsName
+varToConsName VarName{..} = ConsName varName'loc varName'name
 
-toName :: H.Name Loc -> ParseResult VarName
+toConsName :: H.QName Loc -> ParseResult ConsName
+toConsName = fmap varToConsName . fromQName
+
+toName :: H.Name Loc -> VarName
 toName = \case
-  H.Ident  loc name -> return $ VarName loc (fromString name)
-  H.Symbol loc name -> return $ VarName loc (fromString name)
+  H.Ident  loc name -> VarName loc (fromString name)
+  H.Symbol loc name -> VarName loc (fromString name)
 
 fromQName :: H.QName Loc -> ParseResult VarName
 fromQName = \case
-  H.UnQual loc name -> toName name
+  H.UnQual loc name -> return $ toName name
   other             -> parseFailedBy "Unexpected name" other
 
 fromQualType :: H.Type Loc -> ParseResult Signature
@@ -156,7 +248,7 @@ fromType = \case
   H.TyFun loc a b -> liftA2 (HM.arrowT loc) (rec a) (rec b)
   H.TyTuple loc H.Boxed ts -> fmap (fromTyTuple loc) (mapM rec ts)
   H.TyApp loc a b -> liftA2 (HM.appT loc) (rec a) (rec b)
-  H.TyVar _ name -> fmap (\VarName{..} -> HM.varT varName'loc varName'name) $ toName name
+  H.TyVar _ name -> return $ (\VarName{..} -> HM.varT varName'loc varName'name) $ toName name
   H.TyCon _ name -> fmap (\VarName{..} -> HM.conT varName'loc varName'name) $ fromQName name
   H.TyParen loc ty -> rec ty
   H.TyKind _ ty _ -> rec ty
@@ -183,5 +275,4 @@ fromLit x = case x of
   other                  -> parseFailedBy "Failed to parse literal" other
   where
     floatsNotSupported = parseFailedBy "floatsNotSupported" x
-
 

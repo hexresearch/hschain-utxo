@@ -35,11 +35,14 @@ toHaskExp (Fix expr) = case expr of
   Var loc name -> toVar loc name
   Apply loc a b -> H.App loc (rec a) (rec b)
   InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (HM.getLoc v) $ toSymbolQName v) (rec b)
-  Lam loc name a -> H.Lambda loc [H.PVar (HM.getLoc name) $ toIdentName name] (rec a)
-  LamList loc vs a -> H.Lambda loc (fmap (\v -> H.PVar (HM.getLoc v) $ toIdentName v) vs) (rec a)
+  Lam loc name a -> H.Lambda loc [toPat name] (rec a)
+  LamList loc vs a -> H.Lambda loc (fmap toPat vs) (rec a)
   Let loc bg a -> H.Let loc (toLetBinds loc bg) (rec a)
   LetRec loc name a b -> undefined
   Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType ty)
+  -- case
+  Cons loc name args -> foldl (\f z -> H.App loc f z) (toCon loc name) $ fmap rec args
+  CaseOf loc expr alts -> H.Case loc (rec expr) (fmap (toCaseAlt loc) alts)
   -- primitives
   PrimE loc p -> toLiteral loc p
   -- logic
@@ -69,6 +72,12 @@ toHaskExp (Fix expr) = case expr of
 --    op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toSymbolQName' f) (rec y)
 
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
+
+    toCon loc = H.Con loc . toQName . consToVarName
+
+    toCaseAlt loc CaseExpr{..} = H.Alt loc (toPat caseExpr'lhs) (toRhs caseExpr'rhs) Nothing
+      where
+        toRhs = H.UnGuardedRhs loc . rec
 
     fromUnOp loc op a = case op of
       Not       -> ap (VarName loc "not") a
@@ -171,8 +180,9 @@ toLiteral loc = \case
 
         ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) x
 
+-- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc
-toHaskModule (Module loc bs) = H.Module loc Nothing [] [] (toDecl bs)
+toHaskModule (Module loc _ bs) = H.Module loc Nothing [] [] (toDecl bs)
 
 toDecl :: BindGroup Lang -> [H.Decl Loc]
 toDecl bs = toBind =<< bs
@@ -191,12 +201,30 @@ toDecl bs = toBind =<< bs
     toPats :: Alt a -> [H.Pat Loc]
     toPats = fmap toPat . alt'pats
 
-    toPat :: Pat -> H.Pat Loc
-    toPat (PVar loc var) = H.PVar loc (toIdentName var)
 
     toRhs :: Alt Lang -> H.Rhs Loc
     toRhs Alt{..} = H.UnGuardedRhs (HM.getLoc alt'expr) (toHaskExp alt'expr)
 
+toPat :: Pat -> H.Pat Loc
+toPat pat = case pat of
+  PVar _ var -> toVar var
+  PPrim loc p -> toLit loc p
+  PCons loc name args -> H.PApp loc (toQName $ consToVarName name) $ fmap toPat args
+  PTuple loc args -> H.PTuple loc H.Boxed (fmap toPat args)
+  where
+    toLit loc p = case p of
+      PrimInt x -> lit loc $ H.Int loc (fromIntegral x) (show x)
+      PrimString x -> lit loc $ H.String loc (T.unpack x) (T.unpack x)
+      PrimBool x -> H.PApp loc (bool loc x) []
+      _ -> error "Failed to convert literal"
+
+    toVar var = H.PVar (varName'loc var) (toIdentName var)
+
+    bool loc x = H.UnQual loc $ H.Ident loc $ show x
+    lit loc = H.PLit loc (H.Signless loc)
+
+consToVarName :: ConsName -> VarName
+consToVarName (ConsName loc name) = VarName loc name
 
 toIdentName :: VarName -> H.Name Loc
 toIdentName (VarName loc name) = H.Ident loc (T.unpack name)

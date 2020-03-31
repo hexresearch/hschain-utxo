@@ -56,6 +56,7 @@ baseFuns =
   , productInt
   , id
   , const
+  , compose
   , getHeight
   , getSelf
   , getOutput
@@ -114,6 +115,7 @@ baseNames =
   , "product"
   , "id"
   , "const"
+  , "."
   , "getHeight"
   , "getSelf"
   , "getOutput"
@@ -313,6 +315,9 @@ id = bind "id" $ Fix $ Lam noLoc "x" $ Fix $ Var noLoc "x"
 const :: Bind Lang
 const = bind "const" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Var noLoc "x")
 
+compose :: Bind Lang
+compose = bind "." (Fix $ LamList noLoc ["f", "g", "x"] (Fix $ Apply noLoc (var' "f") (Fix $ Apply noLoc (var' "g") (var' "x"))))
+
 getHeight :: Bind Lang
 getHeight = bind "getHeight" (Fix $ GetEnv noLoc (Height noLoc))
 
@@ -454,7 +459,7 @@ tupleFuns = P.fmap (P.uncurry toFun) tupleIndices
     toFun size idx = bind (toTupleName size idx) $ lam' "x"  $ Fix $ UnOpE noLoc (TupleAt size idx) (var' "x")
 
 lam' :: Text -> Lang -> Lang
-lam' name expr = Fix $ Lam noLoc (VarName noLoc name) expr
+lam' name expr = Fix $ Lam noLoc (PVar noLoc $ VarName noLoc name) expr
 
 var' :: Text -> Lang
 var' name = Fix $ Var noLoc (VarName noLoc name)

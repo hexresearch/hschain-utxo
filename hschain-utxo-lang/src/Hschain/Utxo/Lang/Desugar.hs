@@ -1,5 +1,7 @@
 module Hschain.Utxo.Lang.Desugar(
-    unfoldLamList
+    MonadFreshVar(..)
+  , getFreshVar
+  , unfoldLamList
   , unfoldLetArg
   , unfoldInfixApply
   , singleLet
@@ -10,11 +12,16 @@ module Hschain.Utxo.Lang.Desugar(
   , moduleToMainExpr
   , bindGroupToLet
   , bindBodyToExpr
+  , simpleBind
+  , caseToLet
+  , reduceSubPats
 ) where
 
 import Control.Applicative
+import Control.Monad.State.Strict
 
 import Data.Fix
+import Data.Text (Text)
 
 import Language.HM (getLoc, stripSignature, monoT)
 
@@ -23,16 +30,17 @@ import Hschain.Utxo.Lang.Expr
 import qualified Data.List as L
 import qualified Data.List.Extra as L
 
-unfoldLamList :: Loc -> [VarName] -> Lang -> Lang
-unfoldLamList loc vars a = L.foldl' (\z a -> z . Fix . Lam loc a) id vars a
+unfoldLamList :: Loc -> [Pat] -> Lang -> Lang
+unfoldLamList loc pats a = L.foldl' (\z a -> z . Fix . Lam loc a) id pats a
 
 unfoldLetArg :: Loc -> VarName -> [VarName] -> Lang -> Lang -> Lang
-unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc args a)
+unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc (fmap varToPat args) a)
+
+varToPat :: VarName -> Pat
+varToPat v = PVar (getLoc v) v
 
 singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
-singleLet loc v body expr = Fix $ Let loc bg expr
-  where
-    bg = [Bind v Nothing (Alt [] body)]
+singleLet loc v body expr = Fix $ Let loc [simpleBind v body] expr
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
@@ -76,15 +84,62 @@ app3 :: Lang -> Lang -> Lang -> Lang -> Lang
 app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 
 altToExpr :: Alt Lang -> Lang
-altToExpr Alt{..} = case alt'pats of
-  []   -> alt'expr
-  pats -> Fix $ LamList (getLoc alt'expr) (fmap toArg pats) $ alt'expr
+altToExpr Alt{..} = foldr toArg alt'expr alt'pats
   where
-    toArg (PVar _ var) = var
+    toArg pat body = Fix $ Lam (getLoc pat) pat body
 
 bindBodyToExpr :: Bind Lang -> Lang
 bindBodyToExpr Bind{..} = addSignatureCheck $ altToExpr bind'alt
   where
     addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
 
+simpleBind :: VarName -> Lang -> Bind Lang
+simpleBind v a = Bind v Nothing (Alt [] a)
+
+-----------------------------------------------------------------
+
+class Monad m => MonadFreshVar m where
+  getFreshVarName :: m Text
+
+getFreshVar :: MonadFreshVar m => Loc -> m VarName
+getFreshVar loc = fmap (VarName loc) getFreshVarName
+
+-----------------------------------------------------------------
+
+caseToLet :: MonadFreshVar m =>
+  (ConsName -> Int -> Text) -> Loc -> Lang -> [CaseExpr Lang] -> m Lang
+caseToLet toSelectorName loc var cases = fmap (foldr (\a rest -> Fix $ AltE loc a rest) failCase) $ mapM fromCase cases
+  where
+    fromCase CaseExpr{..} = case caseExpr'lhs of
+      PVar ploc pvar -> return $ Fix $ Let ploc [simpleBind pvar var] caseExpr'rhs
+      PWildCard loc -> return $ caseExpr'rhs
+      PPrim ploc p -> return $ Fix $ If ploc (eqPrim ploc var p) caseExpr'rhs failCase
+      PCons ploc cons pats -> do
+        (vs, rhs') <- reduceSubPats pats caseExpr'rhs
+        let bg = zipWith (\n v -> simpleBind v (Fix $ Apply (varName'loc v) (selector ploc cons n) var)) [0..] vs
+        return $ Fix $ Let loc bg rhs'
+      PTuple ploc pats -> do
+        (vs, rhs') <- reduceSubPats pats caseExpr'rhs
+        let size = length vs
+            bg = zipWith (\n v -> simpleBind v (Fix $ UnOpE (varName'loc v) (TupleAt size n) $ var)) [0..] vs
+        return $ Fix $ Let loc bg rhs'
+
+    selector ploc cons n = Fix $ Var ploc (VarName ploc (toSelectorName cons n))
+
+    failCase = Fix $ FailCase loc
+
+    eqPrim ploc v p = Fix $ BinOpE ploc Equals var (Fix $ PrimE ploc p)
+
+reduceSubPats :: forall m . MonadFreshVar m => [Pat] -> Lang -> m ([VarName], Lang)
+reduceSubPats pats rhs = runStateT (mapM go pats) rhs
+  where
+    go :: Pat -> StateT Lang m VarName
+    go pat = case pat of
+      PVar _ var -> return var
+      _          -> do
+        expr <- get
+        let loc = getLoc pat
+        var  <- lift $ getFreshVar loc
+        put $ Fix $ CaseOf loc (Fix $ Var loc var) $ [CaseExpr pat expr]
+        return var
 

@@ -104,3 +104,12 @@ tyAbsE src x (TyTerm e) t = TyTerm $ Fix $ TypedF $ Typed (Abs src x e) t
 tyLetE :: src -> TyVar src -> TyTerm src -> TyTerm src -> Type src -> TyTerm src
 tyLetE src x (TyTerm e0) (TyTerm e1) t = TyTerm $ Fix $ TypedF $ Typed (Let src x e0 e1) t
 
+instance HasLoc (Term src) where
+  type Loc (Term src) = src
+  getLoc (Term (Fix x)) = case x of
+    Var src _ -> src
+    App src _ _ -> src
+    Abs src _ _ -> src
+    Let src _ _ _ -> src
+    AssertType src _ _ -> src
+

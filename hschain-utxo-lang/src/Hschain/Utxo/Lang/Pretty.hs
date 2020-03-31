@@ -208,6 +208,7 @@ instance Pretty Error where
     IllegalRecursion lang          -> err "Illegal recursion" lang
     OutOfBound lang                -> err "Out of bound" lang
     NoField txt                    -> err "No field" txt
+    NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
 
