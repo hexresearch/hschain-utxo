@@ -209,8 +209,8 @@ toPat :: Pat -> H.Pat Loc
 toPat pat = case pat of
   PVar _ var -> toVar var
   PPrim loc p -> toLit loc p
-  PCons loc name args -> H.PApp loc (toQName $ consToVarName name) $ fmap toVar args
-  PTuple loc args -> H.PTuple loc H.Boxed (fmap toVar args)
+  PCons loc name args -> H.PApp loc (toQName $ consToVarName name) $ fmap toPat args
+  PTuple loc args -> H.PTuple loc H.Boxed (fmap toPat args)
   where
     toLit loc p = case p of
       PrimInt x -> lit loc $ H.Int loc (fromIntegral x) (show x)

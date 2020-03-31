@@ -14,7 +14,7 @@ import Hex.Common.Text
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.State.Strict
-import Data.List.Extra (firstJust)
+import Control.Monad.Extra (firstJustM)
 
 import Crypto.Hash
 
@@ -134,13 +134,13 @@ insertVar :: VarName -> Lang -> Exec ()
 insertVar varName expr =
   modify' $ \st -> st { ctx'vars = M.insert varName expr $ ctx'vars st }
 
-getFreshVar :: Loc -> Exec VarName
-getFreshVar loc = do
-  idx <- fmap ctx'freshVarId get
-  modify' $ \st -> st { ctx'freshVarId = ctx'freshVarId st + 1 }
-  return $ toName idx
-  where
-    toName n = VarName loc $ fromString $ '$' : show n
+instance MonadFreshVar Exec where
+  getFreshVarName = do
+    idx <- fmap ctx'freshVarId get
+    modify' $ \st -> st { ctx'freshVarId = ctx'freshVarId st + 1 }
+    return $ toName idx
+    where
+      toName n = fromString $ '$' : show n
 
 getUserArgs :: Exec Args
 getUserArgs = fmap  ctx'userArgs get
@@ -167,7 +167,7 @@ execLang' (Fix x) = case x of
     PrimE loc p  -> pure $ Fix $ PrimE loc p
     Tuple loc as -> Fix . Tuple loc <$> mapM rec as
     Ascr loc a t -> fmap (\x -> Fix $ Ascr loc x t) $ rec a
-    Cons loc name vs -> fmap (Fix . Cons loc name) $ mapM rec vs
+    Cons loc name vs -> fromCons loc name vs
     -- case of
     CaseOf loc v xs -> fromCaseOf loc v xs
     -- operations
@@ -198,20 +198,36 @@ execLang' (Fix x) = case x of
         Just res -> return res
         Nothing  -> Exec $ lift $ Left $ UnboundVariables [name]
 
+    fromCons loc name vs = fmap (Fix . Cons loc name) $ mapM rec vs
+
     fromCaseOf loc v xs = do
       res <- rec v
-      maybe err rec $ firstJust (matchCase res) xs
+      maybe err rec =<< firstJustM (matchCase res) xs
       where
         err = nonExaustiveCase loc $ Fix $ CaseOf loc v xs
 
-        matchCase :: Lang -> CaseExpr Lang -> Maybe Lang
+        matchCase :: Lang -> CaseExpr Lang -> Exec (Maybe Lang)
         matchCase expr CaseExpr{..} =
           case caseExpr'lhs of
-            PVar _ v              -> Just $ singleLet (H.getLoc v) v expr caseExpr'rhs
-            PPrim _ p             -> matchPrim p expr caseExpr'rhs
-            PCons _ consName vs   -> matchCons consName expr vs caseExpr'rhs
-            PTuple _ vs           -> matchTuple expr vs caseExpr'rhs
-            PWildCard _           -> Just caseExpr'rhs
+            PVar _ v              -> onVar v
+            PPrim _ p             -> onPrim p
+            PCons _ consName pats -> onCons consName pats
+            PTuple _ pats         -> onTuple pats
+            PWildCard _           -> onWildCard
+          where
+            onVar v  = return $ Just $ singleLet (H.getLoc v) v expr caseExpr'rhs
+
+            onPrim p = return $ matchPrim p expr caseExpr'rhs
+
+            onCons consName pats = do
+              (vs, rhs') <- reduceSubPats pats caseExpr'rhs
+              return $ matchCons consName expr vs rhs'
+
+            onTuple pats = do
+              (vs, rhs') <- reduceSubPats pats caseExpr'rhs
+              return $ matchTuple expr vs rhs'
+
+            onWildCard = return $ Just caseExpr'rhs
 
         matchPrim p (Fix expr) rhs =
           case expr of

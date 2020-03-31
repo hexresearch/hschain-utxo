@@ -52,13 +52,13 @@ inferExpr ctx = H.inferW (defaultContext <> ctx) . runFreshVar . reduceExpr
 newtype FreshVar a = FreshVar (State Int a)
   deriving newtype (Functor, Applicative, Monad, MonadState Int)
 
-getFreshVar :: Loc -> FreshVar VarName
-getFreshVar loc = do
-  freshIdx <- get
-  modify' (+ 1)
-  return $ toName freshIdx
-  where
-    toName = VarName loc . fromString . ('$' : ) . show
+instance MonadFreshVar FreshVar where
+  getFreshVarName = do
+    freshIdx <- get
+    modify' (+ 1)
+    return $ toName freshIdx
+    where
+      toName = fromString . ('$' : ) . show
 
 runFreshVar :: FreshVar a -> a
 runFreshVar (FreshVar st) = evalState st 0
@@ -78,7 +78,7 @@ reduceExpr (Fix expr) = case expr of
   Let loc binds a           -> fromLet loc binds =<< (rec a)
   LetRec loc var a b        -> pure $ undefined
   -- cases
-  CaseOf loc expr alts         -> rec $ caseToLet selectorNameVar loc expr alts
+  CaseOf loc expr alts      -> rec =<< caseToLet selectorNameVar loc expr alts
   Ascr loc a ty             -> fmap (\term -> fromAscr loc term ty) (rec a)
   PrimE loc prim            -> pure $ fromPrim loc prim
   If loc cond t e           -> liftA3 (fromIf loc) (rec cond) (rec t) (rec e)

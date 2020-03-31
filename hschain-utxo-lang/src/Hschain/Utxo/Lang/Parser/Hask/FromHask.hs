@@ -189,14 +189,23 @@ toDecl x = case x of
           H.RecDecl _ _ _ -> parseFailedBy "Record type declarations are not supported" x
 
 fromPat :: H.Pat Loc -> ParseResult Pat
-fromPat = \case
+fromPat topPat = case topPat of
   H.PVar loc name -> return $ PVar loc (toName name)
   H.PLit loc _ lit -> fmap (PPrim loc) (fromLit lit)
-  H.PApp loc name ps -> liftA2 (PCons loc) (toConsName name) (mapM fromPatToVar ps)
-  H.PTuple loc _ ps -> fmap (PTuple loc) (mapM fromPatToVar ps)
+  H.PApp loc name ps -> do
+      cons <- toConsName name
+      case consName'name cons of
+        "True"  -> onEmpty cons ps $ PPrim loc (PrimBool True)
+        "False" -> onEmpty cons ps $ PPrim loc (PrimBool False)
+        _       -> fmap (PCons loc cons) (mapM fromPat ps)
+  H.PTuple loc _ ps -> fmap (PTuple loc) (mapM fromPat ps)
   H.PParen _ x    -> fromPat x
   H.PWildCard loc -> return $ PWildCard loc
   other           -> parseFailedBy "Failed to parse patter" other
+  where
+    onEmpty ConsName{..} ps x
+      | null ps   = return x
+      | otherwise = parseFailedBy (mconcat ["Constant pattern ", T.unpack consName'name, " should have no arguments"]) topPat
 
 fromBgs :: Lang -> BindGroup Lang -> Lang
 fromBgs rhs bgs = Fix $ Let (HM.getLoc rhs) bgs rhs

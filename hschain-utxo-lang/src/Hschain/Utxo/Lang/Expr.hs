@@ -96,8 +96,8 @@ data Box = Box
 data Pat
   = PVar Loc VarName
   | PPrim Loc Prim
-  | PCons Loc ConsName [VarName]
-  | PTuple Loc [VarName]
+  | PCons Loc ConsName [Pat]
+  | PTuple Loc [Pat]
   | PWildCard Loc
   deriving (Show, Eq, Ord)
 
@@ -454,8 +454,8 @@ freeVarsPat :: Pat -> Set VarName
 freeVarsPat = \case
   PVar _ name -> Set.singleton name
   PPrim _ _ -> Set.empty
-  PCons _ _ vs -> Set.fromList vs
-  PTuple _ vs -> Set.fromList vs
+  PCons _ _ vs -> foldMap freeVarsPat vs
+  PTuple _ vs -> foldMap freeVarsPat vs
   PWildCard _ -> Set.empty
 
 freeVarsAlt :: Alt Lang -> Set VarName
