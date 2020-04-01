@@ -49,19 +49,6 @@ checkMainModule ctx m = either Just (const Nothing) $ inferExpr ctx $ either mod
 inferExpr :: H.Context Loc -> Lang -> Either TypeError Type
 inferExpr ctx = H.inferW (defaultContext <> ctx) . runFreshVar . reduceExpr
 
-newtype FreshVar a = FreshVar (State Int a)
-  deriving newtype (Functor, Applicative, Monad, MonadState Int)
-
-instance MonadFreshVar FreshVar where
-  getFreshVarName = do
-    freshIdx <- get
-    modify' (+ 1)
-    return $ toName freshIdx
-    where
-      toName = fromString . ('$' : ) . show
-
-runFreshVar :: FreshVar a -> a
-runFreshVar (FreshVar st) = evalState st 0
 
 reduceExpr :: Lang -> FreshVar (H.Term Loc)
 reduceExpr (Fix expr) = case expr of

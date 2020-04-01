@@ -1,7 +1,5 @@
 module Hschain.Utxo.Lang.Desugar(
-    MonadFreshVar(..)
-  , getFreshVar
-  , unfoldLamList
+    unfoldLamList
   , unfoldLetArg
   , unfoldInfixApply
   , singleLet
@@ -16,6 +14,7 @@ module Hschain.Utxo.Lang.Desugar(
   , simpleBind
   , caseToLet
   , reduceSubPats
+  , module Hschain.Utxo.Lang.Desugar.FreshVar
 ) where
 
 import Control.Applicative
@@ -27,6 +26,7 @@ import Data.Text (Text)
 import Language.HM (getLoc, stripSignature, monoT)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Desugar.FreshVar
 
 import qualified Data.List as L
 import qualified Data.List.Extra as L
@@ -99,14 +99,6 @@ bindBodyToExpr Bind{..} = addSignatureCheck $ altGroupToExpr bind'alts
 
 simpleBind :: VarName -> Lang -> Bind Lang
 simpleBind v a = Bind v Nothing [Alt [] a]
-
------------------------------------------------------------------
-
-class Monad m => MonadFreshVar m where
-  getFreshVarName :: m Text
-
-getFreshVar :: MonadFreshVar m => Loc -> m VarName
-getFreshVar loc = fmap (VarName loc) getFreshVarName
 
 -----------------------------------------------------------------
 
