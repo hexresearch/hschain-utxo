@@ -12,11 +12,14 @@ import Hex.Common.Text
 import qualified Prelude as P
 import Prelude ((.))
 import Prelude (($))
+
+import Data.Either
 import Data.Text (Text)
 
 import Data.Fix hiding ((~>))
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 
 import Language.HM (monoT, forAllT)
@@ -40,9 +43,11 @@ importBase :: Lang -> Lang
 importBase = bindGroupToLet baseFuns
 
 baseLibExecContext :: ExecContext
-baseLibExecContext = ExecContext $ M.fromList $ P.fmap fromBindToExec baseFuns
+baseLibExecContext =
+  fromRight err $ runInferM $ fmap (ExecContext . M.fromList) $ P.mapM fromBindToExec baseFuns
   where
-    fromBindToExec Bind{..} = (bind'name, altGroupToExpr bind'alts)
+    fromBindToExec Bind{..} = fmap (bind'name, ) $ altGroupToExpr bind'alts
+    err = P.error "Failed to load base module"
 
 baseFuns :: [Bind Lang]
 baseFuns =
@@ -486,5 +491,4 @@ bind var body = simpleBind (VarName noLoc var) body
 
 letIn :: Text -> Lang -> Lang -> Lang
 letIn var body x = singleLet noLoc (VarName noLoc var) body x
-
 

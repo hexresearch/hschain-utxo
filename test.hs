@@ -46,3 +46,12 @@ q x = p x + 2
 
 p :: Int -> Int
 p x = x
+
+xor :: Bool -> Bool -> Bool
+xor True  True   = True
+xor False False  = True
+xor True  False  = False
+
+
+-- sumPair (a, b) = a + b
+

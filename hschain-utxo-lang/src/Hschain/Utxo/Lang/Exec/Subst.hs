@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Exec.Subst(
 import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Desugar
 
 import qualified Data.Set as S
 
@@ -31,7 +30,7 @@ subst (Fix body) varName sub = case body of
   VecE loc vec                             -> Fix $ VecE loc $ fmap rec vec
   TextE loc txt                            -> Fix $ TextE loc $ fmap rec txt
   BoxE loc box                             -> Fix $ BoxE loc $ fmap rec box
-  LamList loc vs a                         -> rec $ unfoldLamList loc vs a
+  LamList loc vs a                         -> Fix $ LamList loc vs $ recBy (foldMap freeVarsPat vs) a
   Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
   FailCase loc                             -> Fix $ FailCase loc
   AltE loc a b                             -> Fix $ AltE loc (rec a) (rec b)

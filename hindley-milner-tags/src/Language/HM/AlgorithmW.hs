@@ -108,7 +108,7 @@ instance Monad (W src) where
 
 -- | 'fresh' returns a fresh type variable.
 fresh :: Origin src -> W src (Type (Origin src))
-fresh src = W $ \_ n -> return (varT src (mconcat ["$", fromString $ show n]), n + 1)
+fresh src = W $ \_ n -> return (varT src (mconcat ["$$$", fromString $ show n]), n + 1)
 
 typeError :: TypeError src -> W src a
 typeError err = W $ \_ _ -> Left err

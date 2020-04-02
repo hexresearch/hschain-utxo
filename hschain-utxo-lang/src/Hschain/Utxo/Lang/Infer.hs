@@ -1,5 +1,8 @@
 module Hschain.Utxo.Lang.Infer(
-    inferExpr
+    InferM(..)
+  , runInferM
+  , inferExpr
+  , reduceExpr
   , checkMainModule
   , maxTupleSize
   , intT
@@ -29,6 +32,7 @@ import Safe
 
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Monad
 
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -38,19 +42,26 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
+newtype InferM a = InferM (FreshVar (Either Error) a)
+  deriving newtype (Functor, Applicative, Monad, MonadFreshVar, MonadError Error)
+
+instance MonadLang InferM where
+
+runInferM :: InferM a -> Either Error a
+runInferM (InferM m) = runFreshVar m
+
 maxTupleSize :: Int
 maxTupleSize = 6
 
-checkMainModule :: H.Context Loc -> Module -> Maybe TypeError
-checkMainModule ctx m = either Just (const Nothing) $ inferExpr ctx $ either modErr id $ moduleToMainExpr m
+checkMainModule :: H.Context Loc -> Module -> Maybe Error
+checkMainModule ctx m = either Just (const Nothing) $ runInferM $ inferExpr ctx =<< moduleToMainExpr m
   where
     modErr = error . mappend "Failed to load module with: "
 
-inferExpr :: H.Context Loc -> Lang -> Either TypeError Type
-inferExpr ctx = H.inferW (defaultContext <> ctx) . runFreshVar . reduceExpr
+inferExpr :: H.Context Loc -> Lang -> InferM Type
+inferExpr ctx = (InferM . lift . eitherTypeError . H.inferW (defaultContext <> ctx)) <=< reduceExpr
 
-
-reduceExpr :: Lang -> FreshVar (H.Term Loc)
+reduceExpr :: Lang -> InferM (H.Term Loc)
 reduceExpr (Fix expr) = case expr of
   Var loc var               -> pure $ fromVarName var
   Apply loc a b             -> liftA2 (appE loc) (rec a) (rec b)
@@ -104,7 +115,7 @@ reduceExpr (Fix expr) = case expr of
           letE (varName'loc bind'name) (varName'name bind'name)
                alt
                body)
-               (rec $ altGroupToExpr bind'alts)
+               (rec =<< altGroupToExpr bind'alts)
 
     fromAscr loc a ty = H.assertTypeE loc a ty
 

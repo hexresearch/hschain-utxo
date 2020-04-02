@@ -36,6 +36,7 @@ import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Lib.Base
@@ -57,52 +58,37 @@ removeAscr = cata $ \case
   Ascr _ a _ -> a
   other      -> Fix other
 
-data Error
-  = ParseError Loc Text
-  | AppliedNonFunction Lang
-  | PoorlyTypedApplication Lang
-  | UnboundVariables [VarName]
-  | MismatchedBranches Lang
-  | NonBooleanCond Lang
-  | ThisShouldNotHappen Lang
-  | BadUnaryOperator Lang
-  | BadBinaryOperator Lang
-  | BadTypeAscription Lang
-  | IllegalRecursion Lang
-  | OutOfBound Lang
-  | NoField VarName
-  | NonExaustiveCase Loc Lang
-  deriving (Show)
-
 trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
 
-evalModule :: TypeContext -> Module -> Either TypeError ModuleCtx
-evalModule typeCtx Module{..} = fmap toModuleCtx $ evalStateT (mapM checkBind module'binds) (typeCtx <> userTypeCtx)
+evalModule :: TypeContext -> Module -> Either Error ModuleCtx
+evalModule typeCtx Module{..} = runInferM $ do
+  binds <- InferM $ lift $ evalStateT (mapM checkBind module'binds) (typeCtx <> userTypeCtx)
+  toModuleCtx binds
   where
     userTypeCtx = userTypesToTypeContext module'userTypes
 
-    toModuleCtx :: BindGroup Lang -> ModuleCtx
-    toModuleCtx bs = ModuleCtx
+    toModuleCtx :: BindGroup Lang -> InferM ModuleCtx
+    toModuleCtx bs = fmap (\es -> ModuleCtx
       { moduleCtx'types = (H.Context $ M.fromList $ catMaybes types) <> userTypeCtx
-      , moduleCtx'exprs = ExecContext $ M.fromList exprs
-      }
+      , moduleCtx'exprs = ExecContext $ M.fromList es
+      }) exprs
       where
         types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
 
-        exprs = fmap (\Bind{..} -> (bind'name, altGroupToExpr bind'alts)) bs
+        exprs = mapM (\Bind{..} -> fmap (bind'name, ) $ altGroupToExpr bind'alts) bs
 
-    checkBind :: Bind Lang -> StateT TypeContext (Either TypeError) (Bind Lang)
+    checkBind :: Bind Lang -> StateT TypeContext (Either Error) (Bind Lang)
     checkBind bind@Bind{..} = do
       ctx <- get
-      ty <- fmap H.typeToSignature $ lift $ inferExpr ctx (altGroupToExpr bind'alts)
+      ty <- fmap H.typeToSignature $ lift $ runInferM $ inferExpr ctx =<< altGroupToExpr bind'alts
       let typeIsOk =
             case bind'type of
               Just userTy -> if (isRight $ H.subtypeOf mempty userTy ty) then Nothing else (Just userTy)
               Nothing     -> Nothing
       case typeIsOk of
         Just userTy -> do
-          lift $ Left $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) (H.stripSignature ty)
+          lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) (H.stripSignature ty)
         Nothing     -> do
           let resTy = fromMaybe ty bind'type
           put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
@@ -120,7 +106,7 @@ data Ctx = Ctx
   }
 
 newtype Exec a = Exec (StateT Ctx (Either Error) a)
-  deriving newtype (MonadState Ctx, Monad, Functor, Applicative)
+  deriving newtype (MonadState Ctx, Monad, Functor, Applicative, MonadError Error)
 
 getHeight :: Exec Int
 getHeight = fmap (fromInteger . ctx'height) get
@@ -142,6 +128,8 @@ instance MonadFreshVar Exec where
     return $ toName idx
     where
       toName n = fromString $ '$' : show n
+
+instance MonadLang Exec where
 
 getUserArgs :: Exec Args
 getUserArgs = fmap  ctx'userArgs get
@@ -197,7 +185,7 @@ execLang' (Fix x) = case x of
       vars <- fmap ctx'vars get
       case M.lookup name vars of
         Just res -> return res
-        Nothing  -> Exec $ lift $ Left $ UnboundVariables [name]
+        Nothing  -> Exec $ lift $ Left $ ExecError $ UnboundVariables [name]
 
     fromCons loc name vs = fmap (Fix . Cons loc name) $ mapM rec vs
 
@@ -487,7 +475,7 @@ execLang' (Fix x) = case x of
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix $ Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a') arg'
           Cons loc name vs -> rec $ Fix $ Cons loc name (mappend vs $ V.singleton arg)
-          other              -> Exec $ lift $ Left $ AppliedNonFunction $ Fix other
+          other              -> throwError $ ExecError $ AppliedNonFunction $ Fix other
 
 
     fromLet loc bg expr = execDefs bg expr
@@ -496,11 +484,8 @@ execLang' (Fix x) = case x of
           [] -> rec e
           def:rest -> do
             let v = bind'name def
-            body <- execAlt $ bind'alts def
+            body <- altGroupToExpr $ bind'alts def
             execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
-
-        execAlt :: [Alt Lang] -> Exec Lang
-        execAlt alt = return $ altGroupToExpr alt
 
     fromLetRec loc v lc1 lc2 = do
       insertVar v lc1
@@ -509,7 +494,7 @@ execLang' (Fix x) = case x of
         lam@(Fix (Lam _ _ _)) -> do
           insertVar v lc1
           rec $ subst lc2 v lam
-        _ -> Exec $ lift $ Left $ IllegalRecursion $ Fix $ LetRec loc v lc1 lc2
+        _ -> throwError $ ExecError $ IllegalRecursion $ Fix $ LetRec loc v lc1 lc2
 
     fromEnv loc idx = do
       idx' <- mapM rec idx
@@ -617,8 +602,8 @@ execLang' (Fix x) = case x of
 prim :: Loc -> Prim -> Exec Lang
 prim loc p = return $ Fix $ PrimE loc p
 
-toError :: Error -> Exec a
-toError = Exec . lift . Left
+toError :: ExecError -> Exec a
+toError = throwError . ExecError
 
 thisShouldNotHappen :: Lang -> Exec Lang
 thisShouldNotHappen = toError . ThisShouldNotHappen
@@ -633,7 +618,7 @@ nonExaustiveCase :: Loc -> Lang -> Exec Lang
 nonExaustiveCase loc expr = toError $ NonExaustiveCase loc expr
 
 parseError :: Loc -> Text -> Exec Lang
-parseError loc msg = toError $ ParseError loc msg
+parseError loc msg = throwError $ ParseError loc msg
 
 type Mono2 a = a -> a -> a
 

@@ -14,6 +14,7 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Exec
@@ -195,22 +196,29 @@ prettyBoxField = \case
 
 instance Pretty Error where
   pretty = \case
-    ParseError loc txt             -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
+    ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
+    ExecError err         -> pretty err
+    TypeError err         -> pretty err
+    PatternError err      -> pretty err
+
+instance Pretty ExecError where
+  pretty = \case
     AppliedNonFunction lang        -> err "Applied non-function" lang
-    PoorlyTypedApplication lang    -> err "Poorly typed application" lang
     UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]
-    MismatchedBranches lang        -> err "Mismatched branches" lang
-    NonBooleanCond lang            -> err "Non-boolean condition" lang
     ThisShouldNotHappen lang       -> err "This should not happen" lang
-    BadUnaryOperator lang          -> err "Bad Unary operator" lang
-    BadBinaryOperator lang         -> err "Bad binary operator" lang
-    BadTypeAscription lang         -> err "Bad type ascription" lang
     IllegalRecursion lang          -> err "Illegal recursion" lang
     OutOfBound lang                -> err "Out of bound" lang
     NoField txt                    -> err "No field" txt
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
+
+instance Pretty PatError where
+  pretty = \case
+    NoCasesLeft       -> "No cases letft in the pattern"
+    NoVarFound        -> "Var not found in the pattern"
+    NoSameArgsNumber  -> "Patterns do not have the same number of arguments for a function"
+    EmptyArgument     -> "Pattern has no arguments"
 
 prettyMap :: (Pretty a, Pretty b) => String -> M.Map a b -> Doc ann
 prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [pretty k, ":", pretty v]) $ M.toList m]
