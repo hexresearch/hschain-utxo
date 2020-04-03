@@ -51,6 +51,15 @@ xor :: Bool -> Bool -> Bool
 xor True  True   = True
 xor False False  = True
 xor True  False  = False
+xor False True   = False
+
+xorCol :: Color -> Color -> Bool
+xorCol Red Red = True
+xorCol Green Green = True
+xorCol _ _ = False
+-- xorCol Red Green = False
+-- xorCol Green Red = False
+
 
 
 -- sumPair (a, b) = a + b

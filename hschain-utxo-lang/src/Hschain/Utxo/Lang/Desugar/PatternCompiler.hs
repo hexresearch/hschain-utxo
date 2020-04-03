@@ -95,34 +95,16 @@ toCaseBody pattern@Pattern{..}
     -- cons rule
     isCons = V.all isHeadCons pattern'pats
 
-    fromCons = uncurry toConsCase =<< getConsCases
+      -- uncurry toConsCase =<< getConsCases
+    fromCons = do
+      headVar <- checkNoCases $ V.headM pattern'args
+      rest    <- checkNoCases $ tailM pattern'args
+      ps      <- mapM splitPatCase pattern'pats
+      fromGroupCons rest pattern'other $ groupConsPats headVar (V.toList ps)
       where
-        toConsCase :: VarName -> [(Pat, Pattern)] -> m Lang
-        toConsCase var pats =
-          fmap (\xs -> Fix $ CaseOf loc (Fix $ Var loc var) xs) $ mapM toCaseExpr pats
-          where
-            loc = getLoc var
-
-            toCaseExpr (lhs, rhs) = fmap (CaseExpr lhs) $ toCaseBody rhs
-
-        getConsCases :: m (VarName, [(Pat, Pattern)])
-        getConsCases = do
-          headVar <- checkNoCases $ V.headM pattern'args
-          rest    <- checkNoCases $ tailM pattern'args
-          ps      <- (mapM (fromGroup rest) . groupPats) =<< mapM splitPatCase pattern'pats
-          return (headVar, ps)
-          where
-            splitPatCase PatCase{..} = do
-              (h, ts) <- checkNoCases $ headTailM patCase'lhs
-              return $ (h, PatCase ts patCase'rhs)
-
-            groupPats =
-              L.groupBy ((==) `on` ignoreLoc . fst) . V.toList
-
-            fromGroup args xs = case xs of
-              (pat, _): _ -> pure (pat, Pattern args (V.fromList $ fmap snd xs) pattern'other)
-              []          -> throwError $ PatternError NoCasesLeft
-
+        splitPatCase PatCase{..} = do
+          (h, ts) <- checkNoCases $ headTailM patCase'lhs
+          return $ (h, PatCase ts patCase'rhs)
 
     -- mixed rule
     fromMixed = combine =<< groupPats pattern'pats
@@ -215,23 +197,77 @@ getVarPat = \case
   _          -> Nothing
 
 data GroupCons a = GroupCons
-  { groupCons'prim  :: [(Prim, [a])]
-  , groupCons'cons  :: [(ConsName, [([Pat], a)])]
-  , groupCons'tuple :: [([Pat], a)]
-  , groupCons'wild  :: [a]
+  { groupCons'caseVar :: VarName
+  , groupCons'prim    :: [((Loc, Prim), [a])]
+  , groupCons'cons    :: [(ConsName, [([Pat], a)])]
+  , groupCons'tuple   :: Maybe (Loc, [([Pat], a)])
+  , groupCons'wild    :: Maybe (Loc, [a])
   }
   deriving (Show)
 
-groupConsPats :: [(Pat, a)] -> GroupCons a
-groupConsPats xs = GroupCons
-  { groupCons'prim  = groupPrims xs
-  , groupCons'cons  = groupCons xs
-  , groupCons'tuple = groupTuples xs
-  , groupCons'wild  = groupWilds xs
+fromGroupCons :: MonadLang m => Vector VarName -> Lang -> GroupCons PatCase -> m Lang
+fromGroupCons headArgs errorCase GroupCons{..} = do
+  maybe (\x -> fromWild x errorCase) groupCons'wild
+
+{-  fmap (toExpr . concat) $ sequence $
+    [ mapM fromPrim  groupCons'prim
+    , mapM fromCons  groupCons'cons
+    , maybe (pure []) (fmap pure . fromTuple) groupCons'tuple
+    , maybe (pure []) (fmap pure . fromWild)  groupCons'wild
+    ]
+-}
+  where
+    toExpr cases = Fix $ CaseOf loc (Fix $ Var loc groupCons'caseVar) cases
+      where
+        loc = getLoc groupCons'caseVar
+
+    fromPrim (p, body) other =
+      fmap (CaseExpr (uncurry PPrim p)) $
+        toCaseBody $ Pattern headArgs (V.fromList body) other
+
+    fromCons (cons, xs) other = case xs of
+      []   -> throwError $ PatternError NoCasesLeft
+      a:_ -> do
+        vars <- mapM (getFreshVar . getLoc) $ fst a
+        let pvars = fmap toPVar vars
+        fmap (CaseExpr (PCons (getLoc cons) cons pvars)) $
+          toCaseBody $ Pattern (V.fromList vars <> headArgs) (toPatCases xs) other
+
+    toPVar v = PVar (getLoc v) v
+
+    toPatCases xs = V.fromList $ fmap toPat xs
+      where
+        toPat (ps, pc) = pc
+          { patCase'lhs = V.fromList ps <> patCase'lhs pc }
+
+    fromTuple (loc, xs) other = case xs of
+      []  -> throwError $ PatternError NoCasesLeft
+      a:_ -> do
+        vars <- mapM (getFreshVar . getLoc) $ fst a
+        let pvars = fmap toPVar vars
+        fmap (CaseExpr (PTuple loc pvars)) $
+          toCaseBody $ Pattern (V.fromList vars <> headArgs) (toPatCases xs) other
+
+    fromWild (loc, xs) other =
+      fmap (CaseExpr (PWildCard loc)) $
+        toCaseBody $ Pattern headArgs (V.fromList xs) other
+
+
+groupConsPats :: VarName -> [(Pat, a)] -> GroupCons a
+groupConsPats headVar xs = GroupCons
+  { groupCons'caseVar = headVar
+  , groupCons'prim    = groupPrims xs
+  , groupCons'cons    = groupCons xs
+  , groupCons'tuple   = groupTuples xs
+  , groupCons'wild    = groupWilds xs
   }
   where
     groupPrims as =
-      regroupPairs $ groupSortOn fst $ catMaybes $ onPair (fmap snd . getPrimPat) as
+      regroup $ groupSortOn fst $ catMaybes $ onPair (getPrimPat) as
+      where
+        regroup = mapMaybe $ \case
+          a:as -> Just (fst a, fmap snd (a:as))
+          _    -> Nothing
 
     groupCons as = regroup $ groupSortOn (fst . fst) $
       catMaybes $ onPair (fmap (\(_, a, b) -> (a, b)) . getConsPat) as
@@ -240,20 +276,25 @@ groupConsPats xs = GroupCons
           (a,_):_ -> Just $ (fst a, fmap (\((_, ps), expr) -> (ps, expr)) x)
           []         -> Nothing
 
-    groupTuples as = catMaybes $ onPair (fmap snd . getTuplePat) as
+    groupTuples xs = case catMaybes $ onPair (getTuplePat) xs of
+      []   -> Nothing
+      a:as -> Just (fst $ fst a, fmap (\(b, c) -> (snd b, c)) (a:as))
 
-    groupWilds as = fmap snd $ catMaybes $ onPair getWildCardPat as
+
+    groupWilds as = regroup $ catMaybes $ onPair getWildCardPat as
+      where
+        regroup xs = case xs of
+          []  -> Nothing
+          x:_ -> Just (fst x, fmap snd xs)
+
+
 
     onPair f = fmap (\(a, b) -> fmap (, b) $ f a)
-
-regroupPairs :: [[(a, b)]] -> [(a, [b])]
-regroupPairs = mapMaybe $ \case
-  (a,b):rest -> Just (a, b : fmap snd rest)
-  []         -> Nothing
 
 groupSortOn :: Ord b => (a -> b) -> [a] -> [[a]]
 groupSortOn f = L.groupBy ((==) `on` f) . L.sortBy (compare `on` f)
 
+---------------------------------------------------
 
 data PatNoLoc
   = PVar' VarName
@@ -270,4 +311,5 @@ ignoreLoc = \case
   PCons _ name ps -> PCons' name (fmap ignoreLoc ps)
   PTuple _ ps     -> PTuple' (fmap ignoreLoc ps)
   PWildCard _     -> PWildCard'
+
 
