@@ -84,11 +84,11 @@ getEnvWords ReplEnv{..} = mappend replEnv'words (imports'names replEnv'imports)
 getTxFile :: Repl (Maybe FilePath)
 getTxFile = fmap replEnv'txFile get
 
-checkType :: Lang -> Repl (Either TypeError Type)
+checkType :: Lang -> Repl (Either Error Type)
 checkType expr = do
   ctx <- getTypeContext
   closure <- fmap replEnv'closure get
-  return $ inferExpr ctx $ closure expr
+  return $ runInferM $ inferExpr ctx $ closure expr
 
 hasType :: Lang -> Repl Bool
 hasType = fmap isRight . checkType

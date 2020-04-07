@@ -21,7 +21,7 @@ import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
 data ImportError
   = ImportParseError P.SrcLoc String
-  | ImportTypeError TypeError
+  | ImportTypeError Error
 
 data Imports = Imports
   { imports'base    :: !ModuleCtx

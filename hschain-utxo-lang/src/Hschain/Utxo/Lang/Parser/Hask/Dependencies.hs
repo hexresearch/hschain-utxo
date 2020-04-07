@@ -10,6 +10,7 @@ import Control.Monad
 import Data.Foldable
 
 import Data.Fix
+import Data.Function (on)
 import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Set (Set)
@@ -31,15 +32,26 @@ import qualified Data.Vector as V
 import qualified Language.HM as H
 
 type TypeMap  = Map VarName Signature
-type FunMap   = Map VarName (Alt Lang)
+type FunMap   = Map VarName [Alt Lang]
 
 data Decl
-  = FunDecl Loc [(VarName, Alt Lang)]
+  = FunDecl Loc [(VarName, [Alt Lang])]
   | TypeSig Loc [VarName] Signature
   | DataDecl UserType
 
+groupAdjacentFunDecl :: [Decl] -> [Decl]
+groupAdjacentFunDecl ds = onFunDecl (fmap joinGroup . L.groupBy sameFunDecl) =<< ds
+  where
+    onFunDecl f x = case x of
+      FunDecl loc as -> fmap (FunDecl loc) (f as)
+      other          -> pure $ other
+
+    sameFunDecl = (==) `on` fst
+
+    joinGroup xs@(a:as) = [(fst a, concat $ fmap snd xs)]
+
 toBindGroup :: [Decl] -> ParseResult (BindGroup Lang)
-toBindGroup = fmap sortBindGroups . parseBinds
+toBindGroup = fmap sortBindGroups . parseBinds . groupAdjacentFunDecl
 
 parseBinds :: [Decl] -> ParseResult (BindGroup Lang)
 parseBinds ds = do

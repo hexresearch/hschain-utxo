@@ -1,0 +1,59 @@
+* generic pattern matching (separate task)
+
+* records (separate task)
+
+* good pretty-printing for typle types (not Scala style ones)
+
+* prohibit recursive type definitions
+
+* type error on expression (derives wrong type)
+  
+  double f x = f (f x)
+
+* no type error on wrong expression with tuples and pat-match
+
+-- xorCol :: Color -> Color -> Bool
+xorCol Red (Red, Red) = True
+xorCol Green (Green, Green) = True
+xorCol Blue (Blue, x) = True
+xorCol _ _ = False
+-- xorCol Red Green = False
+-- xorCol Green Red = False
+
+* consider name collisions of fresh vars within user module loading stage
+
+* consider name collision of fresh vars inside AlgorithmW
+   make dedicated separate constructor for FreshVars
+  parametrise everything by type of Var-name
+
+* big number of tuples-constructors user types - type-checkers blows up
+
+* wrong type check error for tuples mismatch
+
+   f :: (a, b, c) -> a
+   f x = case x of
+    (a, b, c) -> a
+
+  it gives type mismatch of (Tuple3 a b c -> a) does not match (Tuple3 a b c -> a)
+
+* fails to parse negative numbers
+
+   w = -3 -- gives parse error
+
+   [1, -2, 3] -- gives parse error
+
+* make modules, imports (build from several source files)
+
+* check performance (intensive task)
+
+* refactor for separation of reduction of syntax-sugar and execution
+   make small separate subset language on which we execute (extended lambda-calculus)
+
+* optimize lambda-reductions
+
+* where-clauses
+
+* guards
+
+* docs-update
+

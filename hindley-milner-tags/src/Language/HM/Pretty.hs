@@ -10,6 +10,7 @@ import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
 
 import Language.HM.Type
+import Language.HM.Term
 
 import qualified Data.Map.Strict as Map
 
@@ -122,5 +123,20 @@ comparePrec env a b = case (Map.lookup a env, Map.lookup b env) of
 
 fixity :: FixityEnv -> Operator -> Fixity
 fixity env op = maybe FixNone opFix'fixity $ Map.lookup op env
+
+---------------------------------------
+
+instance Pretty (Term src) where
+  pretty (Term x) = cata prettyTermF x
+    where
+      prettyTermF = \case
+        Var _ v      -> pretty v
+        App _ a b    -> parens $ hsep [a, b]
+        Abs _ v a    -> parens $ hsep [hcat ["\\", pretty v], "->", a]
+        Let _ v a b  -> vcat [ hsep ["let", pretty v, "=", a]
+                             , hsep ["in ", b]]
+        AssertType _ r sig -> parens $ hsep [r, "::", pretty sig]
+
+
 
 

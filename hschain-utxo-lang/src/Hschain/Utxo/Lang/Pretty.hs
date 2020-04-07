@@ -14,6 +14,7 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Exec
@@ -119,7 +120,7 @@ prettyBinds bs = vcat $ fmap prettyBind bs
     prettyBind :: Bind (Doc ann) -> Doc ann
     prettyBind Bind{..} = vcat
       [ maybe mempty (prettySignature bind'name) bind'type
-      , prettyAlt bind'name bind'alt
+      , vcat $ fmap (prettyAlt bind'name) bind'alts
       ]
 
     prettySignature :: VarName -> Signature -> Doc ann
@@ -195,22 +196,30 @@ prettyBoxField = \case
 
 instance Pretty Error where
   pretty = \case
-    ParseError loc txt             -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
+    ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
+    ExecError err         -> pretty err
+    TypeError err         -> pretty err
+    PatternError err      -> pretty err
+
+instance Pretty ExecError where
+  pretty = \case
     AppliedNonFunction lang        -> err "Applied non-function" lang
-    PoorlyTypedApplication lang    -> err "Poorly typed application" lang
     UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]
-    MismatchedBranches lang        -> err "Mismatched branches" lang
-    NonBooleanCond lang            -> err "Non-boolean condition" lang
     ThisShouldNotHappen lang       -> err "This should not happen" lang
-    BadUnaryOperator lang          -> err "Bad Unary operator" lang
-    BadBinaryOperator lang         -> err "Bad binary operator" lang
-    BadTypeAscription lang         -> err "Bad type ascription" lang
     IllegalRecursion lang          -> err "Illegal recursion" lang
     OutOfBound lang                -> err "Out of bound" lang
     NoField txt                    -> err "No field" txt
+    Undefined loc                  -> hcat [pretty loc, ": undefined"]
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
+
+instance Pretty PatError where
+  pretty = \case
+    NoCasesLeft       -> "No cases letft in the pattern"
+    NoVarFound        -> "Var not found in the pattern"
+    NoSameArgsNumber  -> "Patterns do not have the same number of arguments for a function"
+    EmptyArgument     -> "Pattern has no arguments"
 
 prettyMap :: (Pretty a, Pretty b) => String -> M.Map a b -> Doc ann
 prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [pretty k, ":", pretty v]) $ M.toList m]
@@ -218,10 +227,11 @@ prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [p
 instance Pretty TypeError where
   pretty = \case
     H.OccursErr src name ty  -> err src $ hsep ["Occurs error", pretty name, "with type", pretty ty]
-    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", pretty tyB, "expected", pretty tyA]
+    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
+      inTicks x = hcat ["'", x, "'"]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x

@@ -20,10 +20,15 @@ library
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
       Hschain.Utxo.Lang.Desugar
+      Hschain.Utxo.Lang.Desugar.FreshVar
+      Hschain.Utxo.Lang.Desugar.PatternCompiler
+      Hschain.Utxo.Lang.Error
       Hschain.Utxo.Lang.Exec
+      Hschain.Utxo.Lang.Exec.Subst
       Hschain.Utxo.Lang.Expr
       Hschain.Utxo.Lang.Infer
       Hschain.Utxo.Lang.Lib.Base
+      Hschain.Utxo.Lang.Monad
       Hschain.Utxo.Lang.Parser.Hask
       Hschain.Utxo.Lang.Parser.Hask.Dependencies
       Hschain.Utxo.Lang.Parser.Hask.FromHask
@@ -79,6 +84,7 @@ library
     OverloadedStrings
     LambdaCase
     KindSignatures
+    MultiParamTypeClasses
     DeriveAnyClass
     DeriveFunctor
     DeriveFoldable

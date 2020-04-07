@@ -65,6 +65,7 @@ toHaskExp (Fix expr) = case expr of
   Undef loc -> toVar loc (VarName loc "undefined")
   -- debug
   Trace loc a b -> ap2 (VarName loc "trace") a b
+  FailCase loc -> H.Var loc (H.UnQual loc $ H.Ident loc "undefined")
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
@@ -188,12 +189,12 @@ toDecl :: BindGroup Lang -> [H.Decl Loc]
 toDecl bs = toBind =<< bs
   where
     toBind Bind{..} = case bind'type of
-      Nothing -> return $ H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name bind'alt
+      Nothing -> fmap (\alt -> H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name alt) bind'alts
       Just ty ->
         let signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name bind'name)] (toType ty)
-            funBind = H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name bind'alt
+            funBinds = fmap (\alt -> H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name alt) bind'alts
             tyLoc = HM.getLoc ty
-        in  [ signature, funBind ]
+        in  signature : funBinds
 
     toMatch :: VarName -> Alt Lang -> H.Match Loc
     toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) Nothing
@@ -211,6 +212,7 @@ toPat pat = case pat of
   PPrim loc p -> toLit loc p
   PCons loc name args -> H.PApp loc (toQName $ consToVarName name) $ fmap toPat args
   PTuple loc args -> H.PTuple loc H.Boxed (fmap toPat args)
+  PWildCard loc -> H.PWildCard loc
   where
     toLit loc p = case p of
       PrimInt x -> lit loc $ H.Int loc (fromIntegral x) (show x)

@@ -44,8 +44,8 @@ parseBind mFile = withFile mFile (\mode -> getBind <=< H.parseDeclWithMode mode)
       decl <- toDecl x
       case decl of
         FunDecl _ binds -> case binds of
-          [(var, alt)] -> return (var, altToExpr alt)
-          _            -> err
+          [(var, [alt])] -> return (var, altToExpr alt)
+          _              -> err
         _ -> err
 
     err = parseFailed noLoc "Failed to parse bind"
