@@ -60,6 +60,9 @@ xorCol _ _ = False
 -- xorCol Red Green = False
 -- xorCol Green Red = False
 
+twistedSucc :: Int -> Int
+twistedSucc 1 = 1
+twistedSucc n = n + 1
 
 
 -- sumPair (a, b) = a + b

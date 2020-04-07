@@ -209,6 +209,7 @@ instance Pretty ExecError where
     IllegalRecursion lang          -> err "Illegal recursion" lang
     OutOfBound lang                -> err "Out of bound" lang
     NoField txt                    -> err "No field" txt
+    Undefined loc                  -> hcat [pretty loc, ": undefined"]
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
@@ -226,10 +227,11 @@ prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [p
 instance Pretty TypeError where
   pretty = \case
     H.OccursErr src name ty  -> err src $ hsep ["Occurs error", pretty name, "with type", pretty ty]
-    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", pretty tyB, "expected", pretty tyA]
+    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
+      inTicks x = hcat ["'", x, "'"]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x

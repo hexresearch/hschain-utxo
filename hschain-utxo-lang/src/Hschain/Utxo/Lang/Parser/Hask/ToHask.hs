@@ -65,6 +65,7 @@ toHaskExp (Fix expr) = case expr of
   Undef loc -> toVar loc (VarName loc "undefined")
   -- debug
   Trace loc a b -> ap2 (VarName loc "trace") a b
+  FailCase loc -> H.Var loc (H.UnQual loc $ H.Ident loc "undefined")
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
@@ -211,6 +212,7 @@ toPat pat = case pat of
   PPrim loc p -> toLit loc p
   PCons loc name args -> H.PApp loc (toQName $ consToVarName name) $ fmap toPat args
   PTuple loc args -> H.PTuple loc H.Boxed (fmap toPat args)
+  PWildCard loc -> H.PWildCard loc
   where
     toLit loc p = case p of
       PrimInt x -> lit loc $ H.Int loc (fromIntegral x) (show x)

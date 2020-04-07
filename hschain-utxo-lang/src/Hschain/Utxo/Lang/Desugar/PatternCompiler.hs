@@ -24,7 +24,7 @@ import qualified Data.List   as L
 import qualified Data.Vector as V
 
 altGroupToExpr :: MonadLang m => [Alt Lang] -> m Lang
-altGroupToExpr = toCaseLam <=< toPatternInput
+altGroupToExpr = fmap removeEmptyCases . toCaseLam <=< substWildCards <=< toPatternInput
 
 toPatternInput :: MonadLang m => [Alt Lang] -> m Pattern
 toPatternInput alts
@@ -77,8 +77,10 @@ toCaseBody pattern@Pattern{..}
     -- empty rule
     isEmpty = V.null pattern'args
 
-    fromEmpty =
-      checkNoCases $ fmap patCase'rhs $ V.headM pattern'pats
+    fromEmpty = return $
+      case V.headM pattern'pats of
+        Just x  -> patCase'rhs x
+        Nothing -> pattern'other
 
     -- var rule
     isVar  = V.all isHeadVar  pattern'pats
@@ -95,7 +97,6 @@ toCaseBody pattern@Pattern{..}
     -- cons rule
     isCons = V.all isHeadCons pattern'pats
 
-      -- uncurry toConsCase =<< getConsCases
     fromCons = do
       headVar <- checkNoCases $ V.headM pattern'args
       rest    <- checkNoCases $ tailM pattern'args
@@ -207,25 +208,25 @@ data GroupCons a = GroupCons
 
 fromGroupCons :: MonadLang m => Vector VarName -> Lang -> GroupCons PatCase -> m Lang
 fromGroupCons headArgs errorCase GroupCons{..} = do
-  maybe (\x -> fromWild x errorCase) groupCons'wild
-
-{-  fmap (toExpr . concat) $ sequence $
-    [ mapM fromPrim  groupCons'prim
-    , mapM fromCons  groupCons'cons
-    , maybe (pure []) (fmap pure . fromTuple) groupCons'tuple
-    , maybe (pure []) (fmap pure . fromWild)  groupCons'wild
-    ]
--}
+  wild <- maybe (pure errorCase) (fromWild errorCase) groupCons'wild
+  cons <- fmap (toExprWithError wild) $ mapM (fromCons wild) groupCons'cons
+  tup  <- maybe (pure cons) (fromTuple cons) groupCons'tuple
+  res  <- fmap (toExprWithError tup) $ mapM (fromPrim tup) groupCons'prim
+  return res
   where
     toExpr cases = Fix $ CaseOf loc (Fix $ Var loc groupCons'caseVar) cases
       where
         loc = getLoc groupCons'caseVar
 
-    fromPrim (p, body) other =
-      fmap (CaseExpr (uncurry PPrim p)) $
-        toCaseBody $ Pattern headArgs (V.fromList body) other
+    toExprWithError err cases = toExpr $ cases ++ [CaseExpr (PWildCard noLoc) err ]
 
-    fromCons (cons, xs) other = case xs of
+    fromPrim other ((loc, p), body) = case body of
+      [] -> throwError $ PatternError NoCasesLeft
+      xs ->
+        fmap (CaseExpr (PPrim loc p)) $
+          toCaseBody $ Pattern headArgs (toPatCases $ fmap ([], ) xs) other
+
+    fromCons other (cons, xs) = case xs of
       []   -> throwError $ PatternError NoCasesLeft
       a:_ -> do
         vars <- mapM (getFreshVar . getLoc) $ fst a
@@ -240,7 +241,8 @@ fromGroupCons headArgs errorCase GroupCons{..} = do
         toPat (ps, pc) = pc
           { patCase'lhs = V.fromList ps <> patCase'lhs pc }
 
-    fromTuple (loc, xs) other = case xs of
+
+    fromTuple other (loc, xs) = fmap (toExpr . pure) $ case xs of
       []  -> throwError $ PatternError NoCasesLeft
       a:_ -> do
         vars <- mapM (getFreshVar . getLoc) $ fst a
@@ -248,9 +250,8 @@ fromGroupCons headArgs errorCase GroupCons{..} = do
         fmap (CaseExpr (PTuple loc pvars)) $
           toCaseBody $ Pattern (V.fromList vars <> headArgs) (toPatCases xs) other
 
-    fromWild (loc, xs) other =
-      fmap (CaseExpr (PWildCard loc)) $
-        toCaseBody $ Pattern headArgs (V.fromList xs) other
+    fromWild other (loc, xs) =
+      toCaseBody $ Pattern headArgs (V.fromList xs) other
 
 
 groupConsPats :: VarName -> [(Pat, a)] -> GroupCons a
@@ -312,4 +313,23 @@ ignoreLoc = \case
   PTuple _ ps     -> PTuple' (fmap ignoreLoc ps)
   PWildCard _     -> PWildCard'
 
+substWildCards :: MonadLang m => Pattern -> m Pattern
+substWildCards p = do
+  pats <- mapM substPatCase $ pattern'pats p
+  return $ p { pattern'pats = pats }
+  where
+    substPatCase pc@PatCase{..} = do
+      lhs <- mapM substPat patCase'lhs
+      return $ pc { patCase'lhs = lhs }
+
+    substPat = \case
+      PWildCard loc -> fmap (PVar loc) $ getFreshVar loc
+      other         -> return other
+
+removeEmptyCases :: Lang -> Lang
+removeEmptyCases x = cata go x
+  where
+    go expr = case expr of
+      CaseOf loc (Fix (Var _ _)) [CaseExpr (PWildCard _) next] -> next
+      _ -> Fix expr
 

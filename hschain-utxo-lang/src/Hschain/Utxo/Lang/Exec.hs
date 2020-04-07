@@ -177,6 +177,8 @@ execLang' (Fix x) = case x of
     VecE loc vec -> fromVec loc vec
     TextE loc txt -> fromText loc txt
     Trace loc str a -> fromTrace loc str a
+    FailCase loc -> throwError $ ExecError $ Undefined loc
+    Undef loc -> throwError $ ExecError $ Undefined loc
   where
     rec = execLang'
 

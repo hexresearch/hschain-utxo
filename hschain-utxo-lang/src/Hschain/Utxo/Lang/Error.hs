@@ -15,6 +15,7 @@ data Error
 data ExecError
   = AppliedNonFunction Lang
   | UnboundVariables [VarName]
+  | Undefined Loc
   | ThisShouldNotHappen Lang
   | IllegalRecursion Lang
   | OutOfBound Lang
