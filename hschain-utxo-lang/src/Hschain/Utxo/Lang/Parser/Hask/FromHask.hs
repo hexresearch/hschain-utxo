@@ -139,9 +139,17 @@ toDecl x = case x of
 
     toAlt pats rhs mBinds = pure $ Alt pats rhs mBinds
 
-    fromRhs = \case
-      H.UnGuardedRhs _ exp -> fromHaskExp exp
-      other                -> parseFailedBy "Failed to parse function" other
+    fromRhs x = case x of
+      H.UnGuardedRhs _ exp   -> fmap UnguardedRhs $ fromHaskExp exp
+      H.GuardedRhss _ guards -> fmap GuardedRhs $ mapM (fromGuard x) guards
+
+    fromGuard topExpr (H.GuardedRhs _ stmts expr) = case stmts of
+      [stmt] -> liftA2 Guard (fromGuardStmt stmt) (fromHaskExp expr)
+      _      -> parseFailedBy "Multiple statements are not supported" topExpr
+      where
+        fromGuardStmt = \case
+          H.Qualifier _ expr -> fromHaskExp expr
+          _                  -> parseFailedBy "Not supported type of statement in guard" topExpr
 
     getPatName = \case
       H.PVar loc name -> return $ toName name

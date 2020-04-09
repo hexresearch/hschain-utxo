@@ -21,6 +21,7 @@ library
       Hschain.Utxo.Lang.Build
       Hschain.Utxo.Lang.Desugar
       Hschain.Utxo.Lang.Desugar.FreshVar
+      Hschain.Utxo.Lang.Desugar.Guard
       Hschain.Utxo.Lang.Desugar.PatternCompiler
       Hschain.Utxo.Lang.Error
       Hschain.Utxo.Lang.Exec

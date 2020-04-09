@@ -207,7 +207,16 @@ toDecl bs = toBind =<< bs
 
 
     toRhs :: Alt Lang -> H.Rhs Loc
-    toRhs Alt{..} = H.UnGuardedRhs (HM.getLoc alt'expr) (toHaskExp alt'expr)
+    toRhs Alt{..} = case alt'expr of
+      UnguardedRhs rhs  -> H.UnGuardedRhs (HM.getLoc alt'expr) (toHaskExp rhs)
+      GuardedRhs guards -> H.GuardedRhss (HM.getLoc alt'expr) (fmap toGuard guards)
+
+    toGuard :: Guard Lang -> H.GuardedRhs Loc
+    toGuard x@Guard{..} =
+      H.GuardedRhs
+        (HM.getLoc guard'predicate)
+        [H.Qualifier (HM.getLoc guard'predicate) $ toHaskExp guard'predicate]
+        (toHaskExp guard'rhs)
 
 toPat :: Pat -> H.Pat Loc
 toPat pat = case pat of

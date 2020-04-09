@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Desugar.PatternCompiler(
     PatError
   , altGroupToExpr
+  , altToExpr
 ) where
 
 import Control.Applicative
@@ -18,22 +19,34 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Exec.Subst
 import Hschain.Utxo.Lang.Desugar.FreshVar
+import Hschain.Utxo.Lang.Desugar.Guard
 import Hschain.Utxo.Lang.Monad
 
 import qualified Data.List   as L
 import qualified Data.Vector as V
 
 altGroupToExpr :: MonadLang m => [Alt Lang] -> m Lang
-altGroupToExpr xs =
-  (fmap removeEmptyCases . toCaseLam whereExprs <=< substWildCards <=< toPatternInput) xs
+altGroupToExpr xs = do
+  ePat <- toPatternInput xs
+  case ePat of
+    Left expr -> return expr
+    Right pat -> (fmap removeEmptyCases . toCaseLam whereExprs <=< substWildCards) pat
   where
     whereExprs = concat $ mapMaybe alt'where xs
 
-toPatternInput :: MonadLang m => [Alt Lang] -> m Pattern
-toPatternInput alts
-  | checkArgs alts = getPattern
-  | otherwise      = throwError $ PatternError NoSameArgsNumber
+toPatternInput :: MonadLang m => [Alt Lang] -> m (Either Lang Pattern)
+toPatternInput alts = case getSimpleBind alts of
+  Just alt -> return $ Left $ altToExpr alt
+  Nothing  -> fmap Right $
+    if checkArgs alts
+      then getPattern
+      else throwError $ PatternError NoSameArgsNumber
   where
+    getSimpleBind xs = case xs of
+      [x] -> case alt'pats x of
+        _ -> Just x
+      _   -> Nothing
+
     checkArgs = sameLength . fmap alt'pats
 
     sameLength = (== 1) . length . L.nub . fmap length
@@ -43,7 +56,7 @@ toPatternInput alts
       headVars <- mapM getFreshVar locs
       return $ Pattern
         { pattern'args  = V.fromList headVars
-        , pattern'pats  = V.fromList $ fmap (\Alt{..} -> PatCase (V.fromList alt'pats) alt'expr) alts
+        , pattern'pats  = V.fromList $ fmap (\Alt{..} -> PatCase (V.fromList alt'pats) $ fromGuardedRhs alt'expr) alts
         , pattern'other = failCase
         }
 
@@ -52,6 +65,12 @@ toPatternInput alts
       []  -> throwError $ PatternError EmptyArgument
 
     failCase = Fix $ FailCase noLoc
+
+altToExpr :: Alt Lang -> Lang
+altToExpr Alt{..} = foldr toArg (addWhere $ fromGuardedRhs alt'expr) alt'pats
+  where
+    toArg pat body = Fix $ Lam (getLoc pat) pat body
+    addWhere = maybe id (\x -> Fix . Let noLoc x) alt'where
 
 data Pattern = Pattern
   { pattern'args  :: Vector VarName
@@ -65,7 +84,9 @@ data PatCase = PatCase
   }
 
 toCaseLam :: forall m . MonadLang m => BindGroup Lang -> Pattern -> m Lang
-toCaseLam whereExprs p = fmap ((\body -> Fix $ LamList noLoc args body) . addWhere) $ toCaseBody p
+toCaseLam whereExprs p = case args of
+  [] -> fmap addWhere $ toCaseBody p
+  _  -> fmap ((\body -> Fix $ LamList noLoc args body) . addWhere) $ toCaseBody p
   where
     args = fmap (\x -> PVar (getLoc x) x) $ V.toList $ pattern'args p
 
