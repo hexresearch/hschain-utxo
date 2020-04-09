@@ -138,8 +138,9 @@ instance Monoid ModuleCtx where
     }
 
 data Alt a = Alt
-  { alt'pats :: [Pat]
-  , alt'expr :: a
+  { alt'pats  :: [Pat]
+  , alt'expr  :: a
+  , alt'where :: Maybe (BindGroup a)
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 type BindGroup a = [Bind a]

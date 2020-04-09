@@ -137,7 +137,7 @@ toDecl x = case x of
       m@(H.Match loc name pats rhs mBinds) -> fmap (toName name, ) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
       other                                -> parseFailedBy "Failed to parse function bind" other
 
-    toAlt pats rhs mBinds = pure $ Alt pats (maybe rhs (fromBgs rhs) mBinds)
+    toAlt pats rhs mBinds = pure $ Alt pats rhs mBinds
 
     fromRhs = \case
       H.UnGuardedRhs _ exp -> fromHaskExp exp
