@@ -53,7 +53,9 @@ subst (Fix body) varName sub = case body of
 
     substAlt x@Alt{..}
       | isBinded varName alt'pats = x
-      | otherwise                 = x{ alt'expr = rec alt'expr }
+      | otherwise                 = x { alt'expr  = fmap rec alt'expr
+                                      , alt'where = fmap substBindGroup alt'where }
+
       where
         isBinded v ps = v `elem` (foldMap freeVarsPat ps)
 

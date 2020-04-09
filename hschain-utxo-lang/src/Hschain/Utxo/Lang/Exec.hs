@@ -459,10 +459,13 @@ execLang' (Fix x) = case x of
       _ -> do
         Fix fun' <- rec fun
         case fun' of
-          -- todo: implement for generic Patterns bot only for vars!!!
           Lam _ (PVar _ varName) body -> do
             arg' <- rec arg
             rec $ subst body varName arg'
+          Lam _ x body -> do
+            v <- getFreshVar (H.getLoc x)
+            arg' <- rec arg
+            rec $ subst (desugarGenLamPattern v x body) v arg'
           LamList loc vars a -> do
             f <- fromLamList loc vars a
             fromApply loc f arg
@@ -479,6 +482,9 @@ execLang' (Fix x) = case x of
           Cons loc name vs -> rec $ Fix $ Cons loc name (mappend vs $ V.singleton arg)
           other              -> throwError $ ExecError $ AppliedNonFunction $ Fix other
 
+    desugarGenLamPattern newVar pat body =
+      Fix $ CaseOf (H.getLoc newVar) (Fix $ Var (H.getLoc newVar) newVar)
+        [CaseExpr pat body]
 
     fromLet loc bg expr = execDefs bg expr
       where

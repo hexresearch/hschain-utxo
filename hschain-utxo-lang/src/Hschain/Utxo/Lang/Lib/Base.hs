@@ -106,6 +106,8 @@ baseFuns =
   , gteq
   , fst
   , snd
+  , otherwise
+  , undefined
   ] P.++ tupleFuns
 
 baseNames :: [Text]
@@ -167,6 +169,8 @@ baseNames =
   , ">="
   , "fst"
   , "snd"
+  , "otherwise"
+  , "undefined"
   ] P.++ tupleNames
 
 tupleNames :: [Text]
@@ -243,6 +247,8 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType ">" (forA $ aT ~> aT ~> boolT)
   , assumpType "fst" (forAB $ tupleT [aT, bT] ~> aT)
   , assumpType "snd" (forAB $ tupleT [aT, bT] ~> bT)
+  , assumpType "otherwise" (monoT boolT)
+  , assumpType "undefined" $ forA aT
   ] P.++ tupleTypes
   where
     forA = forAllT' "a" . monoT
@@ -457,6 +463,12 @@ fst = bind "fst" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 0) (var' "x"))
 
 snd :: Bind Lang
 snd = bind "snd" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 1) (var' "x"))
+
+otherwise :: Bind Lang
+otherwise = bind "otherwise" (Fix $ PrimE noLoc $ PrimBool P.True)
+
+undefined :: Bind Lang
+undefined = bind "undefined" (Fix $ Undef noLoc)
 
 tupleFuns :: [Bind Lang]
 tupleFuns = P.fmap (P.uncurry toFun) tupleIndices

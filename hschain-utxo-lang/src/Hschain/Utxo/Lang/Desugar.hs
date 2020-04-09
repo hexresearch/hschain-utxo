@@ -6,7 +6,6 @@ module Hschain.Utxo.Lang.Desugar(
   , app1
   , app2
   , app3
-  , altToExpr
   , moduleToMainExpr
   , bindGroupToLet
   , bindBodyToExpr
@@ -31,6 +30,7 @@ import Language.HM (getLoc, stripSignature, monoT)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Desugar.FreshVar
+import Hschain.Utxo.Lang.Desugar.Guard
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 
 import qualified Data.List as L
@@ -90,18 +90,13 @@ app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
 app3 :: Lang -> Lang -> Lang -> Lang -> Lang
 app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 
-altToExpr :: Alt Lang -> Lang
-altToExpr Alt{..} = foldr toArg alt'expr alt'pats
-  where
-    toArg pat body = Fix $ Lam (getLoc pat) pat body
-
 bindBodyToExpr :: MonadLang m => Bind Lang -> m Lang
 bindBodyToExpr Bind{..} = fmap addSignatureCheck $ altGroupToExpr bind'alts
   where
     addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
 
 simpleBind :: VarName -> Lang -> Bind Lang
-simpleBind v a = Bind v Nothing [Alt [] a Nothing]
+simpleBind v a = Bind v Nothing [Alt [] (UnguardedRhs a) Nothing]
 
 -----------------------------------------------------------------
 

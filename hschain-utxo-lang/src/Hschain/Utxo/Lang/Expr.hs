@@ -139,9 +139,20 @@ instance Monoid ModuleCtx where
 
 data Alt a = Alt
   { alt'pats  :: [Pat]
-  , alt'expr  :: a
+  , alt'expr  :: Rhs a
   , alt'where :: Maybe (BindGroup a)
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+
+data Rhs a
+  = UnguardedRhs a
+  | GuardedRhs [Guard a]
+  deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+
+data Guard a = Guard
+  { guard'predicate :: a
+  , guard'rhs       :: a
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+
 
 type BindGroup a = [Bind a]
 
@@ -387,6 +398,14 @@ instance H.HasLoc a => H.HasLoc (Alt a) where
   type Loc (Alt a) = H.Loc a
   getLoc = H.getLoc . alt'expr
 
+instance H.HasLoc a => H.HasLoc (Rhs a) where
+  type Loc (Rhs a) = H.Loc a
+  getLoc = \case
+    UnguardedRhs a -> H.getLoc a
+    GuardedRhs  as -> case as of
+      a:_ -> H.getLoc $ guard'rhs a
+      []  -> error "Empty guard"
+
 instance H.HasLoc (Bind a) where
   type Loc (Bind a) = Loc
   getLoc = H.getLoc . bind'name
@@ -446,9 +465,18 @@ freeVars = cata $ \case
     getBgNames bs = Set.fromList $ fmap bind'name bs
 
     freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
-    localFreeVarsAlt Alt{..} = alt'expr `Set.difference` (foldMap freeVarsPat alt'pats)
+    localFreeVarsAlt Alt{..} =
+      (freeVarsRhs alt'expr <> foldMap getBgNames alt'where)
+      `Set.difference` (foldMap freeVarsPat alt'pats)
 
     freeCaseExpr CaseExpr{..} = caseExpr'rhs `Set.difference` (freeVarsPat caseExpr'lhs)
+
+freeVarsRhs :: Rhs (Set VarName) -> Set VarName
+freeVarsRhs = \case
+  UnguardedRhs a -> a
+  GuardedRhs as -> foldMap freeVarsGuard as
+
+freeVarsGuard Guard{..} = guard'predicate <> guard'rhs
 
 
 freeVarsPat :: Pat -> Set VarName
@@ -460,7 +488,8 @@ freeVarsPat = \case
   PWildCard _ -> Set.empty
 
 freeVarsAlt :: Alt Lang -> Set VarName
-freeVarsAlt Alt{..} = freeVars alt'expr `Set.difference` foldMap freeVarsPat alt'pats
+freeVarsAlt Alt{..} =
+  freeVarsRhs (fmap freeVars alt'expr) `Set.difference` foldMap freeVarsPat alt'pats
 
 -------------------------------------------------------------------
 
@@ -472,6 +501,8 @@ sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
 -------------------------------------------------------------------
 
 $(deriveShow1 ''Alt)
+$(deriveShow1 ''Rhs)
+$(deriveShow1 ''Guard)
 $(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)

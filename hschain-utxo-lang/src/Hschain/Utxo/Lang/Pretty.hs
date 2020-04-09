@@ -128,7 +128,13 @@ prettyBinds bs = vcat $ fmap prettyBind bs
 
     prettyAlt :: VarName -> Alt (Doc ann) -> Doc ann
     prettyAlt name Alt{..} =
-      hsep [ pretty name, hsep $ fmap pretty alt'pats, "=", alt'expr]
+      hsep [ pretty name, hsep $ fmap pretty alt'pats, "=", prettyRhs alt'expr]
+
+    prettyRhs = \case
+      UnguardedRhs a -> a
+      GuardedRhs guards -> indent 4 $ vcat $ fmap prettyGuards guards
+
+    prettyGuards Guard{..} = hsep ["|", guard'predicate, "=", guard'rhs]
 
 instance Pretty Pat where
   pretty = \case
