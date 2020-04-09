@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskModule
 ) where
 
+import Hex.Common.Control
 import Hex.Common.Text
 
 import Control.Monad
@@ -196,8 +197,10 @@ toDecl bs = toBind =<< bs
             tyLoc = HM.getLoc ty
         in  signature : funBinds
 
+    toLetBinds loc bg = H.BDecls loc $ toDecl bg
+
     toMatch :: VarName -> Alt Lang -> H.Match Loc
-    toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) Nothing
+    toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) (fmap (toLetBinds (HM.getLoc name)) $ alt'where alt)
 
     toPats :: Alt a -> [H.Pat Loc]
     toPats = fmap toPat . alt'pats

@@ -24,7 +24,10 @@ import qualified Data.List   as L
 import qualified Data.Vector as V
 
 altGroupToExpr :: MonadLang m => [Alt Lang] -> m Lang
-altGroupToExpr = fmap removeEmptyCases . toCaseLam <=< substWildCards <=< toPatternInput
+altGroupToExpr xs =
+  (fmap removeEmptyCases . toCaseLam whereExprs <=< substWildCards <=< toPatternInput) xs
+  where
+    whereExprs = concat $ mapMaybe alt'where xs
 
 toPatternInput :: MonadLang m => [Alt Lang] -> m Pattern
 toPatternInput alts
@@ -61,10 +64,15 @@ data PatCase = PatCase
   , patCase'rhs :: Lang
   }
 
-toCaseLam :: forall m . MonadLang m => Pattern -> m Lang
-toCaseLam p = fmap (\body -> Fix $ LamList noLoc args body) $ toCaseBody p
+toCaseLam :: forall m . MonadLang m => BindGroup Lang -> Pattern -> m Lang
+toCaseLam whereExprs p = fmap ((\body -> Fix $ LamList noLoc args body) . addWhere) $ toCaseBody p
   where
     args = fmap (\x -> PVar (getLoc x) x) $ V.toList $ pattern'args p
+
+    addWhere = case whereExprs of
+      [] -> id
+      _  -> Fix . Let noLoc whereExprs
+
 
 
 toCaseBody :: forall m . MonadLang m => Pattern -> m Lang

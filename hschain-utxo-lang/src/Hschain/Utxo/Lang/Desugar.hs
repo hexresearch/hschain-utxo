@@ -101,7 +101,7 @@ bindBodyToExpr Bind{..} = fmap addSignatureCheck $ altGroupToExpr bind'alts
     addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
 
 simpleBind :: VarName -> Lang -> Bind Lang
-simpleBind v a = Bind v Nothing [Alt [] a]
+simpleBind v a = Bind v Nothing [Alt [] a Nothing]
 
 -----------------------------------------------------------------
 
