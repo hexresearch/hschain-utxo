@@ -62,7 +62,10 @@ trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
 
 evalModule :: TypeContext -> Module -> Either Error ModuleCtx
-evalModule typeCtx Module{..} = runInferM $ do
+evalModule typeCtx m = evalModule' typeCtx (appendRecordFuns m)
+
+evalModule' :: TypeContext -> Module -> Either Error ModuleCtx
+evalModule' typeCtx Module{..} = runInferM $ do
   binds <- InferM $ lift $ evalStateT (mapM checkBind module'binds) (typeCtx <> userTypeCtx)
   toModuleCtx binds
   where
@@ -93,6 +96,57 @@ evalModule typeCtx Module{..} = runInferM $ do
           let resTy = fromMaybe ty bind'type
           put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
           return $ bind { bind'type = Just resTy }
+
+
+data SelectIndex = SelectIndex
+  { selectIndex'size  :: !Int
+  , selectIndex'id    :: !Int
+  } deriving (Show, Eq)
+
+appendRecordFuns :: Module -> Module
+appendRecordFuns m =
+  m { module'binds = recordFuns ++ module'binds m }
+  where
+    recordFuns = selectors ++ updaters
+
+    selectors = extractSelectors =<< types
+
+    updaters = extractUpdaters =<< types
+
+    types = M.elems $ userTypeCtx'types $ module'userTypes m
+
+    onRecTypes extract UserType{..} = onField extract =<< (M.toList $ userType'cases)
+
+    onField fromField (cons, def) = case def of
+      ConsDef _ -> []
+      RecordCons fields ->
+        let size = V.length fields
+            sel  = SelectIndex size
+        in  zipWith (\n x -> fromField cons (sel n) x) [0..] $ V.toList fields
+
+    extractSelectors = onRecTypes $ \cons index RecordField{..} ->
+      simpleBind recordField'name (selectorFun cons index)
+
+    selectorFun cons SelectIndex{..} =
+      Fix $ Lam noLoc (PCons noLoc cons args) $ Fix $ Var noLoc vx
+      where
+        args = V.toList $ (V.replicate selectIndex'size $ PWildCard noLoc) V.// [(selectIndex'id, pvx)]
+        vx   = VarName noLoc "x"
+        pvx  = PVar noLoc vx
+
+    extractUpdaters = onRecTypes $ \cons index RecordField{..} ->
+      simpleBind (recordFieldUpdateFunName $ recordField'name) (updaterFun cons index)
+
+    updaterFun cons SelectIndex{..} =
+      Fix $ LamList noLoc [pvx, PCons noLoc cons inArgs] $ Fix $ Cons noLoc cons outArgs
+      where
+        inArgs  = V.toList $ (V.fromList $ fmap (PVar noLoc) args) V.// [(selectIndex'id, wild)]
+        outArgs = (V.fromList $ fmap (Fix . Var noLoc) args) V.// [(selectIndex'id, Fix $ Var noLoc vx)]
+        args    = fmap (VarName noLoc . mappend "z" . showt) [0 .. selectIndex'size - 1]
+
+        vx   = VarName noLoc "x"
+        pvx  = PVar noLoc vx
+        wild = PWildCard noLoc
 
 
 data Ctx = Ctx
@@ -159,6 +213,9 @@ execLang' (Fix x) = case x of
     Cons loc name vs -> fromCons loc name vs
     -- case of
     CaseOf loc v xs -> fromCaseOf loc v xs
+    -- records
+    RecConstr loc cons fields -> fromRecConstr loc cons fields
+    RecUpdate loc a upds -> fromRecUpdate loc a upds
     -- operations
     UnOpE loc uo x -> fromUnOp loc uo x
     BinOpE loc bi a b -> fromBiOp loc bi a b
@@ -237,6 +294,12 @@ execLang' (Fix x) = case x of
           case expr of
             Tuple loc args -> Just $ Fix $ Let loc (zipWith simpleBind vs (V.toList args)) rhs
             _              -> Nothing
+
+    fromRecUpdate loc a upds = rec $ foldl go a upds
+      where
+        go res (field, val) = desugarRecordUpdate field val res
+
+    fromRecConstr loc cons fields = undefined
 
     fromUnOp loc uo x = do
       x' <- rec x
@@ -712,3 +775,4 @@ execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
         Left err                                  -> (Left (showt err), showt err)
 
     noSigmaExpr = "Error: Script does not evaluate to sigma expression"
+

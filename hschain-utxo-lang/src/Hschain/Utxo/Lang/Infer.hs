@@ -99,6 +99,8 @@ reduceExpr (Fix expr) = case expr of
   GetEnv loc envId          -> fmap (fromGetEnv loc) $ mapM rec envId
   AltE loc a b              -> liftA2 (app2 loc altVar) (rec a) (rec b)
   FailCase loc              -> return $ varE loc failCaseVar
+  -- records
+  RecUpdate loc a upds      -> liftA2 (fromRecUpdate loc) (rec a) (mapM (\(field, x) -> fmap (field, ) $ rec x) upds)
   where
     rec = reduceExpr
 
@@ -200,6 +202,10 @@ reduceExpr (Fix expr) = case expr of
 
     nilVec loc = varE loc nilVecVar
     consVec loc = app2 loc consVecVar
+
+    fromRecUpdate loc a upds = foldl go a upds
+      where
+        go v (field, val) = app2 (H.getLoc field) (recordUpdateVar field) val v
 
 
 defaultContext :: H.Context Loc
@@ -402,23 +408,39 @@ altVar = secretVar "altCases"
 failCaseVar = secretVar "failCase"
 
 
-secretVar :: H.Var -> H.Var
-secretVar = mappend ":# "
 
 ---------------------------------------------------------
 
 userTypesToTypeContext :: UserTypeCtx -> H.Context Loc
-userTypesToTypeContext (UserTypeCtx m) =
+userTypesToTypeContext (UserTypeCtx m _) =
      foldMap fromUserType m
   <> foldMap getSelectors m
   where
-    fromUserType u@UserType{..} = H.Context $ M.fromList $ fmap fromCase $ M.toList userType'cases
+    fromUserType u@UserType{..} = H.Context $ M.fromList $ fromCase =<< M.toList userType'cases
       where
         resT = toResT u
         appArgsT = toArgsT u
-        fromCase (cons, args) = (consName'name cons, ty)
+        fromCase (cons, args) = (consName'name cons, ty) : (recFieldSelectors ++ recFieldUpdates)
           where
-            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT args
+            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT $ getConsTypes args
+
+            onFields f = case args of
+              ConsDef _         -> []
+              RecordCons fields -> f fields
+
+            recFieldSelectors = onFields $ \fields ->
+              V.toList $ fmap fromRecSelector fields
+
+            recFieldUpdates = onFields $ \fields ->
+              V.toList $ fmap fromRecUpdate fields
+
+        fromRecSelector RecordField{..} = (varName'name recordField'name, ty)
+          where
+            ty = appArgsT $ monoT $ arrowT noLoc resT recordField'type
+
+        fromRecUpdate RecordField{..} = (recordUpdateVar recordField'name, ty)
+          where
+            ty = appArgsT $ monoT $ arrowT noLoc recordField'type (arrowT noLoc resT resT)
 
     getSelectors ut@UserType{..} = M.foldMapWithKey toSel userType'cases
       where
@@ -427,7 +449,7 @@ userTypesToTypeContext (UserTypeCtx m) =
         toSelType cons n ty = appArgsT $ monoT $ arrowT noLoc resT ty
 
         toSel cons ts = H.Context $ M.fromList $
-          zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] $ V.toList ts
+          zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] $ V.toList $ getConsTypes ts
 
     toResT UserType{..} =
       foldl (\c arg -> appT noLoc c (var' arg)) (con' userType'name) userType'args
@@ -439,4 +461,7 @@ userTypesToTypeContext (UserTypeCtx m) =
 
 selectorNameVar :: ConsName -> Int -> H.Var
 selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]
+
+recordUpdateVar :: VarName -> H.Var
+recordUpdateVar field = secretVar $ mconcat ["update_", varName'name field]
 

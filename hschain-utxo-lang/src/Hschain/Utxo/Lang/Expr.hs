@@ -17,6 +17,7 @@ import Data.Foldable
 import Data.Graph
 import Data.Int
 import Data.Map.Strict (Map)
+import Data.Maybe
 import Data.String
 import Data.Set (Set)
 import Data.Text (Text)
@@ -43,13 +44,53 @@ type Signature = H.Signature Loc
 noLoc :: Loc
 noLoc = Hask.noSrcSpan
 
-newtype UserTypeCtx = UserTypeCtx (Map VarName UserType)
-  deriving newtype (Show, Eq, Semigroup, Monoid)
+data UserTypeCtx = UserTypeCtx
+  { userTypeCtx'types      :: Map VarName UserType
+  , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder
+  } deriving (Show, Eq)
+
+instance Semigroup UserTypeCtx where
+  UserTypeCtx a1 b1 <> UserTypeCtx a2 b2 = UserTypeCtx (a1 <> a2) (b1 <> b2)
+
+instance Monoid UserTypeCtx where
+  mempty = UserTypeCtx mempty mempty
+
+setupRecConstrs :: UserTypeCtx -> UserTypeCtx
+setupRecConstrs ctx = ctx { userTypeCtx'recConstrs = recConstrs }
+  where
+    recConstrs = M.fromList $ mapMaybe getConstr . M.toList . userType'cases =<< types
+
+    getConstr (cons, def) = case def of
+      ConsDef _ -> Nothing
+      RecordCons fields -> Just $ (cons, RecordFieldOrder $
+          fmap (varName'name . recordField'name) $ V.toList fields)
+
+
+    types = M.elems $ userTypeCtx'types ctx
 
 data UserType = UserType
-  { userType'name  :: !VarName
-  , userType'args  :: ![VarName]
-  , userType'cases :: !(Map ConsName (Vector Type))
+  { userType'name       :: !VarName
+  , userType'args       :: ![VarName]
+  , userType'cases      :: !(Map ConsName ConsDef)
+  } deriving (Show, Eq)
+
+getConsTypes :: ConsDef -> Vector Type
+getConsTypes = \case
+  ConsDef ts        -> ts
+  RecordCons fields -> fmap recordField'type fields
+
+data ConsDef
+  = ConsDef (Vector Type)
+  | RecordCons (Vector RecordField)
+  deriving (Show, Eq)
+
+data RecordField = RecordField
+  { recordField'name :: VarName
+  , recordField'type :: Type
+  } deriving (Show, Eq)
+
+newtype RecordFieldOrder = RecordFieldOrder
+  { unRecordFieldOrder :: [Text]
   } deriving (Show, Eq)
 
 type Money = Int64
@@ -177,6 +218,9 @@ data E a
   -- case
   | Cons Loc ConsName (Vector a)
   | CaseOf Loc a [CaseExpr a]
+  -- records
+  | RecConstr Loc ConsName [(VarName, a)]
+  | RecUpdate Loc a [(VarName, a)]
   -- Alternatives
   | AltE Loc a a
   | FailCase Loc
@@ -369,6 +413,9 @@ instance Show a => H.HasLoc (E a) where
     -- case-expr
     Cons loc _ _ -> loc
     CaseOf loc _ _ -> loc
+    -- record
+    RecConstr loc _ _ -> loc
+    RecUpdate loc _ _ -> loc
     -- primitives
     PrimE loc _ -> loc
     -- logic
@@ -438,28 +485,30 @@ freeVars :: Lang -> Set VarName
 freeVars = cata $ \case
   Var _ v         -> Set.singleton v
   InfixApply _ a _ b -> a <> b
-  Apply _ a b     -> a <> b
-  Lam _ v a       -> a `Set.difference`  freeVarsPat v
-  LamList _ vs a  -> a `Set.difference` (foldMap freeVarsPat vs)
-  Let _ bg a      -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
-  LetRec _ v a b  -> a <> Set.filter (/= v) b
-  Ascr _ a _      -> a
-  Cons _ _ vs     -> mconcat $ V.toList vs
-  CaseOf _ a alts -> mappend a (foldMap freeCaseExpr alts)
-  PrimE _ _       -> Set.empty
-  If _ a b c      -> mconcat [a, b, c]
-  Pk _ a          -> a
-  Tuple _ vs      -> fold $ V.toList vs
-  UnOpE _ _ a     -> a
-  BinOpE _ _ a b  -> mconcat [a, b]
-  GetEnv _ env    -> fold env
-  VecE _ vec      -> fold vec
-  TextE _ txt     -> fold txt
-  BoxE _ box      -> fold box
-  Undef _         -> Set.empty
-  Trace _ a b     -> mconcat [a, b]
-  AltE _ a b      -> mappend a b
-  FailCase _      -> Set.empty
+  Apply _ a b      -> a <> b
+  Lam _ v a        -> a `Set.difference`  freeVarsPat v
+  LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)
+  Let _ bg a       -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
+  LetRec _ v a b   -> a <> Set.filter (/= v) b
+  Ascr _ a _       -> a
+  Cons _ _ vs      -> mconcat $ V.toList vs
+  CaseOf _ a alts  -> mappend a (foldMap freeCaseExpr alts)
+  RecConstr _ _ ts -> mconcat $ fmap snd ts
+  RecUpdate _ a ts -> mconcat $ a : fmap snd ts
+  PrimE _ _        -> Set.empty
+  If _ a b c       -> mconcat [a, b, c]
+  Pk _ a           -> a
+  Tuple _ vs       -> fold $ V.toList vs
+  UnOpE _ _ a      -> a
+  BinOpE _ _ a b   -> mconcat [a, b]
+  GetEnv _ env     -> fold env
+  VecE _ vec       -> fold vec
+  TextE _ txt      -> fold txt
+  BoxE _ box       -> fold box
+  Undef _          -> Set.empty
+  Trace _ a b      -> mconcat [a, b]
+  AltE _ a b       -> mappend a b
+  FailCase _       -> Set.empty
   where
     getBgNames :: BindGroup a -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs

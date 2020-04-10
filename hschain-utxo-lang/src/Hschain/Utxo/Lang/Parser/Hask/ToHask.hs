@@ -30,7 +30,6 @@ import qualified Language.Haskell.Exts.Parser as H
 
 import qualified Language.HM as HM
 
-
 toHaskExp :: Lang -> H.Exp Loc
 toHaskExp (Fix expr) = case expr of
   Var loc name -> toVar loc name
@@ -44,6 +43,9 @@ toHaskExp (Fix expr) = case expr of
   -- case
   Cons loc name args -> foldl (\f z -> H.App loc f z) (toCon loc name) $ fmap rec args
   CaseOf loc expr alts -> H.Case loc (rec expr) (fmap (toCaseAlt loc) alts)
+  -- records
+  RecConstr loc cons fields -> H.RecConstr loc (toQName $ consToVarName cons) $ fmap toRecField fields
+  RecUpdate loc expr fields -> H.RecUpdate loc (rec expr) $ fmap toRecField fields
   -- primitives
   PrimE loc p -> toLiteral loc p
   -- logic
@@ -72,6 +74,8 @@ toHaskExp (Fix expr) = case expr of
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
     ap2 f x y = H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)
 --    op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toSymbolQName' f) (rec y)
+
+    toRecField (name, expr) = H.FieldUpdate (HM.getLoc name) (toQName name) (rec expr)
 
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
 

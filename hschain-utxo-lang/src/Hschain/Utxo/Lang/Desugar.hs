@@ -12,6 +12,9 @@ module Hschain.Utxo.Lang.Desugar(
   , simpleBind
   , caseToLet
   , reduceSubPats
+  , desugarRecordUpdate
+  , recordFieldUpdateFunName
+  , secretVar
   , module Hschain.Utxo.Lang.Desugar.FreshVar
   , module Hschain.Utxo.Lang.Desugar.PatternCompiler
 ) where
@@ -136,4 +139,17 @@ reduceSubPats pats rhs = runStateT (mapM go pats) rhs
         var  <- lift $ getFreshVar loc
         put $ Fix $ CaseOf loc (Fix $ Var loc var) $ [CaseExpr pat expr]
         return var
+
+desugarRecordUpdate :: VarName -> Lang -> Lang -> Lang
+desugarRecordUpdate field val expr =
+  app2 (Fix $ Var (getLoc field) $ recordFieldUpdateFunName field) val expr
+
+recordFieldUpdateFunName :: VarName -> VarName
+recordFieldUpdateFunName VarName{..} = VarName
+  { varName'loc  = varName'loc
+  , varName'name = secretVar $ mappend "update_" varName'name
+  }
+
+secretVar :: Text -> Text
+secretVar = mappend ":# "
 
