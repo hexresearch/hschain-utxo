@@ -87,6 +87,7 @@ loadScript file = do
       case err of
         ImportTypeError tyErr    -> T.putStrLn $ renderText tyErr
         ImportParseError loc err -> showParseErr loc err
+        ImportFileMissing file   -> T.putStrLn $ mconcat ["File not found: ", fromString file]
 
     showParseErr loc msg = T.putStrLn $ T.unlines
       [ mconcat ["Failed to load script ", T.pack file]

@@ -29,6 +29,7 @@ library
                      , containers
                      , data-default
                      , data-fix
+                     , exceptions
                      , haskeline
                      , hex-common
                      , hschain-utxo-lang
@@ -49,6 +50,7 @@ library
     TypeFamilies
     OverloadedStrings
     RecordWildCards
+    ScopedTypeVariables
     TemplateHaskell
     TupleSections
 

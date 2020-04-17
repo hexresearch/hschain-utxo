@@ -6,6 +6,7 @@ module Hschain.Utxo.Repl.Imports(
   , getLoadedFiles
 ) where
 
+import Control.Exception.Base
 import Control.Monad.IO.Class
 
 import Hschain.Utxo.Lang
@@ -22,6 +23,7 @@ import qualified Hschain.Utxo.Lang.Parser.Hask as P
 data ImportError
   = ImportParseError P.SrcLoc String
   | ImportTypeError Error
+  | ImportFileMissing FilePath
 
 data Imports = Imports
   { imports'base    :: !ModuleCtx
@@ -51,14 +53,17 @@ rmLoaded file imp@Imports{..} = imp
 load :: MonadIO io => FilePath -> Imports -> io (Either ImportError Imports)
 load file imp0 = liftIO $ do
   let imp = updateCurrent $ rmLoaded file imp0
-  str <- readFile file
-  case P.parseModule (Just file) str of
-    P.ParseOk m -> do
-      let typeCtx = inferCtx'binds $ moduleCtx'types $ imports'current imp
-      case evalModule typeCtx m of
-        Right modCtx   -> return $ Right $ loadCtx file modCtx imp
-        Left typeError -> return $ Left $ ImportTypeError typeError
-    P.ParseFailed loc err -> return $ Left $ ImportParseError loc err
+  eStr :: Either IOException String <- try $ readFile file
+  case eStr of
+    Right str ->
+      case P.parseModule (Just file) str of
+        P.ParseOk m -> do
+          let typeCtx = inferCtx'binds $ moduleCtx'types $ imports'current imp
+          case evalModule typeCtx m of
+            Right modCtx   -> return $ Right $ loadCtx file modCtx imp
+            Left typeError -> return $ Left $ ImportTypeError typeError
+        P.ParseFailed loc err -> return $ Left $ ImportParseError loc err
+    Left _ -> return $ Left $ ImportFileMissing file
 
 reload :: MonadIO io => Imports -> io (Either ImportError Imports)
 reload x = go (getLoadedFiles x) x
