@@ -114,6 +114,9 @@ instance Pretty (Expr a) where
 instance Pretty VarName where
   pretty (VarName _ txt) = pretty txt
 
+instance Pretty ConsName where
+  pretty (ConsName _ txt) = pretty txt
+
 prettyBinds :: BindGroup (Doc ann) -> Doc ann
 prettyBinds bs = vcat $ fmap prettyBind bs
   where
@@ -211,6 +214,9 @@ instance Pretty ExecError where
   pretty = \case
     AppliedNonFunction lang        -> err "Applied non-function" lang
     UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]
+    UndefinedRecordCons loc cons   -> hcat [pretty loc, ": undefined record constructor ", pretty cons]
+    UndefinedReocrdField loc cons field
+                                   -> hcat [pretty loc, ": undefined record field ", pretty field, " for constructor ", pretty cons]
     ThisShouldNotHappen lang       -> err "This should not happen" lang
     IllegalRecursion lang          -> err "Illegal recursion" lang
     OutOfBound lang                -> err "Out of bound" lang

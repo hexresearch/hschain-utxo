@@ -11,6 +11,7 @@ module Hschain.Utxo.Repl.Monad(
   , getTxFile
   , getTypeContext
   , getExecContext
+  , getUserTypes
   , checkType
   , hasType
 ) where
@@ -67,11 +68,18 @@ runReplM tx (ReplM app) = evalStateT app defEnv
         , replEnv'txFile        = Nothing
         }
 
-getTypeContext :: Repl TypeContext
-getTypeContext =
+getInferCtx :: Repl InferCtx
+getInferCtx =
   fmap (moduleCtx'types . imports'current . replEnv'imports) get
 
-getExecContext :: Repl ExecContext
+getUserTypes :: Repl UserTypeCtx
+getUserTypes = fmap inferCtx'types getInferCtx
+
+getTypeContext :: Repl TypeContext
+getTypeContext =
+  fmap (inferCtx'binds . moduleCtx'types . imports'current . replEnv'imports) get
+
+getExecContext :: Repl ExecCtx
 getExecContext =
   fmap (moduleCtx'exprs . imports'current . replEnv'imports) get
 
@@ -86,7 +94,7 @@ getTxFile = fmap replEnv'txFile get
 
 checkType :: Lang -> Repl (Either Error Type)
 checkType expr = do
-  ctx <- getTypeContext
+  ctx <- getInferCtx
   closure <- fmap replEnv'closure get
   return $ runInferM $ inferExpr ctx $ closure expr
 

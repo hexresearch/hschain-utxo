@@ -57,3 +57,4 @@ xorCol _ _ = False
 
 * docs-update
 
+* rpel crashes on wrong file load (if file does not exist)

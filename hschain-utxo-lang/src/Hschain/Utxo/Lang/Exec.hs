@@ -40,6 +40,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Lib.Base
+import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
 
 import qualified Data.List as L
@@ -60,93 +61,6 @@ removeAscr = cata $ \case
 
 trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
-
-evalModule :: TypeContext -> Module -> Either Error ModuleCtx
-evalModule typeCtx m = evalModule' typeCtx (appendRecordFuns m)
-
-evalModule' :: TypeContext -> Module -> Either Error ModuleCtx
-evalModule' typeCtx Module{..} = runInferM $ do
-  binds <- InferM $ lift $ evalStateT (mapM checkBind module'binds) (typeCtx <> userTypeCtx)
-  toModuleCtx binds
-  where
-    userTypeCtx = userTypesToTypeContext module'userTypes
-
-    toModuleCtx :: BindGroup Lang -> InferM ModuleCtx
-    toModuleCtx bs = fmap (\es -> ModuleCtx
-      { moduleCtx'types = (H.Context $ M.fromList $ catMaybes types) <> userTypeCtx
-      , moduleCtx'exprs = ExecContext $ M.fromList es
-      }) exprs
-      where
-        types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
-
-        exprs = mapM (\Bind{..} -> fmap (bind'name, ) $ altGroupToExpr bind'alts) bs
-
-    checkBind :: Bind Lang -> StateT TypeContext (Either Error) (Bind Lang)
-    checkBind bind@Bind{..} = do
-      ctx <- get
-      ty <- fmap H.typeToSignature $ lift $ runInferM $ inferExpr ctx =<< altGroupToExpr bind'alts
-      let typeIsOk =
-            case bind'type of
-              Just userTy -> if (isRight $ H.subtypeOf mempty userTy ty) then Nothing else (Just userTy)
-              Nothing     -> Nothing
-      case typeIsOk of
-        Just userTy -> do
-          lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) (H.stripSignature ty)
-        Nothing     -> do
-          let resTy = fromMaybe ty bind'type
-          put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
-          return $ bind { bind'type = Just resTy }
-
-
-data SelectIndex = SelectIndex
-  { selectIndex'size  :: !Int
-  , selectIndex'id    :: !Int
-  } deriving (Show, Eq)
-
-appendRecordFuns :: Module -> Module
-appendRecordFuns m =
-  m { module'binds = recordFuns ++ module'binds m }
-  where
-    recordFuns = selectors ++ updaters
-
-    selectors = extractSelectors =<< types
-
-    updaters = extractUpdaters =<< types
-
-    types = M.elems $ userTypeCtx'types $ module'userTypes m
-
-    onRecTypes extract UserType{..} = onField extract =<< (M.toList $ userType'cases)
-
-    onField fromField (cons, def) = case def of
-      ConsDef _ -> []
-      RecordCons fields ->
-        let size = V.length fields
-            sel  = SelectIndex size
-        in  zipWith (\n x -> fromField cons (sel n) x) [0..] $ V.toList fields
-
-    extractSelectors = onRecTypes $ \cons index RecordField{..} ->
-      simpleBind recordField'name (selectorFun cons index)
-
-    selectorFun cons SelectIndex{..} =
-      Fix $ Lam noLoc (PCons noLoc cons args) $ Fix $ Var noLoc vx
-      where
-        args = V.toList $ (V.replicate selectIndex'size $ PWildCard noLoc) V.// [(selectIndex'id, pvx)]
-        vx   = VarName noLoc "x"
-        pvx  = PVar noLoc vx
-
-    extractUpdaters = onRecTypes $ \cons index RecordField{..} ->
-      simpleBind (recordFieldUpdateFunName $ recordField'name) (updaterFun cons index)
-
-    updaterFun cons SelectIndex{..} =
-      Fix $ LamList noLoc [pvx, PCons noLoc cons inArgs] $ Fix $ Cons noLoc cons outArgs
-      where
-        inArgs  = V.toList $ (V.fromList $ fmap (PVar noLoc) args) V.// [(selectIndex'id, wild)]
-        outArgs = (V.fromList $ fmap (Fix . Var noLoc) args) V.// [(selectIndex'id, Fix $ Var noLoc vx)]
-        args    = fmap (VarName noLoc . mappend "z" . showt) [0 .. selectIndex'size - 1]
-
-        vx   = VarName noLoc "x"
-        pvx  = PVar noLoc vx
-        wild = PWildCard noLoc
 
 
 data Ctx = Ctx
@@ -192,8 +106,8 @@ saveTrace :: Text -> Exec ()
 saveTrace msg =
   modify' $ \st -> st { ctx'debug = T.unlines [ctx'debug st, msg] }
 
-runExec :: ExecContext -> Args -> Integer -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
-runExec (ExecContext binds) args height inputs outputs (Exec st) =
+runExec :: ExecCtx -> Args -> Integer -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
+runExec (ExecCtx binds) args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
     emptyCtx = Ctx binds args height inputs outputs mempty 0
@@ -214,7 +128,7 @@ execLang' (Fix x) = case x of
     -- case of
     CaseOf loc v xs -> fromCaseOf loc v xs
     -- records
-    RecConstr loc cons fields -> fromRecConstr loc cons fields
+    RecConstr loc cons fields -> thisShouldNotHappen (Fix x)
     RecUpdate loc a upds -> fromRecUpdate loc a upds
     -- operations
     UnOpE loc uo x -> fromUnOp loc uo x
@@ -299,7 +213,7 @@ execLang' (Fix x) = case x of
       where
         go res (field, val) = desugarRecordUpdate field val res
 
-    fromRecConstr loc cons fields = undefined
+
 
     fromUnOp loc uo x = do
       x' <- rec x
@@ -737,7 +651,7 @@ traceFun name f x =
 
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
-exec :: ExecContext -> TxArg -> (Bool, Text)
+exec :: ExecCtx -> TxArg -> (Bool, Text)
 exec ctx tx
   | txPreservesValue tx = case res of
         Right (SigmaBool sigma) -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
@@ -764,7 +678,7 @@ instance FromJSON BoolExprResult where
     <|> (SigmaBool <$> obj .: "sigma")
 
 
-execToSigma :: ExecContext -> TxArg -> (Either Text BoolExprResult, Text)
+execToSigma :: ExecCtx -> TxArg -> (Either Text BoolExprResult, Text)
 execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
   where
     execExpr (Expr x) =

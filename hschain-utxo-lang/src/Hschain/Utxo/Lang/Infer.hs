@@ -1,9 +1,9 @@
 module Hschain.Utxo.Lang.Infer(
     InferM(..)
   , runInferM
+  , InferCtx(..)
   , inferExpr
   , reduceExpr
-  , checkMainModule
   , maxTupleSize
   , intT
   , userTypesToTypeContext
@@ -53,16 +53,12 @@ runInferM (InferM m) = runFreshVar m
 maxTupleSize :: Int
 maxTupleSize = 6
 
-checkMainModule :: H.Context Loc -> Module -> Maybe Error
-checkMainModule ctx m = either Just (const Nothing) $ runInferM $ inferExpr ctx =<< moduleToMainExpr m
-  where
-    modErr = error . mappend "Failed to load module with: "
+inferExpr :: InferCtx -> Lang -> InferM Type
+inferExpr (InferCtx typeCtx userTypes) =
+  (InferM . lift . eitherTypeError . H.inferW (defaultContext <> typeCtx)) <=< reduceExpr userTypes
 
-inferExpr :: H.Context Loc -> Lang -> InferM Type
-inferExpr ctx = (InferM . lift . eitherTypeError . H.inferW (defaultContext <> ctx)) <=< reduceExpr
-
-reduceExpr :: Lang -> InferM (H.Term Loc)
-reduceExpr (Fix expr) = case expr of
+reduceExpr :: UserTypeCtx -> Lang -> InferM (H.Term Loc)
+reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Var loc var               -> pure $ fromVarName var
   Apply loc a b             -> liftA2 (appE loc) (rec a) (rec b)
   InfixApply loc a name b   -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
@@ -100,9 +96,10 @@ reduceExpr (Fix expr) = case expr of
   AltE loc a b              -> liftA2 (app2 loc altVar) (rec a) (rec b)
   FailCase loc              -> return $ varE loc failCaseVar
   -- records
+  RecConstr loc cons fields -> fromRecCons loc cons fields
   RecUpdate loc a upds      -> liftA2 (fromRecUpdate loc) (rec a) (mapM (\(field, x) -> fmap (field, ) $ rec x) upds)
   where
-    rec = reduceExpr
+    rec = reduceExpr ctx
 
     fromInfixApply loc a name b =
       appE loc (appE (H.getLoc name) (fromVarName name) a) b
@@ -110,6 +107,10 @@ reduceExpr (Fix expr) = case expr of
     fromVarName VarName{..}  = varE varName'loc varName'name
 
     fromCons loc cons args = foldl (\f arg -> appE (H.getLoc arg) f arg) (varE loc (consName'name cons)) args
+
+    fromRecCons loc cons fields = do
+      args <- orderRecordFieldsFromContext ctx cons fields
+      fmap (fromCons loc cons) $ mapM rec args
 
     fromLet _ binds expr = foldrM bindToLet expr (sortBindGroups binds)
       where

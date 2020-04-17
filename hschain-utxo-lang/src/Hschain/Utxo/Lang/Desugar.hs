@@ -1,14 +1,14 @@
 module Hschain.Utxo.Lang.Desugar(
-    unfoldLamList
+    desugar
+  , unfoldLamList
   , unfoldLetArg
   , unfoldInfixApply
   , singleLet
   , app1
   , app2
   , app3
-  , moduleToMainExpr
-  , bindGroupToLet
   , bindBodyToExpr
+  , bindGroupToLet
   , simpleBind
   , caseToLet
   , reduceSubPats
@@ -17,15 +17,18 @@ module Hschain.Utxo.Lang.Desugar(
   , secretVar
   , module Hschain.Utxo.Lang.Desugar.FreshVar
   , module Hschain.Utxo.Lang.Desugar.PatternCompiler
+  , module Hschain.Utxo.Lang.Desugar.Records
 ) where
 
 import Hex.Common.Control
 
 import Control.Applicative
+import Control.Arrow (first)
 import Control.Monad.State.Strict
 import Control.Monad.Extra (firstJustM)
 
 import Data.Fix
+import Data.Map.Strict (Map)
 import Data.Text (Text)
 
 import Language.HM (getLoc, stripSignature, monoT)
@@ -35,10 +38,15 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Desugar.FreshVar
 import Hschain.Utxo.Lang.Desugar.Guard
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
+import Hschain.Utxo.Lang.Desugar.Records
 
 import qualified Data.List as L
+import qualified Data.Map.Strict as M
 import qualified Data.List.Extra as L
 
+
+desugar :: MonadLang m => UserTypeCtx -> Lang -> m Lang
+desugar ctx expr = removeRecordCons ctx expr
 
 unfoldLamList :: Loc -> [Pat] -> Lang -> Lang
 unfoldLamList loc pats a = L.foldl' (\z a -> z . Fix . Lam loc a) id pats a
@@ -57,31 +65,6 @@ unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
 
 bindGroupToLet :: BindGroup Lang -> Lang -> Lang
 bindGroupToLet bgs expr = Fix $ Let noLoc bgs expr
-
-moduleToMainExpr :: MonadLang m => Module -> m Lang
-moduleToMainExpr prog = case findMain prog of
-  Nothing   -> throwError $ ExecError NoMainFunction
-  Just main -> fmap (\mainExpr -> bindGroupToLet (module'binds $ rmMain prog) (addBoolTypeCheck mainExpr)) $ altGroupToExpr main
-  where
-    findMain :: Module -> Maybe [Alt Lang]
-    findMain Module{..} = L.firstJust getMain module'binds
-      where
-        getMain Bind{..}
-          | isMain bind'name = Just bind'alts
-          | otherwise        = Nothing
-
-    addBoolTypeCheck :: Lang -> Lang
-    addBoolTypeCheck expr = Fix $ Ascr (getLoc expr) expr (monoT boolT)
-
-    rmMain :: Module -> Module
-    rmMain m@Module{..} = m { module'binds = rm module'binds }
-      where
-        rm = filter noMain
-
-        noMain = not . isMain . bind'name
-
-    isMain :: VarName -> Bool
-    isMain = (== "main") . varName'name
 
 
 app1 :: Lang -> Lang -> Lang

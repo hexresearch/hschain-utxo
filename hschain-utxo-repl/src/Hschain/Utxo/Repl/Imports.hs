@@ -54,7 +54,7 @@ load file imp0 = liftIO $ do
   str <- readFile file
   case P.parseModule (Just file) str of
     P.ParseOk m -> do
-      let typeCtx = moduleCtx'types $ imports'current imp
+      let typeCtx = inferCtx'binds $ moduleCtx'types $ imports'current imp
       case evalModule typeCtx m of
         Right modCtx   -> return $ Right $ loadCtx file modCtx imp
         Left typeError -> return $ Left $ ImportTypeError typeError

@@ -153,18 +153,38 @@ data Module = Module
 
 type TypeContext = H.Context Loc
 
-newtype ExecContext = ExecContext
-  { unExecContext :: Map VarName Lang
-  } deriving newtype (Show, Eq, Semigroup, Monoid)
+newtype ExecCtx = ExecCtx
+  { execCtx'vars  :: Map VarName Lang
+  } deriving newtype (Show, Eq)
+
+instance Semigroup ExecCtx where
+  ExecCtx a1 <> ExecCtx a2 = ExecCtx (a1 <> a2)
+
+instance Monoid ExecCtx where
+  mempty = ExecCtx mempty
+
+data InferCtx = InferCtx
+  { inferCtx'binds :: TypeContext
+  , inferCtx'types :: UserTypeCtx
+  } deriving (Show, Eq)
+
+instance Semigroup InferCtx where
+  a <> b = InferCtx
+      { inferCtx'binds = inferCtx'binds a <> inferCtx'binds b
+      , inferCtx'types = inferCtx'types a <> inferCtx'types b
+      }
+
+instance Monoid InferCtx where
+  mempty = InferCtx mempty mempty
 
 -- | Evaluated module
 data ModuleCtx = ModuleCtx
-  { moduleCtx'types  :: !TypeContext
-  , moduleCtx'exprs  :: !ExecContext
+  { moduleCtx'types  :: !InferCtx
+  , moduleCtx'exprs  :: !ExecCtx
   } deriving (Show, Eq)
 
 getModuleCtxNames :: ModuleCtx -> [Text]
-getModuleCtxNames = M.keys . H.unContext . moduleCtx'types
+getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
 
 instance Semigroup ModuleCtx where
   (<>) a b = ModuleCtx

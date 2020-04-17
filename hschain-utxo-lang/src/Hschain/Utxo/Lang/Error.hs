@@ -15,6 +15,8 @@ data Error
 data ExecError
   = AppliedNonFunction Lang
   | UnboundVariables [VarName]
+  | UndefinedRecordCons Loc ConsName
+  | UndefinedReocrdField Loc ConsName Text
   | Undefined Loc
   | ThisShouldNotHappen Lang
   | IllegalRecursion Lang
