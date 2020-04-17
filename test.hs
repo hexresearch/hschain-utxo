@@ -64,6 +64,23 @@ twistedSucc :: Int -> Int
 twistedSucc 1 = 1
 twistedSucc n = n + 1
 
+data User = User
+  { user'name  :: Text
+  , user'age   :: Int
+  , user'goods :: Goods
+  }
+
+data Goods = Goods
+  { goods'cash  :: Int
+  , goods'accs  :: Int
+  }
+
+
+john :: User
+john = User { user'name = "john", user'age = 23, user'goods = Goods 1 2 }
+
+setName :: Text -> User -> User
+setName name user = user { user'name = name }
 
 -- sumPair (a, b) = a + b
 

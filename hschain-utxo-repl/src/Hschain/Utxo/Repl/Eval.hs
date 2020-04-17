@@ -53,7 +53,8 @@ evalExpr lang = do
   withTypeCheck closedExpr $ \expr -> do
     tx    <- fmap replEnv'tx get
     ctx   <- getExecContext
-    let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
+    types <- getUserTypes
+    let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang =<< desugar types expr
     liftIO $ case res of
       Right (expr, debugTxt) -> do
         T.putStrLn $ renderText expr
@@ -68,7 +69,8 @@ evalBind var lang = do
   withTypeCheck closedExpr $ \expr -> do
       tx  <- fmap replEnv'tx get
       ctx <- getExecContext
-      let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang expr
+      types <- getUserTypes
+      let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang =<< desugar types expr
       case res of
         Right (expr, _) -> do
           modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var expr next)

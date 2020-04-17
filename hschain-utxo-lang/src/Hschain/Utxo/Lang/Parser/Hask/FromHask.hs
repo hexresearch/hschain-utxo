@@ -59,6 +59,8 @@ fromHaskExp topExp = case topExp of
   H.LeftSection loc a op  -> rec $ unfoldLeftSection loc a op
   H.RightSection loc op a -> rec $ unfoldRightSection loc op a
   H.Case loc expr alts -> liftA2 (fromCase loc) (rec expr) (mapM fromCaseAlt alts)
+  H.RecConstr loc name fields -> liftA2 (fromRecConstr loc) (fromQName name) (mapM fromField fields)
+  H.RecUpdate loc exp fields -> liftA2 (fromRecUpdate loc) (rec exp) (mapM fromField fields)
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
@@ -80,6 +82,13 @@ fromHaskExp topExp = case topExp of
       other              -> parseFailedBy "Failed to parse infix application" other
 
     fromCase loc expr alts = Fix $ CaseOf loc expr alts
+
+    fromRecConstr loc name fields = Fix $ RecConstr loc (varToConsName name) fields
+    fromRecUpdate loc expr fields = Fix $ RecUpdate loc expr fields
+
+    fromField = \case
+      H.FieldUpdate loc name exp -> liftA2 (,) (fromQName name) (rec exp)
+      _                          ->  parseFailedBy "Failed to parse field" topExp
 
     fromCaseAlt :: H.Alt Loc -> ParseResult (CaseExpr Lang)
     fromCaseAlt (H.Alt loc pat rhs mBinds)
@@ -115,7 +124,7 @@ fromDecls loc ds = do
 
 toUserTypes :: [Decl] -> UserTypeCtx
 toUserTypes ds =
-  UserTypeCtx $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
+  setupRecConstrs $ (\ts -> UserTypeCtx ts mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
   where
     getTypeDecl = \case
       DataDecl userType -> Just userType
@@ -191,9 +200,23 @@ toDecl x = case x of
         getCases xs = fmap M.fromList $ mapM getCase xs
 
         getCase (H.QualConDecl _ _ _ conDecl) = case conDecl of
-          H.ConDecl loc name args -> fmap (\tys -> (varToConsName $ toName name, V.fromList tys)) $ mapM fromType args
+          H.ConDecl loc name args -> fromConDecl loc name args
+          H.RecDecl loc name args -> fromRecDecl loc name args
           H.InfixConDecl _ _ _ _ -> parseFailedBy "Infix type declarations are not supported" x
-          H.RecDecl _ _ _ -> parseFailedBy "Record type declarations are not supported" x
+
+        fromConDecl loc name args =
+          fmap (\tys -> (varToConsName $ toName name, ConsDef $ V.fromList tys)) $ mapM fromType args
+
+        fromRecDecl loc name args =
+          fmap (\fields -> (resName, RecordCons $ V.fromList $ concat fields)) $ mapM fromField args
+          where
+            resName = varToConsName $ toName name
+
+        fromField (H.FieldDecl loc names ty) = do
+          resTy <- fromType ty
+          let resNames = fmap toName names
+          return $ fmap (\name -> RecordField name resTy) resNames
+
 
 fromPat :: H.Pat Loc -> ParseResult Pat
 fromPat topPat = case topPat of

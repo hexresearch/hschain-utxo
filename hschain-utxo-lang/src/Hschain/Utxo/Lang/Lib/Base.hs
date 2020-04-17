@@ -31,7 +31,7 @@ infixr 6 ~>
 
 baseModuleCtx :: ModuleCtx
 baseModuleCtx = ModuleCtx
-  { moduleCtx'types = baseLibTypeContext
+  { moduleCtx'types = InferCtx baseLibTypeContext P.mempty
   , moduleCtx'exprs = baseLibExecContext
   }
 
@@ -42,9 +42,9 @@ langTypeContext = baseLibTypeContext
 importBase :: Lang -> Lang
 importBase = bindGroupToLet baseFuns
 
-baseLibExecContext :: ExecContext
+baseLibExecContext :: ExecCtx
 baseLibExecContext =
-  fromRight err $ runInferM $ fmap (ExecContext . M.fromList) $ P.mapM fromBindToExec baseFuns
+  fromRight err $ runInferM $ fmap ((\vars -> ExecCtx vars) . M.fromList) $ P.mapM fromBindToExec baseFuns
   where
     fromBindToExec Bind{..} = fmap (bind'name, ) $ altGroupToExpr bind'alts
     err = P.error "Failed to load base module"

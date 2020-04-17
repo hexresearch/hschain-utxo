@@ -2,6 +2,8 @@ module Hschain.Utxo.Lang.Exec.Subst(
   subst
 ) where
 
+import Control.Arrow (second)
+
 import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
@@ -36,6 +38,8 @@ subst (Fix body) varName sub = case body of
   AltE loc a b                             -> Fix $ AltE loc (rec a) (rec b)
   CaseOf loc expr cases                    -> Fix $ CaseOf loc (rec expr) (fmap substCase cases)
   Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
+  RecConstr loc name vals                  -> Fix $ RecConstr loc name (fmap (second rec) vals)
+  RecUpdate loc a upds                     -> Fix $ RecUpdate loc (rec a) (fmap (second rec) upds)
   where
     subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
 

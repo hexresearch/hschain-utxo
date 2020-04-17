@@ -35,7 +35,7 @@ react tx bch
       where
         isValidTx = inputsAreValid && outputsAreValid
 
-        (inputsAreValid, debugMsgInputs) = exec txArg
+        (inputsAreValid, debugMsgInputs) = exec mempty txArg
         -- todo: check here that script evaluates to boolean with type checker.
         --       for now we check only that it parses
         mInvalidOutput = L.find (isLeft . fromScript . box'script) $ checkOutputTxArg txArg
@@ -57,7 +57,7 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
 
 execInBoxChain :: Tx -> BoxChain -> (Either Text BoolExprResult, Text)
 execInBoxChain tx bch = case toTxArg bch tx of
-  Right txArg -> execToSigma txArg
+  Right txArg -> execToSigma mempty txArg
   Left err    -> (Left err, "No message")
 
 -- | We move outputs to inputs to check that expressions of outputs

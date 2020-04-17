@@ -1,9 +1,9 @@
 module Hschain.Utxo.Lang.Infer(
     InferM(..)
   , runInferM
+  , InferCtx(..)
   , inferExpr
   , reduceExpr
-  , checkMainModule
   , maxTupleSize
   , intT
   , userTypesToTypeContext
@@ -53,16 +53,12 @@ runInferM (InferM m) = runFreshVar m
 maxTupleSize :: Int
 maxTupleSize = 6
 
-checkMainModule :: H.Context Loc -> Module -> Maybe Error
-checkMainModule ctx m = either Just (const Nothing) $ runInferM $ inferExpr ctx =<< moduleToMainExpr m
-  where
-    modErr = error . mappend "Failed to load module with: "
+inferExpr :: InferCtx -> Lang -> InferM Type
+inferExpr (InferCtx typeCtx userTypes) =
+  (InferM . lift . eitherTypeError . H.inferW (defaultContext <> typeCtx)) <=< reduceExpr userTypes
 
-inferExpr :: H.Context Loc -> Lang -> InferM Type
-inferExpr ctx = (InferM . lift . eitherTypeError . H.inferW (defaultContext <> ctx)) <=< reduceExpr
-
-reduceExpr :: Lang -> InferM (H.Term Loc)
-reduceExpr (Fix expr) = case expr of
+reduceExpr :: UserTypeCtx -> Lang -> InferM (H.Term Loc)
+reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Var loc var               -> pure $ fromVarName var
   Apply loc a b             -> liftA2 (appE loc) (rec a) (rec b)
   InfixApply loc a name b   -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
@@ -99,8 +95,11 @@ reduceExpr (Fix expr) = case expr of
   GetEnv loc envId          -> fmap (fromGetEnv loc) $ mapM rec envId
   AltE loc a b              -> liftA2 (app2 loc altVar) (rec a) (rec b)
   FailCase loc              -> return $ varE loc failCaseVar
+  -- records
+  RecConstr loc cons fields -> fromRecCons loc cons fields
+  RecUpdate loc a upds      -> liftA2 (fromRecUpdate loc) (rec a) (mapM (\(field, x) -> fmap (field, ) $ rec x) upds)
   where
-    rec = reduceExpr
+    rec = reduceExpr ctx
 
     fromInfixApply loc a name b =
       appE loc (appE (H.getLoc name) (fromVarName name) a) b
@@ -108,6 +107,10 @@ reduceExpr (Fix expr) = case expr of
     fromVarName VarName{..}  = varE varName'loc varName'name
 
     fromCons loc cons args = foldl (\f arg -> appE (H.getLoc arg) f arg) (varE loc (consName'name cons)) args
+
+    fromRecCons loc cons fields = do
+      args <- orderRecordFieldsFromContext ctx cons fields
+      fmap (fromCons loc cons) $ mapM rec args
 
     fromLet _ binds expr = foldrM bindToLet expr (sortBindGroups binds)
       where
@@ -200,6 +203,10 @@ reduceExpr (Fix expr) = case expr of
 
     nilVec loc = varE loc nilVecVar
     consVec loc = app2 loc consVecVar
+
+    fromRecUpdate loc a upds = foldl go a upds
+      where
+        go v (field, val) = app2 (H.getLoc field) (recordUpdateVar field) val v
 
 
 defaultContext :: H.Context Loc
@@ -402,23 +409,39 @@ altVar = secretVar "altCases"
 failCaseVar = secretVar "failCase"
 
 
-secretVar :: H.Var -> H.Var
-secretVar = mappend ":# "
 
 ---------------------------------------------------------
 
 userTypesToTypeContext :: UserTypeCtx -> H.Context Loc
-userTypesToTypeContext (UserTypeCtx m) =
+userTypesToTypeContext (UserTypeCtx m _) =
      foldMap fromUserType m
   <> foldMap getSelectors m
   where
-    fromUserType u@UserType{..} = H.Context $ M.fromList $ fmap fromCase $ M.toList userType'cases
+    fromUserType u@UserType{..} = H.Context $ M.fromList $ fromCase =<< M.toList userType'cases
       where
         resT = toResT u
         appArgsT = toArgsT u
-        fromCase (cons, args) = (consName'name cons, ty)
+        fromCase (cons, args) = (consName'name cons, ty) : (recFieldSelectors ++ recFieldUpdates)
           where
-            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT args
+            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT $ getConsTypes args
+
+            onFields f = case args of
+              ConsDef _         -> []
+              RecordCons fields -> f fields
+
+            recFieldSelectors = onFields $ \fields ->
+              V.toList $ fmap fromRecSelector fields
+
+            recFieldUpdates = onFields $ \fields ->
+              V.toList $ fmap fromRecUpdate fields
+
+        fromRecSelector RecordField{..} = (varName'name recordField'name, ty)
+          where
+            ty = appArgsT $ monoT $ arrowT noLoc resT recordField'type
+
+        fromRecUpdate RecordField{..} = (recordUpdateVar recordField'name, ty)
+          where
+            ty = appArgsT $ monoT $ arrowT noLoc recordField'type (arrowT noLoc resT resT)
 
     getSelectors ut@UserType{..} = M.foldMapWithKey toSel userType'cases
       where
@@ -427,7 +450,7 @@ userTypesToTypeContext (UserTypeCtx m) =
         toSelType cons n ty = appArgsT $ monoT $ arrowT noLoc resT ty
 
         toSel cons ts = H.Context $ M.fromList $
-          zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] $ V.toList ts
+          zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] $ V.toList $ getConsTypes ts
 
     toResT UserType{..} =
       foldl (\c arg -> appT noLoc c (var' arg)) (con' userType'name) userType'args
@@ -439,4 +462,7 @@ userTypesToTypeContext (UserTypeCtx m) =
 
 selectorNameVar :: ConsName -> Int -> H.Var
 selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]
+
+recordUpdateVar :: VarName -> H.Var
+recordUpdateVar field = secretVar $ mconcat ["update_", varName'name field]
 
