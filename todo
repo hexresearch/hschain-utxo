@@ -1,7 +1,3 @@
-* generic pattern matching (separate task)
-
-* records (separate task)
-
 * good pretty-printing for typle types (not Scala style ones)
 
 * prohibit recursive type definitions
@@ -51,10 +47,6 @@ xorCol _ _ = False
 
 * optimize lambda-reductions
 
-* where-clauses
-
-* guards
-
 * docs-update
 
-* rpel crashes on wrong file load (if file does not exist)
+* repl crashes on wrong file load (if file does not exist)
