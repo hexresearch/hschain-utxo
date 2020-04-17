@@ -2,8 +2,6 @@
     
     (a, b) = getPair
 
-* good pretty-printing for typle types (not Scala style ones)
-
 * prohibit recursive type definitions
 
 * type error on expression (derives wrong type)
@@ -53,4 +51,8 @@ xorCol _ _ = False
 
 * docs-update
 
-* repl crashes on wrong file load (if file does not exist)
+* mystirious constructor Bool. Try in repl
+  
+    Bool && True
+
+

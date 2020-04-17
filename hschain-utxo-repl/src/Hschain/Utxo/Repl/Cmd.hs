@@ -23,6 +23,7 @@ import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Infer.Pretty
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -123,7 +124,7 @@ showType str = case P.parseExp (Just "<repl>") str of
   P.ParseOk expr      -> do
     eTy <- checkType expr
     liftIO $ case eTy of
-      Right ty -> T.putStrLn $ renderText ty
+      Right ty -> T.putStrLn $ renderDoc $ prettyType ty
       Left err -> T.putStrLn $ renderText err
   P.ParseFailed _ msg -> liftIO $ putStrLn msg
 
