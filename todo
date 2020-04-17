@@ -1,3 +1,7 @@
+* implement let-pattenrs for repl in the style of
+    
+    (a, b) = getPair
+
 * good pretty-printing for typle types (not Scala style ones)
 
 * prohibit recursive type definitions
