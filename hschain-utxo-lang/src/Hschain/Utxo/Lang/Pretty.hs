@@ -1,5 +1,6 @@
 module Hschain.Utxo.Lang.Pretty(
-    renderText
+    renderDoc
+  , renderText
   , prettyRecord
 ) where
 
@@ -18,6 +19,7 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Exec
+import Hschain.Utxo.Lang.Infer.Pretty
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -32,8 +34,10 @@ import qualified Language.Haskell.Exts.SrcLoc as Hask
 import qualified Text.Show.Pretty as P
 
 renderText :: Pretty a => a -> Text
-renderText = renderStrict . layoutPretty defaultLayoutOptions . pretty
+renderText = renderDoc . pretty
 
+renderDoc :: Doc ann -> Text
+renderDoc = renderStrict . layoutPretty defaultLayoutOptions
 
 instance Pretty Lang where
   pretty = pretty . P.prettyExp
@@ -238,8 +242,8 @@ prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [p
 
 instance Pretty TypeError where
   pretty = \case
-    H.OccursErr src name ty  -> err src $ hsep ["Occurs error", pretty name, "with type", pretty ty]
-    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
+    H.OccursErr src name ty  -> err src $ hsep ["Occurs error", pretty name, "with type", prettyType ty]
+    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ prettyType tyB, "expected", inTicks $ prettyType tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
