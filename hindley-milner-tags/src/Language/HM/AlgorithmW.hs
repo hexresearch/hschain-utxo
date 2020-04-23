@@ -251,11 +251,12 @@ infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go (unTerm term)
 
             --
             (s0, t0, te) <- withContext (Context . M.insert x (monoT mt) . unContext) e
+            let mt' = applyType s0 mt
 
-            let rt = arrowT src (fmap (const src) mt) t0
+            let rt = arrowT src (fmap (const src) mt') t0
 
             -- return the annotated abstraction
-            return (s0, applyType s0 rt, tyAbsE src (TyVar $ Typed x (monoT mt)) te rt)
+            return (s0, applyType s0 rt, tyAbsE src (TyVar $ Typed x (monoT mt')) te rt)
         go (Let src x e0 e1) = do
             -- infer the type of the expression that is being bound
             (s0, t0, te0) <- e0
