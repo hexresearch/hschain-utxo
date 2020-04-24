@@ -5,16 +5,15 @@ module Language.HM.TypeError where
 
 --------------------------------------------------------------------------------
 
-import Data.Text (Text)
 import Language.HM.Type
 
 --------------------------------------------------------------------------------
 
 -- | Type errors.
-data TypeError src
-    = OccursErr src Text (Type src)
-    | UnifyErr src (Type src) (Type src)
-    | NotInScopeErr src Text
-    deriving (Eq, Show)
+data TypeError v where
+  OccursErr     :: IsVar v => Loc v -> v -> Type v -> TypeError v
+  UnifyErr      :: IsVar v => Loc v -> Type v -> Type v -> TypeError v
+  SubtypeErr    :: IsVar v => Loc v -> Type v -> Type v -> TypeError v
+  NotInScopeErr :: IsVar v => Loc v -> v -> TypeError v
 
---------------------------------------------------------------------------------
+

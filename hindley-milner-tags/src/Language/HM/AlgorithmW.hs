@@ -1,329 +1,286 @@
-module Language.HM.AlgorithmW (
-    -- * Typing contexts
-    Context(..),
-    emptyContext,
-
-    -- * External interface
-    runW,
-    inferW,
-    subtypeOf,
-
-    -- * Misc
-    genInOrder,
-    normaliseType,
-    normaliseSignature,
-    typeToSignature
+module Language.HM.AlgorithmW(
+    Context(..)
+  , inferType
+  , subtypeOf
 ) where
 
---------------------------------------------------------------------------------
+import Control.Arrow (second)
+import Control.Monad.Except
+import Control.Monad.State.Strict
 
-import Control.Applicative
-import Control.Monad
-
+import Data.Coerce
 import Data.Fix
-import Data.Function (on)
-import Data.String
-import Data.Text (Text)
-import qualified Data.List as L
-import qualified Data.Map.Strict as M
+import Data.Map.Strict (Map)
+import Data.Maybe
 
 import Language.HM.Term
 import Language.HM.Subst
 import Language.HM.Type
 import Language.HM.TypeError
 
-{-
-import Debug.Trace
-import Text.Show.Pretty (ppShow)
--}
 
--- | Tag to distinguish already proven code from user code.
--- We need it to show proper source code location on type mismatch.
-data Origin a
-  = Proven a
-  | UserCode a
-  deriving (Show, Eq, Functor)
+import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
-instance HasLoc a => HasLoc (Origin a) where
-  type Loc (Origin a) = Loc a
-  getLoc = \case
-    Proven a   -> getLoc a
-    UserCode a -> getLoc a
-
-getUserCodeSrc :: Origin src -> Origin src -> src
-getUserCodeSrc a b = case (a, b) of
-  (UserCode res, _) -> res
-  (_, UserCode res) -> res
-  (Proven res, _)   -> res
-
-markProven :: Context src -> Context (Origin src)
-markProven (Context m) = Context $ fmap (fmap Proven) m
-
-markUserCode :: Functor f  => f src -> f (Origin src)
-markUserCode = fmap UserCode
-
-unOrigin :: Origin a -> a
-unOrigin = \case
-  Proven a   -> a
-  UserCode a -> a
-
---------------------------------------------------------------------------------
-
--- | Typing contexts.
-newtype Context src = Context { unContext :: M.Map Var (Signature src)
+newtype Context v = Context { unContext :: Map v (Signature v)
   } deriving (Show, Eq, Semigroup, Monoid)
 
--- | 'empty' is the empty typing context.
-emptyContext :: Context src
-emptyContext = Context M.empty
+instance CanApply Context where
+    apply subst = Context . fmap (apply subst) . unContext
 
--- instance CanApply Context where
-applyContext :: Subst src -> Context src -> Context src
-applyContext s = Context . M.map (applySignature s) . unContext
+data InferM v a where
+  InferM :: IsVar v => StateT Int (Except (TypeError v)) a -> InferM v a
 
---------------------------------------------------------------------------------
+unInferM :: IsVar v => InferM v a -> StateT Int (Except (TypeError v)) a
+unInferM (InferM m) = m
 
--- | The type of Algorithm W computations.
-newtype W src a = W { unW :: Context (Origin src) -> Int -> Either (TypeError src) (a, Int) }
+instance IsVar v => Functor (InferM v) where
+  fmap f (InferM a) = InferM (fmap f a)
 
-instance Functor (W src) where
-    f `fmap` (W m) = W $ \ctx n -> do
-        (r,n') <- m ctx n
-        return (f r, n')
+instance IsVar v => Applicative (InferM v) where
+  pure = InferM . pure
+  InferM f <*> InferM a = InferM $ f <*> a
 
-instance Applicative (W src) where
-    pure x = W $ \_ n -> return (x, n)
+instance IsVar v => Monad (InferM v) where
+  InferM a >>= f = InferM $ a >>= (unInferM . f)
 
-    (W m) <*> (W m') = W $ \ctx n -> do
-        (f, n')  <- m ctx n
-        (x, n'') <- m' ctx n'
-        return (f x, n'')
+instance (IsVar v) => MonadError (TypeError v) (InferM v) where
+  throwError = InferM . throwError
+  catchError (InferM a) f = InferM $ catchError a (unInferM . f)
 
-instance Monad (W src) where
-    W m >>= f = W $ \ctx n -> do
-        (r, n') <- m ctx n
-        let W m' = f r in m' ctx n'
+instance IsVar v => MonadState Int (InferM v) where
+  get = InferM get
+  put = InferM . put
+  state = InferM . state
 
---------------------------------------------------------------------------------
+runInferM :: IsVar v => InferM v a -> Either (TypeError v) a
+runInferM (InferM m) = runExcept $ evalStateT m 0
 
--- | 'fresh' returns a fresh type variable.
-fresh :: Origin src -> W src (Type (Origin src))
-fresh src = W $ \_ n -> return (varT src (mconcat ["$$$", fromString $ show n]), n + 1)
+inferType :: IsVar v => Context v -> Term v -> Either (TypeError v) (Type v)
+inferType ctx term = fmap snd $ runInferM $ infer ctx term
 
-typeError :: TypeError src -> W src a
-typeError err = W $ \_ _ -> Left err
+infer :: IsVar v => Context v -> Term v -> InferM v (Subst v, Type v)
+infer ctx (Term (Fix x)) = case x of
+  Var v           -> inferVar ctx v
+  App a b         -> inferApp ctx (Term a) (Term b)
+  Lam v r         -> inferLam ctx v (Term r)
+  Let vs a        -> inferLet ctx (fmap (second Term) vs) (Term a)
+  LetRec vs a     -> inferLetRec ctx (fmap (second Term) vs) (Term a)
+  AssertType a ty -> inferAssertType ctx (Term a) ty
 
---------------------------------------------------------------------------------
-
--- | 'gen' @t@ generalises a monomorphic type @t@ to a polymorphic type.
-gen :: Type (Origin src) -> W src (Signature (Origin src))
-gen t = W $ \ctx n -> return (gen' ctx t, n)
-
-gen' :: Context src -> Type src -> Signature src
-gen' ctx t = L.foldr (\(ty, src) -> forAllT src ty) (monoT t) $ M.toList $ unVarSet vs
-    where
-        cs = mconcat $ map tyVars $ M.elems $ unContext ctx
-        vs = tyVars t `differenceVarSet` cs
-
--- | 'genInOrder' @ctx t@ generalises a monomorphic type @t@ to a polymorphic
--- type in a context @ctx@. This variant of 'gen' ensures that the order of
--- quantifiers matches that in which type variables occur in @t@.
-genInOrder :: Context src -> Type src -> Signature src
-genInOrder ctx t = foldr (\(var, src) -> forAllT src var) (monoT t) vs
-    where
-        cs = mconcat $ map tyVars $ M.elems $ unContext ctx
-        vs = L.deleteFirstsBy ((==) `on` fst) (tyVarsInOrder t) (M.toList $ unVarSet cs)
-
--- | 'inst' @t@ instantiates a polymorphic type @t@ with fresh type variables.
-inst :: Signature (Origin src) -> W src (Type (Origin src))
-inst = cataM go . unSignature
-    where
-        go (MonoT t) = return t
-        go (ForAllT src x t) = do
-            i <- fresh src
-
-            let s = Subst $ M.singleton x i
-
-            return (applyType s t)
-
--- | 'withContext' @f m@ runs applies @f@ to the typing context in which @m@ is
--- run. The context of the overall computation is not affected.
-withContext :: (Context (Origin src )-> Context (Origin src)) -> W src a -> W src a
-withContext f (W m) = W $ \ctx n -> m (f ctx) n
-
--- | 'lookupType' @x@ looks up the type of @x@ in the context.
-lookupType :: Var -> W src (Maybe (Signature (Origin src)))
-lookupType x = W $ \ctx n -> return (M.lookup x $ unContext ctx, n)
-
--- | 'requireType' @x@ looks up the type of @x@ in the context. A type error
--- is raised if @x@ is not typed in the context.
-requireType :: Origin src -> Var -> W src (Signature (Origin src))
-requireType src x = lookupType x >>= \r -> case r of
-    Nothing -> typeError $ NotInScopeErr (unOrigin src) x
-    Just t  -> return $ fmap (const src) t
-
---------------------------------------------------------------------------------
-
--- | 'bind' @x t@ binds a type @t@ to a type variable named @x@.
-bind :: Text -> TypeF (Origin src) (Fix (TypeF (Origin src))) -> W src (Subst (Origin src))
-bind x (VarT _ y) | x == y = return $ Subst M.empty
-bind x t = case getVar (tyVars (Type $ Fix t)) x of
-  Just src -> typeError $ OccursErr (getUserCodeSrc src src2) x (fmap unOrigin $ Type $ Fix t)
-  Nothing  -> return $ Subst $ M.singleton x (Type $ Fix t)
+inferVar :: IsVar v => Context v -> v -> InferM v (Subst v, Type v)
+inferVar ctx v = fmap (mempty, ) $ maybe err newInstance $ M.lookup v (unContext ctx)
   where
-    src2 = getLoc (Type $ Fix t)
+    err = throwError $ NotInScopeErr (getLoc v) v
 
--- | 'unify' @t0 t1@ unifies two types @t0@ and @t1@. If the two types can be
--- unified, a substitution is returned which unifies them.
-unify :: Show src => Type (Origin src) -> Type (Origin src) -> W src (Subst (Origin src))
-unify (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
-    where
-        go (VarT _ x) t = bind x t
-        go t (VarT _ x) = bind x t
-        go (ConT _ a) (ConT _ b) | a == b = return emptySubst
-        go (AppT _ f x) (AppT _ g y) = unifyPair (f, x) (g, y)
-        go (ArrowT _ f x) (ArrowT _ g y) = unifyPair (f, x) (g, y)
-        -- without base types etc., all types are unifiable
-        go t0 t1 =
-          let toLoc = getLoc . Type . Fix
-              loc = getUserCodeSrc (toLoc t0) (toLoc t1)
-          in  typeError $ UnifyErr loc (fmap unOrigin $ Type $ Fix t0) (fmap unOrigin $ Type $ Fix t1)
+inferApp :: IsVar v => Context v -> Term v -> Term v -> InferM v (Subst v, Type v)
+inferApp ctx f a = do
+  tvn <- fmap varT freshVar
+  res <- inferTerms ctx [f, a]
+  case res of
+    (phi, [tf, ta]) -> liftEither $ fmap (\subst -> (subst, apply subst tvn)) $ unify phi tf (arrowT ta tvn)
+    _               -> error "Impossible has happened!"
 
-
-        unifyPair (f, x) (g, y) = do
-            s0 <- go (unFix f) (unFix g)
-            s1 <- go (unFix $ unType $ applyType s0 $ Type x) (unFix $ unType $ applyType s0 $ Type y)
-            return (s1 <@> s0)
-
-subtypeOf' :: Show src => Type (Origin src) -> Type (Origin src) -> W src (Subst (Origin src))
-subtypeOf' (Type tau0) (Type tau1) = go (unFix tau0) (unFix tau1)
+inferLam :: IsVar v => Context v -> v -> Term v -> InferM v (Subst v, Type v)
+inferLam ctx x body = do
+  tvn <- freshVar
+  (phi, tbody) <- infer (ctx1 tvn) body
+  return (phi, arrowT (apply phi (varT tvn)) tbody)
   where
-    go (VarT _ x) t@(VarT _ _) = bind x t
-    go t (VarT _ x) = bind x t
-    go (ConT _ a) (ConT _ b) | a == b = return emptySubst
-    go (AppT _ f x) (AppT _ g y) = subPair (f, x) (g, y)
-    go (ArrowT _ f x) (ArrowT _ g y) = subPair (f, x) (g, y)
-    -- without base types etc., all types are unifiable
-    go t0 t1 =
-      let toLoc = getLoc . Type . Fix
-          loc = getUserCodeSrc (toLoc t1) (toLoc t0)
-      in  typeError $ UnifyErr loc (fmap unOrigin $ Type $ Fix t0) (fmap unOrigin $ Type $ Fix t1)
+    ctx1 tvn = coerce (M.insert x (newVar tvn)) ctx
 
-    subPair (f, x) (g, y) = do
-        s0 <- go (unFix f) (unFix g)
-        s1 <- go (unFix $ unType $ applyType s0 $ Type x) (unFix $ unType $ applyType s0 $ Type y)
-        return (s1 <@> s0)
+inferLet :: IsVar v => Context v -> [(v, Term v)] -> Term v -> InferM v (Subst v, Type v)
+inferLet ctx vs body = do
+  (phi, tTerms) <- inferTerms ctx $ fmap snd vs
+  ctx1 <- addDecls (zip (fmap fst vs) tTerms) (apply phi ctx)
+  (subst, tbody) <- infer ctx1 body
+  return (subst <> phi, tbody)
+
+addDecls :: IsVar v => [(v, Type v)] -> Context v -> InferM v (Context v)
+addDecls vs ctx =
+  foldM  (\c (v, t) -> addDecl unknowns v t c) ctx vs
+  where
+    unknowns = foldMap tyVars $ unContext ctx
+
+addDecl :: IsVar v => S.Set v -> v -> Type v -> Context v -> InferM v (Context v)
+addDecl unknowns v t ctx = do
+  scheme <- toScheme unknowns t
+  return $ coerce (M.insert v scheme) ctx
+  where
+    toScheme uVars ty = do
+      (subst, newVars) <- fmap (\xs -> (toSubst xs, fmap snd xs)) $
+          mapM (\sv -> fmap ((sv, )) freshVar) $ S.toList schematicVars
+      return $ foldr forAllT (monoT (apply subst ty)) newVars
+      where
+        schematicVars = tyVars ty `S.difference` uVars
+
+    toSubst = Subst . M.fromList . fmap (second varT)
+
+inferLetRec :: forall v . IsVar v
+  => Context v -> [(v, Term v)] -> Term v -> InferM v (Subst v, Type v)
+inferLetRec ctx vs body = do
+  lhsCtx <- getTypesLhs nameBinds
+  (phi, tBinds) <- inferTerms (ctx <> Context (M.fromList lhsCtx)) exprBinds
+  (ctx1, lhsCtx1, subst) <- liftEither $ unifyRhs ctx lhsCtx phi tBinds
+  inferBody ctx1 lhsCtx1 subst body
+  where
+    nameBinds = fmap fst vs
+    exprBinds = fmap snd vs
+
+    getTypesLhs :: [v] -> InferM v [(v, Signature v)]
+    getTypesLhs lhs = mapM (\n -> fmap ((n, ) . newVar) freshVar) lhs
+
+    unifyRhs context lhsCtx phi tBinds =
+      fmap (\subst -> (context1, lhsCtx1, subst)) $ unifyl phi ts tBinds
+      where
+        context1 = apply phi context
+        lhsCtx1  = fmap (second $ apply phi) lhsCtx
+        ts = fmap (oldBvar . snd) lhsCtx1
+
+    oldBvar = cata go . unSignature
+      where
+        go  = \case
+          MonoT t     -> t
+          ForAllT _ t -> t
+
+    inferBody context lhsCtx subst expr = do
+      ctx1 <- addDecls (fmap (second $ oldBvar . apply subst) lhsCtx) $ apply subst context
+      (phi, ty) <- infer ctx1 expr
+      return (phi <> subst, ty)
+
+inferAssertType :: IsVar v => Context v -> Term v -> Type v -> InferM v (Subst v, Type v)
+inferAssertType ctx a ty = do
+  (phi, tA) <- infer ctx a
+  subst <- liftEither $ genSubtypeOf phi tA ty
+  return (subst <> phi, ty)
 
 
+inferTerms :: IsVar v => Context v -> [Term v] -> InferM v (Subst v, [Type v])
+inferTerms ctx ts = case ts of
+  []   -> return $ (mempty, [])
+  a:as -> do
+    (phi, ta)  <- infer ctx a
+    (psi, tas) <- inferTerms (apply phi ctx) as
+    return (psi <> phi, apply psi ta : tas)
 
---------------------------------------------------------------------------------
+newInstance :: IsVar v => Signature v -> InferM v (Type v)
+newInstance = fmap (uncurry apply) . cataM go . unSignature
+  where
+    go = \case
+      MonoT ty -> return (mempty, ty)
+      ForAllT v (Subst m, ty) -> fmap (\nv -> (Subst $ M.insert v (varT nv) m, ty)) freshVar
 
--- | 'infer' @term@ reconstructs types in @term@.
-infer :: forall src . Show src => Term (Origin src) -> W src (TyTerm (Origin src))
-infer term = (\(s,_,e) -> applyTyTerm s e) `fmap` cata go (unTerm term)
-    where
-        go :: TermF (Origin src) Var (W src (Subst (Origin src), Type (Origin src), TyTerm (Origin src))) -> W src (Subst (Origin src), Type (Origin src), TyTerm (Origin src))
-        go (Var src x) = do
-            -- @x@ must be typed in the context
-            pt <- requireType src x
+newVar :: IsVar v => v -> Signature v
+newVar tvn = monoT $ varT tvn
 
-            -- instantiate the type of @x@
-            mt <- inst pt
+freshVar :: IsVar v => InferM v v
+freshVar = do
+  n <- get
+  put $ n + 1
+  return $ intToVar n
 
-            -- return an annotated variable along with an empty substituion
-            return (emptySubst, mt, tyVarE src (TyVar $ Typed x (monoT mt)) mt)
-        go (App src f x) = do
-            (s0, t0, tf) <- f
-            (s1, t1, tx) <- withContext (applyContext s0) x
+unify :: IsVar v => Subst v -> Type v -> Type v -> Either (TypeError v) (Subst v)
+unify phi (Type (Fix x)) (Type (Fix y)) = case (x, y) of
+  (VarT tvn, t) ->
+      let phiTvn = applyVar phi tvn
+          phiT   = apply phi (Type (Fix t))
+      in  if phiTvn == varT tvn
+            then extend phi tvn phiT
+            else unify phi phiTvn phiT
+  (ConT name ts, VarT v) -> unify phi (varT v) (conT name $ fmap Type ts)
+  (ConT n xs, ConT m ys) ->
+    if n == m
+      then unifyl phi (fmap Type xs) (fmap Type ys)
+      else Left $ UnifyErr (getLoc n) (Type (Fix x)) (Type (Fix y)) -- todo: right source location!!!
 
-            -- generate a fresh type variable to represent the return type
-            -- of the function
-            mt <- fresh src
+unifyl :: IsVar v => Subst v -> [Type v] -> [Type v] -> Either (TypeError v) (Subst v)
+unifyl subst as bs = foldr go (Right subst) $ zip as bs
+  where
+    go (a, b) eSubst = (\t -> unify t a b) =<< eSubst
 
-            -- unify the types
-            s2 <- unify t0 (arrowT src t1 mt)
+applyVar :: IsVar v => Subst v -> v -> Type v
+applyVar (Subst subst) v = fromMaybe (varT v) $ M.lookup v subst
 
-            -- return the annotated application
-            return (s2 <@> s1 <@> s0, applyType s2 mt, tyAppE src tf tx mt)
-        go (Abs src x e) = do
-            -- we need a fresh type variable for @x@
-            mt <- fresh src
+extend :: IsVar v => Subst v -> v -> Type v -> Either (TypeError v) (Subst v)
+extend phi tvn ty
+  | varT tvn == ty           = Right phi
+  | S.member tvn (tyVars ty) = Left $ OccursErr (getLoc tvn) tvn ty
+  | otherwise                = Right $ delta tvn ty <> phi
 
-            --
-            (s0, t0, te) <- withContext (Context . M.insert x (monoT mt) . unContext) e
-            let mt' = applyType s0 mt
+subtypeOf :: IsVar v => Type v -> Type v -> Either (TypeError v) (Subst v)
+subtypeOf a b = genSubtypeOf mempty a b
 
-            let rt = arrowT src (fmap (const src) mt') t0
+genSubtypeOf :: IsVar v => Subst v -> Type v -> Type v -> Either (TypeError v) (Subst v)
+genSubtypeOf phi tx@(Type (Fix x)) ty@(Type (Fix y)) = case (x, y) of
+  (_, VarT _) -> unify phi tx ty
+  (ConT n xs, ConT m ys) ->
+    if n == m
+      then subtypeOfL phi (fmap Type xs) (fmap Type ys)
+      else Left $ SubtypeErr (getLoc n) tx ty -- todo: right source location!!!
+  (VarT v, ConT _ _) ->
+      Left $ SubtypeErr (getLoc v) tx ty -- todo: right source location!!!
 
-            -- return the annotated abstraction
-            return (s0, applyType s0 rt, tyAbsE src (TyVar $ Typed x (monoT mt')) te rt)
-        go (Let src x e0 e1) = do
-            -- infer the type of the expression that is being bound
-            (s0, t0, te0) <- e0
+subtypeOfL :: IsVar v => Subst v -> [Type v] -> [Type v] -> Either (TypeError v) (Subst v)
+subtypeOfL subst as bs = foldr go (Right subst) $ zip as bs
+  where
+    go (a, b) eSubst = (\t -> genSubtypeOf t a b) =<< eSubst
 
-            -- generalise the type of the expression that is being bound
-            pt <- withContext (applyContext s0) (gen t0)
 
-            -- infer the type of the other expression
-            (s1, t1, te1) <- withContext (applyContext s0 . Context . M.insert x pt . unContext) e1
-
-            -- return the annotated let binding
-            return (s1 <@> s0, t1, tyLetE src (TyVar $ Typed x pt) te0 te1 t1)
-        go (AssertType _ x sign) = do
-            (s0, t0, tx) <- x
-            ty <- inst sign
-            s1 <- subtypeOf' ty t0
-            return (s1 <@> s0, ty, tx)
 {-
-trace' x = trace (ppShow x) x
-trace1 msg x = trace (mconcat [msg, ": " , ppShow x]) x
--}
---------------------------------------------------------------------------------
 
--- | 'runW' @gamma term@ runs Algorithm W on @term@ with an initial context
--- @gamma@ and returns an updated @term@ with explicit type annotations.
-runW :: Show src => Context src -> Term src -> Either (TypeError src) (TyTerm src)
-runW ctx term = fmap (fmap unOrigin) $ fst `fmap` unW (infer $ markUserCode term) (markProven ctx) 0
+inferLet :: IsVar v => Context v -> [(v, Term v)] -> Term v -> InferM (Subst v, Type v)
 
--- | 'inferW' @gamma term@ runs Algorithm W on @term@ with an initial context
--- @gamma@ and returns the polymorphic type of the whole term.
-inferW :: Show src => Context src -> Term src -> Either (TypeError src) (Type src)
-inferW ctx term = either (Left . normaliseTypeError) (Right . normaliseType) $
-  (tyAnn . unTypedF . unFix . unTyTerm) `fmap` runW ctx term
+inferLetRec :: forall v . IsVar v => Context v -> [(v, Term)] -> Term v -> InferM (Subst v, Type v)
 
-subtypeOf :: Show src => Context src -> Signature src -> Signature src -> Either (TypeError src) (Subst src)
-subtypeOf ctx ta tb =
-  fmap (fmap unOrigin) $ fst `fmap` unW (join $ liftA2 subtypeOf' (inst $ markUserCode ta) (inst $ markUserCode tb)) (markProven ctx) 0
+inferAssertType :: Context v -> Term v -> Type v -> InferM (Subst v, Type v)
 
---------------------------------------------------------------------------------
--- normalise result type
+--------------------------------------------------------------
 
-normaliseSignature :: Signature src -> Signature src
-normaliseSignature x = applySignature (normaliseSubst x) x
+unify :: IsVar v => Subst v -> Type v -> Type v -> Either (TypeError v) (Subst v)
+unify phi (Fix x) (Fix y) = case (x, y) of
+  (VarT tvn, t) ->
+      let phiTvn = applyVar phi tvn
+          phiT   = apply phi (Fix t)
+      in  if phiTvn == varT tvn
+            then extend phi tvn phiT
+            else unify phi phiTvn phiT
+  (ConT name ts, VarT v) -> unify phi (varT v) (conT name ts)
+  (ConT n xs, ConT m ys) ->
+    if n == m
+      then unifyl phi xs ys
+      else Left $ UnifyErr (Fix x) (Fix y)
 
-normaliseType :: Type src -> Type src
-normaliseType x = applyType (normaliseSubst x) x
-
-normaliseTypeError :: TypeError src -> TypeError src
-normaliseTypeError = \case
-  OccursErr src text ty  -> OccursErr src text (normaliseType ty)
-  UnifyErr src tyA tyB   -> UnifyErr src (normaliseType tyA) (normaliseType tyB)
-  NotInScopeErr src name -> NotInScopeErr src name
-
-{- todo: implement and normalise runW
-normaliseTyTerm :: TyTerm src -> TyTerm src
-normaliseTyTerm x = applyTyTerm (normaliseSubst x) x
--}
-normaliseSubst :: HasTypeVars m => m src -> Subst src
-normaliseSubst x =
-  Subst $ M.fromList $
-      zipWith (\(nameA, src) nameB -> (nameA, varT src nameB)) (tyVarsInOrder x) letters
-
-letters :: [Text]
-letters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
-
-typeToSignature :: Show src => Type src -> Signature src
-typeToSignature ty = (foldr (.) id $ fmap (uncurry $ flip forAllT) vs) (monoT ty)
+unifyl :: IsVar v => Subst v -> [Type v] -> [Type v] -> Either (TypeError v) (Subst v)
+unifyl subst as bs = foldr go (Right subst) $ zip as bs
   where
-    vs = tyVarsInOrder ty
+    go (a, b) eSubst = (\t -> unify t a b) =<< eSubst
 
+applyVar :: IsVar v => Subst v -> v -> Type v
+applyVar subst v = fromMaybe (varT v) $ M.lookup v subst
+
+extend :: IsVar v => Subst v -> v -> Type v -> Either (TypeError v) (Subst v)
+extend phi tvn ty
+  | varT tvn == ty           = Right phi
+  | S.member tvn (tyVars ty) = Left $ OccursErr tvn ty
+  | otherwise                = Right $ delta tvn ty <@> phi
+
+delta :: IsVar v => v -> Type v -> Subst v
+delta v ty = M.fromList [(v, ty)]
+
+subtypeOf :: IsVar v => Type v -> Type v -> Either (TypeError (Loc v)) (Subst v)
+subtypeOf a b = genSubtypeOf mempty a b
+
+genSubtypeOf :: IsVar v => Subst v -> Type v -> Type v -> Either (TypeError (Loc v)) (Subst v)
+genSubtypeOf phi (Fix x) (Fix y) = case (x, y) of
+  (_, VarT v) -> unify phi (Fix x) (Fix y)
+  (ConT n xs, ConT m ys) ->
+    if n == m
+      then subtypeOfL phi xs ys
+      else Left $ SubtypeErr (Fix x) (Fix y)
+
+subtypeOfL :: IsVar v => Subst v -> [Type v] -> [Type v] -> Either (TypeError (Loc v)) (Subst v)
+subtypeOfL subst as bs = foldr go (Right subst) $ zip as bs
+  where
+    go (a, b) eSubst = (\t -> genSubtypeOf t a b) =<< eSubst
+
+-}
