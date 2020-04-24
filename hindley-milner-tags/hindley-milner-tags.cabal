@@ -93,11 +93,14 @@ library
     DeriveTraversable,
     FlexibleContexts,
     FlexibleInstances,
+    GADTs
     GeneralizedNewtypeDeriving,
     LambdaCase,
+    MultiParamTypeClasses,
     OverloadedStrings,
     ScopedTypeVariables,
     TemplateHaskell,
+    TupleSections,
     TypeFamilies,
     TypeSynonymInstances
 

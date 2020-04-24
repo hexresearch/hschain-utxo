@@ -1,88 +1,82 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Language.HM.Pretty(
+    HasPrefix(..)
+  , OpFix(..)
+  , Fixity(..)
 ) where
+
+import Control.Monad
 
 import Data.Bool
 import Data.Fix
-import Data.Map.Strict (Map)
 import Data.Maybe
-import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
 
 import Language.HM.Type
 import Language.HM.Term
 
-import qualified Data.Map.Strict as Map
+class IsVar v => HasPrefix v where
+  getFixity :: v -> Maybe OpFix
 
-instance Pretty (Signature src) where
+isPrefix :: HasPrefix v => v -> Bool
+isPrefix = isNothing . getFixity
+
+isInfix :: HasPrefix v => v -> Bool
+isInfix  = not . isPrefix
+
+instance (Pretty v, HasPrefix v) => Pretty (Signature v) where
   pretty = cata go . unSignature
     where
       go = \case
-        ForAllT _ _ r -> r
+        ForAllT _ r -> r
         MonoT ty      -> pretty ty
 
-instance Pretty (Type src) where
-  pretty = go False initEnv initCtx . unType
+instance (HasPrefix v, Pretty v) => Pretty (Type v) where
+  pretty = go False initCtx . unType
     where
-      go :: Bool -> FixityEnv -> FixityContext -> Fix (TypeF src) -> Doc ann
-      go isArrPrev env ctx (Fix expr) = case expr of
-        VarT _ name   -> pretty name
-        ConT _ name   -> pretty name
-        ArrowT _ a b  -> fromBin "->" a b
-        AppT  _ f a   -> fromAp isArrPrev f a
+      go :: Bool -> FixityContext v -> Fix (TypeF v) -> Doc ann
+      go isArrPrev ctx (Fix expr) = case expr of
+        VarT name   -> pretty name
+        ConT name [a, b] | isInfix name -> fromBin name a b
+        ConT name as -> fromCon isArrPrev name as
         where
-          fromAp isArr (Fix f) a = case f of
-            AppT _ (Fix (ConT _ op)) b
-              | env `contains` Op op -> fromBin op b a
-            _ -> fromUn isArr (Fix f) a
+          fromCon isArr name args = maybeParens (not isArr && needsParens ctx OpFunAp) $ hsep $
+            pretty name :
+            fmap (go False (FcRight OpFunAp)) args
 
-          fromUn isArr f a = maybeParens (not isArr && needsParens env ctx OpFunAp) $ hsep $
-            go False env (FcLeft OpFunAp) unOp :
-            fmap (go False env (FcRight OpFunAp)) args
-            where
-              (unOp, args) = getApArgs f a
-
-
-          fromBin op a b = maybeParens (needsParens env ctx (Op op)) $ hsep
-            [ go True env (FcLeft $ Op op) a
+          fromBin op a b = maybeParens (needsParens ctx (Op op)) $ hsep
+            [ go True (FcLeft $ Op op) a
             , pretty op
-            , go True env (FcRight $ Op op) b
+            , go True (FcRight $ Op op) b
             ]
-
-          -- Collects left-associative args
-          getApArgs fun a = loop fun [a]
-            where
-              loop (Fix f) res = case f of
-                AppT _ g b -> loop g (b:res)
-                _          -> (Fix f, res)
 
       initCtx = FcNone
 
 maybeParens :: Bool -> Doc ann -> Doc ann
 maybeParens cond = bool id parens cond
 
-needsParens :: FixityEnv -> FixityContext -> Operator -> Bool
-needsParens env = \case
+needsParens :: HasPrefix v => FixityContext v -> Operator v -> Bool
+needsParens = \case
   FcNone      -> const False
   FcLeft ctx  -> fcLeft ctx
   FcRight ctx -> fcRight ctx
   where
     fcLeft ctxt op
-      | comparePrec env ctxt op == PoLT = False
-      | comparePrec env ctxt op == PoGT = True
-      | comparePrec env ctxt op == PoNC = True
+      | comparePrec ctxt op == PoLT = False
+      | comparePrec ctxt op == PoGT = True
+      | comparePrec ctxt op == PoNC = True
       -- otherwise the two operators have the same precedence
-      | fixity env ctxt /= fixity env op = True
-      | fixity env ctxt == FixLeft = False
+      | fixity ctxt /= fixity op = True
+      | fixity ctxt == FixLeft = False
       | otherwise = True
 
     fcRight ctxt op
-      | comparePrec env ctxt op == PoLT = False
-      | comparePrec env ctxt op == PoGT = True
-      | comparePrec env ctxt op == PoNC = True
+      | comparePrec ctxt op == PoLT = False
+      | comparePrec ctxt op == PoGT = True
+      | comparePrec ctxt op == PoNC = True
       -- otherwise the two operators have the same precedence
-      | fixity env ctxt /= fixity env op = True
-      | fixity env ctxt == FixRight = False
+      | fixity ctxt /= fixity op = True
+      | fixity ctxt == FixRight = False
       | otherwise = True
 
 data PartialOrdering = PoLT | PoGT | PoEQ | PoNC
@@ -96,22 +90,29 @@ data OpFix = OpFix
 data Fixity = FixLeft | FixRight | FixNone
   deriving Eq
 
-data Operator = OpFunAp | Op Text
+data Operator v = OpFunAp | Op v
   deriving (Eq, Ord)
 
-data FixityContext = FcNone | FcLeft Operator | FcRight Operator
+data FixityContext v = FcNone | FcLeft (Operator v) | FcRight (Operator v)
 
-type FixityEnv = Map Operator OpFix
-
+{-
 initEnv :: FixityEnv
 initEnv = Map.fromList
   [ (Op "->", OpFix FixRight 2) ]
+-}
 
-contains :: FixityEnv -> Operator -> Bool
-contains m op = isJust $ Map.lookup op m
+getFixityEnv :: HasPrefix v => Operator v -> Maybe OpFix
+getFixityEnv = getFixity <=< fromOp
 
-comparePrec :: FixityEnv -> Operator -> Operator -> PartialOrdering
-comparePrec env a b = case (Map.lookup a env, Map.lookup b env) of
+fromOp :: Operator v -> Maybe v
+fromOp = \case
+  OpFunAp -> Nothing
+  Op v    -> Just v
+
+
+
+comparePrec :: HasPrefix v => Operator v -> Operator v -> PartialOrdering
+comparePrec a b = case (getFixityEnv a, getFixityEnv b) of
   (Just opA, Just opB) -> toPo (opFix'prec opA) (opFix'prec opB)
   _                    -> PoNC
   where
@@ -121,22 +122,23 @@ comparePrec env a b = case (Map.lookup a env, Map.lookup b env) of
       | otherwise = PoEQ
 
 
-fixity :: FixityEnv -> Operator -> Fixity
-fixity env op = maybe FixNone opFix'fixity $ Map.lookup op env
+fixity :: HasPrefix v => Operator v -> Fixity
+fixity op = maybe FixNone opFix'fixity $ getFixityEnv op
 
 ---------------------------------------
 
-instance Pretty (Term src) where
+instance (HasPrefix v, Pretty v) => Pretty (Term v) where
   pretty (Term x) = cata prettyTermF x
     where
       prettyTermF = \case
-        Var _ v      -> pretty v
-        App _ a b    -> parens $ hsep [a, b]
-        Abs _ v a    -> parens $ hsep [hcat ["\\", pretty v], "->", a]
-        Let _ v a b  -> vcat [ hsep ["let", pretty v, "=", a]
-                             , hsep ["in ", b]]
-        AssertType _ r sig -> parens $ hsep [r, "::", pretty sig]
-
-
-
+        Var v       -> pretty v
+        App a b     -> parens $ hsep [a, b]
+        Lam v a     -> parens $ hsep [hcat ["\\", pretty v], "->", a]
+        Let vs a    -> onLet vs a
+        LetRec vs a -> onLet vs a
+        AssertType r sig -> parens $ hsep [r, "::", pretty sig]
+        where
+          onLet vs body =
+            vcat [ hsep ["let", indent 4 $ vcat $ fmap (\(v, a) -> hsep [pretty v, "=", a]) vs]
+                 , hsep ["in ", body]]
 
