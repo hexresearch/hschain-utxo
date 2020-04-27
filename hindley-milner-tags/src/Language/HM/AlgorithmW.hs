@@ -151,7 +151,7 @@ inferLetRec ctx vs body = do
 inferAssertType :: IsVar v => Context v -> Term v -> Type v -> InferM v (Subst v, Type v)
 inferAssertType ctx a ty = do
   (phi, tA) <- infer ctx a
-  subst <- liftEither $ genSubtypeOf phi tA ty
+  subst <- liftEither $ genSubtypeOf phi ty tA
   return (subst <> phi, ty)
 
 

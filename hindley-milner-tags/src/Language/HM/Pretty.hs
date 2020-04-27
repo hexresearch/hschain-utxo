@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Language.HM.Pretty(
     HasPrefix(..)
+  , PrintCons(..)
   , OpFix(..)
   , Fixity(..)
 ) where
@@ -18,20 +19,25 @@ import Language.HM.Term
 class IsVar v => HasPrefix v where
   getFixity :: v -> Maybe OpFix
 
+-- | This class is useful to define the way to print special cases
+-- like constructors for tuples or lists.
+class PrintCons v where
+  printCons :: v -> [Doc ann] -> Doc ann
+
 isPrefix :: HasPrefix v => v -> Bool
 isPrefix = isNothing . getFixity
 
 isInfix :: HasPrefix v => v -> Bool
 isInfix  = not . isPrefix
 
-instance (Pretty v, HasPrefix v) => Pretty (Signature v) where
+instance (Pretty v, PrintCons v, HasPrefix v) => Pretty (Signature v) where
   pretty = cata go . unSignature
     where
       go = \case
         ForAllT _ r -> r
         MonoT ty      -> pretty ty
 
-instance (HasPrefix v, Pretty v) => Pretty (Type v) where
+instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Type v) where
   pretty = go False initCtx . unType
     where
       go :: Bool -> FixityContext v -> Fix (TypeF v) -> Doc ann
@@ -40,9 +46,8 @@ instance (HasPrefix v, Pretty v) => Pretty (Type v) where
         ConT name [a, b] | isInfix name -> fromBin name a b
         ConT name as -> fromCon isArrPrev name as
         where
-          fromCon isArr name args = maybeParens (not isArr && needsParens ctx OpFunAp) $ hsep $
-            pretty name :
-            fmap (go False (FcRight OpFunAp)) args
+          fromCon isArr name args = maybeParens (not isArr && needsParens ctx OpFunAp) $
+            printCons name $ fmap (go False (FcRight OpFunAp)) args
 
           fromBin op a b = maybeParens (needsParens ctx (Op op)) $ hsep
             [ go True (FcLeft $ Op op) a
@@ -127,7 +132,7 @@ fixity op = maybe FixNone opFix'fixity $ getFixityEnv op
 
 ---------------------------------------
 
-instance (HasPrefix v, Pretty v) => Pretty (Term v) where
+instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Term v) where
   pretty (Term x) = cata prettyTermF x
     where
       prettyTermF = \case
