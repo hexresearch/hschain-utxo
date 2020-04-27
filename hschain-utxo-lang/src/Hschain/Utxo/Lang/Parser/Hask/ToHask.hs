@@ -8,6 +8,7 @@ import Hex.Common.Text
 
 import Control.Monad
 
+import Data.Char
 import Data.Fix
 import Data.Maybe
 
@@ -27,6 +28,8 @@ import qualified Data.Vector as V
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Parser as H
+
+import Language.HM.Type() -- import instances
 
 import qualified Language.HM as HM
 
@@ -198,6 +201,8 @@ toDecl bs = toBind =<< bs
       Just ty ->
         let signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name bind'name)] (toType ty)
             funBinds = fmap (\alt -> H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name alt) bind'alts
+
+            tyLoc :: Loc
             tyLoc = HM.getLoc ty
         in  signature : funBinds
 
@@ -258,19 +263,41 @@ toType x = case splitToPreds x of
     splitToPreds = cata go . HM.unSignature
       where
         go = \case
-          HM.MonoT ty                  -> ([], ty)
-          HM.ForAllT loc name (xs, ty) -> (VarName loc name : xs, ty)
+          HM.MonoT ty              -> ([], ty)
+          HM.ForAllT name (xs, ty) -> (name : xs, ty)
 
-    singleType :: HM.Type Loc -> H.Type Loc
+    singleType :: Type -> H.Type Loc
     singleType = cata go . HM.unType
       where
         go = \case
-          HM.VarT loc var   -> H.TyVar loc (toIdentName $ VarName loc var)
-          HM.ConT loc con   -> H.TyCon loc (toQName $ VarName loc con)
-          HM.ArrowT loc a b -> H.TyFun loc a b
-          -- TODO: How to express typles?
-          -- TTuple loc as -> H.TyTuple loc H.Boxed (fmap singleType as)
-          HM.AppT loc a b   -> H.TyApp loc a b
+          HM.VarT var      -> H.TyVar (HM.getLoc var) (toIdentName var)
+          HM.ConT con args -> fromTyCon con args
+
+        fromTyCon con@VarName{..} args
+          | isArrow varName'name args = toArrow con args
+          | isTuple varName'name      = toTuple con args
+          | otherwise                 = toCon con args
+
+
+        isArrow name args = (name == "->") && hasTwoArgs
+          where
+            hasTwoArgs = case args of
+              [a, b] -> True
+              _      -> False
+
+        isTuple name = (pref == "Tuple") && (T.all isDigit suf)
+          where
+            (pref, suf) = T.splitAt 5 name
+
+        toArrow con args = case args of
+          [a, b] -> H.TyFun (HM.getLoc con) a b
+          _      -> error "Expected two arguments for arrow type constructor"
+
+        toTuple con args = H.TyTuple (HM.getLoc con) H.Boxed args
+
+        toCon con args = foldl (\a b -> H.TyApp loc a b) (H.TyCon loc (toQName con)) args
+          where
+            loc = HM.getLoc con
 
 
 toQName :: VarName -> H.QName Loc

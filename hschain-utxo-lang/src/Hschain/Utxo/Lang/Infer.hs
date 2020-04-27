@@ -12,6 +12,7 @@ module Hschain.Utxo.Lang.Infer(
 import Hex.Common.Control
 import Hex.Common.Text
 
+import Control.Arrow (first)
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
@@ -26,7 +27,7 @@ import Data.Function (on)
 import Data.Set (Set)
 import Data.String
 
-import Language.HM (appE, varE, absE, letE, varT, appT, conT, monoT, forAllT, arrowT)
+import Language.HM (appE, varE, lamE, letE, varT, conT, monoT, forAllT, arrowT, stripSignature)
 
 import Safe
 
@@ -55,16 +56,19 @@ maxTupleSize = 6
 
 inferExpr :: InferCtx -> Lang -> InferM Type
 inferExpr (InferCtx typeCtx userTypes) =
-  (InferM . lift . eitherTypeError . H.inferW (defaultContext <> typeCtx)) <=< reduceExpr userTypes
+  (InferM . lift . eitherTypeError . H.inferType (defaultContext <> typeCtx)) <=< reduceExpr userTypes
 
-reduceExpr :: UserTypeCtx -> Lang -> InferM (H.Term Loc)
+setLoc :: Loc -> VarName -> VarName
+setLoc loc v = v { varName'loc = loc }
+
+reduceExpr :: UserTypeCtx -> Lang -> InferM (H.Term VarName)
 reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Var loc var               -> pure $ fromVarName var
-  Apply loc a b             -> liftA2 (appE loc) (rec a) (rec b)
-  InfixApply loc a name b   -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
+  Apply _ a b               -> liftA2 appE (rec a) (rec b)
+  InfixApply _ a name b     -> liftA2 (\fa fb -> fromInfixApply fa name fb) (rec a) (rec b)
   Cons loc name args        -> fmap (fromCons loc name) (mapM rec $ V.toList args)
   Lam loc pat a             -> case pat of
-                                  PVar _ var -> fmap (absE loc (varName'name var)) (rec a)
+                                  PVar _ var -> fmap (lamE var) (rec a)
                                   _          -> do
                                     v <- getFreshVar loc
                                     rec $ Fix $ Lam loc (PVar loc v) (Fix $ CaseOf loc (Fix $ Var loc v) [CaseExpr pat a])
@@ -73,7 +77,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   LetRec loc var a b        -> pure $ undefined
   -- cases
   CaseOf loc expr alts      -> rec =<< caseToLet selectorNameVar loc expr alts
-  Ascr loc a ty             -> fmap (\term -> fromAscr loc term ty) (rec a)
+  Ascr _ a ty               -> fmap (\term -> fromAscr term $ stripSignature ty) (rec a)
   PrimE loc prim            -> pure $ fromPrim loc prim
   If loc cond t e           -> liftA3 (fromIf loc) (rec cond) (rec t) (rec e)
   Pk loc a                  -> fmap (fromPk loc) (rec a)
@@ -88,25 +92,25 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   -- boxes
   BoxE loc box              -> fmap (fromBox loc) $ mapM rec box
   -- undefined
-  Undef loc                 -> pure $ varE loc undefVar
+  Undef loc                 -> pure $ varE $ setLoc loc undefVar
   -- debug
   Trace loc a b             -> liftA2 (fromTrace loc) (rec a) (rec b)
   -- environment
   GetEnv loc envId          -> fmap (fromGetEnv loc) $ mapM rec envId
   AltE loc a b              -> liftA2 (app2 loc altVar) (rec a) (rec b)
-  FailCase loc              -> return $ varE loc failCaseVar
+  FailCase loc              -> return $ varE $ setLoc loc failCaseVar
   -- records
   RecConstr loc cons fields -> fromRecCons loc cons fields
   RecUpdate loc a upds      -> liftA2 (fromRecUpdate loc) (rec a) (mapM (\(field, x) -> fmap (field, ) $ rec x) upds)
   where
     rec = reduceExpr ctx
 
-    fromInfixApply loc a name b =
-      appE loc (appE (H.getLoc name) (fromVarName name) a) b
+    fromInfixApply a name b =
+      appE (appE (fromVarName name) a) b
 
-    fromVarName VarName{..}  = varE varName'loc varName'name
+    fromVarName v  = varE v
 
-    fromCons loc cons args = foldl (\f arg -> appE (H.getLoc arg) f arg) (varE loc (consName'name cons)) args
+    fromCons loc cons args = foldl (\f arg -> appE f arg) (varE $ VarName loc (consName'name cons)) args
 
     fromRecCons loc cons fields = do
       args <- orderRecordFieldsFromContext ctx cons fields
@@ -115,12 +119,11 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
     fromLet _ binds expr = foldrM bindToLet expr (sortBindGroups binds)
       where
         bindToLet Bind{..} body = fmap (\alt ->
-          letE (varName'loc bind'name) (varName'name bind'name)
-               alt
+          letE [(bind'name, alt)]
                body)
                (rec =<< altGroupToExpr bind'alts)
 
-    fromAscr loc a ty = H.assertTypeE loc a ty
+    fromAscr a ty = H.assertTypeE a ty
 
     fromPrim loc prim = ($ loc) $ case prim of
       PrimInt _    -> intE
@@ -130,16 +133,16 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
 
     fromIf loc cond t e = app3 loc ifVar cond t e
 
-    fromPk loc a = appE loc (varE loc pkVar) a
+    fromPk loc a = appE (varE $ setLoc loc pkVar) a
 
     fromUnOp loc op a = case op of
       Not              -> not' a
       Neg              -> negate' a
       TupleAt size idx -> tupleAt size idx a
       where
-        not' = appE loc (varE loc notVar)
-        negate' = appE loc (varE loc negateVar)
-        tupleAt size n = appE loc (varE loc $ tupleAtVar size n)
+        not' = appE (varE $ setLoc loc notVar)
+        negate' = appE (varE $ setLoc loc negateVar)
+        tupleAt size n = appE (varE $ setLoc loc $ tupleAtVar size n)
 
     fromBinOp loc op = op2 $ case op of
       And                 -> andVar
@@ -157,7 +160,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       where
         op2 = app2 loc
 
-    fromTuple loc vs = appNs loc (tupleConVar size) $ V.toList vs
+    fromTuple loc vs = appNs loc (setLoc loc $ tupleConVar size) $ V.toList vs
       where
         size = V.length vs
 
@@ -165,18 +168,18 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
       VecAppend loc a b  -> app2 loc appendVecVar a b
       VecAt loc a n      -> app2 loc vecAtVar a n
-      VecLength loc      -> varE loc lengthVecVar
-      VecMap loc         -> varE loc mapVecVar
-      VecFold loc        -> varE loc foldVecVar
+      VecLength loc      -> varE $ setLoc loc lengthVecVar
+      VecMap loc         -> varE $ setLoc loc mapVecVar
+      VecFold loc        -> varE $ setLoc loc foldVecVar
 
     fromText _ expr = case expr of
       TextAppend loc a b            -> app2 loc appendTextVar a b
-      ConvertToText textTypeTag loc -> varE loc (convertToTextVar textTypeTag)
-      TextLength loc                -> varE loc lengthTextVar
-      TextHash loc hashAlgo         -> varE loc (textHashVar hashAlgo)
+      ConvertToText textTypeTag loc -> varE $ setLoc loc (convertToTextVar textTypeTag)
+      TextLength loc                -> varE $ setLoc loc lengthTextVar
+      TextHash loc hashAlgo         -> varE $ setLoc loc (textHashVar hashAlgo)
 
     fromBox _ expr = case expr of
-      PrimBox loc _     -> varE loc boxVar
+      PrimBox loc _     -> varE $ setLoc loc boxVar
       BoxAt loc a field -> fromBoxField loc a field
 
     fromBoxField loc a field = case field of
@@ -188,20 +191,20 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
     fromTrace loc msg a = app2 loc traceVar msg a
 
     fromGetEnv _ expr = case expr of
-      Height loc    -> varE loc heightVar
+      Height loc    -> varE $ setLoc loc heightVar
       Input loc  a  -> app1 loc inputVar a
       Output loc a  -> app1 loc outputVar a
-      Self loc      -> varE loc selfVar
-      Inputs loc    -> varE loc inputsVar
-      Outputs loc   -> varE loc outputsVar
+      Self loc      -> varE $ setLoc loc selfVar
+      Inputs loc    -> varE $ setLoc loc inputsVar
+      Outputs loc   -> varE $ setLoc loc outputsVar
       GetVar loc a  -> app1 loc getVarVar a
 
-    app1 loc var a = appE loc (varE loc var) a
-    app2 loc var a b = appE loc (appE loc (varE loc var) a) b
-    app3 loc var a b c = appE loc (app2 loc var a b) c
-    appNs loc var as = foldl (\con a -> appE loc con a) (varE loc var) as
+    app1 loc var a = appE (varE (setLoc loc var)) a
+    app2 loc var a b = appE (appE (varE (setLoc loc var)) a) b
+    app3 loc var a b c = appE (app2 loc var a b) c
+    appNs loc var as = foldl (\con a -> appE con a) (varE $ setLoc loc var) as
 
-    nilVec loc = varE loc nilVecVar
+    nilVec loc = varE $ setLoc loc nilVecVar
     consVec loc = app2 loc consVecVar
 
     fromRecUpdate loc a upds = foldl go a upds
@@ -209,7 +212,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
         go v (field, val) = app2 (H.getLoc field) (recordUpdateVar field) val v
 
 
-defaultContext :: H.Context Loc
+defaultContext :: TypeContext
 defaultContext = H.Context $ M.fromList $
   -- primitives
   [ (intVar,    monoT intT)
@@ -261,11 +264,11 @@ defaultContext = H.Context $ M.fromList $
   , (failCaseVar, forA $ monoT a)
   ] ++ tupleConVars ++ tupleAtVars ++ textExprVars
   where
-    forA = forAllT noLoc "a"
-    forAB = forA . forAllT noLoc "b"
-    a = varT noLoc "a"
-    b = varT noLoc "b"
-    arr = arrowT noLoc
+    forA = forAllT "a"
+    forAB = forA . forAllT "b"
+    a = varT "a"
+    b = varT "b"
+    arr = arrowT
 
     opT2 x = monoT $ x `arr` (x `arr` x)
     boolOp2 = opT2 boolT
@@ -274,29 +277,29 @@ defaultContext = H.Context $ M.fromList $
 
     tupleConVars = fmap toTuple [2..maxTupleSize]
       where
-        toTuple :: Int -> (H.Var, H.Signature Loc)
+        toTuple :: Int -> (VarName, Signature)
         toTuple size = (tupleConVar size, tupleConType size)
 
         tupleConType :: Int -> Signature
-        tupleConType size = foldr (\v mt -> forAllT noLoc v mt) (monoT ty) vs
+        tupleConType size = foldr (\v mt -> forAllT v mt) (monoT ty) vs
           where
             vs = fmap v [0 .. size-1]
-            ty = foldr (\lhs rhs -> arrowT noLoc (varT noLoc lhs) rhs) (tupleCon size) vs
+            ty = foldr (\lhs rhs -> arrowT (varT lhs) rhs) (tupleCon size) vs
 
     tupleAtVars = [ toTuple size idx | size <- [2..maxTupleSize], idx <- [0 .. size-1]]
       where
-        toTuple :: Int -> Int -> (H.Var, H.Signature Loc)
+        toTuple :: Int -> Int -> (VarName, Signature)
         toTuple size idx = (tupleAtVar size idx, tupleAtType size idx)
 
-        tupleAtType :: Int -> Int -> H.Signature Loc
-        tupleAtType size idx = pred $ monoT $ (tupleCon size) `arr` (varT noLoc $ v idx)
+        tupleAtType :: Int -> Int -> Signature
+        tupleAtType size idx = pred $ monoT $ (tupleCon size) `arr` (varT $ v idx)
           where
-            pred = foldr (.) id $ fmap (\n -> forAllT noLoc (v n)) [0 .. size-1]
+            pred = foldr (.) id $ fmap (\n -> forAllT (v n)) [0 .. size-1]
 
     tupleCon :: Int -> Type
-    tupleCon size = tupleT $ fmap (varT noLoc . v) [0..size-1]
+    tupleCon size = tupleT $ fmap (varT . v) [0..size-1]
 
-    v n = mappend "a" (showt n)
+    v n = VarName noLoc $ mappend "a" (showt n)
 
     textExprVars =
       [ (appendTextVar, monoT $ textT `arr` (textT `arr` textT))
@@ -309,110 +312,109 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, textE, boolE :: Loc -> H.Term Loc
+intE, textE, boolE :: Loc -> H.Term VarName
 
-intE loc = varE loc intVar
-textE loc = varE loc textVar
-boolE loc = varE loc boolVar
+intE loc = varE $ setLoc loc intVar
+textE loc = varE $ setLoc loc textVar
+boolE loc = varE $ setLoc loc boolVar
 
-intVar, textVar, boolVar, notVar, negateVar, boxVar, scriptVar :: H.Var
+intVar, textVar, boolVar, notVar, negateVar, boxVar, scriptVar :: VarName
 
 intVar = "Int"
 textVar = "Text"
 boolVar = "Bool"
 boxVar = "Box"
-scriptVar = secretVar "Script"
-notVar = secretVar "not"
-negateVar = secretVar "negate"
+scriptVar = secretVar' "Script"
+notVar = secretVar' "not"
+negateVar = secretVar' "negate"
 
-tupleAtVar :: Int -> Int -> H.Var
-tupleAtVar size n = secretVar $ mconcat ["tupleAt-", showt size, "-", showt n]
+tupleAtVar :: Int -> Int -> VarName
+tupleAtVar size n = VarName noLoc $ secretVar $ mconcat ["tupleAt-", showt size, "-", showt n]
 
-tupleConVar :: Int -> H.Var
-tupleConVar size = secretVar $ mappend "tuple" (showt size)
+tupleConVar :: Int -> VarName
+tupleConVar size = VarName noLoc $ secretVar $ mappend "tuple" (showt size)
 
-ifVar, pkVar :: H.Var
+ifVar, pkVar :: VarName
 
-ifVar = secretVar "if"
-pkVar = secretVar "pk"
+ifVar = secretVar' "if"
+pkVar = secretVar' "pk"
 
-intT :: H.Type Loc
-
-intT = conT noLoc intVar
+intT :: Type
+intT = conT intVar []
 
 
 andVar, orVar, plusVar, minusVar, timesVar, divVar,
   equalsVar, notEqualsVar, lessThanVar,
-  greaterThanVar, lessThanEqualsVar, greaterThanEqualsVar :: H.Var
+  greaterThanVar, lessThanEqualsVar, greaterThanEqualsVar :: VarName
 
-andVar  = secretVar "and"
-orVar   = secretVar "or"
-plusVar = secretVar "plus"
-minusVar = secretVar "minus"
-timesVar = secretVar "times"
-divVar   = secretVar "div"
-equalsVar = secretVar "equals"
-notEqualsVar = secretVar "notEquals"
-lessThanVar  = secretVar "lessThan"
-greaterThanVar = secretVar "greaterThan"
-lessThanEqualsVar = secretVar "lessThanEquals"
-greaterThanEqualsVar = secretVar "greaterThanEquals"
+andVar  = secretVar' "and"
+orVar   = secretVar' "or"
+plusVar = secretVar' "plus"
+minusVar = secretVar' "minus"
+timesVar = secretVar' "times"
+divVar   = secretVar' "div"
+equalsVar = secretVar' "equals"
+notEqualsVar = secretVar' "notEquals"
+lessThanVar  = secretVar' "lessThan"
+greaterThanVar = secretVar' "greaterThan"
+lessThanEqualsVar = secretVar' "lessThanEquals"
+greaterThanEqualsVar = secretVar' "greaterThanEquals"
 
-nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar :: H.Var
+nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar :: VarName
 
-nilVecVar = secretVar "nilVec"
-consVecVar = secretVar "consVec"
-appendVecVar = secretVar "appendVec"
-vecAtVar = secretVar "vecAt"
-lengthVecVar = secretVar "lengthVec"
-mapVecVar = secretVar "mapVec"
-foldVecVar = secretVar "foldVec"
+nilVecVar = secretVar' "nilVec"
+consVecVar = secretVar' "consVec"
+appendVecVar = secretVar' "appendVec"
+vecAtVar = secretVar' "vecAt"
+lengthVecVar = secretVar' "lengthVec"
+mapVecVar = secretVar' "mapVec"
+foldVecVar = secretVar' "foldVec"
 
-appendTextVar, lengthTextVar :: H.Var
+appendTextVar, lengthTextVar :: VarName
 
-appendTextVar = secretVar "appendText"
-lengthTextVar = secretVar "lengthText"
+appendTextVar = secretVar' "appendText"
+lengthTextVar = secretVar' "lengthText"
 
-convertToTextVar :: TextTypeTag -> H.Var
-convertToTextVar tag = secretVar $ mappend "convertToText" (showt tag)
+convertToTextVar :: TextTypeTag -> VarName
+convertToTextVar tag = VarName noLoc $ secretVar $ mappend "convertToText" (showt tag)
 
-textHashVar :: HashAlgo -> H.Var
-textHashVar hashAlgo = secretVar $ mappend "textHash" (showt hashAlgo)
+textHashVar :: HashAlgo -> VarName
+textHashVar hashAlgo = VarName noLoc $ secretVar $ mappend "textHash" (showt hashAlgo)
 
 
-getBoxIdVar, getBoxValueVar, getBoxScriptVar, getBoxArgVar :: H.Var
+getBoxIdVar, getBoxValueVar, getBoxScriptVar, getBoxArgVar :: VarName
 
-getBoxIdVar = secretVar "getBoxId"
-getBoxValueVar = secretVar "getBoxValue"
-getBoxScriptVar = secretVar "getBoxScript"
-getBoxArgVar = secretVar "getBoxArg"
+getBoxIdVar = secretVar' "getBoxId"
+getBoxValueVar = secretVar' "getBoxValue"
+getBoxScriptVar = secretVar' "getBoxScript"
+getBoxArgVar = secretVar' "getBoxArg"
 
-undefVar :: H.Var
-undefVar = secretVar "undefined"
+undefVar :: VarName
+undefVar = secretVar' "undefined"
 
-traceVar :: H.Var
-traceVar = secretVar "trace"
+traceVar :: VarName
+traceVar = secretVar' "trace"
 
-heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, getVarVar :: H.Var
+heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, getVarVar :: VarName
 
-heightVar = secretVar "height"
-inputVar = secretVar "input"
-outputVar = secretVar "output"
-selfVar = secretVar "self"
-inputsVar = secretVar "inputs"
-outputsVar = secretVar "outputs"
-getVarVar = secretVar "getVar"
+heightVar = secretVar' "height"
+inputVar = secretVar' "input"
+outputVar = secretVar' "output"
+selfVar = secretVar' "self"
+inputsVar = secretVar' "inputs"
+outputsVar = secretVar' "outputs"
+getVarVar = secretVar' "getVar"
 
-altVar, failCaseVar :: H.Var
+altVar, failCaseVar :: VarName
 
-altVar = secretVar "altCases"
-failCaseVar = secretVar "failCase"
+altVar = secretVar' "altCases"
+failCaseVar = secretVar' "failCase"
 
 
 
 ---------------------------------------------------------
 
-userTypesToTypeContext :: UserTypeCtx -> H.Context Loc
+userTypesToTypeContext :: UserTypeCtx -> TypeContext
 userTypesToTypeContext (UserTypeCtx m _) =
      foldMap fromUserType m
   <> foldMap getSelectors m
@@ -421,9 +423,9 @@ userTypesToTypeContext (UserTypeCtx m _) =
       where
         resT = toResT u
         appArgsT = toArgsT u
-        fromCase (cons, args) = (consName'name cons, ty) : (recFieldSelectors ++ recFieldUpdates)
+        fromCase (cons, args) = (VarName noLoc $ consName'name cons, ty) : (recFieldSelectors ++ recFieldUpdates)
           where
-            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT $ getConsTypes args
+            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT a res) resT $ getConsTypes args
 
             onFields f = case args of
               ConsDef _         -> []
@@ -435,34 +437,36 @@ userTypesToTypeContext (UserTypeCtx m _) =
             recFieldUpdates = onFields $ \fields ->
               V.toList $ fmap fromRecUpdate fields
 
-        fromRecSelector RecordField{..} = (varName'name recordField'name, ty)
+        fromRecSelector RecordField{..} = (recordField'name, ty)
           where
-            ty = appArgsT $ monoT $ arrowT noLoc resT recordField'type
+            ty = appArgsT $ monoT $ arrowT resT recordField'type
 
         fromRecUpdate RecordField{..} = (recordUpdateVar recordField'name, ty)
           where
-            ty = appArgsT $ monoT $ arrowT noLoc recordField'type (arrowT noLoc resT resT)
+            ty = appArgsT $ monoT $ arrowT recordField'type (arrowT resT resT)
 
     getSelectors ut@UserType{..} = M.foldMapWithKey toSel userType'cases
       where
         resT = toResT ut
         appArgsT = toArgsT ut
-        toSelType cons n ty = appArgsT $ monoT $ arrowT noLoc resT ty
+        toSelType cons n ty = appArgsT $ monoT $ arrowT resT ty
 
-        toSel cons ts = H.Context $ M.fromList $
+        toSel cons ts = H.Context $ M.fromList $ fmap (first $ VarName noLoc) $
           zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] $ V.toList $ getConsTypes ts
 
-    toResT UserType{..} =
-      foldl (\c arg -> appT noLoc c (var' arg)) (con' userType'name) userType'args
+    toResT UserType{..} = con' userType'name $ fmap var' userType'args
 
-    toArgsT UserType{..} ty = foldr (\a res -> forAllT noLoc (varName'name a) res) ty userType'args
+    toArgsT UserType{..} ty = foldr (\a res -> forAllT a res) ty $ fmap var' userType'args
 
-    con' VarName{..} = conT varName'loc varName'name
-    var' VarName{..} = varT varName'loc varName'name
+    con' VarName{..} args = conT (VarName varName'loc varName'name) args
+    var' VarName{..} = varT $ VarName varName'loc varName'name
 
-selectorNameVar :: ConsName -> Int -> H.Var
+selectorNameVar :: ConsName -> Int -> T.Text
 selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]
 
-recordUpdateVar :: VarName -> H.Var
-recordUpdateVar field = secretVar $ mconcat ["update_", varName'name field]
+recordUpdateVar :: VarName -> VarName
+recordUpdateVar field = field { varName'name = secretVar $ mconcat ["update_", varName'name field] }
+
+secretVar' :: VarName -> VarName
+secretVar' v = v { varName'name = secretVar $ varName'name v }
 

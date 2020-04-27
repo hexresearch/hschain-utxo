@@ -39,8 +39,8 @@ import qualified Data.Vector as V
 
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type VarName
-type TypeError = H.TypeError Loc
-type Signature = H.Signature Loc
+type TypeError = H.TypeError VarName
+type Signature = H.Signature VarName
 
 noLoc :: Loc
 noLoc = Hask.noSrcSpan
@@ -393,10 +393,10 @@ vectorT = vectorT' noLoc
 vectorT' :: Loc -> Type -> Type
 vectorT' loc a = H.conT (VarName loc "Vector") [a]
 
-{-
+
 tupleT :: [Type] -> Type
 tupleT = tupleT' noLoc
--}
+
 tupleT' ::  Loc -> [Type] -> Type
 tupleT' loc ts = H.conT cons ts
   where

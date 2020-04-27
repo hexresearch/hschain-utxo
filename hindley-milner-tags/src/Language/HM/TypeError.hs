@@ -16,4 +16,4 @@ data TypeError v where
   SubtypeErr    :: IsVar v => Loc v -> Type v -> Type v -> TypeError v
   NotInScopeErr :: IsVar v => Loc v -> v -> TypeError v
 
-
+deriving instance (IsVar v, Show v, Show (Loc v)) => Show (TypeError v)
