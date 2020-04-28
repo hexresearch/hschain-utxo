@@ -37,24 +37,24 @@ evalModule' typeCtx Module{..} = runInferM $ do
       , moduleCtx'exprs = ExecCtx (M.fromList es)
       }) exprs
       where
-        types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
+        types = fmap (\Bind{..} -> fmap (\ty -> (bind'name, ty)) bind'type) bs
 
         exprs = mapM (\Bind{..} -> fmap (bind'name, ) $ desugar module'userTypes =<< altGroupToExpr bind'alts) bs
 
     checkBind :: Bind Lang -> StateT TypeContext (Either Error) (Bind Lang)
     checkBind bind@Bind{..} = do
       ctx <- get
-      ty <- fmap H.typeToSignature $ lift $ runInferM $ inferExpr (InferCtx ctx module'userTypes) =<< altGroupToExpr bind'alts
+      ty <- lift $ runInferM $ inferExpr (InferCtx ctx module'userTypes) =<< altGroupToExpr bind'alts
       let typeIsOk =
             case bind'type of
-              Just userTy -> if (isRight $ H.subtypeOf mempty userTy ty) then Nothing else (Just userTy)
+              Just userTy -> if (isRight $ H.subtypeOf (H.stripSignature userTy) ty) then Nothing else (Just userTy)
               Nothing     -> Nothing
       case typeIsOk of
         Just userTy -> do
-          lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) (H.stripSignature ty)
+          lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) ty
         Nothing     -> do
-          let resTy = fromMaybe ty bind'type
-          put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
+          let resTy = fromMaybe (H.typeToSignature ty) bind'type
+          put $ ctx <> H.Context (M.singleton bind'name resTy)
           return $ bind { bind'type = Just resTy }
 
 data SelectIndex = SelectIndex

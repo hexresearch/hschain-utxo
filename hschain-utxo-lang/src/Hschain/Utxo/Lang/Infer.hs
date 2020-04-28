@@ -456,7 +456,7 @@ userTypesToTypeContext (UserTypeCtx m _) =
 
     toResT UserType{..} = con' userType'name $ fmap var' userType'args
 
-    toArgsT UserType{..} ty = foldr (\a res -> forAllT a res) ty $ fmap var' userType'args
+    toArgsT UserType{..} ty = foldr (\a res -> forAllT a res) ty userType'args
 
     con' VarName{..} args = conT (VarName varName'loc varName'name) args
     var' VarName{..} = varT $ VarName varName'loc varName'name
