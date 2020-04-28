@@ -98,6 +98,7 @@ library
     LambdaCase,
     MultiParamTypeClasses,
     OverloadedStrings,
+    RankNTypes
     ScopedTypeVariables,
     StandaloneDeriving,
     TemplateHaskell,

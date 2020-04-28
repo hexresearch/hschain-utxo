@@ -4,6 +4,7 @@ import Hex.Common.Text
 
 import Control.Applicative
 import Control.DeepSeq (NFData)
+import Control.Monad
 
 import Codec.Serialise
 
@@ -110,6 +111,7 @@ instance IsString VarName where
 instance H.IsVar VarName where
   arrowVar loc = VarName loc "->"
   intToVar n = VarName noLoc (mappend "$$" (showt n))
+  prettyLetters = fmap (VarName noLoc) $ fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
 instance H.HasPrefix VarName where
   getFixity VarName{..} = case varName'name of

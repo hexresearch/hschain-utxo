@@ -46,7 +46,7 @@ instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Type v) where
         ConT name [a, b] | isInfix name -> fromBin name a b
         ConT name as -> fromCon isArrPrev name as
         where
-          fromCon isArr name args = maybeParens (not isArr && needsParens ctx OpFunAp) $
+          fromCon isArr name args = maybeParens (not (null args) && not isArr && needsParens ctx OpFunAp) $
             printCons name $ fmap (go False (FcRight OpFunAp)) args
 
           fromBin op a b = maybeParens (needsParens ctx (Op op)) $ hsep

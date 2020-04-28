@@ -44,8 +44,14 @@ class HasLoc f where
 
 
 class (Ord v, HasLoc v) => IsVar v where
-  arrowVar   :: Loc v -> v
-  intToVar   :: Int -> v
+  -- | To create arrows
+  arrowVar      :: Loc v -> v
+
+  -- | Way to allocate fresh variables from integer count
+  intToVar      :: Loc v -> Int -> v
+
+  -- | Canonical leters for pretty output
+  prettyLetters :: [v]
 
 instance IsVar v => HasLoc (Type v) where
   type Loc (Type v) = Loc v
