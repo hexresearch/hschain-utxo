@@ -115,9 +115,6 @@ fun3 name a b c = parens $ hsep [name, a, b, c]
 instance Pretty (Expr a) where
   pretty (Expr a) = pretty a
 
-instance Pretty VarName where
-  pretty (VarName _ txt) = pretty txt
-
 instance Pretty ConsName where
   pretty (ConsName _ txt) = pretty txt
 

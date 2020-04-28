@@ -35,7 +35,7 @@ baseModuleCtx = ModuleCtx
   , moduleCtx'exprs = baseLibExecContext
   }
 
-langTypeContext :: H.Context Loc
+langTypeContext :: TypeContext
 langTypeContext = baseLibTypeContext
 
 -- | Prelude functions
@@ -180,15 +180,15 @@ toTupleName :: P.Int -> P.Int -> Text
 toTupleName size idx = P.mconcat ["tupleAt", showt size, "_", showt idx]
 
 (~>) :: Type -> Type -> Type
-(~>) a b = H.arrowT noLoc a b
+(~>) a b = H.arrowT a b
 
-forAllT' :: H.Var -> Signature -> Signature
-forAllT' = forAllT noLoc
+forAllT' :: Text -> Signature -> Signature
+forAllT' = forAllT . VarName noLoc
 
-assumpType :: H.Var -> Signature -> (H.Var, Signature)
-assumpType idx ty = (idx, ty)
+assumpType :: Text -> Signature -> (VarName, Signature)
+assumpType idx ty = (VarName noLoc idx, ty)
 
-baseLibTypeContext :: H.Context Loc
+baseLibTypeContext :: TypeContext
 baseLibTypeContext = H.Context $ M.fromList $
   [ assumpType "and" (monoT $ vectorT boolT ~> boolT)
   , assumpType "or" (monoT $ vectorT boolT ~> boolT)
@@ -263,7 +263,7 @@ baseLibTypeContext = H.Context $ M.fromList $
         tupleAtType size idx = pred $ monoT $ (tupleCon size) ~> (varT $ v idx)
           where
             pred :: Signature -> Signature
-            pred = P.foldr (.) P.id $ P.fmap (\n -> forAllT noLoc (v n)) [0 .. size P.- 1]
+            pred = P.foldr (.) P.id $ P.fmap (\n -> forAllT (VarName noLoc $ v n)) [0 .. size P.- 1]
 
         tupleCon size = tupleT $ P.fmap (varT . v) [0..size P.- 1]
 
@@ -490,13 +490,13 @@ y = Fix $ Var noLoc "y"
 aT, bT, cT :: Type
 fT :: Type -> Type
 
-varT :: H.Var -> Type
-varT = H.varT noLoc
+varT :: Text -> Type
+varT = H.varT . VarName noLoc
 
 aT = varT "a"
 bT = varT "b"
 cT = varT "c"
-fT ty = H.appT noLoc (varT "f") ty
+fT ty = H.conT "f" [ty]
 
 bind :: Text -> Lang -> Bind Lang
 bind var body = simpleBind (VarName noLoc var) body

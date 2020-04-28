@@ -275,20 +275,30 @@ fromQualType x = case x of
 
 fromType :: H.Type Loc -> ParseResult Type
 fromType = \case
-  H.TyFun loc a b -> liftA2 (HM.arrowT loc) (rec a) (rec b)
+  H.TyFun loc a b -> liftA2 HM.arrowT (rec a) (rec b)
   H.TyTuple loc H.Boxed ts -> fmap (fromTyTuple loc) (mapM rec ts)
-  H.TyApp loc a b -> liftA2 (HM.appT loc) (rec a) (rec b)
-  H.TyVar _ name -> return $ (\VarName{..} -> HM.varT varName'loc varName'name) $ toName name
-  H.TyCon _ name -> fmap (\VarName{..} -> HM.conT varName'loc varName'name) $ fromQName name
+  H.TyApp loc a b -> do
+    (name, args) <- getTyApp loc a b
+    liftA2 HM.conT (fromQName name) (mapM rec args)
+  H.TyVar _ name -> return $ HM.varT $ toName name
+  H.TyCon _ name -> fmap (\v -> HM.conT v []) $ fromQName name
   H.TyParen loc ty -> rec ty
   H.TyKind _ ty _ -> rec ty
   other -> parseFailedBy  "Failed to parse type for" other
   where
     rec = fromType
 
-    fromTyTuple loc ts = foldl (\z a -> HM.appT loc z a) cons ts
+    fromTyTuple loc ts = HM.conT cons ts
       where
-        cons = HM.varT loc $ mappend "Tuple" (showt $ length ts)
+        cons = VarName loc $ mappend "Tuple" (showt $ length ts)
+
+    getTyApp loc a b = go a [b]
+      where
+        go a res = case a of
+          H.TyApp _ a1 b1 -> go a1 (b1 : res)
+          H.TyCon _ name  -> return (name, res)
+          H.TyParen _ ty  -> go ty res
+          other           -> parseFailedBy "Failed to parse type for" other
 
 fromLit :: H.Literal Loc -> ParseResult Prim
 fromLit x = case x of

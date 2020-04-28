@@ -18,6 +18,7 @@ module Language.HM.Type (
     forAllT,
     monoT,
     stripSignature,
+    typeToSignature,
 
     HasTypeVars(..),
 ) where
@@ -144,6 +145,12 @@ instance AlphaEq (Signature src) where
                 sigmaEq (M.insert x y env) (unFix t0) (unFix t1)
             sigmaEq _ _ _ = False
 -}
+
+
+typeToSignature :: IsVar v => Type v -> Signature v
+typeToSignature ty = foldr forAllT (monoT ty) vs
+  where
+    vs = tyVarsInOrder ty
 
 --------------------------------------------------------------------------------
 
