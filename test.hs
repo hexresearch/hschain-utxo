@@ -25,6 +25,7 @@ colToNum x = case x of
   Blue -> 3
   Gen r g b -> 100 * r + 10 * g + b
 
+f = 2 + "2"
 
 walletName :: Wallet -> Text
 walletName x = case x of
@@ -34,7 +35,7 @@ walletMoney :: Wallet -> Int
 walletMoney x = case x of
   Wallet _ money -> money
 
--- t3_1 :: (a, b, c) -> a
+t3_1 :: (a, b, c) -> a
 t3_1 x = case x of
   (a, b, c) -> a
 
