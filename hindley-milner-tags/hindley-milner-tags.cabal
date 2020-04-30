@@ -55,7 +55,7 @@ library
   ghc-options:  -Wall
   exposed-modules:
     Language.HM,
-    Language.HM.AlgorithmW,
+    Language.HM.Infer,
     Language.HM.Alpha,
     Language.HM.Pretty,
     Language.HM.Subst,

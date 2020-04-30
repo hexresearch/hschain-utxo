@@ -11,6 +11,8 @@ module Language.HM.Type (
     varT,
     conT,
     arrowT,
+    tupleT,
+    listT,
 
     -- * Polymorphic types.
     SignatureF(..),
@@ -20,7 +22,14 @@ module Language.HM.Type (
     stripSignature,
     typeToSignature,
 
+    VarSet(..),
+    differenceVarSet,
+    getVar,
+    varSetToList,
+    memberVarSet,
+
     HasTypeVars(..),
+    LocFunctor(..)
 ) where
 
 --------------------------------------------------------------------------------
@@ -28,10 +37,12 @@ module Language.HM.Type (
 import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Data.Fix
-import Data.Set (Set)
+import Data.Function (on)
+import Data.Map.Strict (Map)
+import Data.Tuple (swap)
 
 import qualified Data.List as L
-import qualified Data.Set as S
+import qualified Data.Map.Strict as M
 
 import Language.HM.Alpha
 import Text.Show.Deriving
@@ -42,86 +53,116 @@ class HasLoc f where
   type Loc f :: *
   getLoc :: f -> Loc f
 
-
 class (Ord v, HasLoc v) => IsVar v where
-  -- | To create arrows
-  arrowVar      :: Loc v -> v
-
   -- | Way to allocate fresh variables from integer count
-  intToVar      :: Loc v -> Int -> v
+  intToVar      :: Int -> v
 
   -- | Canonical leters for pretty output
   prettyLetters :: [v]
 
-instance IsVar v => HasLoc (Type v) where
-  type Loc (Type v) = Loc v
+instance HasLoc (Type loc v) where
+  type Loc (Type loc v) = loc
 
   getLoc (Type (Fix x)) = case x of
-    VarT v -> getLoc v
-    ConT v _ -> getLoc v
+    VarT   loc _   -> loc
+    ConT   loc _ _ -> loc
+    ArrowT loc _ _ -> loc
+    TupleT loc _   -> loc
+    ListT  loc _   -> loc
 
-instance IsVar v => HasLoc (Signature v) where
-  type Loc (Signature v) = Loc v
+instance HasLoc (Signature loc var) where
+  type Loc (Signature loc var) = loc
 
   getLoc (Signature x) = cata go x
     where
       go = \case
-        MonoT ty    -> getLoc ty
-        ForAllT _ a -> a
+        MonoT ty        -> getLoc ty
+        ForAllT loc _ _ -> loc
 
-data TypeF var r
-    = VarT var
-    | ConT var [r]
+data TypeF loc var r
+    = VarT loc var
+    | ConT loc var [r]
+    | ArrowT loc r r    -- special case of ConT that is rendered as ->
+    | TupleT loc [r]    -- special case of ConT that is rendered as (,,,)
+    | ListT loc r       -- special case of ConT that is rendered as [a]
     deriving (Eq, Ord, Show, Functor)
 
 -- | Monomorphic types.
-newtype Type a = Type { unType :: Fix (TypeF a) }
+newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
   deriving (Show, Eq, Ord)
 
 -- | 'varT' @x@ constructs a type variable named @x@.
-varT :: var -> Type var
-varT = Type . Fix . VarT
+varT :: loc -> var -> Type loc var
+varT loc var = Type $ Fix $ VarT loc var
 
 -- | 'varT' @x@ constructs a type variable named @x@.
-conT :: var -> [Type var] -> Type var
-conT name args = Type $ Fix $ ConT name $ fmap unType $ args
+conT :: loc -> var -> [Type loc var] -> Type loc var
+conT loc name args = Type $ Fix $ ConT loc name $ fmap unType $ args
 
 -- | 'arrowT' @t0 t1@ constructs an arrow type from @t0@ to @t1@.
-arrowT :: IsVar v => Type v -> Type v -> Type v
-arrowT t0 t1 = conT (arrowVar $ getLoc t0) [t0, t1]
+arrowT :: loc -> Type loc v -> Type loc v -> Type loc v
+arrowT loc (Type t0) (Type t1) = Type $ Fix $ ArrowT loc t0 t1
 
+tupleT :: loc -> [Type loc var] -> Type loc var
+tupleT loc ts = Type $ Fix $ TupleT loc $ fmap unType ts
+
+listT :: loc -> Type loc var -> Type loc var
+listT loc (Type t) = Type $ Fix $ ListT loc t
 
 --------------------------------------------------------------------------------
 
-data SignatureF var r
-    = ForAllT var r
-    | MonoT (Type var)
+data SignatureF loc var r
+    = ForAllT loc var r
+    | MonoT (Type loc var)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 -- | Polymorphic types.
-newtype Signature src = Signature { unSignature :: Fix (SignatureF src)
+newtype Signature loc var = Signature { unSignature :: Fix (SignatureF loc var)
   } deriving (Show, Eq, Ord)
 
-instance Functor Signature where
+instance Functor (Signature loc) where
   fmap f (Signature x) = Signature $ cata go x
     where
       go = \case
-        ForAllT var a -> Fix $ ForAllT (f var) a
-        MonoT ty      -> Fix $ MonoT $ fmap f ty
+        ForAllT loc var a -> Fix $ ForAllT loc (f var) a
+        MonoT ty          -> Fix $ MonoT $ fmap f ty
 
-instance Functor Type where
+instance Functor (Type a) where
   fmap f (Type x) = Type $ cata go x
     where
       go = \case
-        VarT name      -> Fix $ VarT $ f name
-        ConT name args -> Fix $ ConT (f name) args
+        VarT loc name      -> Fix $ VarT loc $ f name
+        ConT loc name args -> Fix $ ConT loc (f name) args
+        ArrowT loc a b     -> Fix $ ArrowT loc a b
+        TupleT loc as      -> Fix $ TupleT loc as
+        ListT loc a        -> Fix $ ListT loc a
+
+class LocFunctor f where
+  mapLoc :: (locA -> locB) -> f locA var -> f locB var
+
+instance LocFunctor Type where
+  mapLoc f (Type x) = Type $ cata go x
+    where
+      go = \case
+        VarT loc name      -> Fix $ VarT (f loc) name
+        ConT loc name args -> Fix $ ConT (f loc) name args
+        ArrowT loc a b     -> Fix $ ArrowT (f loc) a b
+        TupleT loc as      -> Fix $ TupleT (f loc) as
+        ListT loc a        -> Fix $ ListT (f loc) a
+
+instance LocFunctor Signature where
+  mapLoc f (Signature x) = Signature $ cata go x
+    where
+      go = \case
+        ForAllT loc var a -> Fix $ ForAllT (f loc) var a
+        MonoT ty          -> Fix $ MonoT $ mapLoc f ty
 
 -- | 'forAllT' @x t@ universally quantifies @x@ in @t@.
-forAllT :: v -> Signature v -> Signature v
-forAllT x (Signature t) = Signature $ Fix $ ForAllT x t
+forAllT :: loc -> v -> Signature loc v -> Signature loc v
+forAllT loc x (Signature t) = Signature $ Fix $ ForAllT loc x t
 
 -- | 'monoT' @t@ lifts a monomorophic type @t@ to a polymorphic one.
-monoT :: Type src -> Signature src
+monoT :: Type loc src -> Signature loc src
 monoT = Signature . Fix . MonoT
 
 {-
@@ -153,8 +194,8 @@ instance AlphaEq (Signature src) where
 -}
 
 
-typeToSignature :: IsVar v => Type v -> Signature v
-typeToSignature ty = foldr forAllT (monoT ty) vs
+typeToSignature :: (Eq loc, Ord v) => Type loc v -> Signature loc v
+typeToSignature ty = foldr (\(v, src) a -> forAllT src v a) (monoT ty) vs
   where
     vs = tyVarsInOrder ty
 
@@ -163,41 +204,74 @@ typeToSignature ty = foldr forAllT (monoT ty) vs
 -- | The class of types which have free type variables.
 class HasTypeVars f where
     -- | 'tyVars' @t@ calculates the set of free type variables in @t@.
-    tyVars :: IsVar v => f v -> Set v
+    tyVars :: Ord var => f src var -> VarSet src var
 
     -- | 'tyVarsInOrder' @t@ is like 'tyVars' @t@, except that the type
     -- variables are returned in the order in which they are encountered.
-    tyVarsInOrder :: IsVar v => f v -> [v]
+    tyVarsInOrder :: (Eq src, Ord var) => f src var -> [(var, src)]
 
 instance HasTypeVars Type where
     tyVars = cata go . unType
-        where
-            go (VarT v) = S.singleton v
-            go (ConT _ args) = mconcat args
+      where
+        go = \case
+          VarT loc v    -> VarSet $ M.singleton v loc
+          ConT _ _ args -> mconcat args
+          ArrowT _ a b  -> mappend a b
+          TupleT _ as   -> mconcat as
+          ListT _ a     -> a
 
     tyVarsInOrder = L.nub . cata go . unType
-        where
-            go (VarT x) = [x]
-            go (ConT _ xs) = mconcat xs
+      where
+        go = \case
+          VarT loc var -> [(var, loc)]
+          ConT _ _ as  -> mconcat as
+          ArrowT _ a b -> mappend a b
+          TupleT _ as  -> mconcat as
+          ListT _ a    -> a
+
 
 instance HasTypeVars Signature where
     tyVars = cata go . unSignature
-        where
-            go (MonoT t) = tyVars t
-            go (ForAllT x t) = S.delete x t
+      where
+        go = \case
+          MonoT t       -> tyVars t
+          ForAllT _ x t -> VarSet $ M.delete x $ unVarSet t
 
     tyVarsInOrder = L.nub . cata go . unSignature
-        where
-            go (MonoT t) = tyVarsInOrder t
-            go (ForAllT x t) = L.delete x t
+      where
+        go = \case
+          MonoT t         -> tyVarsInOrder t
+          ForAllT src x t -> L.deleteBy ((==) `on` fst) (x, src) t
 
 --------------------------------------------------------------------------------
 
-stripSignature :: Signature src -> Type src
+newtype VarSet src var = VarSet { unVarSet :: Map var src }
+
+instance Ord var => Semigroup (VarSet src var) where
+  (VarSet a) <> (VarSet b) = VarSet $ M.union a b
+
+instance Ord var => Monoid (VarSet src var) where
+  mempty = VarSet M.empty
+
+differenceVarSet :: Ord var => VarSet src var -> VarSet src var -> VarSet src var
+differenceVarSet (VarSet a) (VarSet b) = VarSet $ a `M.difference` b
+
+getVar :: Ord var => VarSet src var -> var -> Maybe src
+getVar (VarSet m) var = M.lookup var m
+
+varSetToList :: VarSet src var -> [(src, var)]
+varSetToList (VarSet m) = fmap swap $ M.toList m
+
+memberVarSet :: Ord var => var -> VarSet src var -> Bool
+memberVarSet k (VarSet m) = M.member k m
+
+--------------------------------------------------------------------------------
+
+stripSignature :: Signature src var -> Type src var
 stripSignature = cata go . unSignature
   where
     go = \case
-      ForAllT _ r -> r
+      ForAllT _ _ r -> r
       MonoT ty -> ty
 
 $(deriveShow1 ''TypeF)
