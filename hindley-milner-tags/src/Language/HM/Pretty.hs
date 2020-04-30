@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Language.HM.Pretty(
-    HasPrefix(..)
-  , PrintCons(..)
-  , OpFix(..)
-  , Fixity(..)
+--    HasPrefix(..)
+--  , PrintCons(..)
+--  , OpFix(..)
+--  , Fixity(..)
 ) where
-
+{-
 import Control.Monad
 
 import Data.Bool
@@ -146,4 +146,4 @@ instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Term v) where
           onLet vs body =
             vcat [ hsep ["let", indent 4 $ vcat $ fmap (\(v, a) -> hsep [pretty v, "=", a]) vs]
                  , hsep ["in ", body]]
-
+-}
