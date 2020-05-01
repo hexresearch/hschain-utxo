@@ -92,19 +92,18 @@ library
     DeriveTraversable,
     FlexibleContexts,
     FlexibleInstances,
-    GADTs
     GeneralizedNewtypeDeriving,
     LambdaCase,
     MultiParamTypeClasses,
     OverloadedStrings,
     RankNTypes
+    RecordWildCards,
     ScopedTypeVariables,
     StandaloneDeriving,
     TemplateHaskell,
     TupleSections,
     TypeFamilies,
     TypeSynonymInstances
-    UndecidableInstances
 
 test-suite spec
   type:                 exitcode-stdio-1.0

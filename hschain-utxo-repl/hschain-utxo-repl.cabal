@@ -34,6 +34,7 @@ library
                      , hex-common
                      , hschain-utxo-lang
                      , mtl
+                     , prettyprinter
                      , process
                      , repline >= 0.2.1.0
                      , safe

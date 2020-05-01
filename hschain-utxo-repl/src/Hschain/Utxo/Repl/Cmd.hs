@@ -10,6 +10,7 @@ import Control.Monad.State.Strict
 
 import Data.String
 import Data.Text (Text)
+import Data.Text.Prettyprint.Doc
 import Hschain.Utxo.Repl.Eval
 import Hschain.Utxo.Repl.Monad
 import Hschain.Utxo.Repl.Imports (Imports(..), ImportError(..))
@@ -124,7 +125,7 @@ showType str = case P.parseExp (Just "<repl>") str of
   P.ParseOk expr      -> do
     eTy <- checkType expr
     liftIO $ case eTy of
-      Right ty -> T.putStrLn $ renderDoc $ prettyType ty
+      Right ty -> T.putStrLn $ renderDoc $ pretty ty
       Left err -> T.putStrLn $ renderText err
   P.ParseFailed _ msg -> liftIO $ putStrLn msg
 
