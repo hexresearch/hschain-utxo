@@ -56,7 +56,6 @@ library
   exposed-modules:
     Language.HM,
     Language.HM.Infer,
-    Language.HM.Alpha,
     Language.HM.Pretty,
     Language.HM.Subst,
     Language.HM.Term,

@@ -39,9 +39,9 @@ import qualified Data.Set as Set
 import qualified Data.Vector as V
 
 type Loc = Hask.SrcSpanInfo
-type Type = H.Type VarName
-type TypeError = H.TypeError VarName
-type Signature = H.Signature VarName
+type Type = H.Type Loc Text
+type TypeError = H.TypeError Loc Text
+type Signature = H.Signature Loc Text
 
 noLoc :: Loc
 noLoc = Hask.noSrcSpan
@@ -108,15 +108,16 @@ data VarName = VarName
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
-instance H.IsVar VarName where
-  arrowVar loc = VarName loc "->"
-  intToVar n = VarName noLoc (mappend "$$" (showt n))
-  prettyLetters = fmap (VarName noLoc) $ fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+instance H.IsVar Text where
+  intToVar n = mappend "$$" (showt n)
+  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
+{-
 instance H.HasPrefix VarName where
   getFixity VarName{..} = case varName'name of
     "->" -> Just $ H.OpFix H.FixRight 2
     _    -> Nothing
+-}
 
 data ConsName = ConsName
   { consName'loc  :: !Loc
@@ -125,6 +126,12 @@ data ConsName = ConsName
 
 instance IsString ConsName where
   fromString = ConsName noLoc . fromString
+
+consToVarName :: ConsName -> VarName
+consToVarName (ConsName loc name) = VarName loc name
+
+varToConsName :: VarName -> ConsName
+varToConsName VarName{..} = ConsName varName'loc varName'name
 
 type Args = Map Text (Prim )
 
@@ -163,7 +170,7 @@ data Module = Module
   , module'binds     :: !(BindGroup Lang)
   } deriving (Show)
 
-type TypeContext = H.Context VarName
+type TypeContext = H.Context Loc Text
 
 newtype ExecCtx = ExecCtx
   { execCtx'vars  :: Map VarName Lang
@@ -196,7 +203,7 @@ data ModuleCtx = ModuleCtx
   } deriving (Show, Eq)
 
 getModuleCtxNames :: ModuleCtx -> [Text]
-getModuleCtxNames = fmap varName'name . M.keys . H.unContext . inferCtx'binds . moduleCtx'types
+getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
 
 instance Semigroup ModuleCtx where
   (<>) a b = ModuleCtx
@@ -375,7 +382,7 @@ scriptT = scriptT' noLoc
 textT = textT' noLoc
 
 constType :: Text -> Loc -> Type
-constType name loc = H.conT (VarName loc name) []
+constType name loc = H.conT loc name []
 
 boxT' :: Loc -> Type
 boxT' = constType "Box"
@@ -393,17 +400,14 @@ vectorT :: Type -> Type
 vectorT = vectorT' noLoc
 
 vectorT' :: Loc -> Type -> Type
-vectorT' loc a = H.conT (VarName loc "Vector") [a]
+vectorT' loc a = H.listT loc a
 
 
 tupleT :: [Type] -> Type
 tupleT = tupleT' noLoc
 
 tupleT' ::  Loc -> [Type] -> Type
-tupleT' loc ts = H.conT cons ts
-  where
-    arity = length ts
-    cons = VarName loc $ mappend "Tuple" (showt arity)
+tupleT' loc ts = H.tupleT loc ts
 
 --------------------------------
 -- instances

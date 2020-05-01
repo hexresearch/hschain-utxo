@@ -37,7 +37,7 @@ evalModule' typeCtx Module{..} = runInferM $ do
       , moduleCtx'exprs = ExecCtx (M.fromList es)
       }) exprs
       where
-        types = fmap (\Bind{..} -> fmap (\ty -> (bind'name, ty)) bind'type) bs
+        types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
 
         exprs = mapM (\Bind{..} -> fmap (bind'name, ) $ desugar module'userTypes =<< altGroupToExpr bind'alts) bs
 
@@ -54,7 +54,7 @@ evalModule' typeCtx Module{..} = runInferM $ do
           lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) ty
         Nothing     -> do
           let resTy = fromMaybe (H.typeToSignature ty) bind'type
-          put $ ctx <> H.Context (M.singleton bind'name resTy)
+          put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
           return $ bind { bind'type = Just resTy }
 
 data SelectIndex = SelectIndex

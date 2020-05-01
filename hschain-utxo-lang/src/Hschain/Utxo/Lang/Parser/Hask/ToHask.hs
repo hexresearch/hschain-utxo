@@ -246,9 +246,6 @@ toPat pat = case pat of
     bool loc x = H.UnQual loc $ H.Ident loc $ show x
     lit loc = H.PLit loc (H.Signless loc)
 
-consToVarName :: ConsName -> VarName
-consToVarName (ConsName loc name) = VarName loc name
-
 toIdentName :: VarName -> H.Name Loc
 toIdentName (VarName loc name) = H.Ident loc (T.unpack name)
 
@@ -263,42 +260,21 @@ toType x = case splitToPreds x of
     splitToPreds = cata go . HM.unSignature
       where
         go = \case
-          HM.MonoT ty              -> ([], ty)
-          HM.ForAllT name (xs, ty) -> (name : xs, ty)
+          HM.MonoT ty                  -> ([], ty)
+          HM.ForAllT _ name (xs, ty) -> (name : xs, ty)
 
     singleType :: Type -> H.Type Loc
     singleType = cata go . HM.unType
       where
         go = \case
-          HM.VarT var      -> H.TyVar (HM.getLoc var) (toIdentName var)
-          HM.ConT con args -> fromTyCon con args
+          HM.VarT loc var      -> H.TyVar loc (toIdentName $ VarName loc var)
+          HM.ConT loc con args -> fromTyCon loc con args
+          HM.ArrowT loc a b    -> H.TyFun loc a b
+          HM.ListT loc a       -> H.TyList loc a
+          HM.TupleT loc as     -> H.TyTuple loc H.Boxed as
 
-        fromTyCon con@VarName{..} args
-          | isArrow varName'name args = toArrow con args
-          | isTuple varName'name      = toTuple con args
-          | otherwise                 = toCon con args
-
-
-        isArrow name args = (name == "->") && hasTwoArgs
-          where
-            hasTwoArgs = case args of
-              [a, b] -> True
-              _      -> False
-
-        isTuple name = (pref == "Tuple") && (T.all isDigit suf)
-          where
-            (pref, suf) = T.splitAt 5 name
-
-        toArrow con args = case args of
-          [a, b] -> H.TyFun (HM.getLoc con) a b
-          _      -> error "Expected two arguments for arrow type constructor"
-
-        toTuple con args = H.TyTuple (HM.getLoc con) H.Boxed args
-
-        toCon con args = foldl (\a b -> H.TyApp loc a b) (H.TyCon loc (toQName con)) args
-          where
-            loc = HM.getLoc con
-
+        fromTyCon loc con args =
+          foldl (\a b -> H.TyApp loc a b) (H.TyCon loc (toQName $ VarName loc con)) args
 
 toQName :: VarName -> H.QName Loc
 toQName x = H.UnQual (HM.getLoc x) $ toIdentName x
