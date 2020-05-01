@@ -112,12 +112,8 @@ instance H.IsVar Text where
   intToVar n = mappend "$$" (showt n)
   prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
-{-
-instance H.HasPrefix VarName where
-  getFixity VarName{..} = case varName'name of
-    "->" -> Just $ H.OpFix H.FixRight 2
-    _    -> Nothing
--}
+instance H.HasPrefix Text where
+  getFixity = const Nothing
 
 data ConsName = ConsName
   { consName'loc  :: !Loc

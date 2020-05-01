@@ -20,22 +20,14 @@ import Language.HM.Pretty
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
-instance Pretty E.VarName where
-  pretty = pretty . E.varName'name
-{-
-instance PrintCons VarName where
-  printCons VarName{..} args
-    | isTupleName varName'name = parens $ hsep $ punctuate comma args
-    | otherwise                = hsep $ pretty varName'name : args
+instance PrintCons Text where
+  printCons name args
+    | isTupleName name = parens $ hsep $ punctuate comma args
+    | otherwise        = hsep $ pretty name : args
     where
       isTupleName name = (pre == "Tuple") && isInt post
         where
           (pre, post) = T.splitAt 5 name
           isInt = T.all isDigit
-prettySignature :: E.Signature -> Doc ann
-prettySignature = pretty
 
-prettyType :: E.Type -> Doc ann
-prettyType = pretty
--}
 

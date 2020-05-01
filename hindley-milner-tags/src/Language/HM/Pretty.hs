@@ -1,12 +1,10 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Language.HM.Pretty(
---    HasPrefix(..)
---  , PrintCons(..)
---  , OpFix(..)
---  , Fixity(..)
+    HasPrefix(..)
+  , PrintCons(..)
+  , OpFix(..)
+  , Fixity(..)
 ) where
-{-
-import Control.Monad
 
 import Data.Bool
 import Data.Fix
@@ -30,21 +28,24 @@ isPrefix = isNothing . getFixity
 isInfix :: HasPrefix v => v -> Bool
 isInfix  = not . isPrefix
 
-instance (Pretty v, PrintCons v, HasPrefix v) => Pretty (Signature v) where
+instance (Pretty v, PrintCons v, HasPrefix v) => Pretty (Signature loc v) where
   pretty = cata go . unSignature
     where
       go = \case
-        ForAllT _ r -> r
+        ForAllT _ _ r -> r
         MonoT ty      -> pretty ty
 
-instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Type v) where
+instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Type loc v) where
   pretty = go False initCtx . unType
     where
-      go :: Bool -> FixityContext v -> Fix (TypeF v) -> Doc ann
+      go :: Bool -> FixityContext v -> Fix (TypeF loc v) -> Doc ann
       go isArrPrev ctx (Fix expr) = case expr of
-        VarT name   -> pretty name
-        ConT name [a, b] | isInfix name -> fromBin name a b
-        ConT name as -> fromCon isArrPrev name as
+        VarT _ name   -> pretty name
+        ConT _ name [a, b] | isInfix name -> fromBin name a b
+        ConT _ name as -> fromCon isArrPrev name as
+        ArrowT _ a b -> fromArrow a b
+        TupleT _ as -> fromTuple as
+        ListT _ a -> fromList a
         where
           fromCon isArr name args = maybeParens (not (null args) && not isArr && needsParens ctx OpFunAp) $
             printCons name $ fmap (go False (FcRight OpFunAp)) args
@@ -54,6 +55,16 @@ instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Type v) where
             , pretty op
             , go True (FcRight $ Op op) b
             ]
+
+          fromArrow a b = maybeParens (needsParens ctx ArrowOp) $ hsep
+            [ go True (FcLeft ArrowOp ) a
+            , "->"
+            , go True (FcRight ArrowOp) b
+            ]
+
+          fromTuple as = parens $ hsep $ punctuate comma $ fmap (pretty . Type) as
+
+          fromList a = brackets $ pretty $ Type a
 
       initCtx = FcNone
 
@@ -95,7 +106,7 @@ data OpFix = OpFix
 data Fixity = FixLeft | FixRight | FixNone
   deriving Eq
 
-data Operator v = OpFunAp | Op v
+data Operator v = OpFunAp | Op v | ArrowOp
   deriving (Eq, Ord)
 
 data FixityContext v = FcNone | FcLeft (Operator v) | FcRight (Operator v)
@@ -107,14 +118,10 @@ initEnv = Map.fromList
 -}
 
 getFixityEnv :: HasPrefix v => Operator v -> Maybe OpFix
-getFixityEnv = getFixity <=< fromOp
-
-fromOp :: Operator v -> Maybe v
-fromOp = \case
+getFixityEnv = \case
   OpFunAp -> Nothing
-  Op v    -> Just v
-
-
+  Op v    -> getFixity v
+  ArrowOp -> Just $ OpFix FixRight 2
 
 comparePrec :: HasPrefix v => Operator v -> Operator v -> PartialOrdering
 comparePrec a b = case (getFixityEnv a, getFixityEnv b) of
@@ -132,18 +139,18 @@ fixity op = maybe FixNone opFix'fixity $ getFixityEnv op
 
 ---------------------------------------
 
-instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Term v) where
+instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Term loc v) where
   pretty (Term x) = cata prettyTermF x
     where
       prettyTermF = \case
-        Var v       -> pretty v
-        App a b     -> parens $ hsep [a, b]
-        Lam v a     -> parens $ hsep [hcat ["\\", pretty v], "->", a]
-        Let vs a    -> onLet vs a
-        LetRec vs a -> onLet vs a
-        AssertType r sig -> parens $ hsep [r, "::", pretty sig]
+        Var _ v       -> pretty v
+        App _ a b     -> parens $ hsep [a, b]
+        Lam _ v a     -> parens $ hsep [hcat ["\\", pretty v], "->", a]
+        Let _ vs a    -> onLet vs a
+        LetRec _ vs a -> onLet vs a
+        AssertType _ r sig -> parens $ hsep [r, "::", pretty sig]
         where
           onLet vs body =
-            vcat [ hsep ["let", indent 4 $ vcat $ fmap (\(v, a) -> hsep [pretty v, "=", a]) vs]
+            vcat [ hsep ["let", indent 4 $ vcat $ fmap (\Bind{..} -> hsep [pretty bind'lhs, "=", bind'rhs]) vs]
                  , hsep ["in ", body]]
--}
+

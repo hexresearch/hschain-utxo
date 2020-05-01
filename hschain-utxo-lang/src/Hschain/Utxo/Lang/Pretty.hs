@@ -39,6 +39,9 @@ renderText = renderDoc . pretty
 renderDoc :: Doc ann -> Text
 renderDoc = renderStrict . layoutPretty defaultLayoutOptions
 
+instance Pretty VarName where
+  pretty = pretty . varName'name
+
 instance Pretty Lang where
   pretty = pretty . P.prettyExp
 
@@ -240,7 +243,7 @@ prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [p
 instance Pretty TypeError where
   pretty = \case
     H.OccursErr src name     -> err src $ hsep ["Occurs error", pretty name]
-    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ prettyType tyB, "expected", inTicks $ prettyType tyA]
+    H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
