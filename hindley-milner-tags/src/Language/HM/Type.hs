@@ -1,8 +1,5 @@
---------------------------------------------------------------------------------
-
 -- | This module contains the abstract syntax of Hindley-Milner types.
 module Language.HM.Type (
-    module Language.HM.Alpha,
     IsVar(..),
     HasLoc(..),
     -- * Monomorphic types.
@@ -44,7 +41,6 @@ import Data.Tuple (swap)
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 
-import Language.HM.Alpha
 import Text.Show.Deriving
 
 --------------------------------------------------------------------------------
@@ -53,7 +49,7 @@ class HasLoc f where
   type Loc f :: *
   getLoc :: f -> Loc f
 
-class (Ord v, HasLoc v) => IsVar v where
+class Ord v => IsVar v where
   -- | Way to allocate fresh variables from integer count
   intToVar      :: Int -> v
 
