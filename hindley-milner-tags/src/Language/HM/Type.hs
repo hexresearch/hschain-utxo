@@ -26,7 +26,8 @@ module Language.HM.Type (
     memberVarSet,
 
     HasTypeVars(..),
-    LocFunctor(..)
+    LocFunctor(..),
+    setLoc
 ) where
 
 --------------------------------------------------------------------------------
@@ -49,7 +50,7 @@ class HasLoc f where
   type Loc f :: *
   getLoc :: f -> Loc f
 
-class Ord v => IsVar v where
+class (Show v, Ord v) => IsVar v where
   -- | Way to allocate fresh variables from integer count
   intToVar      :: Int -> v
 
@@ -135,6 +136,9 @@ instance Functor (Type a) where
 
 class LocFunctor f where
   mapLoc :: (locA -> locB) -> f locA var -> f locB var
+
+setLoc :: LocFunctor f => loc -> f loc v -> f loc v
+setLoc loc = mapLoc (const loc)
 
 instance LocFunctor Type where
   mapLoc f (Type x) = Type $ cata go x

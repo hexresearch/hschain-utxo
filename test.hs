@@ -25,7 +25,10 @@ colToNum x = case x of
   Blue -> 3
   Gen r g b -> 100 * r + 10 * g + b
 
-f = 2 + "2"
+double f x = f (f x)
+
+constInt :: Text -> Int -> Int
+constInt a b = b + 1
 
 walletName :: Wallet -> Text
 walletName x = case x of
@@ -53,14 +56,14 @@ xor True  True   = True
 xor False False  = True
 xor True  False  = False
 xor False True   = False
-
+{-
 xorCol :: Color -> Color -> Bool
 xorCol Red Red = True
 xorCol Green Green = True
 xorCol _ _ = False
 -- xorCol Red Green = False
 -- xorCol Green Red = False
-
+-}
 twistedSucc :: Int -> Int
 twistedSucc 1 = 1
 twistedSucc n = n + 1

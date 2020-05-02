@@ -9,11 +9,15 @@ module Language.HM.Term(
   , letE
   , letRecE
   , assertTypeE
+  , freeVars
 ) where
 
 import Data.Fix
+import Data.Set (Set)
 
 import Language.HM.Type
+
+import qualified Data.Set as S
 
 data TermF loc v r
     = Var loc v                       -- ^ Variables.
@@ -91,5 +95,22 @@ instance LocFunctor Term where
         Let loc vs a -> Fix $ Let (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         LetRec loc vs a -> Fix $ LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> Fix $ AssertType (f loc) r (mapLoc f sig)
+
+freeVars :: Ord v => Term loc v -> Set v
+freeVars = cata go . unTerm
+  where
+    go = \case
+      Var    _ v          -> S.singleton v
+      App    _ a b        -> mappend a b
+      Lam    _ v a        -> S.delete v a
+      Let    _ binds body -> let lhs = S.fromList $ fmap bind'lhs binds
+                             in  mappend (freeBinds binds)
+                                         (body `S.difference` lhs)
+      LetRec _ binds body -> let lhs = S.fromList $ fmap bind'lhs binds
+                             in  (mappend (freeBinds binds) body) `S.difference` lhs
+      AssertType _ a _    -> a
+
+    freeBinds = foldMap bind'rhs
+
 
 
