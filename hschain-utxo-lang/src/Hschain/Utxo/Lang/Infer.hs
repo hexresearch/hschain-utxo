@@ -330,10 +330,10 @@ boolE loc = varE loc boolVar
 
 intVar, textVar, boolVar, notVar, negateVar, boxVar, scriptVar :: Text
 
-intVar = "Int"
-textVar = "Text"
-boolVar = "Bool"
-boxVar = "Box"
+intVar = secretVar "Int"
+textVar = secretVar "Text"
+boolVar = secretVar "Bool"
+boxVar = secretVar "Box"
 scriptVar = secretVar "Script"
 notVar = secretVar "not"
 negateVar = secretVar "negate"
