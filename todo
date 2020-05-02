@@ -4,10 +4,6 @@
 
 * prohibit recursive type definitions
 
-* type error on expression (derives wrong type)
-  
-  double f x = f (f x)
-
 * no type error on wrong expression with tuples and pat-match
 
 -- xorCol :: Color -> Color -> Bool
@@ -17,6 +13,17 @@ xorCol Blue (Blue, x) = True
 xorCol _ _ = False
 -- xorCol Red Green = False
 -- xorCol Green Red = False
+
+* Refine type-errors in patterns. The problem is located in case-alternative
+   but the line number points at the argument of the function.
+  Can we make it better?
+
+f :: Bool -> Int
+f x = case x of
+  True    -> 1
+  "False" -> 2
+  False   -> 4
+
 
 * consider name collisions of fresh vars within user module loading stage
 
