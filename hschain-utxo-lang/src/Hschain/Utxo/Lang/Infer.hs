@@ -349,9 +349,6 @@ ifVar, pkVar :: Text
 ifVar = secretVar "if"
 pkVar = secretVar "pk"
 
-intT :: Type
-intT = conT noLoc intVar []
-
 
 andVar, orVar, plusVar, minusVar, timesVar, divVar,
   equalsVar, notEqualsVar, lessThanVar,
@@ -458,9 +455,22 @@ userTypesToTypeContext (UserTypeCtx m _) =
         resT = toResT ut
         appArgsT = toArgsT ut
         toSelType cons n ty = appArgsT $ monoT $ arrowT noLoc resT ty
+        toConstSelType cons =
+          appArgsT $ forAllT noLoc freshVar $ monoT $ arrowT noLoc resT
+            $ arrowT noLoc (varT noLoc freshVar) (varT noLoc freshVar)
+          where
+            freshVar = mappend "a" $ mconcat $ fmap varName'name userType'args
 
-        toSel cons ts = H.Context $ M.fromList $
-          zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] $ V.toList $ getConsTypes ts
+        toSel cons ts =
+          case V.toList $ getConsTypes ts of
+            [] -> toConstSel cons
+            xs  -> toArgSel cons xs
+
+        toConstSel cons = H.Context $ M.singleton (selectorNameVar cons 0) (toConstSelType cons)
+
+        toArgSel cons ts = H.Context $ M.fromList $
+          zipWith (\n ty -> (selectorNameVar cons n, toSelType cons n ty)) [0 ..] ts
+
 
     toResT UserType{..} = con' userType'name $ fmap var' userType'args
 

@@ -370,8 +370,9 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-boolT, boxT, scriptT, textT :: Type
+intT, boolT, boxT, scriptT, textT :: Type
 
+intT = intT' noLoc
 boolT = boolT' noLoc
 boxT  = boxT' noLoc
 scriptT = scriptT' noLoc
@@ -385,6 +386,9 @@ boxT' = constType "Box"
 
 textT' :: Loc -> Type
 textT' = constType "Text"
+
+intT' :: Loc -> Type
+intT' = constType "Int"
 
 boolT' :: Loc -> Type
 boolT' = constType "Bool"

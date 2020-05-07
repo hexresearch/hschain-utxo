@@ -21,8 +21,10 @@ import Language.HM.TypeError
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
+{-
 import Debug.Trace
 import Text.Show.Pretty
+-}
 
 type Context' loc v = Context (Origin loc) v
 type Type' loc v = Type (Origin loc) v
@@ -105,14 +107,14 @@ infer ctx (Term (Fix x)) = case x of
 
 inferVar :: (Show loc, IsVar v)
   => Context (Origin loc) v -> Origin loc -> v -> InferOut loc v
-inferVar ctx loc v = trace (unlines ["VAR", ppShow ctx, ppShow v])  $
+inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
   fmap (mempty, ) $ maybe err (newInstance . setLoc loc) $ M.lookup v (unContext ctx)
   where
     err = throwError $ NotInScopeErr (fromOrigin loc) v
 
 inferApp :: (IsVar v, Show loc)
   => Context' loc v -> Origin loc -> Term' loc v -> Term' loc v -> InferOut loc v
-inferApp ctx loc f a = trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]) $ do
+inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]) $ -} do
   tvn <- fmap (varT loc) $ freshVar
   res <- inferTerms ctx [f, a]
   case res of
@@ -219,7 +221,7 @@ unify :: (IsVar v, Show loc)
   -> Type' loc v
   -> Type' loc v
   -> Either (TypeError loc v) (Subst' loc v)
-unify phi tx@(Type (Fix x)) ty@(Type (Fix y)) = trace (unlines ["UNIFY", ppShow tx, ppShow ty]) $
+unify phi (Type (Fix x)) (Type (Fix y)) = {- trace (unlines ["UNIFY", ppShow tx, ppShow ty]) $ -}
   case (x, y) of
     (VarT loc tvn, t) ->
         let phiTvn = applyVar phi loc tvn

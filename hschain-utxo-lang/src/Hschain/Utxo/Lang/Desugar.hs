@@ -85,30 +85,45 @@ simpleBind :: VarName -> Lang -> Bind Lang
 simpleBind v a = Bind v Nothing [Alt [] (UnguardedRhs a) Nothing]
 
 -----------------------------------------------------------------
-
 caseToLet :: MonadLang m =>
   (ConsName -> Int -> Text) -> Loc -> Lang -> [CaseExpr Lang] -> m Lang
-caseToLet toSelectorName loc var cases = fmap (foldr (\a rest -> Fix $ AltE loc a rest) failCase) $ mapM fromCase cases
+caseToLet toSelectorName loc expr cases = do
+  v <- getFreshVar loc
+  fmap (Fix . Let loc [simpleBind v expr]) $ caseToLet' toSelectorName loc v cases
+
+caseToLet' :: MonadLang m =>
+  (ConsName -> Int -> Text) -> Loc -> VarName -> [CaseExpr Lang] -> m Lang
+caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix $ AltE loc a rest) failCase) $ mapM fromCase cases
   where
-    fromCase CaseExpr{..} = case caseExpr'lhs of
-      PVar ploc pvar -> return $ Fix $ Let ploc [simpleBind pvar var] caseExpr'rhs
+    toVarExpr loc v = Fix $ Var loc $ VarName loc $ varName'name v
+
+    fromCase CaseExpr{..} = fmap (getLoc caseExpr'lhs, ) $ case caseExpr'lhs of
+      PVar ploc pvar -> return $ Fix $ Let ploc [simpleBind pvar $ toVarExpr ploc var] caseExpr'rhs
       PWildCard loc -> return $ caseExpr'rhs
       PPrim ploc p -> return $ Fix $ If ploc (eqPrim ploc var p) caseExpr'rhs failCase
-      PCons ploc cons pats -> do
-        (vs, rhs') <- reduceSubPats pats caseExpr'rhs
-        let bg = zipWith (\n v -> simpleBind v (Fix $ Apply (varName'loc v) (selector ploc cons n) var)) [0..] vs
-        return $ Fix $ Let loc bg rhs'
+      PCons ploc cons pats ->
+        case pats of
+          [] -> constCons ploc cons
+          _  -> argCons ploc cons pats
       PTuple ploc pats -> do
         (vs, rhs') <- reduceSubPats pats caseExpr'rhs
         let size = length vs
-            bg = zipWith (\n v -> simpleBind v (Fix $ UnOpE (varName'loc v) (TupleAt size n) $ var)) [0..] vs
-        return $ Fix $ Let loc bg rhs'
+            bg = zipWith (\n v -> simpleBind v (Fix $ UnOpE (varName'loc v) (TupleAt size n) $ toVarExpr ploc var)) [0..] vs
+        return $ Fix $ Let ploc bg rhs'
+      where
+        constCons ploc cons = return $
+          app2 (Fix $ Var ploc $ VarName ploc $ toSelectorName cons 0) (toVarExpr ploc var) caseExpr'rhs
+
+        argCons ploc cons pats = do
+          (vs, rhs') <- reduceSubPats pats caseExpr'rhs
+          let bg = zipWith (\n v -> simpleBind v (Fix $ Apply (varName'loc v) (selector ploc cons n) $ toVarExpr ploc var)) [0..] vs
+          return $ Fix $ Let ploc bg rhs'
 
     selector ploc cons n = Fix $ Var ploc (VarName ploc (toSelectorName cons n))
 
-    failCase = Fix $ FailCase loc
+    failCase = Fix $ FailCase topLoc
 
-    eqPrim ploc v p = Fix $ BinOpE ploc Equals var (Fix $ PrimE ploc p)
+    eqPrim ploc v p = Fix $ BinOpE ploc Equals (toVarExpr ploc var) (Fix $ PrimE ploc p)
 
 reduceSubPats :: forall m . MonadLang m => [Pat] -> Lang -> m ([VarName], Lang)
 reduceSubPats pats rhs = runStateT (mapM go pats) rhs
