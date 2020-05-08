@@ -14,6 +14,8 @@ import Hschain.Utxo.Lang.Parser.Hask
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Exec
+import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Desugar
@@ -43,14 +45,15 @@ compile input output = do
 
     go :: String -> Either String ByteString
     go res =
-      case parseModule res of
-        ParseOk lang ->
+      fromErr $ (fromParseError $ parseModule (Just input) res) >>= (\lang ->
           case checkType lang of
-            Nothing  -> fmap (encode . toScript . Expr) $ moduleToMainExpr lang
-            Just err -> Left $ T.unpack $ renderText err
-        ParseFailed _ err -> Left err
+            Nothing  -> fmap (encode . toScript . Expr) $ runInferM $ moduleToMainExpr lang
+            Just err -> Left err
+          )
 
-checkType :: Module -> Maybe TypeError
+    fromErr = either (Left . T.unpack . renderText) Right
+
+checkType :: Module -> Maybe Error
 checkType = checkMainModule langTypeContext
 
 ----------------------------------------

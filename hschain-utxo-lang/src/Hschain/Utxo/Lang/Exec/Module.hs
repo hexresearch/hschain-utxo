@@ -1,5 +1,7 @@
 module Hschain.Utxo.Lang.Exec.Module(
-  evalModule
+    evalModule
+  , checkMainModule
+  , moduleToMainExpr
 ) where
 
 import Hex.Common.Text
@@ -147,4 +149,14 @@ data SimplifyCtx = SimplifyCtx
 
 simplifyExpr :: MonadLang m => SimplifyCtx -> Lang -> m Lang
 simplifyExpr SimplifyCtx{..} expr = desugar simplifyCtx'types expr
+
+checkMainModule :: TypeContext -> Module -> Maybe Error
+checkMainModule types m =
+  either Just (const Nothing) $
+    runInferM $ do
+      modCtx <- liftEither $ evalModule types m
+      let ctx  = moduleCtx'types modCtx
+          ctx' = ctx { inferCtx'binds = types <> inferCtx'binds ctx }
+      inferExpr ctx' =<< moduleToMainExpr m
+
 

@@ -227,6 +227,7 @@ instance Pretty ExecError where
     NoField txt                    -> err "No field" txt
     Undefined loc                  -> hcat [pretty loc, ": undefined"]
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
+    NoMainFunction                 -> "Error: No main function is defined"
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
 

@@ -32,14 +32,6 @@ xorCol Bob     = False
 
 * big number of tuples-constructors user types - type-checkers blows up
 
-* wrong type check error for tuples mismatch
-
-   f :: (a, b, c) -> a
-   f x = case x of
-    (a, b, c) -> a
-
-  it gives type mismatch of (Tuple3 a b c -> a) does not match (Tuple3 a b c -> a)
-
 * fails to parse negative numbers
 
    w = -3 -- gives parse error
@@ -56,9 +48,4 @@ xorCol Bob     = False
 * optimize lambda-reductions
 
 * docs-update
-
-* mystirious constructor Bool. Try in repl
-  
-    Bool && True
-
 
