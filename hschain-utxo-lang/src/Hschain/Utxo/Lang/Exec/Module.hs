@@ -21,6 +21,7 @@ import Hschain.Utxo.Lang.Monad
 import qualified Language.HM as H
 import qualified Data.List.Extra as L
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 import qualified Data.Vector as V
 
 evalModule :: TypeContext -> Module -> Either Error ModuleCtx
@@ -112,36 +113,10 @@ appendRecordFuns m =
 ------------------------------------------------------------
 -- compile main module
 
-moduleToMainExpr :: MonadLang m => Module -> m Lang
-moduleToMainExpr prog = case findMain prog of
-  Nothing   -> throwError $ ExecError NoMainFunction
-  Just main -> do
-    expr <- fmap (\mainExpr -> bindGroupToLet (module'binds $ rmMain prog) (addBoolTypeCheck mainExpr)) $ altGroupToExpr main
-    simplifyExpr simCtx expr
-  where
-    findMain :: Module -> Maybe [Alt Lang]
-    findMain Module{..} = L.firstJust getMain module'binds
-      where
-        getMain Bind{..}
-          | isMain bind'name = Just bind'alts
-          | otherwise        = Nothing
-
-    addBoolTypeCheck :: Lang -> Lang
-    addBoolTypeCheck expr = Fix $ Ascr (H.getLoc expr) expr (H.monoT boolT)
-
-    rmMain :: Module -> Module
-    rmMain m@Module{..} = m { module'binds = rm module'binds }
-      where
-        rm = filter noMain
-
-        noMain = not . isMain . bind'name
-
-    isMain :: VarName -> Bool
-    isMain = (== "main") . varName'name
-
-    simCtx = SimplifyCtx
-      { simplifyCtx'types = setupRecConstrs $ module'userTypes prog
-      }
+moduleToMainExpr :: MonadLang m => TypeContext -> Module -> m Lang
+moduleToMainExpr typeCtx prog = do
+  modCtx <- liftEither $ evalModule typeCtx prog
+  return $ appendExecCtx (moduleCtx'exprs modCtx) (Fix $ Var noLoc "main")
 
 data SimplifyCtx = SimplifyCtx
   { simplifyCtx'types :: UserTypeCtx
@@ -157,6 +132,28 @@ checkMainModule types m =
       modCtx <- liftEither $ evalModule types m
       let ctx  = moduleCtx'types modCtx
           ctx' = ctx { inferCtx'binds = types <> inferCtx'binds ctx }
-      inferExpr ctx' =<< moduleToMainExpr m
+      inferExpr ctx' =<< moduleToMainExpr types m
 
+
+appendExecCtx :: ExecCtx -> Lang -> Lang
+appendExecCtx ctx expr =
+  Fix $ Let (H.getLoc expr) binds expr
+  where
+    binds = fmap (\(var, rhs) -> simpleBind var rhs) $ M.toList $
+      execCtx'vars $ pruneExecCtx expr ctx
+
+pruneExecCtx :: Lang -> ExecCtx -> ExecCtx
+pruneExecCtx expr (ExecCtx ctx) =
+  ExecCtx $ M.intersection ctx $ varsToMap vars
+  where
+    varsToMap vs = M.fromList $ fmap (, ()) $ S.toList vs
+
+    vars = getUsedVars ctx (freeVars expr) S.empty
+
+    getUsedVars m cur res
+      | S.null cur = res
+      | otherwise = getUsedVars (M.difference m curMap) next (cur <> res)
+      where
+        next = foldMap (\var -> maybe S.empty freeVars $ M.lookup var m) cur
+        curMap = varsToMap cur
 

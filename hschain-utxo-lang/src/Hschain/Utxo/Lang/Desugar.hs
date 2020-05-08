@@ -149,5 +149,5 @@ recordFieldUpdateFunName VarName{..} = VarName
   }
 
 secretVar :: Text -> Text
-secretVar = mappend ":# "
+secretVar = flip mappend "___"
 

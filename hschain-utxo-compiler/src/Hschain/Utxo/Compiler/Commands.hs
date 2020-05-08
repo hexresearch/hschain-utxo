@@ -47,7 +47,7 @@ compile input output = do
     go res =
       fromErr $ (fromParseError $ parseModule (Just input) res) >>= (\lang ->
           case checkType lang of
-            Nothing  -> fmap (encode . toScript . Expr) $ runInferM $ moduleToMainExpr lang
+            Nothing  -> fmap (encode . toScript . Expr) $ runInferM $ moduleToMainExpr langTypeContext lang
             Just err -> Left err
           )
 
