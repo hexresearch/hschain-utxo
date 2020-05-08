@@ -85,6 +85,12 @@ fromScript (Script txt) = parseScript txt
 toScript :: Expr Bool -> Script
 toScript (Expr expr) = Script $ T.pack $ prettyExp expr
 
+encodeScript :: ExecCtx -> Lang -> Text
+encodeScript = undefined
+
+decodeScript :: Text -> Either Text (ExecCtx, Lang)
+decodeScript = undefined
+
 hashScript ::  C.HashAlgorithm a => a -> Script -> Text
 hashScript algo = hash . unScript
   where

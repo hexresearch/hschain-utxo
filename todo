@@ -1,3 +1,6 @@
+
+* remove LetRec
+
 * implement let-pattenrs for repl in the style of
     
     (a, b) = getPair
@@ -48,4 +51,3 @@ xorCol Bob     = False
 * optimize lambda-reductions
 
 * docs-update
-
