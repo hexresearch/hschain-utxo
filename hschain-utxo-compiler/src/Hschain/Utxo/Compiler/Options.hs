@@ -102,6 +102,6 @@ options = subparser
                 <> short 'o'
                 <> help "output" ))
 
-        msg = progDesc "Signm sigma expression"
+        msg = progDesc "Sign sigma expression"
 
 

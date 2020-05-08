@@ -1,8 +1,12 @@
 module Hschain.Utxo.Lang.Error where
 
+import Data.String
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr
+
+import qualified Language.Haskell.Exts.SrcLoc as H
+import qualified Language.Haskell.Exts.Parser as H
 
 data Error
   = ParseError Loc Text
@@ -46,6 +50,11 @@ eitherPatternError = either (Left . TypeError) Right
 
 eitherExecError :: Either ExecError a -> Either Error a
 eitherExecError = either (Left . ExecError) Right
+
+fromParseError :: H.ParseResult a -> Either Error a
+fromParseError = \case
+  H.ParseOk a           -> Right a
+  H.ParseFailed loc err -> Left $ ParseError (H.noInfoSpan $ H.mkSrcSpan loc loc) (fromString err)
 
 -----------------------------------------
 -- pretty printing
