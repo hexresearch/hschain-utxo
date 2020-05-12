@@ -105,22 +105,3 @@ library
     TypeFamilies,
     TypeSynonymInstances
 
-test-suite spec
-  type:                 exitcode-stdio-1.0
-
-  main-is:              Spec.hs
-
-  other-modules:
-    Language.HM.AlgorithmWSpec,
-    Language.HM.TypeSpec
-
-  build-depends:
-    base >=4.8 && <4.9,
-    hindley-milner,
-    hspec,
-    containers >= 0.5
-
-  hs-source-dirs:       test
-
-  default-language:     Haskell2010
-
