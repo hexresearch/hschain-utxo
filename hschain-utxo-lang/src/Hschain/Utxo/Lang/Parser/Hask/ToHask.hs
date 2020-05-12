@@ -90,7 +90,7 @@ toHaskExp (Fix expr) = case expr of
 
     fromUnOp loc op a = case op of
       Not       -> ap (VarName loc "not") a
-      Neg       -> ap (VarName loc "negate") a
+      Neg       -> H.NegApp loc (rec a)
       TupleAt size n -> ap2 (VarName loc $ mconcat ["tuple", showt size, "At"]) (Fix $ PrimE loc $ PrimInt $ fromIntegral n) a
 
     fromBimOp loc op = case op of

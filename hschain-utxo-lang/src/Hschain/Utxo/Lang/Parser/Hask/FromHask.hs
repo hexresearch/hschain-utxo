@@ -61,6 +61,7 @@ fromHaskExp topExp = case topExp of
   H.Case loc expr alts -> liftA2 (fromCase loc) (rec expr) (mapM fromCaseAlt alts)
   H.RecConstr loc name fields -> liftA2 (fromRecConstr loc) (fromQName name) (mapM fromField fields)
   H.RecUpdate loc exp fields -> liftA2 (fromRecUpdate loc) (rec exp) (mapM fromField fields)
+  H.NegApp loc exp -> fmap (fromNegApp loc) (rec exp)
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
@@ -76,6 +77,8 @@ fromHaskExp topExp = case topExp of
 
     fromInfixApp loc op a b =
       liftA3 (\x v y -> Fix $ InfixApply loc x v y) (rec a) (fromOp op) (rec b)
+
+    fromNegApp loc a = Fix $ UnOpE loc Neg a
 
     fromOp = \case
       H.QVarOp loc qname -> fromQName qname
