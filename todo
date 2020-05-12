@@ -35,12 +35,6 @@ xorCol Bob     = False
 
 * big number of tuples-constructors user types - type-checkers blows up
 
-* fails to parse negative numbers
-
-   w = -3 -- gives parse error
-
-   [1, -2, 3] -- gives parse error
-
 * make modules, imports (build from several source files)
 
 * check performance (intensive task)
