@@ -1,3 +1,4 @@
+-- | Defines type-inference algorithm.
 module Language.HM.Infer(
     Context(..)
   , inferType
@@ -26,6 +27,7 @@ import Debug.Trace
 import Text.Show.Pretty
 -}
 
+-- Synonims to simplify typing
 type Context' loc v = Context (Origin loc) v
 type Type' loc v = Type (Origin loc) v
 type Term' loc v = Term (Origin loc) v
@@ -34,11 +36,12 @@ type Subst' loc v = Subst (Origin loc) v
 type Bind' loc v a = Bind (Origin loc) v a
 type VarSet' loc v = VarSet (Origin loc) v
 
+-- | Context holds map of proven signatures for free variables in the expression.
 newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
   deriving (Show, Eq, Semigroup, Monoid)
 
 instance CanApply Context where
-    apply subst = Context . fmap (apply subst) . unContext
+  apply subst = Context . fmap (apply subst) . unContext
 
 
 -- | We leave in the context only terms that are truly needed.
@@ -61,9 +64,16 @@ chooseUserOrigin x y = case (x, y) of
   (_, UserCode a) -> a
   _               -> fromOrigin x
 
+-- | Type-tag for source locations to distinguish proven types from those
+-- that have to be checked.
+--
+-- We use it on unification failure to show source locations in the user code and not in the
+-- expression that is already was proven.
 data Origin a
   = Proven a
+  -- ^ Proven source code location
   | UserCode a
+  -- ^ User source code (we type-check it)
   deriving (Show, Functor)
 
 fromOrigin :: Origin a -> a
@@ -81,12 +91,17 @@ instance HasLoc a => HasLoc (Origin a) where
   type Loc (Origin a) = Loc a
   getLoc = getLoc . fromOrigin
 
+-- | Type-inference monad.
+-- Contains integer counter for fresh variables and possibility to report type-errors.
 newtype InferM loc var a = InferM (StateT Int (Except (TypeError loc var)) a)
   deriving (Functor, Applicative, Monad, MonadState Int, MonadError (TypeError loc var))
 
+-- | Runs inference monad.
 runInferM :: InferM loc var a -> Either (TypeError loc var) a
 runInferM (InferM m) = runExcept $ evalStateT m 0
 
+-- | Type-inference function.
+-- We provide a context of already proven type-signatures and term to infer the type.
 inferType :: (IsVar var, Show loc, Eq loc)
   => Context loc var -> Term loc var -> Either (TypeError loc var) (Type loc var)
 inferType ctx term =
@@ -216,6 +231,8 @@ inferTerms ctx ts = case ts of
     (psi, tas) <- inferTerms (apply phi ctx) as
     return (psi <> phi, apply psi ta : tas)
 
+-- | Unification function. Checks weather two types unify.
+-- First argument is current substitution.
 unify :: (IsVar v, Show loc)
   => Subst' loc v
   -> Type' loc v
@@ -268,6 +285,7 @@ unifyl subst as bs = foldr go (Right subst) $ zip as bs
   where
     go (a, b) eSubst = (\t -> unify t a b) =<< eSubst
 
+-- | Checks if first argument one type is subtype of the second one.
 subtypeOf :: (IsVar v, Show loc)
   => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
 subtypeOf a b = fmap fromSubstOrigin $ genSubtypeOf mempty (mapLoc Proven a) (mapLoc UserCode b)
@@ -335,6 +353,7 @@ addDecl unknowns b ctx = do
 -------------------------------------------------------
 -- pretty letters for variables in the result type
 
+-- | Converts variable names to human-readable format.
 normaliseType :: (IsVar v, Eq loc) => Type loc v -> Type loc v
 normaliseType ty = apply (normaliseSubst ty) ty
 

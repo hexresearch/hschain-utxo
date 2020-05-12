@@ -46,10 +46,15 @@ import Text.Show.Deriving
 
 --------------------------------------------------------------------------------
 
+-- | Class to get source code location.
 class HasLoc f where
+  -- | Type for source code location
   type Loc f :: *
+
+  -- | Get the source code location.
   getLoc :: f -> Loc f
 
+-- | Functions we need for variables to do type-inference.
 class (Show v, Ord v) => IsVar v where
   -- | Way to allocate fresh variables from integer count
   intToVar      :: Int -> v
@@ -76,44 +81,59 @@ instance HasLoc (Signature loc var) where
         MonoT ty        -> getLoc ty
         ForAllT loc _ _ -> loc
 
+-- | Type functor. Arguments are
+--
+-- * @loc@ - source code locations
+--
+-- * @var@ - variable name
+--
+-- * @r@ - recursion
+--
+-- There are only two requried constructors: @VarT@ and @ConT@
+-- other constructors are used for convenience of pretty-printing the type.
 data TypeF loc var r
-    = VarT loc var
-    | ConT loc var [r]
-    | ArrowT loc r r    -- special case of ConT that is rendered as ->
-    | TupleT loc [r]    -- special case of ConT that is rendered as (,,,)
-    | ListT loc r       -- special case of ConT that is rendered as [a]
+    = VarT loc var      -- ^ Variables
+    | ConT loc var [r]  -- ^ type constant with list of arguments
+    | ArrowT loc r r    -- ^ Special case of ConT that is rendered as ->
+    | TupleT loc [r]    -- ^ Special case of ConT that is rendered as (,,,)
+    | ListT loc r       -- ^ Special case of ConT that is rendered as [a]
     deriving (Eq, Ord, Show, Functor)
 
 -- | Monomorphic types.
 newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
   deriving (Show, Eq, Ord)
 
--- | 'varT' @x@ constructs a type variable named @x@.
+-- | 'varT' @loc x@ constructs a type variable named @x@ with source code at @loc@.
 varT :: loc -> var -> Type loc var
 varT loc var = Type $ Fix $ VarT loc var
 
--- | 'varT' @x@ constructs a type variable named @x@.
+-- | 'conT' @loc x@ constructs a type constant named @x@ with source code at @loc@.
 conT :: loc -> var -> [Type loc var] -> Type loc var
 conT loc name args = Type $ Fix $ ConT loc name $ fmap unType $ args
 
--- | 'arrowT' @t0 t1@ constructs an arrow type from @t0@ to @t1@.
+-- | 'arrowT' @loc t0 t1@ constructs an arrow type from @t0@ to @t1@ with source code at @loc@.
 arrowT :: loc -> Type loc v -> Type loc v -> Type loc v
 arrowT loc (Type t0) (Type t1) = Type $ Fix $ ArrowT loc t0 t1
 
+-- | 'tupleT' @loc ts@ constructs tuple of types @ts@ with source code at @loc@.
 tupleT :: loc -> [Type loc var] -> Type loc var
 tupleT loc ts = Type $ Fix $ TupleT loc $ fmap unType ts
 
+-- | 'listT' @loc t@ constructs list of @t@ with source code at @loc@.
 listT :: loc -> Type loc var -> Type loc var
 listT loc (Type t) = Type $ Fix $ ListT loc t
 
 --------------------------------------------------------------------------------
 
+-- | Functor for signature is a special type that we need for type inference algorithm.
+-- We specify which variables in the type are schematic (non-free).
 data SignatureF loc var r
-    = ForAllT loc var r
-    | MonoT (Type loc var)
+    = ForAllT loc var r     -- ^ specify schematic variable
+    | MonoT (Type loc var)  -- ^ contains the type
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
--- | Polymorphic types.
+-- | Signaure is a special type that we need for type inference algorithm.
+-- We specify which variables in the type are schematic (non-free).
 newtype Signature loc var = Signature { unSignature :: Fix (SignatureF loc var)
   } deriving (Show, Eq, Ord)
 
@@ -134,9 +154,11 @@ instance Functor (Type a) where
         TupleT loc as      -> Fix $ TupleT loc as
         ListT loc a        -> Fix $ ListT loc a
 
+-- | Mapping over source code locations. It's like functor but for source code locations.
 class LocFunctor f where
   mapLoc :: (locA -> locB) -> f locA var -> f locB var
 
+-- | Sets the source code location to given value for all expressions in the functor.
 setLoc :: LocFunctor f => loc -> f loc v -> f loc v
 setLoc loc = mapLoc (const loc)
 
@@ -165,35 +187,7 @@ forAllT loc x (Signature t) = Signature $ Fix $ ForAllT loc x t
 monoT :: Type loc src -> Signature loc src
 monoT = Signature . Fix . MonoT
 
-{-
-instance AlphaEq (Signature src) where
-    alphaEq (Signature sig0) (Signature sig1) = sigmaEq M.empty (unFix sig0) (unFix sig1)
-        where
-            tauEq env (VarT _ x) (VarT _ y) = case M.lookup x env of
-                -- the variable is bound in the left expression: check that
-                -- it matches the name of the variable in the right expression
-                -- that was bound at the same point
-                Just y' -> y == y'
-                -- the variable is free in the left expression: it should have
-                -- the same name as the variable in the right expression
-                Nothing -> x == y
-            tauEq _ (ConT _ x) (ConT _ y) = x == y
-            tauEq env (AppT _ x0 x1) (AppT _ y0 y1) =
-                tauEq env (unFix x0) (unFix y0) &&
-                tauEq env (unFix x1) (unFix y1)
-            tauEq env (ArrowT _ x0 x1) (ArrowT _ x0' x1') =
-                tauEq env (unFix x0) (unFix x0') &&
-                tauEq env (unFix x1) (unFix x1')
-            tauEq _ _ _ = False
-
-            sigmaEq env (MonoT (Type t0)) (MonoT (Type t1)) =
-                tauEq env (unFix t0) (unFix t1)
-            sigmaEq env (ForAllT _ x t0) (ForAllT _ y t1) =
-                sigmaEq (M.insert x y env) (unFix t0) (unFix t1)
-            sigmaEq _ _ _ = False
--}
-
-
+-- | Converts simple type to signature with all free variables set to schematic.
 typeToSignature :: (Eq loc, Ord v) => Type loc v -> Signature loc v
 typeToSignature ty = foldr (\(v, src) a -> forAllT src v a) (monoT ty) vs
   where
@@ -245,6 +239,8 @@ instance HasTypeVars Signature where
 
 --------------------------------------------------------------------------------
 
+-- | Set with information on source code locations.
+-- We use it to keep the source code locations for variables.
 newtype VarSet src var = VarSet { unVarSet :: Map var src }
 
 instance Ord var => Semigroup (VarSet src var) where
@@ -253,20 +249,26 @@ instance Ord var => Semigroup (VarSet src var) where
 instance Ord var => Monoid (VarSet src var) where
   mempty = VarSet M.empty
 
+-- | 'difference' for @VarSet@'s
 differenceVarSet :: Ord var => VarSet src var -> VarSet src var -> VarSet src var
 differenceVarSet (VarSet a) (VarSet b) = VarSet $ a `M.difference` b
 
+-- | Gets the source code location for variable.
 getVar :: Ord var => VarSet src var -> var -> Maybe src
 getVar (VarSet m) var = M.lookup var m
 
+-- | Converts varset to list.
 varSetToList :: VarSet src var -> [(src, var)]
 varSetToList (VarSet m) = fmap swap $ M.toList m
 
+-- | Checks membership of the item in the varset.
 memberVarSet :: Ord var => var -> VarSet src var -> Bool
 memberVarSet k (VarSet m) = M.member k m
 
 --------------------------------------------------------------------------------
 
+-- | Removes all information on variables in the type.
+-- it gets the thing that we store in constructor @MonoT@.
 stripSignature :: Signature src var -> Type src var
 stripSignature = cata go . unSignature
   where

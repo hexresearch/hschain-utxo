@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+-- | Pretty printer for types and terms.
 module Language.HM.Pretty(
     HasPrefix(..)
   , PrintCons(..)
@@ -14,6 +15,7 @@ import Data.Text.Prettyprint.Doc
 import Language.HM.Type
 import Language.HM.Term
 
+-- | Class to querry fixity of infix operations.
 class IsVar v => HasPrefix v where
   getFixity :: v -> Maybe OpFix
 
@@ -98,11 +100,15 @@ needsParens = \case
 data PartialOrdering = PoLT | PoGT | PoEQ | PoNC
   deriving Eq
 
+-- | Defines fixity type and order of infix operation
 data OpFix = OpFix
   { opFix'fixity :: !Fixity
+  -- ^ fixity type
   , opFix'prec   :: !Int
+  -- ^ fixity order
   }
 
+-- | Infix operation can be left or right associative or associativity is not known.
 data Fixity = FixLeft | FixRight | FixNone
   deriving Eq
 

@@ -19,6 +19,8 @@ import Language.HM.Type
 
 import qualified Data.Set as S
 
+-- | Term functor. The arguments are
+-- @loc@ for source code locations, @v@ for variables, @r@ for recurion.
 data TermF loc v r
     = Var loc v                       -- ^ Variables.
     | App loc r r                     -- ^ Applications.
@@ -28,10 +30,13 @@ data TermF loc v r
     | AssertType loc r (Type loc v)   -- ^ Assert type.
     deriving (Show, Eq, Functor, Foldable, Traversable)
 
+-- | Local variable definition.
+--
+-- > let lhs = rhs in ...
 data Bind loc var r = Bind
-  { bind'loc :: loc
-  , bind'lhs :: var
-  , bind'rhs :: r
+  { bind'loc :: loc             -- ^ Source code location
+  , bind'lhs :: var             -- ^ Variable name
+  , bind'rhs :: r               -- ^ Definition (right-hand side)
   } deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- | The type of terms.
@@ -49,26 +54,28 @@ instance Functor (Term loc) where
         LetRec loc vs a -> Fix $ LetRec loc (fmap (\b ->  b { bind'lhs = f $ bind'lhs b }) vs) a
         AssertType loc r sig -> Fix $ AssertType loc r (fmap f sig)
 
--- | 'varE' @x@ constructs a variable whose name is @x@.
+-- | 'varE' @loc x@ constructs a variable whose name is @x@ with source code at @loc@.
 varE :: loc -> var -> Term loc var
 varE loc = Term . Fix . Var loc
 
--- | 'appE' @l r@ constructs an application of @l@ to @r@.
+-- | 'appE' @loc a b@ constructs an application of @a@ to @b@ with source code at @loc@.
 appE :: loc -> Term loc v -> Term loc v -> Term loc v
 appE loc (Term l) (Term r) = Term $ Fix $ App loc l r
 
--- | 'absE' @x e@ constructs an abstraction of @x@ over @e@.
+-- | 'lamE' @loc x e@ constructs an abstraction of @x@ over @e@ with source code at @loc@.
 lamE :: loc -> v -> Term loc v -> Term loc v
 lamE loc x (Term e) = Term $ Fix $ Lam loc x e
 
--- | 'letE' @x e0 e1@ constructs a binding of @e0@ to @x@ in @e1@.
+-- | 'letE' @loc binds e@ constructs a binding of @binds@ in @e@ with source code at @loc@.
+-- No recursive bindings.
 letE :: loc -> [Bind loc v (Term loc v)] -> Term loc v -> Term loc v
 letE loc binds (Term e) = Term $ Fix $ Let loc (fmap (fmap unTerm) binds) e
 
--- | 'letE' @x e0 e1@ constructs a binding of @e0@ to @x@ in @e1@.
+-- | 'letRecE' @loc binds e@ constructs a recursive binding of @binds@ in @e@ with source code at @loc@.
 letRecE :: loc -> [Bind loc v (Term loc v)] -> Term loc v -> Term loc v
 letRecE loc binds (Term e) = Term $ Fix $ LetRec loc (fmap (fmap unTerm) binds) e
 
+-- | 'assertTypeE' @loc term ty@ constructs assertion of the type @ty@ to @term@.
 assertTypeE :: loc -> Term loc v -> Type loc v -> Term loc v
 assertTypeE loc (Term a) ty = Term $ Fix $ AssertType loc a ty
 
@@ -96,6 +103,7 @@ instance LocFunctor Term where
         LetRec loc vs a -> Fix $ LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> Fix $ AssertType (f loc) r (mapLoc f sig)
 
+-- | Get free variables of the term.
 freeVars :: Ord v => Term loc v -> Set v
 freeVars = cata go . unTerm
   where

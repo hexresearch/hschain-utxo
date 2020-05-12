@@ -20,11 +20,13 @@ instance Ord v => Semigroup (Subst loc v) where
 instance Ord v => Monoid (Subst loc v) where
   mempty = Subst M.empty
 
+-- | Singleton substitution.
 delta :: IsVar v => v -> Type loc v -> Subst loc v
 delta v ty = Subst $ M.singleton v ty
 
 ---------------------------------------------------------------
 
+-- | Class for application of substitutions to various types.
 class CanApply f where
   apply :: Ord v => Subst loc v -> f loc v -> f loc v
 
