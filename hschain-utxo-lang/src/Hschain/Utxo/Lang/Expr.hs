@@ -248,7 +248,6 @@ data E a
   | Lam Loc Pat a
   | LamList Loc [Pat] a
   | Let Loc (BindGroup a) a
-  | LetRec Loc VarName a a
   | Ascr Loc a Signature
   -- case
   | Cons Loc ConsName (Vector a)
@@ -442,7 +441,6 @@ instance Show a => H.HasLoc (E a) where
     Lam loc _ _ -> loc
     LamList loc _ _ -> loc
     Let loc _ _ -> loc
-    LetRec loc _ _ _ -> loc
     Ascr loc _ _ -> loc
     -- case-expr
     Cons loc _ _ -> loc
@@ -523,7 +521,6 @@ freeVars = cata $ \case
   Lam _ v a        -> a `Set.difference`  freeVarsPat v
   LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)
   Let _ bg a       -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
-  LetRec _ v a b   -> a <> Set.filter (/= v) b
   Ascr _ a _       -> a
   Cons _ _ vs      -> mconcat $ V.toList vs
   CaseOf _ a alts  -> mappend a (foldMap freeCaseExpr alts)
