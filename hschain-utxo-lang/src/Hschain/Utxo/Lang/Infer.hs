@@ -75,7 +75,6 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
                                     rec $ Fix $ Lam loc (PVar loc v) (Fix $ CaseOf loc (Fix $ Var loc v) [CaseExpr pat a])
   LamList loc vs a          -> rec $ unfoldLamList loc vs a
   Let loc binds a           -> fromLet loc binds =<< rec a
-  LetRec loc var a b        -> error "recursive let-expressions are not allowed"
   -- cases
   CaseOf loc expr alts      -> rec =<< caseToLet selectorNameVar loc expr alts
   Ascr loc a ty             -> fmap (\term -> fromAscr loc term $ stripSignature ty) (rec a)

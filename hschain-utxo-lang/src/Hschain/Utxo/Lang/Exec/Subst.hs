@@ -24,8 +24,6 @@ subst (Fix body) varName sub = case body of
   Lam loc pat body1                        -> Fix $ Lam loc pat $ recBy (freeVarsPat pat) body1
   If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
   Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
-  LetRec loc v1 a1 a2      | v1 == varName -> Fix $ LetRec loc v1 a1 (rec a2)
-                           | otherwise     -> Fix $ LetRec loc v1 (rec a1) (rec a2)
   Pk loc a                                 -> Fix $ Pk loc $ rec a
   Tuple loc as                             -> Fix $ Tuple loc $ fmap rec as
   GetEnv loc idx                           -> Fix $ GetEnv loc $ fmap rec idx

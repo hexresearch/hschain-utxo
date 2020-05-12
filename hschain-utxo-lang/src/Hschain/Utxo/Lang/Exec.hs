@@ -138,7 +138,6 @@ execLang' (Fix x) = case x of
     Lam loc pat b -> fromLam loc pat b
     LamList loc vars a -> fromLamList loc vars a
     Let loc varName a -> fromLet loc varName a
-    LetRec loc varName b c -> fromLetRec loc varName b c
     -- logic
     If loc a b c -> fromIf loc a b c
     Pk loc a -> fromPk loc a
@@ -471,15 +470,6 @@ execLang' (Fix x) = case x of
             let v = bind'name def
             body <- altGroupToExpr $ bind'alts def
             execDefs (fmap2 (\x -> subst x v body) rest) (subst e v body)
-
-    fromLetRec loc v lc1 lc2 = do
-      insertVar v lc1
-      lc1' <- rec lc1
-      case lc1' of
-        lam@(Fix (Lam _ _ _)) -> do
-          insertVar v lc1
-          rec $ subst lc2 v lam
-        _ -> throwError $ ExecError $ IllegalRecursion $ Fix $ LetRec loc v lc1 lc2
 
     fromEnv loc idx = do
       idx' <- mapM rec idx

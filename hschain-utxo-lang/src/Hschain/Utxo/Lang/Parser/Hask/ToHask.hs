@@ -40,8 +40,6 @@ toHaskExp (Fix expr) = case expr of
   InfixApply loc a v b -> H.InfixApp loc (rec a) (H.QVarOp (HM.getLoc v) $ toSymbolQName v) (rec b)
   Lam loc name a -> H.Lambda loc [toPat name] (rec a)
   LamList loc vs a -> H.Lambda loc (fmap toPat vs) (rec a)
-  Let loc bg a -> H.Let loc (toLetBinds loc bg) (rec a)
-  LetRec loc name a b -> undefined
   Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType ty)
   -- case
   Cons loc name args -> foldl (\f z -> H.App loc f z) (toCon loc name) $ fmap rec args
