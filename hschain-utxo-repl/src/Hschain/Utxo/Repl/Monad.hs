@@ -38,6 +38,7 @@ data ParseRes
   = ParseExpr Lang
   | ParseBind VarName Lang
   | ParseCmd  CmdName Arg
+  deriving (Show, Eq)
 
 type CmdName = String
 type Arg = String
