@@ -1,3 +1,8 @@
+-- | It defines types and functions for Sigma-expressions.
+-- Sigma-expressions are used to sign scripts without providing
+-- the information on who signed the script.
+--
+-- It is the way to prove ownership of the private-key.
 module Hschain.Utxo.Lang.Sigma(
     CryptoAlg
   , KeyPair
@@ -58,34 +63,49 @@ import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 
 import qualified Data.ByteString.Base58 as Base58
 
+-- | Cryptographic algorithm that we use.
 type CryptoAlg = Sigma.Ed25519
 
+-- | Pair of public and private keys.
 type KeyPair    = Sigma.KeyPair    CryptoAlg
+
+-- | Public key.
 type PublicKey  = Sigma.PublicKey  CryptoAlg
+
+-- | Private key.
 type Secret     = Sigma.Secret     CryptoAlg
 
+-- | Environment to prove the ownership. It is a list of key-pairs
+-- that are owned by the prover.
 type ProofEnv   = Sigma.Env        CryptoAlg
+
+-- | Proof of the ownership.
 type Proof      = Sigma.Proof      CryptoAlg
 type ProofDL    = Sigma.ProofDL    CryptoAlg
 
+-- | Generate new private key.
 newSecret :: IO Secret
 newSecret = Sigma.generateSecretKey
 
+-- | Convert private key to public key.
 getPublicKey :: Secret -> PublicKey
 getPublicKey = Sigma.getPublicKey
 
+-- | Creates key-pair for given private key.
 getKeyPair :: Secret -> KeyPair
 getKeyPair secret = Sigma.KeyPair secret (getPublicKey secret)
 
+-- | Proof environment is a listavailable key-pairs.
 toProofEnv :: [KeyPair] -> ProofEnv
 toProofEnv ks = Sigma.Env ks
 
+-- | Parse public key from text.
 publicKeyFromText :: Text -> Maybe PublicKey
 publicKeyFromText = serialiseFromText
 
+-- | Convert public key to text.
 publicKeyToText :: PublicKey -> Text
 publicKeyToText = serialiseToText
-
 
 instance FromJSON Proof where
   parseJSON = serialiseFromJSON
@@ -105,9 +125,11 @@ instance ToJSON (Sigma Proof) where
 instance FromJSON (Sigma Proof) where
   parseJSON = serialiseFromJSON
 
+-- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
 newProof :: ProofEnv -> Sigma PublicKey -> IO (Either Text Proof)
 newProof env = Sigma.newProof env . toSigmaExpr
 
+-- | Verify the proof.
 verifyProof :: Proof -> Bool
 verifyProof = Sigma.verifyProof
 
@@ -115,10 +137,11 @@ type Sigma k = Fix (SigmaExpr k)
 
 deriving anyclass instance NFData k => NFData (Sigma k)
 
+-- | Sigma-expression
 data SigmaExpr k a =
-    SigmaPk k
-  | SigmaAnd [a]
-  | SigmaOr  [a]
+    SigmaPk k      -- ownership of the key (contains public key)
+  | SigmaAnd [a]   -- and-expression
+  | SigmaOr  [a]   -- or-expression
   deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData)
 
 instance Serialise k => Serialise (Sigma k)
@@ -170,12 +193,15 @@ toSigmaExpr = cata $ \case
   SigmaAnd as  -> Sigma.AND () as
   SigmaOr  as  -> Sigma.OR  () as
 
+-- | Empty proof environment. It holds no keys.
 emptyProofEnv :: ProofEnv
 emptyProofEnv = Sigma.Env []
 
+-- | Wrapper to contruct proof environment from list of key-pairs.
 proofEnvFromKeys :: [KeyPair] -> ProofEnv
 proofEnvFromKeys = Sigma.Env
 
+-- | Check if sigma expression is proven with given proof.
 equalSigmaProof :: Sigma PublicKey -> Proof -> Bool
 equalSigmaProof candidate proof =
   equalSigmaExpr

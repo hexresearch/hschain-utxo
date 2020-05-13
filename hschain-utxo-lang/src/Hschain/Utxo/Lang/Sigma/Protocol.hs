@@ -1,3 +1,4 @@
+-- | Types and functions for sigma-protocol.
 module Hschain.Utxo.Lang.Sigma.Protocol
 where
 
@@ -26,7 +27,7 @@ sexprAnn = \case
 
 -- | Set of known keys
 newtype Env a = Env [KeyPair a]
---
+
 -- | Proof of knowledge of discrete logarithm
 data ProofDL a = ProofDL
   { publicK     :: PublicKey a
@@ -51,7 +52,7 @@ instance ( CBOR.Serialise (ECPoint   a)
          ) => CBOR.Serialise (ProofDL a)
 
 
--- Simulate proof of posession of discrete logarithm for given
+-- | Simulate proof of posession of discrete logarithm for given
 -- challenge
 simulateProofDL :: EC a => PublicKey a -> Challenge a -> IO (ProofDL a)
 simulateProofDL pk e = do

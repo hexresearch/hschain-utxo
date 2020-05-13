@@ -1,3 +1,4 @@
+-- | Module for functions that convert Haskell expressions to expressions of our language.
 module Hschain.Utxo.Lang.Parser.Hask.ToHask(
     toHaskExp
   , toHaskModule

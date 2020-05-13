@@ -1,3 +1,5 @@
+-- | Functions to construct AST for our language programmatically (not parsed from the code).
+-- They are well-typed with usage of phantom type but under the hood they all use type Lang.
 module Hschain.Utxo.Lang.Build(
     int
   , text

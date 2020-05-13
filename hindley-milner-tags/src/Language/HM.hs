@@ -1,3 +1,4 @@
+-- | This module exports all useful functions of the library
 module Language.HM (
   module X
 ) where

@@ -1,3 +1,4 @@
+-- | Module defines main types and functions for working with elliptic curves.
 module Hschain.Utxo.Lang.Sigma.EllipticCurve(
     EC(..)
   , Ed25519
@@ -43,6 +44,7 @@ class EC a where
   (^+^)   :: ECPoint  a -> ECPoint  a -> ECPoint  a
   negateP :: ECPoint a -> ECPoint a
 
+-- | Algorithm tag.
 data Ed25519
 
 instance EC Ed25519 where

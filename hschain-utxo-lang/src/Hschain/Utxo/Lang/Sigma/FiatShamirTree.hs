@@ -1,3 +1,5 @@
+-- Module defines tyope for Fiat-Shamir tree.
+--
 --   Prover Step 7: Convert the tree to a string s for input to the Fiat-Shamir hash function.
 --   The conversion should be such that the tree can be unambiguously parsed and restored given the string.
 --   For each non-leaf node, the string should contain its type (OR or AND).
@@ -28,6 +30,7 @@ data FiatShamir a
   | FSOr  [FiatShamir a]
   deriving (Generic)
 
+-- | Leaf of Fiat-Shamir tree.
 data FiatShamirLeaf a = FiatShamirLeaf
   { fsLeaf'publicKey  :: PublicKey a
   , fsLeaf'commitment :: Commitment a
@@ -48,9 +51,11 @@ instance ( CBOR.Serialise (ECPoint a)
          ) => CBOR.Serialise (FiatShamirLeaf a)
 
 
+-- | Hash of Fiat-Shamir tree.
 fiatShamirCommitment :: (EC a, CBOR.Serialise b) => b -> Challenge a
 fiatShamirCommitment = randomOracle . BL.toStrict . CBOR.serialise
 
+-- | Convert sigma-expression to Fiat-Shamir tree.
 toFiatShamir
   :: SigmaE k (FiatShamirLeaf a)
   -> FiatShamir a

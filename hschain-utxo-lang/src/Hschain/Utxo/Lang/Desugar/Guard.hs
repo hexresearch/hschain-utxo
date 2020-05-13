@@ -1,3 +1,4 @@
+-- | Module defines function to desugar guard-expressions
 module Hschain.Utxo.Lang.Desugar.Guard(
   fromGuardedRhs
 ) where
@@ -8,6 +9,8 @@ import Hschain.Utxo.Lang.Expr
 
 import qualified Language.HM as H
 
+-- | Converts guarded expression to single expression with explicit
+-- if-then-else checks.
 fromGuardedRhs :: Rhs Lang -> Lang
 fromGuardedRhs rhs = case rhs of
   UnguardedRhs a -> a
