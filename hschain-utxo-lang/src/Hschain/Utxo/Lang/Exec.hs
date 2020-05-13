@@ -1,3 +1,11 @@
+-- | Module defines reduction of the expression (expression execution).
+--
+-- We reduce expression to the primitive value.
+-- For blockchain transaction verification it is going
+-- to be sigma-expression.
+--
+-- For now it is done with simple algorithm of substitution of
+-- values (application of lambda abstractions and substitution of subexpressions).
 module Hschain.Utxo.Lang.Exec(
     exec
   , execLang
@@ -62,17 +70,18 @@ removeAscr = cata $ \case
 trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
 
-
+-- | Context of execution
 data Ctx = Ctx
-  { ctx'vars       :: !(Map VarName Lang)
-  , ctx'userArgs   :: !Args
-  , ctx'height     :: !Integer
-  , ctx'inputs     :: !(Vector Box)
-  , ctx'outputs    :: !(Vector Box)
-  , ctx'debug      :: !Text
-  , ctx'freshVarId :: !Int
+  { ctx'vars       :: !(Map VarName Lang)  -- ^ global bindings (outer scope)
+  , ctx'userArgs   :: !Args                -- ^ list user arguments for transaction
+  , ctx'height     :: !Integer             -- ^ height of blockchain
+  , ctx'inputs     :: !(Vector Box)        -- ^ vector of input boxes
+  , ctx'outputs    :: !(Vector Box)        -- ^ vector of ouptut boxes
+  , ctx'debug      :: !Text                -- ^ debug log for executed expression
+  , ctx'freshVarId :: !Int                 -- ^ counter for allocation of fresh variables
   }
 
+-- | Execution monad.
 newtype Exec a = Exec (StateT Ctx (Either Error) a)
   deriving newtype (MonadState Ctx, Monad, Functor, Applicative, MonadError Error)
 
@@ -106,6 +115,7 @@ saveTrace :: Text -> Exec ()
 saveTrace msg =
   modify' $ \st -> st { ctx'debug = T.unlines [ctx'debug st, msg] }
 
+-- | Run execution monad.
 runExec :: ExecCtx -> Args -> Integer -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
 runExec (ExecCtx binds) args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
@@ -115,11 +125,9 @@ runExec (ExecCtx binds) args height inputs outputs (Exec st) =
 applyBase :: Expr a -> Expr a
 applyBase (Expr a) = Expr $ importBase a
 
+-- | Performs execution of expression.
 execLang :: Lang -> Exec Lang
-execLang = execLang'
-
-execLang' :: Lang -> Exec Lang
-execLang' (Fix x) = case x of
+execLang (Fix x) = case x of
     Var loc name -> getVar loc name
     PrimE loc p  -> pure $ Fix $ PrimE loc p
     Tuple loc as -> Fix . Tuple loc <$> mapM rec as
@@ -150,7 +158,7 @@ execLang' (Fix x) = case x of
     FailCase loc -> throwError $ ExecError $ Undefined loc
     Undef loc -> throwError $ ExecError $ Undefined loc
   where
-    rec = execLang'
+    rec = execLang
 
     getVar :: Loc -> VarName -> Exec Lang
     getVar loc name = do
@@ -632,7 +640,7 @@ txPreservesValue tx@TxArg{..}
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
 
-{-
+{- for debug
 traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
 traceFun name f x =
   let res = f x
@@ -652,6 +660,8 @@ exec ctx tx
     (res, debug) = execToSigma ctx tx
     mProof = txArg'proof tx
 
+-- | Result of the script can be boolean constant or sigma-expression
+-- that user have to prove.
 data BoolExprResult
   = ConstBool Bool
   | SigmaBool (Sigma PublicKey)
@@ -668,6 +678,7 @@ instance FromJSON BoolExprResult where
     <|> (SigmaBool <$> obj .: "sigma")
 
 
+-- | Executes expression to sigma-expression
 execToSigma :: ExecCtx -> TxArg -> (Either Text BoolExprResult, Text)
 execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
   where

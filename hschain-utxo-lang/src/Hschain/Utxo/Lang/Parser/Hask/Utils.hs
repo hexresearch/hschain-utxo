@@ -1,3 +1,4 @@
+-- | Various parsing utils.
 module Hschain.Utxo.Lang.Parser.Hask.Utils where
 
 import Language.Haskell.Exts.Parser (

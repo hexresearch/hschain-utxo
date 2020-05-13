@@ -1,3 +1,4 @@
+-- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
 import Hex.Common.Text
@@ -43,12 +44,14 @@ type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
 
+-- | Unknown source code location.
 noLoc :: Loc
 noLoc = Hask.noSrcSpan
 
+-- | Context of user-defined types
 data UserTypeCtx = UserTypeCtx
-  { userTypeCtx'types      :: Map VarName UserType
-  , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder
+  { userTypeCtx'types      :: Map VarName UserType           -- ^ User-defined types
+  , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   } deriving (Show, Eq)
 
 instance Semigroup UserTypeCtx where
@@ -57,6 +60,7 @@ instance Semigroup UserTypeCtx where
 instance Monoid UserTypeCtx where
   mempty = UserTypeCtx mempty mempty
 
+-- | Fills record field order from user defined types.
 setupRecConstrs :: UserTypeCtx -> UserTypeCtx
 setupRecConstrs ctx = ctx { userTypeCtx'recConstrs = recConstrs }
   where
@@ -70,10 +74,11 @@ setupRecConstrs ctx = ctx { userTypeCtx'recConstrs = recConstrs }
 
     types = M.elems $ userTypeCtx'types ctx
 
+-- | User-defined type
 data UserType = UserType
-  { userType'name       :: !VarName
-  , userType'args       :: ![VarName]
-  , userType'cases      :: !(Map ConsName ConsDef)
+  { userType'name       :: !VarName                -- ^ Type name
+  , userType'args       :: ![VarName]              -- ^ type arguments
+  , userType'cases      :: !(Map ConsName ConsDef) -- ^ List of constructors
   } deriving (Show, Eq)
 
 getConsTypes :: ConsDef -> Vector Type
@@ -81,28 +86,43 @@ getConsTypes = \case
   ConsDef ts        -> ts
   RecordCons fields -> fmap recordField'type fields
 
+-- | Constructor definition.
 data ConsDef
-  = ConsDef (Vector Type)
-  | RecordCons (Vector RecordField)
+  = ConsDef (Vector Type)            -- ^ Simple constructor with collection of type-arguments
+  | RecordCons (Vector RecordField)  -- ^ Record-constructor with named fields
   deriving (Show, Eq)
 
+-- | Record named field.
 data RecordField = RecordField
-  { recordField'name :: VarName
-  , recordField'type :: Type
+  { recordField'name :: VarName   -- ^ Name of the field
+  , recordField'type :: Type      -- ^ Type of the field
   } deriving (Show, Eq)
 
+-- | Order of names in the record constructor.
+-- For constructor
+--
+-- > User { name :: Text, age :: Int }
+--
+-- It's going to be
+--
+-- ["name", "age"]
 newtype RecordFieldOrder = RecordFieldOrder
   { unRecordFieldOrder :: [Text]
   } deriving (Show, Eq)
 
+-- | Type synonym for money values
 type Money = Int64
 
+-- | Type for expression of our language that has type.
+--
+-- This is phantom type for covenience of type-checker.
 newtype Expr a = Expr Lang
   deriving (Show, Eq)
 
+-- | Name of the variable.
 data VarName = VarName
-  { varName'loc   :: !Loc
-  , varName'name  :: !Text
+  { varName'loc   :: !Loc   -- ^ source code location
+  , varName'name  :: !Text  -- ^ variable name
   } deriving (Show)
 
 instance IsString VarName where
@@ -115,61 +135,76 @@ instance H.IsVar Text where
 instance H.HasPrefix Text where
   getFixity = const Nothing
 
+-- | Name of the constructor
 data ConsName = ConsName
-  { consName'loc  :: !Loc
-  , consName'name :: !Text
+  { consName'loc  :: !Loc   -- ^ source code location
+  , consName'name :: !Text  -- ^ constructor name
   } deriving (Show)
 
 instance IsString ConsName where
   fromString = ConsName noLoc . fromString
 
+-- | Convert constructor name to variable name
 consToVarName :: ConsName -> VarName
 consToVarName (ConsName loc name) = VarName loc name
 
+-- | Convert variable name to constructor name
 varToConsName :: VarName -> ConsName
 varToConsName VarName{..} = ConsName varName'loc varName'name
 
-type Args = Map Text (Prim )
+-- | Argument for script in the transaction
+--
+-- It's Key-Value map from argument-names to primitive constant values.
+type Args = Map Text Prim
 
+-- | Identifier of the box. Box holds value protected by the script.
 newtype BoxId = BoxId { unBoxId :: Text }
   deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
 
+-- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: Text }
   deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
 
+-- | Box holds the value protected by the script.
+-- We use boxes as inputs for transaction and create new output boxes
+-- when script is correct.
 data Box = Box
-  { box'id     :: !BoxId
-  , box'value  :: !Money
-  , box'script :: !Script
-  , box'args   :: !Args
+  { box'id     :: !BoxId    -- ^ box identifier
+  , box'value  :: !Money    -- ^ Value of the box
+  , box'script :: !Script   -- ^ Protecting script
+  , box'args   :: !Args     -- ^ arguments for the script
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
+-- | Pattern matching elements (in the arguments or in cases)
 data Pat
-  = PVar Loc VarName
-  | PPrim Loc Prim
-  | PCons Loc ConsName [Pat]
-  | PTuple Loc [Pat]
-  | PWildCard Loc
+  = PVar Loc VarName          -- ^ simple variable (anything matches)
+  | PPrim Loc Prim            -- ^ constant value (match if equals)
+  | PCons Loc ConsName [Pat]  -- ^ concrete constructor with argument patterns
+  | PTuple Loc [Pat]          -- ^ tuple with list of arguments
+  | PWildCard Loc             -- ^ wildcard (anything matches and value is discarded after match)
   deriving (Show, Eq, Ord)
 
 instance IsString Pat where
   fromString = PVar noLoc . fromString
 
+-- | The type represents modules.
 data Module = Module
-  { module'loc       :: !Loc
-  , module'userTypes :: !UserTypeCtx
-  , module'binds     :: !(BindGroup Lang)
+  { module'loc       :: !Loc              -- ^ source code location
+  , module'userTypes :: !UserTypeCtx      -- ^ user-defined types
+  , module'binds     :: !(BindGroup Lang) -- ^ values (functions)
   } deriving (Show)
 
+-- | Type context for inference algorithm
 type TypeContext = H.Context Loc Text
 
+-- | Context for execution (reduction) of expressions of the language
 newtype ExecCtx = ExecCtx
-  { execCtx'vars  :: Map VarName Lang
+  { execCtx'vars  :: Map VarName Lang  -- ^ bindings for free variables, outer scope of the execution
   } deriving newtype (Show, Eq)
 
 instance Semigroup ExecCtx where
@@ -178,9 +213,11 @@ instance Semigroup ExecCtx where
 instance Monoid ExecCtx where
   mempty = ExecCtx mempty
 
+-- | Type-inference context.
 data InferCtx = InferCtx
-  { inferCtx'binds :: TypeContext
-  , inferCtx'types :: UserTypeCtx
+  { inferCtx'binds :: TypeContext  -- ^ Already derived signatures for
+                                   -- all free variables in the expression
+  , inferCtx'types :: UserTypeCtx  -- ^ User-defined types
   } deriving (Show, Eq)
 
 instance Semigroup InferCtx where
@@ -213,141 +250,231 @@ instance Monoid ModuleCtx where
     , moduleCtx'exprs = mempty
     }
 
+-- | Alternatives for declarations right-hand-sides.
+-- Because of pattern matching we can have several alternatives
+-- for a single declaration.
 data Alt a = Alt
-  { alt'pats  :: [Pat]
-  , alt'expr  :: Rhs a
-  , alt'where :: Maybe (BindGroup a)
+  { alt'pats  :: [Pat]      -- ^ arguments of the function
+  , alt'expr  :: Rhs a      -- ^ right-hand side of the declaration
+  , alt'where :: Maybe (BindGroup a)  -- ^ 'where'-declarations (definitions local to the function)
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
+-- | Right-hand side of the function definition.
 data Rhs a
-  = UnguardedRhs a
-  | GuardedRhs [Guard a]
+  = UnguardedRhs a         -- ^ No-guards
+  | GuardedRhs [Guard a]   -- ^ with guards
   deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
+-- | Guard for right hand-side. RHs is executed if guard's predicate evaluates to True.
 data Guard a = Guard
-  { guard'predicate :: a
-  , guard'rhs       :: a
+  { guard'predicate :: a  -- ^ guard predicate expression
+  , guard'rhs       :: a  -- ^ right-hand side expression
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
-
+-- | List of binds or value definitions.
 type BindGroup a = [Bind a]
 
+-- | Value definition
 data Bind a = Bind
-  { bind'name  :: VarName
-  , bind'type  :: Maybe Signature
-  , bind'alts  :: [Alt a]
+  { bind'name  :: VarName          -- ^ name of the value
+  , bind'type  :: Maybe Signature  -- ^ user provided type signature
+  , bind'alts  :: [Alt a]          -- ^ definitions of the value
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
+-- | Main tpye for expressions
+-- It's defined in fix-point style (See package data-fix).
 type Lang = Fix E
 
+-- | Functor for expression.
 data E a
   -- lambda calculus
   = Var Loc VarName
+  -- ^ variables
   | Apply Loc a a
+  -- ^ function application (@f arg@)
   | InfixApply Loc a VarName a
+  -- ^ infix binary function application (@a + b@)
   | Lam Loc Pat a
+  -- ^ lambda-abstraction (@\pat -> expr@)
   | LamList Loc [Pat] a
+  -- ^ lambda abstraction with list of arguments (@\pat1 pat2 pat3 -> expr@)
   | Let Loc (BindGroup a) a
+  -- ^ local bindings or let-expression: (@let v = a in expr@)
   | Ascr Loc a Signature
+  -- ^ Type specification in the body of expression (@a :: Type@)
   -- case
   | Cons Loc ConsName (Vector a)
+  -- ^ Constructor application to the list of arguments (@Cons a as@)
   | CaseOf Loc a [CaseExpr a]
+  -- ^ Case-expression (@case expr of alternatives@)
   -- records
   | RecConstr Loc ConsName [(VarName, a)]
+  -- ^ Record constructor with named fields (@Record { field1 = expr1; field2 = expr2 }@)
   | RecUpdate Loc a [(VarName, a)]
+  -- ^ Record field modifier (@rec { field = val }@)
   -- Alternatives
   | AltE Loc a a
+  -- ^ Low-level representation for case-alternatives (not visible to user)
   | FailCase Loc
+  -- ^ Low-level representation for case
+  -- or pattern matching failure (not visible to user)
   -- primitives
   | PrimE Loc Prim
+  -- ^ primitive values (constants of the language)
   -- logic
   | If Loc a a a
+  -- ^ if-expressions (@if cond then a else b@)
   | Pk Loc a
+  -- ^ private key ownership (@pk publicKey@)
   -- tuples
   | Tuple Loc (Vector a)
+  -- ^ Tuple constructor with list of arguments (@(a, b, c)@)
   -- operations
   | UnOpE Loc UnOp a
+  -- ^ Application of built-in unary operator to arguments
   | BinOpE Loc BinOp a a
+  -- ^ Application of built-in binary operator to arguments
   -- environment
   | GetEnv Loc (EnvId a)
+  -- ^ query some item by id in blockchain environment (@getEnvField@)
   -- vectors
   | VecE Loc (VecExpr a)
+  -- ^ Vector expression
   -- text
   | TextE Loc (TextExpr a)
+  -- ^ Text expression
   -- boxes
   | BoxE Loc (BoxExpr a)
-  -- undefined
+  -- ^ Box-expression
   | Undef Loc
+  -- ^ Special name for undefined values. It can be of any type (@undefined@)
   -- debug
   | Trace Loc a a
+  -- ^ Trace print for debug of execution (@trace printMessage value@)
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data UnOp = Not | Neg | TupleAt Int Int
+-- | Built-in unary operators
+data UnOp
+  = Not   -- ^ logical not
+  | Neg   -- ^ numeric negation
+  | TupleAt Int Int  -- ^ tuple field accessor. Arguments: @TupleAt tupleSize, field number@.
   deriving (Show, Eq)
 
+-- | Built-in binary operators
 data BinOp
-  = And | Or | Plus | Minus | Times | Div
-  | Equals | NotEquals | LessThan | GreaterThan | LessThanEquals | GreaterThanEquals
+  = And                  -- ^ boolean AND
+  | Or                   -- ^ boolean OR
+  | Plus                 -- ^ numeric addition
+  | Minus                -- ^ numeric substraction
+  | Times                -- ^ numeric multiplication
+  | Div                  -- ^ numeric integer division
+  | Equals               -- ^ equality test
+  | NotEquals            -- ^ non-equality test
+  | LessThan             -- ^ @<@
+  | GreaterThan          -- ^ @>@
+  | LessThanEquals       -- ^ @<=@
+  | GreaterThanEquals    -- ^ @>=@
   deriving (Show, Eq)
 
+-- | Case-alternative expression
 data CaseExpr a
   = CaseExpr
-      { caseExpr'lhs :: Pat
-      , caseExpr'rhs :: a
+      { caseExpr'lhs :: Pat  -- ^ pattern to check
+      , caseExpr'rhs :: a    -- ^ right-hand side expression
       }
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data CaseLhs = CaseLhs
-  { caseLhs'cons :: ConsName
-  , caseLhs'vars :: [VarName]
-  } deriving (Eq, Show)
-
+-- | Expressions that operate on boxes.
 data BoxExpr a
-  = PrimBox Loc Box
-  | BoxAt Loc a (BoxField a)
+  = PrimBox Loc Box          -- ^ Primitive constant box
+  | BoxAt Loc a (BoxField a) -- ^ Box field getter
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
-data VecExpr a
-  = NewVec Loc (Vector a)
-  | VecAppend Loc a a
-  | VecAt Loc a a
-  | VecLength Loc
-  | VecMap Loc
-  | VecFold Loc
-  deriving (Eq, Show, Functor, Foldable, Traversable)
-
-data TextTypeTag = IntToText | BoolToText | ScriptToText
-  deriving (Eq, Show)
-
-data TextExpr a
-  = TextAppend Loc a a
-  | ConvertToText TextTypeTag Loc
-  | TextLength Loc
-  | TextHash Loc HashAlgo
-  deriving (Eq, Show, Functor, Foldable, Traversable)
-
-data HashAlgo = Sha256 | Blake2b256
-  deriving (Eq, Show)
-
-data Prim
-  = PrimInt     Int64
-  | PrimString  Text
-  | PrimBool    Bool
-  | PrimSigma   (Sigma PublicKey)
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
-
-data EnvId a
-  = Height Loc
-  | Input Loc  a
-  | Output Loc a
-  | Self Loc
-  | Inputs Loc
-  | Outputs Loc
-  | GetVar Loc a
-  -- ^ refers to the box where it's defined
+-- | It defines which values we can get from the box
+data BoxField a
+  = BoxFieldId
+  -- ^ Get box identifier
+  | BoxFieldValue
+  -- ^ Get box value (or money)
+  | BoxFieldScript
+  -- ^ Get box script
+  | BoxFieldArg a
+  -- ^ Get box argument by name (it can be sub-expression not just constant text)
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-data BoxField a = BoxFieldId | BoxFieldValue | BoxFieldScript | BoxFieldArg a
+-- | Expressions that operate on vectors
+data VecExpr a
+  = NewVec Loc (Vector a)
+  -- ^ Vector conxtructor from the list of values (@[a, b, c]@)
+  | VecAppend Loc a a
+  -- ^ Append two vectors (@as ++ bs@)
+  | VecAt Loc a a
+  -- ^ Get value from the vector by index (@as !! n@)
+  | VecLength Loc
+  -- ^ Get length of the vector (@length as@)
+  | VecMap Loc
+  -- ^ map vector with the function (@map f as@)
+  | VecFold Loc
+  -- ^ Left-fold vector with function and accumulator (@foldl f z as@)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+-- | Tag for values to convert to to text
+data TextTypeTag
+  = IntToText
+  -- ^ convert int to text
+  | BoolToText
+  -- ^ convert boolean to text
+  | ScriptToText
+  -- ^ convert script to text
+  deriving (Eq, Show)
+
+-- | Expressions that operate on texts.
+data TextExpr a
+  = TextAppend Loc a a
+  -- ^ Append text values (@a <> b@)
+  | ConvertToText TextTypeTag Loc
+  -- ^ Convert some value to text (@showType a@)
+  | TextLength Loc
+  -- ^ Get textlength (@lengthText a@)
+  | TextHash Loc HashAlgo
+  -- ^ Get hash-value of the given text (sevral algorithms are supported)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+-- | Hashing algorithm tag
+data HashAlgo
+  = Sha256
+  | Blake2b256
+  deriving (Eq, Show)
+
+-- | Primitive values of the language (constants).
+data Prim
+  = PrimInt     Int64
+  -- ^ Numeric values
+  | PrimString  Text
+  -- ^ Text values
+  | PrimBool    Bool
+  -- ^ Booleans
+  | PrimSigma   (Sigma PublicKey)
+  -- ^ Sigma-expressions
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Environment fields. Info that we can query from blockchain state
+data EnvId a
+  = Height Loc
+  -- ^ Get blockchain height
+  | Input Loc  a
+  -- ^ Get input box of the script by index
+  | Output Loc a
+  -- ^ Get output box of the script by index
+  -- (those boxes that are created if transaction is comitted with success)
+  | Self Loc
+  -- ^ Get box of the current script
+  | Inputs Loc
+  -- ^ Get list of all input boxes
+  | Outputs Loc
+  -- ^ Get list of all output boxes
+  | GetVar Loc a
+  -- ^ Get argument of the transaction by name
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 instance ToJSON Prim where
@@ -513,6 +640,7 @@ instance Ord ConsName where
 
 -------------------------------------------------------------------
 
+-- | Get free0variables for expression
 freeVars :: Lang -> Set VarName
 freeVars = cata $ \case
   Var _ v         -> Set.singleton v
@@ -573,6 +701,8 @@ freeVarsAlt Alt{..} =
 
 -------------------------------------------------------------------
 
+-- | Reorders binds by dependencies. First go binds with no deps then those
+-- that are dependent on them and so forth.
 sortBindGroups :: BindGroup Lang -> BindGroup Lang
 sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
    where

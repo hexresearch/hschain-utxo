@@ -1,3 +1,8 @@
+-- | This module defines simple transformations that
+-- remove redundant language constructions.
+--
+-- They can be convenient to use in the code but
+-- can be expressed through the more compact core expressions.
 module Hschain.Utxo.Lang.Desugar(
     desugar
   , unfoldLamList
@@ -148,6 +153,7 @@ recordFieldUpdateFunName VarName{..} = VarName
   , varName'name = secretVar $ mappend "update_" varName'name
   }
 
+-- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
 secretVar :: Text -> Text
 secretVar = flip mappend "___"
 

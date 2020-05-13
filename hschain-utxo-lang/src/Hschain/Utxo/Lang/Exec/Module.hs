@@ -1,3 +1,4 @@
+-- | Functions that operate on module level.
 module Hschain.Utxo.Lang.Exec.Module(
     evalModule
   , checkMainModule
@@ -24,6 +25,8 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+-- | Convert raw module data to context information that can be used
+-- to evaluate expressions that depend on this module.
 evalModule :: TypeContext -> Module -> Either Error ModuleCtx
 evalModule typeCtx m = evalModule' typeCtx (appendRecordFuns m)
 
@@ -125,6 +128,10 @@ data SimplifyCtx = SimplifyCtx
 simplifyExpr :: MonadLang m => SimplifyCtx -> Lang -> m Lang
 simplifyExpr SimplifyCtx{..} expr = desugar simplifyCtx'types expr
 
+-- | type-checks all bindings in the module.
+--
+-- It takes type-context for all free-variables in the module and module itself
+-- and returns Nothing if module is correct or Just error in case that some types are ill defined.
 checkMainModule :: TypeContext -> Module -> Maybe Error
 checkMainModule types m =
   either Just (const Nothing) $
@@ -142,6 +149,7 @@ appendExecCtx ctx expr =
     binds = fmap (\(var, rhs) -> simpleBind var rhs) $ M.toList $
       execCtx'vars $ pruneExecCtx expr ctx
 
+-- | It removes all bindings from context that not used in the given expresiion
 pruneExecCtx :: Lang -> ExecCtx -> ExecCtx
 pruneExecCtx expr (ExecCtx ctx) =
   ExecCtx $ M.intersection ctx $ varsToMap vars

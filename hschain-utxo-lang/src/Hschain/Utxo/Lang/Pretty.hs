@@ -1,3 +1,4 @@
+-- | Pretty-printer for values of the language.
 module Hschain.Utxo.Lang.Pretty(
     renderDoc
   , renderText
@@ -33,9 +34,11 @@ import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
 
+-- | Convenience function to render pretty-printable value to text.
 renderText :: Pretty a => a -> Text
 renderText = renderDoc . pretty
 
+-- | Convenience function to render pretty-printed value to text.
 renderDoc :: Doc ann -> Text
 renderDoc = renderStrict . layoutPretty defaultLayoutOptions
 
@@ -60,6 +63,7 @@ instance Pretty Box where
       , ("script", pretty box'script)
       , ("args"  , prettyArgs box'args) ]
 
+-- | Helper to pretty-print records.
 prettyRecord :: Doc ann -> [(Text, Doc ann)] -> Doc ann
 prettyRecord name fields = vcat [name <> colon, indent 2 (vsep $ fmap ppField fields)]
   where

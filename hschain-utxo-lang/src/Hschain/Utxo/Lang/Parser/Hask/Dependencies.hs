@@ -1,3 +1,6 @@
+-- | Module for reordering binds in the module by dependencies.
+-- It's dependency sorting. Within the module expressions can be defined in any order
+-- but we need to sort them for proper execution.
 module Hschain.Utxo.Lang.Parser.Hask.Dependencies(
     Decl(..)
   , toBindGroup
@@ -34,10 +37,11 @@ import qualified Language.HM as H
 type TypeMap  = Map VarName Signature
 type FunMap   = Map VarName [Alt Lang]
 
+-- | Declarations in the module
 data Decl
-  = FunDecl Loc [(VarName, [Alt Lang])]
-  | TypeSig Loc [VarName] Signature
-  | DataDecl UserType
+  = FunDecl Loc [(VarName, [Alt Lang])]   -- ^ Definition of the function (or value)
+  | TypeSig Loc [VarName] Signature       -- ^ Type-signature for the value (@val :: Type@)
+  | DataDecl UserType                     -- ^ Definition of the type
 
 groupAdjacentFunDecl :: [Decl] -> [Decl]
 groupAdjacentFunDecl ds = onFunDecl (fmap joinGroup . L.groupBy sameFunDecl) =<< ds
@@ -50,6 +54,7 @@ groupAdjacentFunDecl ds = onFunDecl (fmap joinGroup . L.groupBy sameFunDecl) =<<
 
     joinGroup xs@(a:as) = [(fst a, concat $ fmap snd xs)]
 
+-- | Sorts declarations and converts them to the list of bindings.
 toBindGroup :: [Decl] -> ParseResult (BindGroup Lang)
 toBindGroup = fmap sortBindGroups . parseBinds . groupAdjacentFunDecl
 

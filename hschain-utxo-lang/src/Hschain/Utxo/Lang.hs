@@ -1,3 +1,4 @@
+-- | This module exports all useful functionality.
 module Hschain.Utxo.Lang(
   module X
 ) where

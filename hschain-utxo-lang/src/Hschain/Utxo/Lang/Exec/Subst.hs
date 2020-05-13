@@ -1,3 +1,4 @@
+-- | Algorithm of expression substitutions
 module Hschain.Utxo.Lang.Exec.Subst(
   subst
 ) where
@@ -10,6 +11,11 @@ import Hschain.Utxo.Lang.Expr
 
 import qualified Data.Set as S
 
+-- | Substitute in the expression any free-variables with given name by subexpression.
+--
+-- > subst expr var subExpr
+--
+-- It substitutes in the @expr@ all @var@ to @subExpr@.
 subst :: Lang -> VarName -> Lang -> Lang
 subst (Fix body) varName sub = case body of
   Var loc e                | e == varName  -> sub

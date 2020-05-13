@@ -1,3 +1,5 @@
+-- | Module defines functions to convert patterns in arguments of functions
+-- to case expressions.
 module Hschain.Utxo.Lang.Desugar.PatternCompiler(
     PatError
   , altGroupToExpr
@@ -25,6 +27,8 @@ import Hschain.Utxo.Lang.Monad
 import qualified Data.List   as L
 import qualified Data.Vector as V
 
+-- | Converts list of function definitions with pattern matching to single
+-- expression with case-expression.
 altGroupToExpr :: MonadLang m => [Alt Lang] -> m Lang
 altGroupToExpr xs = do
   ePat <- toPatternInput xs
@@ -66,6 +70,8 @@ toPatternInput alts = case getSimpleBind alts of
 
     failCase = Fix $ FailCase noLoc
 
+-- | Converts single function definition with pattern-matching
+-- to expression with case-expression
 altToExpr :: Alt Lang -> Lang
 altToExpr Alt{..} = foldr toArg (addWhere $ fromGuardedRhs alt'expr) alt'pats
   where

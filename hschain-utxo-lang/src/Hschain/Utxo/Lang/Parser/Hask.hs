@@ -1,3 +1,8 @@
+-- | This module defines parser for our language.
+--
+-- Language looks exactly like simplified version of the Haskell.
+-- So instead of writing our own parser we reuse package for Haskell parser haskell-src-exts.
+-- And we just define convertion functions from and to Haskell AST to use it with our language.
 module Hschain.Utxo.Lang.Parser.Hask(
     ParseResult(..)
   , SrcLoc(..)
@@ -31,12 +36,19 @@ import Hschain.Utxo.Lang.Parser.Hask.Utils
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Parser as H
 
+-- | Parse expression.
+-- First argument is name of the file (if defined) where expression is defined.
+-- The name is used in source code locations for error reports.
 parseExp :: Maybe FilePath -> String -> ParseResult Lang
 parseExp mFile = withFile mFile (\mode -> fromHaskExp <=< H.parseExpWithMode mode)
 
+-- | Parse modules.
+-- First argument is name of the file (if defined) where expression is defined.
+-- The name is used in source code locations for error reports.
 parseModule :: Maybe FilePath -> String -> ParseResult Module
 parseModule mFile = withFile mFile (\mode -> fromHaskModule <=< H.parseModuleWithMode mode)
 
+-- | Parse bind declarations (@a = expr@).
 parseBind :: Maybe FilePath -> String -> ParseResult (VarName, Lang)
 parseBind mFile = withFile mFile (\mode -> getBind <=< H.parseDeclWithMode mode)
   where
@@ -57,10 +69,11 @@ withFile mFile parseWith = parseWith (setFile H.defaultParseMode)
     setFile = maybe id (\file mode -> mode { H.parseFilename = file } ) mFile
 
 
+-- | Pretty-print expression
 prettyExp :: Lang -> String
 prettyExp = prettyPrint . toHaskExp
 
+-- | Pretty-print module
 prettyModule :: Module -> String
 prettyModule = prettyPrint . toHaskModule
-
 

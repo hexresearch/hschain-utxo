@@ -1,3 +1,4 @@
+-- | This module defines type-inference utilities.
 module Hschain.Utxo.Lang.Infer(
     InferM(..)
   , runInferM
@@ -47,21 +48,32 @@ import qualified Language.HM as H
 
 type Term = H.Term Loc Text
 
+-- | Monad for type-inference.
 newtype InferM a = InferM (FreshVar (Either Error) a)
   deriving newtype (Functor, Applicative, Monad, MonadFreshVar, MonadError Error)
 
 instance MonadLang InferM where
 
+-- | Get value of type-inference monad.
 runInferM :: InferM a -> Either Error a
 runInferM (InferM m) = runFreshVar m
 
+-- | Maximum supported tuple size in the language.
 maxTupleSize :: Int
 maxTupleSize = 6
 
+-- | Infer type for expression.
+--
+-- > inferExpr context expr
+--
+-- It takes context of already infered expressions (signatures for free variables)
+-- and expression ot infer the type.
 inferExpr :: InferCtx -> Lang -> InferM Type
 inferExpr (InferCtx typeCtx userTypes) =
   (InferM . lift . eitherTypeError . H.inferType (defaultContext <> typeCtx)) <=< reduceExpr userTypes
 
+-- | Convert expression of our language to term of simpler language
+-- that can be type-checked by the library.
 reduceExpr :: UserTypeCtx -> Lang -> InferM Term
 reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Var loc var               -> pure $ fromVarName var
@@ -125,12 +137,6 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
             , H.bind'lhs = varName'name bind'name
             , H.bind'rhs = rhs
             }
-{-
-        bindToLet Bind{..} body = fmap (\alt ->
-          letE [(bind'name, alt)]
-               body)
-               (rec =<< altGroupToExpr bind'alts)
--}
 
     fromAscr loc a ty = H.assertTypeE loc a ty
 
@@ -418,6 +424,8 @@ failCaseVar = secretVar "failCase"
 
 ---------------------------------------------------------
 
+-- | Extract type-context for constructors that are defined by the user
+-- or record getters and modifiers.
 userTypesToTypeContext :: UserTypeCtx -> TypeContext
 userTypesToTypeContext (UserTypeCtx m _) =
      foldMap fromUserType m

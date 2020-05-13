@@ -1,4 +1,14 @@
-module Hschain.Utxo.Lang.Sigma.Interpreter where
+-- | The module defines functions to create proofs for sigma-expressions
+-- and verify them.
+--
+-- Implemented by the paper: "ErgoScript, a Cryptocurrency Scripting Language
+-- Supporting Noninteractive Zero-Knowledge Proofs" by Ergo Developers
+module Hschain.Utxo.Lang.Sigma.Interpreter(
+    Proof
+  , newProof
+  , verifyProof
+  , completeProvenTree
+) where
 
 import Control.Applicative
 import Control.DeepSeq
@@ -29,11 +39,12 @@ import qualified Data.Sequence as Seq
 -- import Text.Show.Pretty
 
 -----------------------------------------------------
--- prove monad
 
+-- | Prove monad
 newtype Prove a = Prove (ExceptT Text IO a)
   deriving newtype (Functor, Monad, Applicative, MonadError Text, MonadIO)
 
+-- | Run prove monad.
 runProve :: Prove a -> IO (Either Text a)
 runProve (Prove p) = runExceptT p
 
@@ -41,10 +52,11 @@ runProve (Prove p) = runExceptT p
 
 -- Whether we create real proof or simulate it
 data ProofVar
-  = Real
-  | Simulated
+  = Real          -- ^ real proof tag
+  | Simulated     -- ^ simulated proof tag
   deriving (Show,Eq)
 
+-- | Proof tag and challenge.
 data ProofTag a = ProofTag
   { proofTag'flag      :: ProofVar
   , proofTag'challenge :: Maybe (Challenge a)
@@ -64,9 +76,10 @@ deriving instance ( Show (ECPoint   a)
                   , Show (Challenge a)
                   ) => Show (PartialProof a)
 
+-- | Proof to reconstruct all chalenges from the root challenge.
 data Proof a = Proof
-  { proof'rootChallenge :: Challenge a
-  , proof'tree          :: ProvenTree a
+  { proof'rootChallenge :: Challenge a   -- ^ root chalenge
+  , proof'tree          :: ProvenTree a  -- ^ expression to prove
   } deriving (Generic)
 
 instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
@@ -78,6 +91,8 @@ deriving stock   instance (Ord  (ECPoint a), Ord  (ECScalar a), Ord  (Challenge 
 
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (Proof a)
 
+
+-- | Expression to prove.
 data ProvenTree a
   = ProvenLeaf
       { provenLeaf'responceZ :: ECScalar a
@@ -86,10 +101,10 @@ data ProvenTree a
   | ProvenOr
       { provenOr'leftmost  :: ProvenTree a
       , provenOr'rest      :: Seq (OrChild a)
-      }
+      } -- ^ we keep chalenges for all children but for the leftmost one.
   | ProvenAnd
       { provenAnd'children :: [ProvenTree a]
-      }
+      } -- ^ chalenges are calculated
   deriving (Generic)
 
 instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
@@ -100,7 +115,7 @@ deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge 
 deriving stock   instance (Ord  (ECPoint a), Ord  (ECScalar a), Ord  (Challenge a)) => Ord  (ProvenTree a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (ProvenTree a)
 
-
+-- | Or-child should contain expression and challenge.
 data OrChild a = OrChild
   { orChild'challenge :: Challenge a
   , orChild'tree      :: ProvenTree a
@@ -114,7 +129,7 @@ deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Cha
 deriving stock    instance (Ord    (ECPoint a), Ord    (ECScalar a), Ord    (Challenge a)) => Ord    (OrChild a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (OrChild a)
 
-
+-- | Create proof for sigma expression based on ownership of collection of keys (@Env@)
 newProof :: (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
   => Env a -> SigmaE () (PublicKey a) -> IO (Either Text (Proof a))
 newProof env expr = runProve $ do
@@ -184,7 +199,7 @@ markTree (Env env) = clean . check
       Simulated -> markSim e : splitOR es
       Real      -> clean   e : fmap markSim es
 
--- Genererate simalated proofs and commitments for real proofs
+-- | Genererate simalated proofs and commitments for real proofs
 -- Prover Steps 4, 5, and 6 together: find challenges for simulated nodes; simulate simulated leaves;
 -- compute commitments for real leaves
 generateCommitments
@@ -300,6 +315,7 @@ orChallenge ch rest = foldl xorChallenge ch rest
 -------------------------------------------------
 -- verification
 
+-- | Verify proof. It checks if the proof is correct.
 verifyProof :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a), Eq (Challenge a))
   => Proof a -> Bool
 verifyProof proof =
@@ -317,6 +333,7 @@ verifyProof proof =
 
     compTree = completeProvenTree proof
 
+-- | Calculate all challenges for all nodes of a proof.
 completeProvenTree :: EC a => Proof a -> SigmaE () (ProofDL a)
 completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
@@ -337,8 +354,6 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
       { orChild'challenge = orChallenge ch (toList $ fmap orChild'challenge children)
       , orChild'tree      = leftmost
       }
-
-
 
 {- For debug
 

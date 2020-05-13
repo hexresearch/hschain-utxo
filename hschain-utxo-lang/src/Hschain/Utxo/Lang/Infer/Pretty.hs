@@ -1,6 +1,5 @@
+-- | Pretty printer for types
 module Hschain.Utxo.Lang.Infer.Pretty(
---    prettySignature
---  , prettyType
 ) where
 
 import Data.Bool
