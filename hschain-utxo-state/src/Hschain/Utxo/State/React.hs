@@ -1,3 +1,4 @@
+-- | Defines state transitions for blockchain
 module Hschain.Utxo.State.React(
     react
   , execInBoxChain
@@ -19,6 +20,9 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+-- | React to single input transaction.
+-- It updates blockchain or reports error on commit of the transaction.
+-- Also it returns the text that contains debug-log for transaction execution.
 react :: Tx -> BoxChain -> (Either Text BoxChain, Text)
 react tx bch
   | isValid   = (Right $ updateBoxChain tx bch, debugMsg)
@@ -55,6 +59,10 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
     incrementHeight bch@BoxChain{..} = bch { boxChain'height = 1 + boxChain'height }
 
 
+-- | Run transaction in the current state of blockchain
+-- to get the sigma-expression of the evaluation of the transaction script.
+--
+-- Also it returns debug-log for transaction execution.
 execInBoxChain :: Tx -> BoxChain -> (Either Text BoolExprResult, Text)
 execInBoxChain tx bch = case toTxArg bch tx of
   Right txArg -> execToSigma mempty txArg
@@ -65,5 +73,7 @@ execInBoxChain tx bch = case toTxArg bch tx of
 checkOutputTxArg :: TxArg -> [Box]
 checkOutputTxArg tx@TxArg{..} = V.toList txArg'outputs
 
+-- | Applies list of transactions to blockchain.
 applyTxs :: [Tx] -> BoxChain -> Either Text BoxChain
 applyTxs txs = foldl (>=>) pure $ fmap (fmap fst . react) txs
+
