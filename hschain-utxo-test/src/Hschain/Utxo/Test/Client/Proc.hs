@@ -1,3 +1,5 @@
+-- | Module defines main process that starts nodes and performs tests
+-- triggers exchange of transaction and collects test stats.
 module Hschain.Utxo.Test.Client.Proc(
   runTestProc
 ) where
@@ -34,7 +36,7 @@ import qualified Data.List as L
 
 import qualified Hschain.Utxo.API.Client as C
 
-
+-- | Resources of children processes
 data Resource = Resource
   { resource'threads :: [ThreadId]
   , resource'dbs     :: [FilePath]
@@ -45,11 +47,12 @@ clearResource Resource{..} = do
   mapM_ killThread resource'threads
   mapM_ clearDb resource'dbs
 
+-- | configs for tests
 data Options = Options
-  { configValidatorPath  :: ![FilePath]
-  , configWebnodePath    :: !FilePath
-  , genesisPath          :: !FilePath
-  , testDir              :: !FilePath
+  { configValidatorPath  :: ![FilePath]  -- ^ validator configs
+  , configWebnodePath    :: !FilePath    -- ^ config for webnode
+  , genesisPath          :: !FilePath    -- ^ path to genesis
+  , testDir              :: !FilePath    -- ^ path to keep data for nodes
   }
   deriving (Show)
 
