@@ -1,3 +1,4 @@
+-- | Defines type for low-level connection with hschain internals
 module Hschain.Utxo.Blockchain.Bchain where
 
 import Codec.Serialise
@@ -24,6 +25,8 @@ import Hschain.Utxo.Blockchain.Logic
 
 import qualified Data.Aeson as JSON
 
+-- | Connection to hschain internals.
+-- Low level API to post transactions.
 data Bchain m = Bchain {
     bchain'conn       :: Connection 'RO BData
   , bchain'mempool    :: Mempool m (Alg BData) Tx
@@ -31,6 +34,7 @@ data Bchain m = Bchain {
   , bchain'waitForTx  :: m (TxHash -> m Bool)
   }
 
+-- | Transform underlying monad for @Bchain@.
 hoistBchain :: Functor n => (forall a. m a -> n a) -> Bchain m -> Bchain n
 hoistBchain f Bchain{..} = Bchain
   { bchain'mempool    = hoistMempool f bchain'mempool

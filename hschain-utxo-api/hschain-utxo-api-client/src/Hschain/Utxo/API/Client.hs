@@ -1,3 +1,4 @@
+-- | This module defines client for API to hschain-utxo node
 module Hschain.Utxo.API.Client where
 
 import Hex.Common.Text
@@ -35,10 +36,11 @@ fromClientError :: ClientError -> C.ServantError
 fromClientError e@(InvalidBaseUrl{}) = C.ConnectionError (T.pack . show $ e)
 fromClientError (ClientError e) = e
 
+-- | Client specification to connect with hschain-utxo node
 data ClientSpec = ClientSpec
-  { clientSpec'host     :: !Text
-  , clientSpec'port     :: !Int
-  , clientSpec'https    :: !Bool
+  { clientSpec'host     :: !Text  -- ^ Node host
+  , clientSpec'port     :: !Int   -- ^ Node port
+  , clientSpec'https    :: !Bool  -- ^ Use https
   } deriving (Show, Eq)
 
 -- | Helper to call the xenochain API-methods

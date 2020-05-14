@@ -1,3 +1,4 @@
+-- | Bridge to hschain logic
 module Hschain.Utxo.Blockchain.Logic where
 
 import Codec.Serialise      (Serialise, serialise)
@@ -101,6 +102,9 @@ utxoLogic = BChLogic{..}
 
 ------------------------------------------
 -- instance boilerplate
+
+-- todo: update hschain version
+-- many instance are already defined there
 
 instance CryptoHashable Tx where
   hashStep = genericHashStep hashDomain
