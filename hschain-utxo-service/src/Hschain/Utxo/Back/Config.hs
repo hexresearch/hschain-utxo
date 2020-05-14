@@ -1,3 +1,4 @@
+-- | Config for hschain-utxo node
 module Hschain.Utxo.Back.Config(
     Genesis
   , UtxoSettings(..)
@@ -30,21 +31,25 @@ import qualified Control.Exception   as Exception
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
 
+-- | Config of the node.
 data UtxoSettings = UtxoSettings
   { utxo'web         :: ServerConfig
   , utxo'blockchain  :: NodeSpec
   }
 
+-- | Genesis of hschain-utxo
 type Genesis = [Tx]
 
+-- | Config of the service
 data Config = Config
   { config'server :: ServerConfig
   , config'node   :: NodeSpec
   } deriving (Show)
 
+-- | Network-side config
 data ServerConfig = ServerConfig
-  { serverConfig'host   :: !String
-  , serverConfig'port   :: !Int
+  { serverConfig'host   :: !String  -- ^ service port
+  , serverConfig'port   :: !Int     -- ^ service host
   } deriving (Show, Eq)
 
 -- | Load config from file

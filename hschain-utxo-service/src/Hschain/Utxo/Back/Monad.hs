@@ -1,3 +1,4 @@
+-- | Monad for hschain-utxo service
 module Hschain.Utxo.Back.Monad(
     ServerM
   , runServerM
@@ -19,8 +20,6 @@ import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Env
-
-
 
 -- | Server monad that holds internal environment
 newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }

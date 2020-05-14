@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module Hschain.Utxo.Back.App(
     runWebNode
   , runValidator
@@ -33,21 +32,25 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Network.Wai.Handler.Warp as Warp
 
-runWebNode :: Config -> [Tx] -> IO ()
+-- | Runs webnode.
+runWebNode :: Config -> Genesis -> IO ()
 runWebNode cfg@Config{..} genesis = flip runContT return $ do
   (env, acts) <- initEnv config'node genesis
   liftIO $ runConcurrently $ (greetNode config'node >> runApp env cfg)
                            : acts
 
-runValidator :: NodeSpec -> [Tx] -> IO ()
+-- Runs validator
+runValidator :: NodeSpec -> Genesis -> IO ()
 runValidator nspec genesis = flip runContT return $ do
   (_, acts) <- initEnv nspec genesis
   liftIO $ runConcurrently $ (greetNode nspec >> waitForever) : acts
 
+-- | Echo print to show that node started.
 greetNode :: NodeSpec -> IO ()
 greetNode NodeSpec{..} = T.putStrLn $ mconcat
   [ "Starts ", logSpec'namespace nspec'logs , " on port ", T.pack nspec'port ]
 
+-- | Create service application
 serverApp :: AppEnv -> Config -> Application
 serverApp env config = do
   serve (Proxy :: Proxy UtxoAPI) utxoServerImpl
@@ -62,9 +65,9 @@ warpSettings AppEnv {..} ServerConfig{..} =
       defaultSettings
 --    & setOnException (katipOnExceptionHandler env'katip)
 
+-- | Run the application with Warp
 runApp :: AppEnv -> Config -> IO ()
 runApp env settings = do
-  -- Run the application with Warp
   let httpServer
         = runSettings (warpSettings env $ config'server settings)
         $ serverApp env settings
