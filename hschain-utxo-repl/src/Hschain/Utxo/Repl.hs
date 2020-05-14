@@ -1,3 +1,4 @@
+-- | Life-cycle of the REPL
 module Hschain.Utxo.Repl(
   runRepl
 ) where
@@ -25,11 +26,12 @@ import Hschain.Utxo.Repl.Cmd
 import Hschain.Utxo.Repl.Eval
 import Hschain.Utxo.Repl.Monad
 
--- Evaluation : handle each line user inputs
+-- | Evaluation : handle each line user inputs
 eval :: String -> Repl ()
 eval input = either (liftIO . putStrLn) evalInput $ parseInput input
   where
 
+-- | Evaluates user input.
 evalInput :: ParseRes -> Repl ()
 evalInput = \case
   ParseExpr expr     -> evalExpr expr
@@ -42,7 +44,7 @@ parseInput input =
   <|> parseExpr input
   <|> parseBind input
 
--- Tab Completion: return a completion for partial words entered
+-- | Tab Completion: return a completion for partial words entered
 completer :: WordCompleter ReplM
 completer n = do
   names <- fmap getEnvWords get

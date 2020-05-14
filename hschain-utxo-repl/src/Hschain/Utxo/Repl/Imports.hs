@@ -1,3 +1,4 @@
+-- | Module to handle imports to the REPL session.
 module Hschain.Utxo.Repl.Imports(
     Imports(..)
   , ImportError(..)
@@ -20,16 +21,22 @@ import qualified Data.Map.Strict as M
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
+-- | Errors that can gappen on import
 data ImportError
-  = ImportParseError P.SrcLoc String
-  | ImportTypeError Error
-  | ImportFileMissing FilePath
+  = ImportParseError P.SrcLoc String     -- ^ failed to parse the module
+  | ImportTypeError Error                -- ^ module has type errors
+  | ImportFileMissing FilePath           -- ^ no file found at the requested path
 
+-- | Context that holds data of imported modules
 data Imports = Imports
   { imports'base    :: !ModuleCtx
+  -- ^ Module context of base library (Prelude)
   , imports'current :: !ModuleCtx
+  -- ^ Module context for modules loaded by the user
   , imports'names   :: ![Text]
+  -- ^ Names of the top-levek variables defined in the module
   , imports'loaded  :: !(Map FilePath ModuleCtx)
+  -- ^ Module context of each individual loaded module
   }
 
 instance Default Imports where
@@ -50,6 +57,12 @@ rmLoaded file imp@Imports{..} = imp
   { imports'loaded = M.delete file imports'loaded
   }
 
+-- | Load module to the session.
+--
+-- > load file context
+--
+-- It takes filepath to the module and current import context and returns
+-- updated context or error.
 load :: MonadIO io => FilePath -> Imports -> io (Either ImportError Imports)
 load file imp0 = liftIO $ do
   let imp = updateCurrent $ rmLoaded file imp0
@@ -65,6 +78,7 @@ load file imp0 = liftIO $ do
         P.ParseFailed loc err -> return $ Left $ ImportParseError loc err
     Left _ -> return $ Left $ ImportFileMissing file
 
+-- | Reloads all modules that were loaded in the REPL session
 reload :: MonadIO io => Imports -> io (Either ImportError Imports)
 reload x = go (getLoadedFiles x) x
   where
@@ -89,5 +103,6 @@ updateCurrent = updateCtx . updateNames
 
     allCtxs Imports{..} = imports'base : (M.elems imports'loaded)
 
+-- | Return list of files for modules loaded in the REPL session
 getLoadedFiles :: Imports -> [FilePath]
 getLoadedFiles = M.keys . imports'loaded
