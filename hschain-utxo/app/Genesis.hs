@@ -1,3 +1,4 @@
+-- | Generates initial genesis with all funds owned by single user.
 module Main where
 
 import Data.Aeson.Encode.Pretty
