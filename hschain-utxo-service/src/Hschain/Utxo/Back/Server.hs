@@ -1,3 +1,4 @@
+-- | Defines server for hschain-utxo node
 module Hschain.Utxo.Back.Server(
   utxoServer
 ) where

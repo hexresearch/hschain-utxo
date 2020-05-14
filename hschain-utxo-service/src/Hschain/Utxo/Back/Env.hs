@@ -1,3 +1,4 @@
+-- | Defines state of the node service
 module Hschain.Utxo.Back.Env where
 
 import Control.Concurrent.STM
@@ -29,11 +30,15 @@ import HSChain.Logger
 
 import Hschain.Utxo.Back.Config (LogSpec(..))
 
+-- | Application environment
 data AppEnv = AppEnv
-  { appEnv'bchain :: Bchain IO
+  { appEnv'bchain :: Bchain IO  -- ^ bridge to hschain internals
   }
 
-initEnv :: (MonadIO m, MonadMask m) => NodeSpec -> [Tx] -> ContT r m (AppEnv, [IO ()])
+-- | Setup service environment.
+--
+-- It takes node-specification and genesis.
+initEnv :: (MonadIO m, MonadMask m) => NodeSpec -> Genesis -> ContT r m (AppEnv, [IO ()])
 initEnv nspec genesis = do
   (conn, logEnv) <- allocNode nspec
   liftIO $ initEnvBy conn logEnv nspec genesis

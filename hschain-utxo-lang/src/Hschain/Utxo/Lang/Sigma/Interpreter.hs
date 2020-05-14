@@ -7,6 +7,8 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
     Proof
   , newProof
   , verifyProof
+  , ProvenTree(..)
+  , OrChild(..)
   , completeProvenTree
 ) where
 

@@ -3,12 +3,12 @@
 
 name:                hschain-utxo-service
 version:             0.1.0.0
--- synopsis:
--- description:
 license:             AllRightsReserved
 -- license-file:        LICENSE
 author:              HXR
 maintainer:          hxr.team@gmail.com
+synopsis:            validator and webnode services for hschain-utxo
+description:         Defines services to run validator and webnode for hschain-utxo
 -- copyright:
 -- category:
 build-type:          Simple
