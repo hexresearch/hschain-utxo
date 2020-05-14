@@ -1,3 +1,4 @@
+-- | Compiler CLI application.
 module Hschain.Utxo.Compiler.App(
   runApp
 ) where
@@ -5,6 +6,7 @@ module Hschain.Utxo.Compiler.App(
 import Hschain.Utxo.Compiler.Options
 import Hschain.Utxo.Compiler.Commands
 
+-- | Run the compiler.
 runApp :: IO ()
 runApp = app =<< optionParser
 

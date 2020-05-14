@@ -1,3 +1,4 @@
+-- | Sub-commands of the compiler
 module Hschain.Utxo.Compiler.Commands(
     compile
   , genPrivateKey
@@ -34,6 +35,7 @@ import qualified Data.Text.IO as T
 
 -- compile
 
+-- | Compile smartcontracts.
 compile :: FilePath -> Maybe FilePath -> IO ()
 compile input output = do
   inputStr <- readFile input
@@ -59,6 +61,7 @@ checkType = checkMainModule langTypeContext
 ----------------------------------------
 -- generate secret
 
+-- | Generate private key
 genPrivateKey :: Maybe FilePath -> IO ()
 genPrivateKey output = do
   secret <- Sigma.newSecret
@@ -69,6 +72,7 @@ genPrivateKey output = do
 ----------------------------------------
 -- get public key
 
+-- | Convert private key to public key
 getPublicKey :: FilePath -> Maybe FilePath -> IO ()
 getPublicKey input output = do
   eSecret <- fmap S.deserialiseOrFail $ LB.readFile input
@@ -83,6 +87,13 @@ getPublicKey input output = do
 ----------------------------------------
 -- sign sigma expression
 
+-- | Sign sigma-expression.
+--
+-- > signSigma secretFile exprFile mOutputFile
+--
+-- It takes file with user private key and sigma-expression
+-- and saves signed expression (proof) to the file, or if file not
+-- specified dumps to stdout.
 signSigma :: FilePath -> FilePath -> Maybe FilePath -> IO ()
 signSigma secretFile input output = do
   secret <- readSecret

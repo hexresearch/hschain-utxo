@@ -1,3 +1,4 @@
+-- | Parser of comand line arguments for compiler
 module Hschain.Utxo.Compiler.Options(
     Options(..)
   , optionParser
@@ -5,6 +6,7 @@ module Hschain.Utxo.Compiler.Options(
 
 import Options.Applicative
 
+-- | Read command line arguments.
 optionParser :: IO Options
 optionParser = execParser opts
   where
@@ -13,23 +15,31 @@ optionParser = execParser opts
       <> progDesc "Utility to compile script to text"
       <> header "hschain-utxo-compiler - utility to compile scripts" )
 
+-- | Command line arguments
+--
+-- All commands save result to output file. If file is missing result
+-- is dumped to stdout.
 data Options
   = Compile
-      { compile'input  :: FilePath
-      , compile'output :: Maybe FilePath
+      { compile'input  :: FilePath          -- ^ file with script
+      , compile'output :: Maybe FilePath    -- ^ file for compiled script
       }
+  -- ^ compile script
   | GenPrivateKey
-      { genPrivateKey'output :: Maybe FilePath
+      { genPrivateKey'output :: Maybe FilePath  -- ^ file to write private key
       }
+  -- ^ generate private key
   | GetPublicKey
-      { getPublicKey'input  :: FilePath
-      , getPublicKey'output :: Maybe FilePath
+      { getPublicKey'input  :: FilePath         -- ^ file with private key
+      , getPublicKey'output :: Maybe FilePath   -- ^ file for public key
       }
+  -- ^ convert private key to public key
   | SignSigma
-      { signSigma'secret     :: FilePath
-      , signSigma'input      :: FilePath
-      , signSigma'output     :: Maybe FilePath
+      { signSigma'secret     :: FilePath        -- ^ file with private key
+      , signSigma'input      :: FilePath        -- ^ file with sigma-expression
+      , signSigma'output     :: Maybe FilePath  -- ^ file for signed sigma-expression (proof)
       }
+  -- ^ sign sigma-expression
   deriving (Show)
 
 options :: Parser Options
