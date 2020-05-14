@@ -1,3 +1,5 @@
+-- | This module defines function to execute user expressions
+-- and bindings.
 module Hschain.Utxo.Repl.Eval(
     evalExpr
   , evalBind
@@ -47,6 +49,7 @@ withTypeCheck expr cont = do
     Right _  -> cont expr
     Left err -> liftIO $ T.putStrLn $ renderText err
 
+-- | Evaluate user expression
 evalExpr :: Lang -> Repl ()
 evalExpr lang = do
   closedExpr <- getClosureExpr lang
@@ -62,6 +65,9 @@ evalExpr lang = do
       Left err   -> T.putStrLn $ renderText err
 
 
+-- | Evaluate user bind. Bind is construct to assign name to variable
+--
+-- > var = expr
 evalBind :: VarName -> Lang -> Repl ()
 evalBind var lang = do
   closure <- fmap replEnv'closure get

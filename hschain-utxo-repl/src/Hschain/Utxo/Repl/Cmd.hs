@@ -1,3 +1,7 @@
+-- | This moule defines execution of special commands of the REPL
+-- like type query or show help or load script etc.
+--
+-- commands start with colon @:@.
 module Hschain.Utxo.Repl.Cmd(
     evalCmd
   , parseCmd
@@ -33,6 +37,7 @@ import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
 import qualified Hschain.Utxo.Repl.Imports as I
 
+-- | List of possible commands
 evalCmd :: String -> String -> Repl ()
 evalCmd x args = case x of
   "q"      -> quit
@@ -149,6 +154,7 @@ uknownOption cmd = echo $ mconcat ["Error: Uknown command ", cmd, "."]
 -----------------------------------------
 -- parsing
 
+-- | Parses special command
 parseCmd :: String -> Either String ParseRes
 parseCmd input =
   case input of

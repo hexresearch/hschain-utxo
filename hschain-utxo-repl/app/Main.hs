@@ -1,3 +1,4 @@
+-- | Main entry point. It runs the REPL.
 module Main where
 
 import Hschain.Utxo.Repl
