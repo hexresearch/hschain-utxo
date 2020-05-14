@@ -76,17 +76,6 @@ import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
 ------------------------------------------
 
-{-
-interpretSpec
-   :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
-      , MonadTrace m, MonadTMMonitoring m)
-   => NodeSpec
-   -> [Tx]
-   -> (Bchain m -> m ())
-   -> m ()
-interpretSpec = interpretSpecWithCallback (const $ pure ())
--}
-
 interpretSpec
    :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
       , MonadTrace m, MonadTMMonitoring m)
@@ -229,21 +218,10 @@ initBoxChain valSet txs = BChEval
             , blockchainState = merkled state0
             }
 
------------------------------------------------------------------
--- Prometheus metrics
-{-
-makeGaugeRegisteredUsers
-  :: (MonadIO m, MonadMonitor n)
-  => m (BoxChain -> n ())
-makeGaugeRegisteredUsers = do
-  g <- register
-     $ gauge $ Info "huralchain_users_total" "Number of registered users"
-  pure $ setGauge g
-       . fromIntegral . Map.size . huralState'users
--}
-
+-- | Config tag for our blockchain
 data BoxChainConfig
 
+-- Default settings
 instance DefaultConfig BoxChainConfig where
   defCfg = Configuration
     { cfgConsensus         = ConsensusCfg

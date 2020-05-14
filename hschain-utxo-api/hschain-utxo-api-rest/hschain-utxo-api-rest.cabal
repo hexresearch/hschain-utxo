@@ -3,12 +3,12 @@
 
 name:                hschain-utxo-api-rest
 version:             0.1.0.0
--- synopsis:
--- description:
 license:             AllRightsReserved
 license-file:        LICENSE
 author:              HXR
 maintainer:          hxr.team@gmail.com
+synopsis:            API for hschain-utxo node
+description:         API for hschain-utxo node
 -- copyright:
 -- category:
 build-type:          Simple

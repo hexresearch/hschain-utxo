@@ -5,8 +5,8 @@ cabal-version:       >=1.10
 
 name:                hschain-utxo-blockchain
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            bridge to hschain
+description:         Defines utilities to work on top of hschain
 -- bug-reports:
 -- license:
 license-file:        LICENSE

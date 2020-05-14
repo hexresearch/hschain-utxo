@@ -1,3 +1,4 @@
+-- | Bridge to hschain
 module Hschain.Utxo.Blockchain(
   module X
 ) where

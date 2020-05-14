@@ -1,3 +1,4 @@
+-- | Network specification for hschain node
 module Hschain.Utxo.Blockchain.Net(
     NodeSpec(..)
   , LogSpec(..)

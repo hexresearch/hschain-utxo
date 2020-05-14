@@ -1,3 +1,4 @@
+-- | API for hschain-utxo node
 module Hschain.Utxo.API.Rest where
 
 import Hex.Common.Aeson
@@ -22,34 +23,43 @@ type UtxoAPI = "api" :>
   :<|> GetStateEndpoint
   )
 
+-- | Post transaction
 type PostTxEndpoint = "tx" :> Summary "Post Tx" :> "post"
   :> ReqBody '[JSON] Tx
   :> Post '[JSON] PostTxResponse
 
+-- | Query box balance by identifier
 type GetBoxBalanceEndpoint = "box-balance" :> Summary "Gets the balance inside UTXO box" :> "get"
   :> Capture "box-id" BoxId
   :> Get '[JSON] (Maybe Money)
 
+-- | It evaluates transaction in the current state of blockchain
+-- and returns sigma-expression. We can use it to create prove and post signed transaction.
 type GetTxSigmaEndpoint = "tx-sigma" :> Summary "Gets tx-script evaluated to sigma expression" :> "get"
   :> ReqBody '[JSON] Tx
   :> Get '[JSON] SigmaTxResponse
 
+-- | Get some stats for blockchain state (like height)
 type GetEnvEndpoint = "env"
   :> Get '[JSON] GetEnvResponse
 
--- debug api method
+-- | Debug api method
 type GetStateEndpoint = "debug" :> "state" :> Summary "Gets the state of box-chain" :> "get"
   :> Get '[JSON] BoxChain
 
+-- | Result of posted transaction. Contains TX-hash if it was approved.
 data PostTxResponse = PostTxResponse
   { postTxResponse'value :: !(Maybe TxHash )
   } deriving (Show, Eq)
 
+-- | Result of execution of TX in the current state of blockchain.
 data SigmaTxResponse = SigmaTxResponse
-  { sigmaTxResponse'value :: !(Either Text BoolExprResult)
-  , sigmaTxResponse'debug :: !Text }
+  { sigmaTxResponse'value :: !(Either Text BoolExprResult)  -- ^ result of execution
+                                                            -- (sigma-expression or boolean)
+  , sigmaTxResponse'debug :: !Text }                        -- ^ Debug info on the process of execution
   deriving (Show, Eq)
 
+-- | Useful stats about state of the blockchain
 newtype GetEnvResponse = GetEnvResponse { unGetEnvResponse :: Env }
   deriving (Show, Eq, FromJSON, ToJSON)
 

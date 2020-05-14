@@ -1,4 +1,6 @@
 
+* update hschain version many instance of CryptoHashable are already defined there
+
 * implement let-pattenrs for repl in the style of
     
     (a, b) = getPair
