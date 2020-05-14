@@ -1,3 +1,5 @@
+-- | Pretty printer of the state.
+-- It is Used mainly for debug purposes.
 module Hschain.Utxo.State.Pretty(
 ) where
 
