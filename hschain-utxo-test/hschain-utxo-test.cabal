@@ -2,7 +2,9 @@ cabal-version:       >=1.10
 name:                hschain-utxo-test
 version:             0.1.0.0
 synopsis:            tests for hschain-utxo
-description:         Package defines several scenarios with exchange of funds over smartcontracts
+description:         Package defines several scenarios with exchange of funds over smartcontracts.
+                     We should run tests in the directory hschain-utxo-test.
+
 -- bug-reports:
 -- license:
 license-file:        LICENSE

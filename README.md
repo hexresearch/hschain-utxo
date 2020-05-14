@@ -11,6 +11,19 @@ For a description read the [docs](https://hexresearch.github.io/hschain-utxo/)
 Project is built with nix. See README.md in the nix directory
 for instructions.
 
+### How to run tests
+
+Tests define several scenarios of funds exhabge. 
+They start nodes allocate money to users and trigger exchange of funds
+on various conditions. 
+
+We should run tests in the directory hschain-utxo-test. 
+
+```
+> cd hschain-utxo-test
+> cabal new-run hschain-utxo-test
+```
+
 ### How to update docs
 
 See this workflow as a reference on how to update the docs:
