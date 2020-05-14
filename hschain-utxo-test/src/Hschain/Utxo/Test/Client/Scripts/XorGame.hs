@@ -1,3 +1,4 @@
+-- | Test script for XOR-game between two users.
 module Hschain.Utxo.Test.Client.Scripts.XorGame where
 
 import Prelude hiding ((<*))

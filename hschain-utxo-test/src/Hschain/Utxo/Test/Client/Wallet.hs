@@ -1,3 +1,5 @@
+-- | This module defines test user wallet.
+-- It keeps balances, keys and allocates data for transactions.
 module Hschain.Utxo.Test.Client.Wallet(
     Wallet(..)
   , newWallet
@@ -34,17 +36,20 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+-- | User wallet
 data Wallet = Wallet
-  { wallet'user       :: !UserId
-  , wallet'privateKey :: !Secret
-  , wallet'utxos      :: !(TVar [BoxId])
+  { wallet'user       :: !UserId           -- ^ User id for test print
+  , wallet'privateKey :: !Secret           -- ^ User private key
+  , wallet'utxos      :: !(TVar [BoxId])   -- ^ User UTXOs
   }
 
+-- | Allocate new wallet
 newWallet :: MonadIO io => UserId -> Secret -> io Wallet
 newWallet userId pk = liftIO $ do
   utxos <- newTVarIO []
   return $ Wallet userId pk utxos
 
+-- | Read public key
 getWalletPublicKey :: Wallet -> PublicKey
 getWalletPublicKey = getPublicKey . wallet'privateKey
 
@@ -55,6 +60,7 @@ allocAddress wallet@Wallet{..} = liftIO $ do
   atomically $ modifyTVar' wallet'utxos $ (addr : )
   return addr
 
+-- | Gets user proof environment or list of keys
 getProofEnv :: Wallet -> ProofEnv
 getProofEnv Wallet{..} = proofEnvFromKeys [getKeyPair wallet'privateKey]
 
@@ -66,11 +72,13 @@ newAddress Wallet{..} = liftIO $ do
   where
     userId = (\(UserId uid) -> uid) wallet'user
 
+-- | Query the user balance.
 getBalance :: Wallet -> App Money
 getBalance wallet@Wallet{..} = do
   xs <- liftIO $ readTVarIO wallet'utxos
   fmap (sum . catMaybes) $ mapM getBoxBalance xs
 
+-- | Create proof for a most simple expression of @pk user-key@
 getOwnerProof :: MonadIO io => Wallet -> io (Either Text Proof)
 getOwnerProof w@Wallet{..} =
   liftIO $ newProof env $ Fix $ SigmaPk (getWalletPublicKey w)
@@ -81,19 +89,26 @@ getOwnerProofUnsafe :: Wallet -> App Proof
 getOwnerProofUnsafe wallet =
   either throwError pure =<< getOwnerProof wallet
 
+-- | Send money from one user to another
 data Send = Send
   { send'from    :: !BoxId
+  -- ^ from user box
   , send'to      :: !BoxId
+  -- ^ to user box
   , send'back    :: !BoxId
+  -- ^ where to put exchange
   , send'amount  :: !Money
+  -- ^ amount of money to send
   , send'recepientWallet :: !Wallet -- TODO: we need it right now, substitute it with public key in the future
   }
 
+-- | Data to hold the data for exchange send
 data SendBack = SendBack
-  { sendBack'totalAmount  :: !Money
-  , sendBack'backBox      :: !BoxId
+  { sendBack'totalAmount  :: !Money  -- ^ amount of money
+  , sendBack'backBox      :: !BoxId  -- ^ where to send exchange
   }
 
+-- | Creates script that sends money from user to another
 newSendTx :: Wallet -> Send -> App (Either Text Tx)
 newSendTx wallet send@Send{..} = do
   back <- getSendBack
@@ -123,6 +138,7 @@ getTxSigmaUnsafe tx = either throwError pure =<< getTxSigma tx
 getSigmaForProof :: Tx -> App (Sigma PublicKey)
 getSigmaForProof tx = getTxSigmaUnsafe tx
 
+-- | Sends money with exchange
 toSendTx :: Wallet -> Send -> SendBack -> Maybe Proof -> App Tx
 toSendTx wallet Send{..} SendBack{..} mProof = do
   return $ Tx

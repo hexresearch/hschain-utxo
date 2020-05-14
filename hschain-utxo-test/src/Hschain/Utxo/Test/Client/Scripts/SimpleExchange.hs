@@ -1,3 +1,4 @@
+-- | Simple exchange of funds between users (no conditions, just ownership).
 module Hschain.Utxo.Test.Client.Scripts.SimpleExchange where
 
 import Control.Timeout
