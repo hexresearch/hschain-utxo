@@ -5,8 +5,8 @@ cabal-version:       >=1.10
 
 name:                hschain-utxo-compiler
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            Utilities to compile smartcontracts
+description:         Utility to compile scripts and prove ownership of the transaction
 -- bug-reports:
 -- license:
 license-file:        LICENSE
