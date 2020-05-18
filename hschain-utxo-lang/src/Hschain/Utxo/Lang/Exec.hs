@@ -28,14 +28,10 @@ import Crypto.Hash
 
 import Data.Aeson
 import Data.Boolean
-import Data.Either
 import Data.Fix
-import Data.Fixed
 import Data.Int
 import Data.Map.Strict (Map)
-import Data.Maybe
 import Data.Monoid hiding (Alt)
-import Data.Set (Set)
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -43,7 +39,6 @@ import Data.Vector (Vector)
 import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
@@ -51,9 +46,7 @@ import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
 
-import qualified Data.List as L
 import qualified Data.Map.Strict as M
-import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
@@ -136,7 +129,7 @@ execLang (Fix x) = case x of
     -- case of
     CaseOf loc v xs -> fromCaseOf loc v xs
     -- records
-    RecConstr loc cons fields -> thisShouldNotHappen (Fix x)
+    RecConstr _ _ _ -> thisShouldNotHappen (Fix x)
     RecUpdate loc a upds -> fromRecUpdate loc a upds
     -- operations
     UnOpE loc uo x -> fromUnOp loc uo x
@@ -161,7 +154,7 @@ execLang (Fix x) = case x of
     rec = execLang
 
     getVar :: Loc -> VarName -> Exec Lang
-    getVar loc name = do
+    getVar _ name = do
       vars <- fmap ctx'vars get
       case M.lookup name vars of
         Just res -> return res
@@ -216,13 +209,13 @@ execLang (Fix x) = case x of
             Tuple loc args -> Just $ Fix $ Let loc (zipWith simpleBind vs (V.toList args)) rhs
             _              -> Nothing
 
-    fromRecUpdate loc a upds = rec $ foldl go a upds
+    fromRecUpdate _ a upds = rec $ foldl go a upds
       where
         go res (field, val) = desugarRecordUpdate field val res
 
 
 
-    fromUnOp loc uo x = do
+    fromUnOp _ uo x = do
       x' <- rec x
       case uo of
         Not         -> fromNot x'
@@ -241,8 +234,8 @@ execLang (Fix x) = case x of
           _                  -> thisShouldNotHappen x
 
         fromTupleAt n expr = case expr of
-          Fix (Tuple loc1 as) -> maybe (outOfBound x) return $ as V.!? n
-          _                   -> thisShouldNotHappen x
+          Fix (Tuple _ as) -> maybe (outOfBound x) return $ as V.!? n
+          _                -> thisShouldNotHappen x
 
     fromBiOp loc bi x y = do
       a <- rec x
@@ -276,7 +269,7 @@ execLang (Fix x) = case x of
           if a
             then return (Fix x')
             else prim locX1 $ PrimBool False
-        (PrimE locX1 (PrimSigma a), PrimE locY1 (PrimSigma b)) ->
+        (PrimE _ (PrimSigma a), PrimE _ (PrimSigma b)) ->
           return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaAnd [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
@@ -293,7 +286,7 @@ execLang (Fix x) = case x of
           if a
             then prim locX1 $ PrimBool True
             else return (Fix x')
-        (PrimE locX1 (PrimSigma a), PrimE locY1 (PrimSigma b)) ->
+        (PrimE _ (PrimSigma a), PrimE _ (PrimSigma b)) ->
           return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaOr [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
@@ -303,7 +296,7 @@ execLang (Fix x) = case x of
     fromDiv   loc = fromNumOp2 loc Div   (NumOp2 div)
 
     fromNumOp2 loc op NumOp2{..} (Fix x) (Fix y) = case (x, y) of
-      (PrimE locA1 a, PrimE locB1 b) -> case (a, b) of
+      (PrimE locA1 a, PrimE _ b) -> case (a, b) of
         (PrimInt m, PrimInt n) -> prim locA1 $ PrimInt $ numOp2'int m n
         _ -> err
       _ -> err
@@ -400,7 +393,7 @@ execLang (Fix x) = case x of
     fromPk loc x = do
       Fix x' <- rec x
       case x' of
-        PrimE loc1 (PrimString pkeyTxt) ->
+        PrimE _ (PrimString pkeyTxt) ->
           case publicKeyFromText pkeyTxt of
             Just pkey  -> return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaPk pkey
             Nothing    -> parseError loc $ mconcat ["Failed to convert parse public key from string: ", pkeyTxt]
@@ -470,7 +463,7 @@ execLang (Fix x) = case x of
       Fix $ CaseOf (H.getLoc newVar) (Fix $ Var (H.getLoc newVar) newVar)
         [CaseExpr pat body]
 
-    fromLet loc bg expr = execDefs bg expr
+    fromLet _loc bg expr = execDefs bg expr
       where
         execDefs ds e = case ds of
           [] -> rec e
@@ -482,7 +475,7 @@ execLang (Fix x) = case x of
     fromEnv loc idx = do
       idx' <- mapM rec idx
       case idx' of
-        Height loc1  -> prim loc . PrimInt . fromIntegral =<< getHeight
+        Height _  -> prim loc . PrimInt . fromIntegral =<< getHeight
         Input loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getInputs
         Output loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getOutputs
         Inputs loc1  -> fmap (toBoxes loc1) getInputs
