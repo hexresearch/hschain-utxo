@@ -11,4 +11,3 @@ import Hschain.Utxo.Lang.Exec   as X
 import Hschain.Utxo.Lang.Pretty as X
 import Hschain.Utxo.Lang.Types  as X
 
-import Hschain.Utxo.Lang.Sigma  as X
