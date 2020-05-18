@@ -91,11 +91,11 @@ instance Ord (ECScalar  Ed25519) where
 
 instance CBOR.Serialise (ECPoint Ed25519) where
   encode = CBOR.encode . id @BS.ByteString . Ed.pointEncode . coerce
-  decode = decodeBy (fmap coerce . Ed.pointDecode) =<< CBOR.decode
+  decode = decodeBy (coerce . Ed.pointDecode) =<< CBOR.decode
 
 instance CBOR.Serialise (ECScalar Ed25519) where
   encode = CBOR.encode . id @BS.ByteString . Ed.scalarEncode . coerce
-  decode = decodeBy (fmap coerce . Ed.scalarDecodeLong) =<< CBOR.decode
+  decode = decodeBy (coerce . Ed.scalarDecodeLong) =<< CBOR.decode
 
 decodeBy :: (BS.ByteString -> CryptoFailable a) -> BS.ByteString -> CBOR.Decoder s a
 decodeBy decoder bs = case decoder bs of
