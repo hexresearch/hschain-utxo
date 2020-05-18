@@ -5,10 +5,8 @@ module Hschain.Utxo.Lang.Parser.Hask.FromHask(
   , toDecl
 ) where
 
-import Hex.Common.Text
 
 import Control.Applicative
-import Control.Monad
 
 import Data.Fix
 import Data.Maybe
@@ -17,9 +15,6 @@ import Data.String
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
 
-import Language.Haskell.Exts.Pretty
-
-import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
@@ -31,7 +26,6 @@ import qualified Data.Vector as V
 import qualified Language.HM as HM
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
-import qualified Language.Haskell.Exts.Parser as H
 import qualified Language.Haskell.Exts.Pretty as H
 
 fromHaskExp :: H.Exp Loc -> ParseResult Lang

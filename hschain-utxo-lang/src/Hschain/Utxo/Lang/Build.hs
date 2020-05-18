@@ -29,7 +29,6 @@ module Hschain.Utxo.Lang.Build(
 
 import Data.Boolean
 import Data.Fix
-import Data.Fixed
 import Data.Int
 import Data.String
 import Data.Text (Text)
@@ -42,7 +41,6 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (toScript)
 
 import Hschain.Utxo.Lang.Expr
-import qualified Hschain.Utxo.Lang.Sigma as S
 
 (=:) :: Text -> Expr a -> (Expr a -> Expr b) -> Expr b
 (=:) = def

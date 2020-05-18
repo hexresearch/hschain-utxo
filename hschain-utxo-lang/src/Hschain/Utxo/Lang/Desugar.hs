@@ -25,29 +25,21 @@ module Hschain.Utxo.Lang.Desugar(
   , module Hschain.Utxo.Lang.Desugar.Records
 ) where
 
-import Hex.Common.Control
 
-import Control.Applicative
-import Control.Arrow (first)
 import Control.Monad.State.Strict
-import Control.Monad.Extra (firstJustM)
 
 import Data.Fix
-import Data.Map.Strict (Map)
 import Data.Text (Text)
 
-import Language.HM (getLoc, stripSignature, monoT)
+import Language.HM (getLoc)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Desugar.FreshVar
-import Hschain.Utxo.Lang.Desugar.Guard
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
 
 import qualified Data.List as L
-import qualified Data.Map.Strict as M
-import qualified Data.List.Extra as L
 
 
 desugar :: MonadLang m => UserTypeCtx -> Lang -> m Lang

@@ -10,38 +10,24 @@ module Hschain.Utxo.Lang.Infer(
   , userTypesToTypeContext
 ) where
 
-import Hex.Common.Control
 import Hex.Common.Text
 
-import Control.Arrow (first)
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
-import Control.Monad.Trans
 
 import Data.Fix hiding ((~>))
-import Data.Foldable
-import Data.Vector (Vector)
 
-import Data.Either
-import Data.Function (on)
-import Data.Set (Set)
-import Data.String
 import Data.Text (Text)
 
-
-import Language.HM (appE, varE, lamE, letE, varT, conT, monoT, forAllT, arrowT, stripSignature)
-
-import Safe
+import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, arrowT, stripSignature)
 
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
 
-import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Text as T
-import qualified Data.Set as S
 import qualified Data.Vector as V
 
 import qualified Language.HM as H

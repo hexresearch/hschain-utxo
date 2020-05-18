@@ -9,13 +9,11 @@ import Control.Arrow (first)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Desugar.PatternCompiler
 
 import Data.Fix
 
-import Language.HM (getLoc, monoT)
+import Language.HM (getLoc)
 
-import qualified Data.List.Extra as L
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 

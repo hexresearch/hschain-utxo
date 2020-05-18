@@ -4,20 +4,9 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskModule
 ) where
 
-import Hex.Common.Control
 import Hex.Common.Text
 
-import Control.Monad
-
-import Data.Char
 import Data.Fix
-import Data.Maybe
-
-import Language.Haskell.Exts.Parser (
-    ParseResult(..))
-
-import Language.Haskell.Exts.Pretty
-
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
@@ -26,9 +15,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
-import qualified Language.Haskell.Exts.Parser as H
 
 import Language.HM.Type() -- import instances
 

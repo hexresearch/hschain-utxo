@@ -12,12 +12,10 @@ import Codec.Serialise
 import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
-import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import GHC.Generics
-import Safe
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma

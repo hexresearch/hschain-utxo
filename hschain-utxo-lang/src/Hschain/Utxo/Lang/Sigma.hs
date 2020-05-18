@@ -35,25 +35,13 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
-import Data.Aeson.Types
 import Data.Either
 import Data.Fix
-import Data.Functor.Classes
-import Data.Set (Set)
 import Data.Text (Text)
 
 import GHC.Generics
 
 import Text.Show.Deriving
-
-import Safe
-
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.List as L
-import qualified Data.Set as S
-import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Encoding.Error as TE
 
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
@@ -61,7 +49,6 @@ import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 
 
-import qualified Data.ByteString.Base58 as Base58
 
 -- | Cryptographic algorithm that we use.
 type CryptoAlg = Sigma.Ed25519
