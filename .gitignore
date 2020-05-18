@@ -5,3 +5,5 @@ hschain-utxo-test/test-craddle
 nix/result
 logs
 dist
+TAGS
+.ghc.environment.*
