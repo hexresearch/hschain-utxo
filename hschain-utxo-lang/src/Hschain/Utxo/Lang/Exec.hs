@@ -121,7 +121,7 @@ applyBase (Expr a) = Expr $ importBase a
 -- | Performs execution of expression.
 execLang :: Lang -> Exec Lang
 execLang (Fix x) = case x of
-    Var loc name -> getVar loc name
+    Var _ name -> getVar name
     PrimE loc p  -> pure $ Fix $ PrimE loc p
     Tuple loc as -> Fix . Tuple loc <$> mapM rec as
     Ascr loc a t -> fmap (\x -> Fix $ Ascr loc x t) $ rec a
@@ -153,8 +153,8 @@ execLang (Fix x) = case x of
   where
     rec = execLang
 
-    getVar :: Loc -> VarName -> Exec Lang
-    getVar _ name = do
+    getVar :: VarName -> Exec Lang
+    getVar name = do
       vars <- fmap ctx'vars get
       case M.lookup name vars of
         Just res -> return res
