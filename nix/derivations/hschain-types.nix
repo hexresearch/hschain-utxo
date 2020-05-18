@@ -3,12 +3,12 @@
 , QuickCheck, random, serialise, sqlite-simple, stdenv, tasty
 , tasty-hunit, tasty-quickcheck, text, time, unordered-containers
 , vector, vector-th-unbox
-, fetchgitPrivate, tryEval, pkgConfig
+, fetchgit, tryEval, pkgConfig
 }:
 mkDerivation {
   pname = "hschain-types";
   version = "0.1";
-  src = tryEval <hschain> (fetchgitPrivate pkgConfig.hschain);
+  src = tryEval <hschain> (fetchgit pkgConfig.hschain);
   postUnpack = "sourceRoot+=/hschain-types; echo source root reset to $sourceRoot";
   libraryHaskellDepends = [
     aeson async base base58-bytestring bytestring containers
