@@ -22,11 +22,6 @@ steps:
   - cd nix
   - ./build-ci.sh
 
-volumes:
-- name: dockersock
-  host:
-    path: /var/run/docker.sock
-
 trigger:
   branch:
   - master
