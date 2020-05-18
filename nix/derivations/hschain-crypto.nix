@@ -3,12 +3,12 @@
 , deepseq, entropy, Lazy-Pbkdf2, memory, primitive, random
 , serialise, SHA, stdenv, tasty, tasty-hunit, text, vector
 , libsodium
-, fetchgitPrivate, tryEval, pkgConfig
+, fetchgit, tryEval, pkgConfig
 }:
 mkDerivation {
   pname = "hschain-crypto";
   version = "0.1";
-  src = tryEval <hschain> (fetchgitPrivate pkgConfig.hschain);
+  src = tryEval <hschain> (fetchgit pkgConfig.hschain);
   postUnpack = "sourceRoot+=/hschain-crypto; echo source root reset to $sourceRoot";
   configureFlags = [ "-flibsodium" ];
   libraryHaskellDepends = [
