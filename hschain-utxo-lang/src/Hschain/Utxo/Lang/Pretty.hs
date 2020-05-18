@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Pretty-printer for values of the language.
 module Hschain.Utxo.Lang.Pretty(
     renderDoc
@@ -5,11 +6,8 @@ module Hschain.Utxo.Lang.Pretty(
   , prettyRecord
 ) where
 
-import Hex.Common.Control
 import Hex.Common.Serialise
 
-import Data.Fix
-import Data.Functor.Compose
 import Data.Text (Text)
 
 import Data.Text.Prettyprint.Doc
@@ -19,11 +17,9 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
-import Hschain.Utxo.Lang.Exec
-import Hschain.Utxo.Lang.Infer.Pretty
+import Hschain.Utxo.Lang.Infer.Pretty ()
 
 import qualified Data.Map.Strict as M
-import qualified Data.Set as S
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
@@ -110,42 +106,11 @@ instance Pretty (S.Sigma S.PublicKey) where
 op1 :: Doc ann -> Doc ann -> Doc ann
 op1 name a = hcat [name, parens a]
 
-op2 :: Doc ann -> Doc ann -> Doc ann -> Doc ann
-op2 name a b = parens $ hsep [a, name, b]
-
-fun2 :: Doc ann -> Doc ann -> Doc ann -> Doc ann
-fun2 name a b = parens $ hsep [name, a, b]
-
-fun3 :: Doc ann -> Doc ann -> Doc ann -> Doc ann -> Doc ann
-fun3 name a b c = parens $ hsep [name, a, b, c]
-
 instance Pretty (Expr a) where
   pretty (Expr a) = pretty a
 
 instance Pretty ConsName where
   pretty (ConsName _ txt) = pretty txt
-
-prettyBinds :: BindGroup (Doc ann) -> Doc ann
-prettyBinds bs = vcat $ fmap prettyBind bs
-  where
-    prettyBind :: Bind (Doc ann) -> Doc ann
-    prettyBind Bind{..} = vcat
-      [ maybe mempty (prettySignature bind'name) bind'type
-      , vcat $ fmap (prettyAlt bind'name) bind'alts
-      ]
-
-    prettySignature :: VarName -> Signature -> Doc ann
-    prettySignature name signature = hsep [ pretty name, "::",  pretty signature]
-
-    prettyAlt :: VarName -> Alt (Doc ann) -> Doc ann
-    prettyAlt name Alt{..} =
-      hsep [ pretty name, hsep $ fmap pretty alt'pats, "=", prettyRhs alt'expr]
-
-    prettyRhs = \case
-      UnguardedRhs a -> a
-      GuardedRhs guards -> indent 4 $ vcat $ fmap prettyGuards guards
-
-    prettyGuards Guard{..} = hsep ["|", guard'predicate, "=", guard'rhs]
 
 instance Pretty Pat where
   pretty = \case
@@ -179,11 +144,6 @@ instance Pretty Prim where
     PrimInt      n -> pretty n
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
-
-removeZeroes = reverse . skipDot . skipZeroes . reverse
-  where
-    skipZeroes = dropWhile (== '0')
-    skipDot    = dropWhile (== '.')
 
 instance Pretty a => Pretty (EnvId a) where
   pretty = prettyId . fmap pretty
@@ -241,9 +201,6 @@ instance Pretty PatError where
     NoVarFound        -> "Var not found in the pattern"
     NoSameArgsNumber  -> "Patterns do not have the same number of arguments for a function"
     EmptyArgument     -> "Pattern has no arguments"
-
-prettyMap :: (Pretty a, Pretty b) => String -> M.Map a b -> Doc ann
-prettyMap name m = hsep [pretty name, indent 2 $ vcat $ fmap (\(k, v) -> hsep [pretty k, ":", pretty v]) $ M.toList m]
 
 instance Pretty TypeError where
   pretty = \case
