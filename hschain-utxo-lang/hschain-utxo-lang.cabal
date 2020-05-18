@@ -19,6 +19,9 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
+      Hschain.Utxo.Lang.Core.Gcode
+      Hschain.Utxo.Lang.Core.Gmachine
+      Hschain.Utxo.Lang.Core.Scomb
       Hschain.Utxo.Lang.Desugar
       Hschain.Utxo.Lang.Desugar.FreshVar
       Hschain.Utxo.Lang.Desugar.Guard
