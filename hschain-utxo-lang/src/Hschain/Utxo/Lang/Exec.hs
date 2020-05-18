@@ -463,7 +463,7 @@ execLang (Fix x) = case x of
       Fix $ CaseOf (H.getLoc newVar) (Fix $ Var (H.getLoc newVar) newVar)
         [CaseExpr pat body]
 
-    fromLet _loc bg expr = execDefs bg expr
+    fromLet _ = execDefs
       where
         execDefs ds e = case ds of
           [] -> rec e
