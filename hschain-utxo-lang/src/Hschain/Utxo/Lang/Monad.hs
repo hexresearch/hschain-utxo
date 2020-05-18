@@ -1,6 +1,6 @@
 -- | Module defines main execution monad of the language.
 module Hschain.Utxo.Lang.Monad(
-    MonadLang(..)
+    MonadLang
   , module X
 ) where
 
