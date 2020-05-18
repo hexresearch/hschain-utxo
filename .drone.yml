@@ -30,6 +30,3 @@ volumes:
 trigger:
   branch:
   - master
-  cron:
-    exclude:
-    - nightly
