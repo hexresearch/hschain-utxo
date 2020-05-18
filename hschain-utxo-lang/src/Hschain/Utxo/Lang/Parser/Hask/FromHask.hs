@@ -35,7 +35,7 @@ fromHaskExp topExp = case topExp of
   H.Lambda loc ps body -> case ps of
     [p] -> fromLam loc p body
     _   -> fromLamList loc ps body
-  H.Let loc binds exp -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec exp)
+  H.Let _ binds exp -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec exp)
   H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr loc x (HM.typeToSignature y)) (rec exp) (fromType ty)
   H.Lit loc lit -> fmap (Fix . PrimE loc) $ fromLit lit
   H.If loc a b c -> liftA3 (\x y z -> Fix $ If loc x y z) (rec a) (rec b) (rec c)
@@ -75,8 +75,8 @@ fromHaskExp topExp = case topExp of
     fromNegApp loc a = Fix $ UnOpE loc Neg a
 
     fromOp = \case
-      H.QVarOp loc qname -> fromQName qname
-      other              -> parseFailedBy "Failed to parse infix application" other
+      H.QVarOp _ qname -> fromQName qname
+      other            -> parseFailedBy "Failed to parse infix application" other
 
     fromCase loc expr alts = Fix $ CaseOf loc expr alts
 
@@ -84,11 +84,11 @@ fromHaskExp topExp = case topExp of
     fromRecUpdate loc expr fields = Fix $ RecUpdate loc expr fields
 
     fromField = \case
-      H.FieldUpdate loc name exp -> liftA2 (,) (fromQName name) (rec exp)
-      _                          ->  parseFailedBy "Failed to parse field" topExp
+      H.FieldUpdate _ name exp -> liftA2 (,) (fromQName name) (rec exp)
+      _                        ->  parseFailedBy "Failed to parse field" topExp
 
     fromCaseAlt :: H.Alt Loc -> ParseResult (CaseExpr Lang)
-    fromCaseAlt (H.Alt loc pat rhs mBinds)
+    fromCaseAlt (H.Alt _ pat rhs mBinds)
       | noBinds mBinds = liftA2 CaseExpr (fromPat pat) (fromRhs rhs)
       | otherwise      = bindsNotSupported
       where
@@ -140,8 +140,8 @@ toDecl x = case x of
         (liftA2 (toAlt []) (fromRhs rhs) (mapM (fromBinds m) mBinds))
 
     fromMatch = \case
-      m@(H.Match loc name pats rhs mBinds) -> fmap (toName name, ) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
-      other                                -> parseFailedBy "Failed to parse function bind" other
+      m@(H.Match _ name pats rhs mBinds) -> fmap (toName name, ) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
+      other                              -> parseFailedBy "Failed to parse function bind" other
 
     toAlt pats rhs mBinds = pure $ Alt pats rhs mBinds
 
@@ -158,10 +158,10 @@ toDecl x = case x of
           _                  -> parseFailedBy "Not supported type of statement in guard" topExpr
 
     getPatName = \case
-      H.PVar loc name -> return $ toName name
-      other           -> parseFailedBy "Failed to parse synonym name" other
+      H.PVar _ name -> return $ toName name
+      other         -> parseFailedBy "Failed to parse synonym name" other
 
-    fromDataDecl loc dataOrNew mCtx declHead cons mDeriving =
+    fromDataDecl _ dataOrNew mCtx declHead cons mDeriving =
       case dataOrNew of
         H.DataType _ -> case mDeriving of
           [] -> case mCtx of
@@ -177,8 +177,8 @@ toDecl x = case x of
         (getCases cons)
       where
         getName = \case
-          H.DHead loc name -> return $ toName name
-          H.DHInfix loc _ _ -> parseFailedBy "Infix data declarations are not allowed" x
+          H.DHead _ name -> return $ toName name
+          H.DHInfix _ _ _ -> parseFailedBy "Infix data declarations are not allowed" x
           H.DHParen _ a -> getName a
           H.DHApp _ f _ -> getName f
 
@@ -201,15 +201,15 @@ toDecl x = case x of
           H.RecDecl loc name args -> fromRecDecl loc name args
           H.InfixConDecl _ _ _ _ -> parseFailedBy "Infix type declarations are not supported" x
 
-        fromConDecl loc name args =
+        fromConDecl _ name args =
           fmap (\tys -> (varToConsName $ toName name, ConsDef $ V.fromList tys)) $ mapM fromType args
 
-        fromRecDecl loc name args =
+        fromRecDecl _ name args =
           fmap (\fields -> (resName, RecordCons $ V.fromList $ concat fields)) $ mapM fromField args
           where
             resName = varToConsName $ toName name
 
-        fromField (H.FieldDecl loc names ty) = do
+        fromField (H.FieldDecl _ names ty) = do
           resTy <- fromType ty
           let resNames = fmap toName names
           return $ fmap (\name -> RecordField name resTy) resNames
@@ -257,12 +257,12 @@ toName = \case
 
 fromQName :: H.QName Loc -> ParseResult VarName
 fromQName = \case
-  H.UnQual loc name -> return $ toName name
-  other             -> parseFailedBy "Unexpected name" other
+  H.UnQual _ name -> return $ toName name
+  other           -> parseFailedBy "Unexpected name" other
 
 fromQualType :: H.Type Loc -> ParseResult Signature
 fromQualType x = case x of
-  H.TyForall loc Nothing mContext ty -> err
+  H.TyForall _ Nothing _mContext _ty -> err
   ty -> fmap HM.typeToSignature $ fromType ty
   where
     err = parseFailedBy "Contexts are not allowed" x
@@ -276,17 +276,17 @@ fromType = \case
     (name, args) <- getTyApp loc a b
     v <- fromQName name
     fmap (HM.conT (varName'loc v) (varName'name v)) (mapM rec args)
-  H.TyVar loc name -> return $ (\VarName{..} -> HM.varT varName'loc varName'name) $ toName name
+  H.TyVar _   name -> return $ (\VarName{..} -> HM.varT varName'loc varName'name) $ toName name
   H.TyCon loc name -> fmap (\v -> HM.conT loc (varName'name v) []) $ fromQName name
-  H.TyParen loc ty -> rec ty
-  H.TyKind _ ty _ -> rec ty
+  H.TyParen _ ty   -> rec ty
+  H.TyKind  _ ty _ -> rec ty
   other -> parseFailedBy  "Failed to parse type for" other
   where
     rec = fromType
 
     fromTyTuple loc ts = HM.tupleT loc ts
 
-    getTyApp loc a b = go a [b]
+    getTyApp _ a b = go a [b]
       where
         go a res = case a of
           H.TyApp _ a1 b1 -> go a1 (b1 : res)
@@ -296,17 +296,17 @@ fromType = \case
 
 fromLit :: H.Literal Loc -> ParseResult Prim
 fromLit x = case x of
-  H.String loc val _     -> return $ PrimString (fromString val)
-  H.Int loc val _        -> return $ PrimInt (fromInteger val)
-  H.PrimInt loc val _    -> return $ PrimInt (fromInteger val)
-  H.PrimString loc val _ -> return $ PrimString (fromString val)
+  H.String     _ val _ -> return $ PrimString (fromString val)
+  H.Int        _ val _ -> return $ PrimInt (fromInteger val)
+  H.PrimInt    _ val _ -> return $ PrimInt (fromInteger val)
+  H.PrimString _ val _ -> return $ PrimString (fromString val)
   -- TODO FIXME: untyped literal numbers inconsistency.
   -- Here when we parse we also assign the type, but type is undefined here
   -- it can be any number. Not only double
-  H.PrimFloat loc val _  -> floatsNotSupported
-  H.PrimDouble loc val _ -> floatsNotSupported
-  H.Frac loc val _       -> floatsNotSupported
-  other                  -> parseFailedBy "Failed to parse literal" other
+  H.PrimFloat{}        -> floatsNotSupported
+  H.PrimDouble{}       -> floatsNotSupported
+  H.Frac{}             -> floatsNotSupported
+  other                -> parseFailedBy "Failed to parse literal" other
   where
     floatsNotSupported = parseFailedBy "floatsNotSupported" x
 
