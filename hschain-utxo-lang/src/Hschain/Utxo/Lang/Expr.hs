@@ -12,9 +12,7 @@ import Codec.Serialise
 import Data.Aeson
 
 import Data.Fix
-import Data.Fixed
 import Data.Function (on)
-import Data.Functor.Classes
 import Data.Foldable
 import Data.Graph
 import Data.Int

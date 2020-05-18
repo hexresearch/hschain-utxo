@@ -13,17 +13,12 @@ module Hschain.Utxo.Lang.Parser.Hask(
   , prettyModule
 ) where
 
-import Control.Applicative
 import Control.Monad
-
-import Data.Fix
 
 import Language.Haskell.Exts.SrcLoc (
     SrcLoc(..))
-
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
-
 import Language.Haskell.Exts.Pretty
 
 import Hschain.Utxo.Lang.Desugar
@@ -33,7 +28,6 @@ import Hschain.Utxo.Lang.Parser.Hask.FromHask
 import Hschain.Utxo.Lang.Parser.Hask.ToHask
 import Hschain.Utxo.Lang.Parser.Hask.Utils
 
-import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Parser as H
 
 -- | Parse expression.

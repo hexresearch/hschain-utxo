@@ -10,7 +10,6 @@ import qualified Data.Text as Text
 
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
-import qualified Language.Haskell.Exts.Parser as H
 import qualified Language.Haskell.Exts.Pretty as H
 
 parseFailed :: Loc -> String -> ParseResult a

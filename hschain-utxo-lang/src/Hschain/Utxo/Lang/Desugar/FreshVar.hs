@@ -10,7 +10,6 @@ module Hschain.Utxo.Lang.Desugar.FreshVar(
 
 import Control.Monad.State.Strict
 import Control.Monad.Except
-import Control.Monad.Trans
 
 import Data.String
 import Data.Text (Text)

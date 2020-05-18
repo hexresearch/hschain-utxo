@@ -24,15 +24,11 @@ import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Codec.Serialise as CBOR
-import qualified Codec.Serialise.Decoding as CBOR
-import Data.Bits
 import Data.Foldable
-import Data.List (find)
 import Data.Maybe
 import Data.Monoid (All(..))
 import Data.Sequence (Seq)
 import Data.Text (Text)
-import Crypto.Error
 import GHC.Generics (Generic)
 
 import qualified Data.Sequence as Seq

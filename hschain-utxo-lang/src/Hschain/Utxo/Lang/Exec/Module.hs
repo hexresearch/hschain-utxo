@@ -20,7 +20,6 @@ import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Monad
 
 import qualified Language.HM as H
-import qualified Data.List.Extra as L
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V

@@ -6,33 +6,23 @@ module Hschain.Utxo.Lang.Parser.Hask.Dependencies(
   , toBindGroup
 ) where
 
-import Hex.Common.Control
 
 import Control.Monad
 
-import Data.Foldable
 
-import Data.Fix
 import Data.Function (on)
 import Data.Map.Strict (Map)
 import Data.Maybe
-import Data.Set (Set)
-import Data.Text (Text)
 
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
 
-import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Parser.Hask.Utils
 
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.List as L
-import qualified Data.Vector as V
-import qualified Language.HM as H
 
 type TypeMap  = Map VarName Signature
 type FunMap   = Map VarName [Alt Lang]
