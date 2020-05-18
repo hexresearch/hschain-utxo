@@ -49,8 +49,14 @@ data Ed25519
 
 instance EC Ed25519 where
   newtype ECPoint   Ed25519 = ECPoint25519  Ed.Point
+    deriving stock   (Show,Eq,Generic)
+    deriving newtype (NFData)
   newtype ECScalar  Ed25519 = ECScalar25519 Ed.Scalar
+    deriving stock   (Show,Eq,Generic)
+    deriving newtype (NFData)
   newtype Challenge Ed25519 = ChallengeEd25519 BS.ByteString
+    deriving stock   (Show,Eq,Ord,Generic)
+    deriving newtype (NFData)
   generateChallenge = ChallengeEd25519 <$> RND.getRandomBytes 31
   randomOracle
     = ChallengeEd25519
@@ -76,31 +82,11 @@ instance EC Ed25519 where
   (.*^)   = coerce Ed.pointMul
   negateP = coerce Ed.pointNegate
 
-instance Ord Ed.Point where
-  compare = compare `on` (Ed.pointEncode :: Ed.Point -> BS.ByteString)
 
-instance Ord Ed.Scalar where
-  compare = compare `on` (Ed.scalarEncode :: Ed.Scalar -> BS.ByteString)
-
-deriving instance Show (ECPoint   Ed25519)
-deriving instance Show (ECScalar  Ed25519)
-deriving instance Show (Challenge Ed25519)
-
-deriving instance Eq   (ECPoint   Ed25519)
-deriving instance Eq   (ECScalar  Ed25519)
-deriving instance Eq   (Challenge Ed25519)
-
-deriving instance Ord  (ECPoint   Ed25519)
-deriving instance Ord  (ECScalar  Ed25519)
-deriving instance Ord  (Challenge Ed25519)
-
-deriving newtype instance NFData  (ECPoint Ed25519)
-deriving newtype instance NFData  (ECScalar Ed25519)
-deriving newtype instance NFData  (Challenge Ed25519)
-
-deriving stock   instance Generic (ECScalar Ed25519)
-deriving stock   instance Generic (ECPoint Ed25519)
-deriving stock   instance Generic (Challenge Ed25519)
+instance Ord (ECPoint   Ed25519) where
+  compare = coerce (compare `on` (Ed.pointEncode :: Ed.Point -> BS.ByteString))
+instance Ord (ECScalar  Ed25519) where
+  compare = coerce (compare `on` (Ed.scalarEncode :: Ed.Scalar -> BS.ByteString))
 
 
 instance CBOR.Serialise (ECPoint Ed25519) where
