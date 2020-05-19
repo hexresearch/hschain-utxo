@@ -1,8 +1,24 @@
 -- | Defines G-code set of instructions for G-machine
 module Hschain.Utxo.Lang.Core.Gcode(
-  Gcode(..)
+    Name
+  , Gcode(..)
 ) where
 
+import Data.Text (Text)
+
+type Name = Text
+
+data Gcode
+  = Unwind
+  | Pushglobal !Name
+  | Pushint !Int
+  | Push !Int
+  | Mkap
+  | Slide !Int
+  deriving (Show, Eq)
+
+
+{-
 data Gcode f v
   = Begin
   -- ^ Begin of the program
@@ -38,4 +54,4 @@ data Gcode f v
   -- ^ push combinator name on top of the stack
 
   deriving (Show, Eq)
-
+-}

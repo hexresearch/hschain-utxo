@@ -19,6 +19,11 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
+      Hschain.Utxo.Lang.Core.Data.Code
+      Hschain.Utxo.Lang.Core.Data.Heap
+      Hschain.Utxo.Lang.Core.Data.Stack
+      Hschain.Utxo.Lang.Core.Data.Utils
+      Hschain.Utxo.Lang.Core.Eval
       Hschain.Utxo.Lang.Core.Gcode
       Hschain.Utxo.Lang.Core.Gmachine
       Hschain.Utxo.Lang.Core.Scomb
