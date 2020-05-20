@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Core.Data.Heap(
   , lookup
   -- * Globals
   , Globals
+  , initGlobals
   , lookupGlobal
 ) where
 
@@ -33,6 +34,9 @@ newtype Globals = Globals (Map Name Addr)
 -- | Lookup the address of the global definition
 lookupGlobal :: Name -> Globals -> Maybe Addr
 lookupGlobal name (Globals m) = M.lookup name m
+
+initGlobals :: [(Name, Addr)] -> Globals
+initGlobals = Globals . M.fromList
 
 data Node
   = NodeInt !Int         -- ^ constant integer
