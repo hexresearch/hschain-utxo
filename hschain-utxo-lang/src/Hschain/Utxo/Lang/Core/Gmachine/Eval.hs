@@ -3,6 +3,8 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval(
   eval
 ) where
 
+import Debug.Trace
+
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..))
@@ -19,8 +21,8 @@ import qualified Hschain.Utxo.Lang.Core.Data.Stat  as Stat
 
 -- | Evaluates code for Gmachine and returns the final state
 -- and possible errors. If there are no errors then code was successfully executed.
-eval :: Code -> Globals -> Either Error Gmachine
-eval code globals = runExec loop code globals
+eval :: Gmachine -> Either Error Gmachine
+eval = runExec loop
   where
     loop = fix $ \rec -> do
       mCode <- getNextInstr
@@ -40,18 +42,24 @@ dispatch = \case
   PushInt n    -> pushInt n
   Push n       -> push n
   Mkap         -> mkap
-  Slide n      -> slide n
   Unwind       -> unwind
+  Update n     -> update n
+  Pop n        -> pop n
 
 pushGlobal :: Name -> Exec ()
 pushGlobal name = do
-  addr <- fromError (NotFound name) $ fmap (Heap.lookupGlobal name) getGlobals
+  addr <- fromError (NotFound name) $ fmap (Heap.lookupGlobalScomb name) getGlobals
   putAddr addr
 
 pushInt :: Int -> Exec ()
 pushInt num = do
-  addr <- alloc (NodeInt num)
-  putAddr addr
+  mAddr <- fmap (Heap.lookupGlobalConst num) getGlobals
+  putAddr =<< maybe onMissing pure mAddr
+  where
+    onMissing = do
+      addr <- alloc (NodeInt num)
+      modifyGlobals $ Heap.insertGlobalConst num addr
+      return addr
 
 mkap :: Exec ()
 mkap = do
@@ -79,10 +87,13 @@ unwind = do
   where
     newState = \case
       NodeInt n -> pure ()
-      Ap a1 _   -> do
-        putAddr a1
-        modifyCode (Code.singleton Unwind <>)
+      Ap a1 _   -> onAp a1
       Fun size code -> onFun size code
+      NodeInd addr -> onInd addr
+
+    onAp addr = do
+      putAddr addr
+      modifyCode (Code.singleton Unwind <>)
 
     onFun size code = do
       stackSize <- getStackSize
@@ -90,6 +101,21 @@ unwind = do
         then stackIsEmpty
         else modifyCode (code <> )
 
+    -- | Substitute top of the stack with indirection address
+    onInd a = do
+      _ <- popAddr
+      putAddr a
+      modifyCode (Code.singleton Unwind <> )
+
+
+update :: Int -> Exec ()
+update n = do
+  topAddr <- popAddr
+  nAddr <- lookupAddr n
+  modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
+
+pop :: Int -> Exec ()
+pop n = modifyStack $ Stack.drop n
 
 -------------------------------------------------------------
 -- state update proxies for G-machine units

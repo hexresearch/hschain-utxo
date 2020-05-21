@@ -5,13 +5,14 @@ module Hschain.Utxo.Lang.Core.Data.Stack(
   , pop
   , peek
   , lookup
+  , drop
   , slide
   , length
 ) where
 
-import Prelude hiding (lookup, length)
+import Prelude hiding (lookup, length, drop)
 
-import Data.Sequence hiding (lookup, length)
+import Data.Sequence hiding (lookup, length, drop)
 
 import Hschain.Utxo.Lang.Core.Data.Utils
 
@@ -19,7 +20,7 @@ import qualified Data.Sequence as S
 
 -- | Current stack of the G-machine
 newtype Stack = Stack { unStack :: Seq Addr }
-  deriving newtype (Semigroup, Monoid)
+  deriving newtype (Semigroup, Monoid, Show, Eq)
 
 -- | Put address on top of the stack
 put :: Addr -> Stack -> Stack
@@ -32,6 +33,11 @@ pop (Stack seq) =
     EmptyL  -> (Nothing, Stack seq)
     a :< as -> (Just a, Stack as)
 
+-- | Drops Nth elements from top of the stack
+drop :: Int -> Stack -> Stack
+drop n (Stack seq) = Stack $ S.drop n seq
+
+-- | Reads top element of tthe stack and keeps it on the stack.
 peek :: Stack -> Maybe Addr
 peek (Stack seq) =
   case viewl seq of

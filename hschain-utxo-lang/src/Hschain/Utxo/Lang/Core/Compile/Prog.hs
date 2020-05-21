@@ -80,7 +80,9 @@ compileSc Scomb{..} = CompiledScomb
 
 compileR :: Expr -> Env -> Code
 compileR expr env =
-  compileC expr env <> Code.fromList [Slide (getArity env + 1), Unwind]
+  compileC expr env <> Code.fromList [Update arity, Pop arity, Unwind]
+  where
+    arity = getArity env
 
 compileC :: Expr -> Env -> Code
 compileC expr env = case expr of

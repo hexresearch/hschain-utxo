@@ -5,10 +5,13 @@ module Hschain.Utxo.Lang.Core.Data.Heap(
   , empty
   , alloc
   , lookup
+  , insertNode
   -- * Globals
   , Globals
   , initGlobals
-  , lookupGlobal
+  , lookupGlobalScomb
+  , lookupGlobalConst
+  , insertGlobalConst
 ) where
 
 import Prelude hiding (lookup)
@@ -26,24 +29,36 @@ import qualified Data.Map.Strict as M
 data Heap = Heap
   { heap'values    :: IntMap Node   -- ^ Values stored on the heap
   , heap'freshAddr :: Addr          -- ^ fresh addresses counter
-  }
+  } deriving (Show, Eq)
 
 -- | Memory to store global definitions
-newtype Globals = Globals (Map Name Addr)
+data Globals = Globals
+  { globals'scombs :: Map Name Addr
+  , globals'consts :: Map Int  Addr
+  } deriving (Show, Eq)
 
 -- | Lookup the address of the global definition
-lookupGlobal :: Name -> Globals -> Maybe Addr
-lookupGlobal name (Globals m) = M.lookup name m
+lookupGlobalScomb :: Name -> Globals -> Maybe Addr
+lookupGlobalScomb name gs = M.lookup name (globals'scombs gs)
+
+lookupGlobalConst :: Int -> Globals -> Maybe Addr
+lookupGlobalConst name gs = M.lookup name (globals'consts gs)
+
+insertGlobalConst :: Int -> Addr -> Globals -> Globals
+insertGlobalConst val addr gs =
+  gs { globals'consts = M.insert val addr $ globals'consts gs }
 
 initGlobals :: [(Name, Addr)] -> Globals
-initGlobals = Globals . M.fromList
+initGlobals = (\combs -> Globals combs M.empty) . M.fromList
 
 data Node
   = NodeInt !Int         -- ^ constant integer
   | NodeCons !Addr !Addr -- ^ cons-constructor
+  | NodeInd !Addr        -- ^ indirection node
   | Ap !Addr !Addr       -- ^ application
   | Fun !Int !Code       -- ^ supercombinator with k-arguments and code instructions
   | Hole                 -- ^ placeholder node to be filled
+  deriving (Show, Eq)
 
 -- | Create empty heap
 empty :: Heap
@@ -65,5 +80,9 @@ insertNode addr node heap = heap
   { heap'values = IM.insert addr node $ heap'values heap }
 
 getFreshAddr :: Heap -> (Addr, Heap)
-getFreshAddr = undefined
+getFreshAddr h = (freshAddr, heap')
+  where
+    freshAddr = heap'freshAddr h
+    heap' = h { heap'freshAddr = freshAddr + 1 }
+
 

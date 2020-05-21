@@ -24,11 +24,20 @@ newtype Code = Code { unCode :: Seq Instr }
 -- | Instructions for G-machine
 data Instr
   = Unwind
+  -- ^ finish the execution of the combinator body
   | PushGlobal !Name
+  -- ^ save the global name of supercombinator
   | PushInt !Int
+  -- ^ save the constant int
   | Push !Int
+  -- ^ push address on stack
   | Mkap
-  | Slide !Int
+  -- ^ make application, removes two top elements from stack
+  -- creates application on heap, and puts address of the result on stack
+  | Update !Int
+  -- ^ overwrite (N+1)'th element of the stack with indirection node on top of the stack
+  | Pop !Int
+  -- ^ pop N elements from top of the stack
   deriving (Show, Eq)
 
 -- | Initial code for start of the program
