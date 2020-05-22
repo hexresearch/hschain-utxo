@@ -37,6 +37,7 @@ data Expr
   = EVar !Name
   | ENum !Int
   | EAp  Expr Expr
+  | ELet [(Name, Expr)] Expr
   deriving (Show, Eq)
 
 -- | Compiled supercombinator
@@ -91,4 +92,24 @@ compileC expr env = case expr of
                Nothing -> PushGlobal v
   ENum n  -> Code.singleton $ PushInt n
   EAp a b -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
+  ELet es e -> compileLet env es e
+
+compileLet :: Env -> [(Name, Expr)] -> Expr -> Code
+compileLet env defs e =
+  lets <> compileC e env' <> Code.singleton (Slide $ length defs)
+  where
+    lets = snd $ foldr (\(name, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
+
+    env' = compileArgs defs env
+
+compileArgs :: [(Name, Expr)] -> Env -> Env
+compileArgs defs env =
+  L.foldl' (\e x -> uncurry insertEnv x e) env' $ zip (fmap fst defs) [n - 1, n - 2 .. 0]
+  where
+    n = length defs
+    env' = argOffset n env
+
+
+
+
 

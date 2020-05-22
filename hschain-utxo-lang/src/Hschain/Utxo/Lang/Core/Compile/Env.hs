@@ -6,6 +6,7 @@ module Hschain.Utxo.Lang.Core.Compile.Env(
   , lookupEnv
   , argOffset
   , getArity
+  , insertEnv
 ) where
 
 import Data.Map.Strict (Map)
@@ -45,4 +46,8 @@ argOffset n env =
 -- | Get arity of the arg-list.
 getArity :: Env -> Int
 getArity = env'arity
+
+insertEnv :: Name -> Int -> Env -> Env
+insertEnv name n e =
+  e { env'offsets = M.insert name n $ env'offsets e }
 

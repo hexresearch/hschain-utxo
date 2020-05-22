@@ -28,6 +28,7 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
   , stateStack
   , modifyStack
   , getStack
+  , putStack
   -- * Re-exports
   , module X
 ) where

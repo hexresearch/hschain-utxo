@@ -13,6 +13,8 @@ import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Utils
 
+import qualified Data.Sequence as Seq
+
 import qualified Hschain.Utxo.Lang.Core.Data.Code  as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap  as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Stack as Stack
@@ -45,6 +47,8 @@ dispatch = \case
   Unwind       -> unwind
   Update n     -> update n
   Pop n        -> pop n
+  Slide n      -> slide n
+  Alloc n      -> allocEmptyNodes n
 
 pushGlobal :: Name -> Exec ()
 pushGlobal name = do
@@ -69,12 +73,8 @@ mkap = do
   putAddr res
 
 push :: Int -> Exec ()
-push n = do
-  addr <- lookupAddr (n + 1)
-  node <- lookupHeap addr
-  case node of
-    Ap _ appAddr -> putAddr appAddr
-    _            -> badType
+push n =
+  putAddr =<< lookupAddr n
 
 slide :: Int -> Exec ()
 slide n = modifyStack (Stack.slide n)
@@ -96,10 +96,22 @@ unwind = do
       modifyCode (Code.singleton Unwind <>)
 
     onFun size code = do
-      stackSize <- getStackSize
-      if stackSize < size
-        then stackIsEmpty
-        else modifyCode (code <> )
+      len <- getStackSize
+      if (len > size)
+        then do
+          heap  <- getHeap
+          stack <- getStack
+          maybe stackIsEmpty putStack $ Stack.rearrange size heap stack
+          modifyCode (code <>)
+        else
+          stackIsEmpty
+
+
+    readNodeArg addr = do
+      node <- lookupHeap addr
+      case node of
+        Ap _ argAddr -> return argAddr
+        _            -> badType
 
     -- | Substitute top of the stack with indirection address
     onInd a = do
@@ -116,6 +128,13 @@ update n = do
 
 pop :: Int -> Exec ()
 pop n = modifyStack $ Stack.drop n
+
+allocEmptyNodes :: Int -> Exec ()
+allocEmptyNodes n = do
+  as <- mapM (const $ alloc emptyNode) $ Seq.fromList [1 .. n]
+  modifyStack $ Stack.appendSeq as
+  where
+    emptyNode = NodeInd (-1)
 
 -------------------------------------------------------------
 -- state update proxies for G-machine units

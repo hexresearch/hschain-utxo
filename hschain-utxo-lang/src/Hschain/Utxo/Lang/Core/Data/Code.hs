@@ -38,6 +38,10 @@ data Instr
   -- ^ overwrite (N+1)'th element of the stack with indirection node on top of the stack
   | Pop !Int
   -- ^ pop N elements from top of the stack
+  | Slide !Int
+  -- ^ removes N elements after the top element
+  | Alloc !Int
+  -- ^ Allocates N place-holder nodes on the heap
   deriving (Show, Eq)
 
 -- | Initial code for start of the program

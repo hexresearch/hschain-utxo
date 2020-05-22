@@ -6,6 +6,7 @@ module Hschain.Utxo.Lang.Core.Data.Heap(
   , alloc
   , lookup
   , insertNode
+  , getNodeApArg
   -- * Globals
   , Globals
   , initGlobals
@@ -59,6 +60,12 @@ data Node
   | Fun !Int !Code       -- ^ supercombinator with k-arguments and code instructions
   | Hole                 -- ^ placeholder node to be filled
   deriving (Show, Eq)
+
+-- | Reads argument of application from the node
+getNodeApArg :: Node -> Maybe Addr
+getNodeApArg = \case
+  Ap _ a -> Just a
+  _      -> Nothing
 
 -- | Create empty heap
 empty :: Heap

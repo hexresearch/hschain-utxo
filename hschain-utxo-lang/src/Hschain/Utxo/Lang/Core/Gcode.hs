@@ -14,9 +14,9 @@ data Gcode
   | Pushint !Int
   | Push !Int
   | Mkap
+  | Alloc !Int
   | Slide !Int
   deriving (Show, Eq)
-
 
 {-
 data Gcode f v

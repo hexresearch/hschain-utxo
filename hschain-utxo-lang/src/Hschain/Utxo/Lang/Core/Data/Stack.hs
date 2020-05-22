@@ -4,19 +4,29 @@ module Hschain.Utxo.Lang.Core.Data.Stack(
   , put
   , pop
   , peek
+  , popN
+  , peekN
   , lookup
   , drop
   , slide
   , length
+  , appendSeq
+  , rearrange
 ) where
 
 import Prelude hiding (lookup, length, drop)
 
+import Control.Monad
+
+import Data.Foldable (toList)
 import Data.Sequence hiding (lookup, length, drop)
 
+import Hschain.Utxo.Lang.Core.Data.Heap (Heap)
 import Hschain.Utxo.Lang.Core.Data.Utils
 
 import qualified Data.Sequence as S
+
+import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 
 -- | Current stack of the G-machine
 newtype Stack = Stack { unStack :: Seq Addr }
@@ -37,12 +47,25 @@ pop (Stack seq) =
 drop :: Int -> Stack -> Stack
 drop n (Stack seq) = Stack $ S.drop n seq
 
+-- | Pop N elements from the stack.
+popN :: Int -> Stack -> (Seq Addr, Stack)
+popN n (Stack seq) = (S.take n seq, Stack $ S.drop n seq)
+
 -- | Reads top element of tthe stack and keeps it on the stack.
 peek :: Stack -> Maybe Addr
 peek (Stack seq) =
   case viewl seq of
     EmptyL -> Nothing
     a :< _ -> Just a
+
+-- | Peek N elements from the stack.
+peekN :: Int -> Stack -> (Seq Addr, Stack)
+peekN n (Stack seq) = (S.take n seq, Stack seq)
+
+-- | Appends sequence of elements to top of the stack
+-- The first element of the sequence becomes top element of the stack.
+appendSeq :: Seq Addr -> Stack -> Stack
+appendSeq seq (Stack st) = Stack (seq <> st)
 
 -- | Lookup Nth element of the stack
 lookup :: Int -> Stack -> Maybe Addr
@@ -64,5 +87,22 @@ slide n st = case mTop of
 -- | Get the size of the stack.
 length :: Stack -> Int
 length (Stack seq) = S.length seq
+
+
+rearrange :: Int -> Heap -> Stack -> Maybe Stack
+rearrange n heap (Stack seq) = fmap (\as -> Stack $ S.take n as <> S.drop n seq) mAs
+  where
+    mAs = mapM (Heap.getNodeApArg <=< (\addr -> Heap.lookup addr heap)) =<< tailM seq
+
+tailM :: Seq a -> Maybe (Seq a)
+tailM x = case viewl x of
+  EmptyL   -> Nothing
+  _ :< res -> Just res
+
+
+
+
+
+
 
 
