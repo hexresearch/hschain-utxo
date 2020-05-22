@@ -1,6 +1,7 @@
 -- | Programms to test G-machine evaluation
 module Gmachine where
 
+import Data.Either
 import Data.String
 import Data.Text (Text)
 
@@ -30,6 +31,10 @@ instance IsString Expr where
 
 main =
   pPrint $ eval $ compile prog2
+
+testAll = all (isRight . eval . compile)
+  [ prog1, prog2, prog3, prog4, prog5, prog6
+  , prog7, prog8, prog9, prog10, prog11, prog12 ]
 
 -- Prelude functions
 --
