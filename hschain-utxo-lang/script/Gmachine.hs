@@ -153,6 +153,39 @@ prog10 = [main, fac]
     fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" (ENum 0)) (ENum 1) (ap2 "*" "n" (EAp "fac" (ap2 "-" "n" (ENum 1)))) )
     main = scomb "main" [] (EAp "fac" (ENum 10))
 
+-- > gcd a b = if (a == b)
+-- >              a
+-- >              if (a < b)
+-- >                 (gcd b a) (gcd b (a - b))
+-- >
+-- > main = gcd 6 10
+prog11 = [main, gcd]
+  where
+    gcd  = scomb "gcd"  ["a", "b"] (ap3 "if"
+                                          (ap2 "==" "a" "b")
+                                          "a"
+                                          (ap3 "if"
+                                                (ap2 "<" "a" "b")
+                                                (ap2 "gcd" "b" "a")
+                                                (ap2 "gcd" "b" (ap2 "-" "a" "b")) ))
+    main = scomb "main" [] (ap2 "gcd" (ENum 6) (ENum 10))
+
+-- | Fibonacci numbers
+--
+-- > nfib n = if (n <= 0) 1 (1 + nfib (n - 1) + nfib (n - 2))
+-- > main = nfib 4
+prog12 = [main, nfib]
+  where
+    nfib = scomb "nfib" ["n"] (ap3 "if"
+                                   (ap2 "<=" "n" (ENum 0))
+                                   (ENum 1)
+                                   (ap2 "+"
+                                         (ENum 1)
+                                         (ap2 "+"
+                                               (EAp "nfib" (ap2 "-" "n" (ENum 1)))
+                                               (EAp "nfib" (ap2 "-" "n" (ENum 2)))  )))
+    main = scomb "main" [] (EAp "nfib" (ENum 5))
+
 -- | Infinite term programm. Evaluation does not terminate.
 --
 -- F x = x x x
