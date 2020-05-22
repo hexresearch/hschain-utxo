@@ -16,6 +16,7 @@ import Hschain.Utxo.Lang.Core.Data.Utils
 import qualified Data.Sequence as Seq
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code  as Code
+import qualified Hschain.Utxo.Lang.Core.Data.Dump  as Dump
 import qualified Hschain.Utxo.Lang.Core.Data.Heap  as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Stack as Stack
 import qualified Hschain.Utxo.Lang.Core.Data.Stat  as Stat
@@ -49,6 +50,19 @@ dispatch = \case
   Pop n        -> pop n
   Slide n      -> slide n
   Alloc n      -> allocEmptyNodes n
+  Eval         -> evalExpr
+  Add          -> binNumOp (+)
+  Sub          -> binNumOp (\a b -> a - b)
+  Mul          -> binNumOp (*)
+  Div          -> binNumOp div
+  Neg          -> negOp
+  Eq           -> condOp (==)
+  Ne           -> condOp (/=)
+  Lt           -> condOp (<)
+  Le           -> condOp (<=)
+  Gt           -> condOp (>)
+  Ge           -> condOp (>=)
+  Cond c1 c2   -> cond c1 c2
 
 pushGlobal :: Name -> Exec ()
 pushGlobal name = do
@@ -83,13 +97,19 @@ unwind :: Exec ()
 unwind = do
   addr <- peekAddr
   node <- lookupHeap addr
-  newState node
+  newState addr node
   where
-    newState = \case
-      NodeInt n -> pure ()
+    newState addr = \case
+      NodeInt n -> onNum addr
       Ap a1 _   -> onAp a1
       Fun size code -> onFun size code
       NodeInd addr -> onInd addr
+
+    onNum topAddr = do
+      (code, stack) <- popDump
+      putStack stack
+      putAddr topAddr
+      putCode code
 
     onAp addr = do
       putAddr addr
@@ -135,6 +155,58 @@ allocEmptyNodes n = do
   modifyStack $ Stack.appendSeq as
   where
     emptyNode = NodeInd (-1)
+
+evalExpr :: Exec ()
+evalExpr = do
+  topAddr <- popAddr
+  code  <- getCode
+  stack <- getStack
+  insertDump code stack
+  putCode  $ Code.singleton Unwind
+  putStack $ Stack.singleton topAddr
+
+-- numbers
+
+binNumOp :: (Int -> Int -> Int) -> Exec ()
+binNumOp = primOp2 unboxInt unboxInt boxInt
+
+negOp :: Exec ()
+negOp = primOp1 unboxInt boxInt negate
+
+condOp :: (Int -> Int -> Bool) -> Exec ()
+condOp op = binNumOp (\a b -> boolToInt $ op a b)
+  where
+    boolToInt = \case
+      True  -> 1
+      False -> 0
+
+unboxInt :: Exec Int
+unboxInt = getNum =<< lookupHeap =<< popAddr
+  where
+    getNum = \case
+      NodeInt n -> pure n
+      _         -> badType
+
+boxInt :: Int -> Exec ()
+boxInt n = do
+  addr <- alloc (NodeInt n)
+  putAddr addr
+
+primOp1 :: (Exec a) -> (b -> Exec ()) -> (a -> b) -> Exec ()
+primOp1 unbox box f =
+  box =<< fmap f unbox
+
+primOp2 :: (Exec a) -> (Exec b) -> (c -> Exec ()) -> (a -> b -> c) -> Exec ()
+primOp2 unboxA unboxB box f = do
+  a <- unboxA
+  b <- unboxB
+  box $ f a b
+
+cond :: Code -> Code -> Exec ()
+cond c1 c2 = do
+  n <- unboxInt
+  let code = if (n == 1) then c1 else c2
+  modifyCode (code <> )
 
 -------------------------------------------------------------
 -- state update proxies for G-machine units
@@ -194,4 +266,16 @@ alloc node = stateHeap (Heap.alloc node)
 lookupHeap :: Addr -> Exec Node
 lookupHeap addr = fromError (BadAddr addr) $
   fmap (Heap.lookup addr) getHeap
+
+-- dump
+
+popDump :: Exec (Code, Stack)
+popDump = do
+  dump <- getDump
+  let (mRes, dump') = Dump.pop dump
+  putDump dump'
+  maybe dumpIsEmpty pure mRes
+
+insertDump :: Code -> Stack -> Exec ()
+insertDump code stack = modifyDump $ Dump.put code stack
 

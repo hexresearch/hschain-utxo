@@ -53,6 +53,7 @@ compile prog = Gmachine
   , gmachine'stack   = mempty
   , gmachine'heap    = heap
   , gmachine'globals = globals
+  , gmachine'dump    = mempty
   , gmachine'stats   = Stat.empty
   }
   where
@@ -61,7 +62,7 @@ compile prog = Gmachine
 buildInitHeap :: CoreProg -> (Heap, Globals)
 buildInitHeap prog = (heap, Heap.initGlobals globalElems)
   where
-    compiled = fmap compileSc prog
+    compiled = compiledPrimitives ++ fmap compileSc prog
 
     (heap, globalElems) = L.foldl' allocateSc (Heap.empty, []) compiled
 
@@ -109,7 +110,44 @@ compileArgs defs env =
     n = length defs
     env' = argOffset n env
 
+compiledPrimitives :: [CompiledScomb]
+compiledPrimitives =
+  [ op2 "+" Add
+  , op2 "*" Mul
+  , op2 "-" Sub
+  , op2 "/" Div
+  , op1 "negate" Neg
+  , op2 "==" Eq
+  , op2 "/=" Ne
+  , op2 "<"  Lt
+  , op2 "<=" Le
+  , op2 ">"  Gt
+  , op2 ">=" Ge
+  , ifOp
+  ]
+  where
+    op2 name op = CompiledScomb
+      { compiledScomb'name  = name
+      , compiledScomb'arity = 2
+      , compiledScomb'code  = Code.fromList
+          [Push 1, Eval, Push 1, Eval, op, Update 2, Pop 2, Unwind]
+      }
 
+    op1 name op = CompiledScomb
+      { compiledScomb'name  = name
+      , compiledScomb'arity = 1
+      , compiledScomb'code  = Code.fromList
+          [Push 0, Eval, Neg, Update 1, Pop 1, Unwind]
+      }
+
+    ifOp = CompiledScomb
+      { compiledScomb'name  = "if"
+      , compiledScomb'arity = 3
+      , compiledScomb'code  = Code.fromList
+          [ Push 0, Eval
+          , Cond (Code.singleton (Push 1)) (Code.singleton (Push 2))
+          , Update 3, Pop 3, Unwind ]
+      }
 
 
 

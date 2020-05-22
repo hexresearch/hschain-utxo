@@ -10,6 +10,7 @@ module Hschain.Utxo.Lang.Core.Data.Stack(
   , drop
   , slide
   , length
+  , singleton
   , appendSeq
   , rearrange
 ) where
@@ -19,7 +20,7 @@ import Prelude hiding (lookup, length, drop)
 import Control.Monad
 
 import Data.Foldable (toList)
-import Data.Sequence hiding (lookup, length, drop)
+import Data.Sequence hiding (lookup, length, drop, singleton)
 
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap)
 import Hschain.Utxo.Lang.Core.Data.Utils
@@ -99,6 +100,9 @@ tailM x = case viewl x of
   EmptyL   -> Nothing
   _ :< res -> Just res
 
+-- | Create stack wich contains single value.
+singleton :: Addr -> Stack
+singleton a = Stack (S.singleton a)
 
 
 

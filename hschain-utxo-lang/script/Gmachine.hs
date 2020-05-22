@@ -105,6 +105,54 @@ prog5 = main : prelude
   where
     main = scomb "main" [] (ELet [("id1", ap2 "I" "I" "I")] (ap3 "id1" "id1" "id1" (ENum 3)))
 
+-- | Simple arithmetic
+--
+-- > main = 2 + 2
+prog6 :: CoreProg
+prog6 = [main]
+  where
+    main = scomb "main" [] (ap2 "+" (ENum 2) (ENum 2))
+
+
+-- | Simple arithmetic
+--
+-- > main = let x = 3 * (2 + 2) in x * x
+prog7 :: CoreProg
+prog7 = [main]
+  where
+    main = scomb "main" [] (ELet [("x", ap2 "*" (ENum 3) (ap2 "+" (ENum 2) (ENum 2)))] (ap2 "*" "x" "x"))
+
+prog8 :: CoreProg
+prog8 = [main, inc, twice] ++ prelude
+  where
+    inc = scomb "inc" ["x"] (ap2 "+" "x" (ENum 1))
+    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x"))
+    main = scomb "main" [] (ap3 "twice" "twice" "inc" (ENum 4))
+
+-- | Test for arithmetic. Length of the list
+--
+-- > length xs = xs length1 0
+-- > length1 x xs = 1 + (length xs)
+-- >
+-- > main = length (cons 3 (cons 3 (cons 3 nil)))
+prog9 :: CoreProg
+prog9 = [main, length', length1, cons, nil] ++ prelude
+  where
+    cons  = scomb "cons" ["a", "b", "cc", "cn"] (ap2 "cc" "a" "b")
+    nil   = scomb "nil"  ["cc", "cn"]           "cn"
+    length' = scomb "length" ["xs"] (ap2 "xs" "length1" (ENum 0))
+    length1 = scomb "length1" ["x", "xs"] (ap2 "+" (ENum 1) (EAp "length" "xs"))
+    main = scomb "main" [] (EAp "length" (ap2 "cons" (ENum 3) (ap2 "cons" (ENum 3) (ap2 "cons" (ENum 3) "nil"))))
+
+-- | With conditionals. Factorial
+--
+-- > fac n = if (n == 0) 1 (n * fac (n - 1))
+-- > main = fac 5
+prog10 = [main, fac]
+  where
+    fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" (ENum 0)) (ENum 1) (ap2 "*" "n" (EAp "fac" (ap2 "-" "n" (ENum 1)))) )
+    main = scomb "main" [] (EAp "fac" (ENum 10))
+
 -- | Infinite term programm. Evaluation does not terminate.
 --
 -- F x = x x x

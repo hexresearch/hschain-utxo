@@ -42,11 +42,19 @@ data Instr
   -- ^ removes N elements after the top element
   | Alloc !Int
   -- ^ Allocates N place-holder nodes on the heap
+  | Eval
+  -- ^ Evaluate the expression which is referenced from the top of the stack to WHNF
+  | Add | Sub | Mul | Div | Neg
+  -- ^ Arithmetic operations
+  | Eq | Ne | Lt | Le | Gt | Ge
+  -- ^ Comparison operations
+  | Cond !Code !Code
+  -- ^ low-level implementation of if
   deriving (Show, Eq)
 
 -- | Initial code for start of the program
 init :: Code
-init = Code $ S.fromList [PushGlobal "main", Unwind]
+init = Code $ S.fromList [PushGlobal "main", Eval]
 
 -- | reads next instruction from the code sequence
 -- and removes it from the sequence

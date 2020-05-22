@@ -9,6 +9,7 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
   , notFound
   , badType
   , badAddr
+  , dumpIsEmpty
   , fromError
   -- * State proxies
   -- ** Globals
@@ -29,6 +30,10 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
   , modifyStack
   , getStack
   , putStack
+  , modifyDump
+  -- ** Dump
+  , getDump
+  , putDump
   -- * Re-exports
   , module X
 ) where
@@ -37,12 +42,14 @@ import Control.Monad.State.Strict
 import Control.Monad.Except        as X
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..))
+import Hschain.Utxo.Lang.Core.Data.Dump (Dump)
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Node(..), Globals)
 import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Utils
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code  as Code
+import qualified Hschain.Utxo.Lang.Core.Data.Dump  as Dump
 import qualified Hschain.Utxo.Lang.Core.Data.Heap  as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Stack as Stack
 import qualified Hschain.Utxo.Lang.Core.Data.Stat  as Stat
@@ -54,6 +61,7 @@ data Gmachine = Gmachine
   , gmachine'stack   :: Stack      -- ^ current stack
   , gmachine'code    :: Code       -- ^ code to be executed
   , gmachine'globals :: Globals    -- ^ global definitions
+  , gmachine'dump    :: Dump
   , gmachine'stats   :: Stat       -- ^ statistics of execution
   } deriving (Show, Eq)
 
@@ -63,6 +71,7 @@ data Error
   | BadAddr Addr    -- ^ address is not defined on the heap
   | NotFound Name   -- ^ can not find global name
   | StackIsEmpty    -- ^ Need to read element from stack but it is empty
+  | DumpIsEmpty     -- ^ Attempt to read empty dump
   deriving (Show, Eq)
 
 badType :: Exec a
@@ -76,6 +85,9 @@ notFound name = throwError (NotFound name)
 
 stackIsEmpty :: Exec a
 stackIsEmpty = throwError StackIsEmpty
+
+dumpIsEmpty :: Exec a
+dumpIsEmpty = throwError DumpIsEmpty
 
 -- | Monad for execution of Gmachine code
 newtype Exec a = Exec { unExec :: StateT Gmachine (Except Error) a }
@@ -136,6 +148,18 @@ getStack = fmap gmachine'stack get
 
 putStack :: Stack -> Exec ()
 putStack stack = modify' $ \st -> st { gmachine'stack = stack }
+
+-- dump
+
+getDump :: Exec Dump
+getDump = fmap gmachine'dump get
+
+putDump :: Dump -> Exec ()
+putDump dump = modify' $ \st -> st { gmachine'dump = dump }
+
+modifyDump :: (Dump -> Dump) -> Exec ()
+modifyDump update = modify' $ \st -> st
+  { gmachine'dump = update $ gmachine'dump st }
 
 -- globals
 
