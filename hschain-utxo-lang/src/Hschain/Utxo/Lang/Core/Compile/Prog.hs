@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
   , compileSc
 ) where
 
+import Data.Map.Strict (Map)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Core.Gmachine
@@ -17,6 +18,7 @@ import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals, Node(..))
 import Hschain.Utxo.Lang.Core.Data.Utils
 
 import qualified Data.List       as L
+import qualified Data.Map.Strict as M
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
@@ -82,9 +84,33 @@ compileSc Scomb{..} = CompiledScomb
 
 compileR :: Expr -> Env -> Code
 compileR expr env =
-  compileC expr env <> Code.fromList [Update arity, Pop arity, Unwind]
+  compileE expr env <> Code.fromList endInstrs
   where
     arity = getArity env
+
+    endInstrs
+      | arity == 0 = [Update 0, Unwind]
+      | otherwise  = [Update arity, Pop arity, Unwind]
+
+compileE :: Expr -> Env -> Code
+compileE expr env = case expr of
+  ENum n -> Code.singleton $ PushInt n
+  ELet es e -> compileLet env es e
+  EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
+  EAp (EVar "negate") a             -> compileNegate a
+  EAp (EAp (EVar op) a) b                  -> compileDiadic op a b
+  _ -> defaultCase
+  where
+    compileDiadic op a b =
+      case M.lookup op builtInDiadic of
+        Just instr -> compileE b env <> compileE a (argOffset 1 env) <> Code.singleton instr
+        Nothing    -> defaultCase
+
+    compileIf a b c = compileE a env <> Code.singleton (Cond (compileE b env) (compileE c env))
+
+    compileNegate a = compileE a env <> Code.singleton Neg
+
+    defaultCase = compileC expr env <> Code.singleton Eval
 
 compileC :: Expr -> Env -> Code
 compileC expr env = case expr of
@@ -97,7 +123,7 @@ compileC expr env = case expr of
 
 compileLet :: Env -> [(Name, Expr)] -> Expr -> Code
 compileLet env defs e =
-  lets <> compileC e env' <> Code.singleton (Slide $ length defs)
+  lets <> compileE e env' <> Code.singleton (Slide $ length defs)
   where
     lets = snd $ foldr (\(name, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
 
@@ -148,6 +174,21 @@ compiledPrimitives =
           , Cond (Code.singleton (Push 1)) (Code.singleton (Push 2))
           , Update 3, Pop 3, Unwind ]
       }
+
+builtInDiadic :: Map Name Instr
+builtInDiadic = M.fromList
+  [ ("+", Add)
+  , ("*", Mul)
+  , ("-", Sub)
+  , ("/", Div)
+  , ("==", Eq)
+  , ("/=", Ne)
+  , ("<", Lt)
+  , ("<=", Le)
+  , (">", Gt)
+  , (">=", Ge)
+  ]
+
 
 
 

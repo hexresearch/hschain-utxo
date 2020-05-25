@@ -112,11 +112,11 @@ prog5 = main : prelude
 
 -- | Simple arithmetic
 --
--- > main = 2 + 2
+-- > main = 3 + 4 * 5
 prog6 :: CoreProg
 prog6 = [main]
   where
-    main = scomb "main" [] (ap2 "+" (ENum 2) (ENum 2))
+    main = scomb "main" [] (ap2 "+" (ENum 3) (ap2 "*" (ENum 4) (ENum 5)))
 
 
 -- | Simple arithmetic
@@ -152,7 +152,7 @@ prog9 = [main, length', length1, cons, nil] ++ prelude
 -- | With conditionals. Factorial
 --
 -- > fac n = if (n == 0) 1 (n * fac (n - 1))
--- > main = fac 5
+-- > main = fac 10
 prog10 = [main, fac]
   where
     fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" (ENum 0)) (ENum 1) (ap2 "*" "n" (EAp "fac" (ap2 "-" "n" (ENum 1)))) )
@@ -178,7 +178,7 @@ prog11 = [main, gcd]
 -- | Fibonacci numbers
 --
 -- > nfib n = if (n <= 0) 1 (1 + nfib (n - 1) + nfib (n - 2))
--- > main = nfib 4
+-- > main = nfib 5
 prog12 = [main, nfib]
   where
     nfib = scomb "nfib" ["n"] (ap3 "if"
@@ -200,5 +200,4 @@ badProg = [main, f]
   where
     f = scomb "F" ["x"] (ap2 "x" "x" "x")
     main = scomb "main" [] (EAp "F" "F")
-
 

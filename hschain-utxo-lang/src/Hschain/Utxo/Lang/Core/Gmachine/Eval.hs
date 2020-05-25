@@ -123,8 +123,13 @@ unwind = do
           stack <- getStack
           maybe stackIsEmpty putStack $ Stack.rearrange size heap stack
           modifyCode (code <>)
-        else
-          stackIsEmpty
+        else do
+          (code, stack) <- popDump
+          modifyStack $ Stack.drop (len - 1)
+          lastVal <- popAddr
+          putCode code
+          putStack stack
+          putAddr lastVal
 
 
     readNodeArg addr = do
