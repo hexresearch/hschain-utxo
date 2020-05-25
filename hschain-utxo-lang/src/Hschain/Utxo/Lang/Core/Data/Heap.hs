@@ -11,6 +11,7 @@ module Hschain.Utxo.Lang.Core.Data.Heap(
   , Globals
   , initGlobals
   , lookupGlobalScomb
+  , insertGlobalScomb
   , lookupGlobalConst
   , insertGlobalConst
 ) where
@@ -19,6 +20,7 @@ import Prelude hiding (lookup)
 
 import Data.IntMap (IntMap)
 import Data.Map.Strict (Map)
+import Data.Sequence (Seq)
 
 import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Data.Utils
@@ -34,13 +36,17 @@ data Heap = Heap
 
 -- | Memory to store global definitions
 data Globals = Globals
-  { globals'scombs :: Map Name Addr
-  , globals'consts :: Map Int  Addr
+  { globals'scombs :: Map GlobalName Addr
+  , globals'consts :: Map Int        Addr
   } deriving (Show, Eq)
 
 -- | Lookup the address of the global definition
-lookupGlobalScomb :: Name -> Globals -> Maybe Addr
+lookupGlobalScomb :: GlobalName -> Globals -> Maybe Addr
 lookupGlobalScomb name gs = M.lookup name (globals'scombs gs)
+
+insertGlobalScomb :: GlobalName -> Addr -> Globals -> Globals
+insertGlobalScomb name addr gs = gs
+  { globals'scombs = M.insert name addr $ globals'scombs gs }
 
 lookupGlobalConst :: Int -> Globals -> Maybe Addr
 lookupGlobalConst name gs = M.lookup name (globals'consts gs)
@@ -49,16 +55,15 @@ insertGlobalConst :: Int -> Addr -> Globals -> Globals
 insertGlobalConst val addr gs =
   gs { globals'consts = M.insert val addr $ globals'consts gs }
 
-initGlobals :: [(Name, Addr)] -> Globals
+initGlobals :: [(GlobalName, Addr)] -> Globals
 initGlobals = (\combs -> Globals combs M.empty) . M.fromList
 
 data Node
-  = NodeInt !Int         -- ^ constant integer
-  | NodeCons !Addr !Addr -- ^ cons-constructor
-  | NodeInd !Addr        -- ^ indirection node
-  | Ap !Addr !Addr       -- ^ application
-  | Fun !Int !Code       -- ^ supercombinator with k-arguments and code instructions
-  | Hole                 -- ^ placeholder node to be filled
+  = NodeInt !Int                -- ^ constant integer
+  | NodeInd !Addr               -- ^ indirection node
+  | NodeConstr !Int (Seq Addr)  -- ^ constructor (integer-tag, addresses to arguments)
+  | Ap !Addr !Addr              -- ^ application
+  | Fun !Int !Code              -- ^ supercombinator with k-arguments and code instructions
   deriving (Show, Eq)
 
 -- | Reads argument of application from the node

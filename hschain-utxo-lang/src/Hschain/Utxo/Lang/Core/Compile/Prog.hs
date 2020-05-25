@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Core.Compile.Prog(
     CoreProg
   , Scomb(..)
+  , CaseAlt(..)
   , Expr(..)
   , CompiledScomb(..)
   , compile
@@ -13,12 +14,13 @@ import Data.Vector (Vector)
 import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.Compile.Env
 
-import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..))
+import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals, Node(..))
 import Hschain.Utxo.Lang.Core.Data.Utils
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
+import qualified Data.IntMap     as IM
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
@@ -37,10 +39,25 @@ data Scomb = Scomb
 
 data Expr
   = EVar !Name
+  -- ^ variables
   | ENum !Int
+  -- ^ constant integer
   | EAp  Expr Expr
+  -- ^ application
   | ELet [(Name, Expr)] Expr
+  -- ^ lent bindings
+  | ECase !Expr [CaseAlt]
+  -- ^ case alternatives
+  | EConstr !Int !Int
+  -- ^ constructor with tag and arity
   deriving (Show, Eq)
+
+-- | Case alternatives
+data CaseAlt = CaseAlt
+  { caseAlt'tag   :: !Int
+  , caseAlt'args  :: [Name]
+  , caseAlt'rhs   :: Expr
+  } deriving (Show, Eq)
 
 -- | Compiled supercombinator
 data CompiledScomb = CompiledScomb
@@ -57,6 +74,7 @@ compile prog = Gmachine
   , gmachine'globals = globals
   , gmachine'dump    = mempty
   , gmachine'stats   = Stat.empty
+  , gmachine'output  = mempty
   }
   where
     (heap, globals) = buildInitHeap prog
@@ -68,7 +86,7 @@ buildInitHeap prog = (heap, Heap.initGlobals globalElems)
 
     (heap, globalElems) = L.foldl' allocateSc (Heap.empty, []) compiled
 
-    allocateSc (heap, globals) CompiledScomb{..} = (heap', (compiledScomb'name, addr) : globals)
+    allocateSc (heap, globals) CompiledScomb{..} = (heap', (GlobalName compiledScomb'name, addr) : globals)
       where
         (addr, heap') = Heap.alloc (Fun compiledScomb'arity compiledScomb'code) heap
 
@@ -98,7 +116,9 @@ compileE expr env = case expr of
   ELet es e -> compileLet env es e
   EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
   EAp (EVar "negate") a             -> compileNegate a
-  EAp (EAp (EVar op) a) b                  -> compileDiadic op a b
+  EAp (EAp (EVar op) a) b           -> compileDiadic op a b
+  ECase e alts -> compileCase env e alts
+  EConstr tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   _ -> defaultCase
   where
     compileDiadic op a b =
@@ -112,14 +132,20 @@ compileE expr env = case expr of
 
     defaultCase = compileC expr env <> Code.singleton Eval
 
+compileCase :: Env -> Expr -> [CaseAlt] -> Code
+compileCase env e alts = compileE e env <> Code.singleton (CaseJump $ compileAlts env alts)
+
 compileC :: Expr -> Env -> Code
 compileC expr env = case expr of
   EVar v  -> Code.singleton $ case lookupEnv v env of
                Just n  -> Push n
-               Nothing -> PushGlobal v
+               Nothing -> PushGlobal (GlobalName v)
   ENum n  -> Code.singleton $ PushInt n
   EAp a b -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
   ELet es e -> compileLet env es e
+  EConstr tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
+  ECase e alts -> compileCase env e alts -- TODO: we need to substitute it with special case
+                                         -- see discussion at the book on impl at p. 136 section: 3.8.7
 
 compileLet :: Env -> [(Name, Expr)] -> Expr -> Code
 compileLet env defs e =
@@ -189,6 +215,20 @@ builtInDiadic = M.fromList
   , (">=", Ge)
   ]
 
+compileAlts :: Env -> [CaseAlt] -> CaseMap
+compileAlts env alts =
+  IM.fromList $ fmap (compileAlt env) alts
 
+compileAlt :: Env -> CaseAlt -> (Int, Code)
+compileAlt env CaseAlt{..} = (caseAlt'tag, compileE' arity caseAlt'rhs env')
+  where
+    arity = length caseAlt'args
 
+    env' = L.foldl' (\e (n, arg) -> insertEnv arg n e) (argOffset arity env) $ zip [0..] caseAlt'args
+
+compileE' :: Int -> Expr -> Env -> Code
+compileE' offset expr env =
+     Code.singleton (Split offset)
+  <> compileE expr env
+  <> Code.singleton (Slide offset)
 

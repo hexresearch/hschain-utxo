@@ -10,6 +10,7 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
   , badType
   , badAddr
   , dumpIsEmpty
+  , missingCase
   , fromError
   -- * State proxies
   -- ** Globals
@@ -34,6 +35,8 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
   -- ** Dump
   , getDump
   , putDump
+  -- ** Output
+  , modifyOutput
   -- * Re-exports
   , module X
 ) where
@@ -44,15 +47,17 @@ import Control.Monad.Except        as X
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Dump (Dump)
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Node(..), Globals)
+import Hschain.Utxo.Lang.Core.Data.Output (Output)
 import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Utils
 
-import qualified Hschain.Utxo.Lang.Core.Data.Code  as Code
-import qualified Hschain.Utxo.Lang.Core.Data.Dump  as Dump
-import qualified Hschain.Utxo.Lang.Core.Data.Heap  as Heap
-import qualified Hschain.Utxo.Lang.Core.Data.Stack as Stack
-import qualified Hschain.Utxo.Lang.Core.Data.Stat  as Stat
+import qualified Hschain.Utxo.Lang.Core.Data.Code   as Code
+import qualified Hschain.Utxo.Lang.Core.Data.Dump   as Dump
+import qualified Hschain.Utxo.Lang.Core.Data.Heap   as Heap
+import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
+import qualified Hschain.Utxo.Lang.Core.Data.Stack  as Stack
+import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
 
 
 -- | G-machine is FSM for fast graph reduction
@@ -61,8 +66,9 @@ data Gmachine = Gmachine
   , gmachine'stack   :: Stack      -- ^ current stack
   , gmachine'code    :: Code       -- ^ code to be executed
   , gmachine'globals :: Globals    -- ^ global definitions
-  , gmachine'dump    :: Dump
+  , gmachine'dump    :: Dump       -- ^ stack to save frame of the execution (code, currentStack)
   , gmachine'stats   :: Stat       -- ^ statistics of execution
+  , gmachine'output  :: Output     -- ^ output of the execution
   } deriving (Show, Eq)
 
 -- | Errors of execution
@@ -72,6 +78,7 @@ data Error
   | NotFound Name   -- ^ can not find global name
   | StackIsEmpty    -- ^ Need to read element from stack but it is empty
   | DumpIsEmpty     -- ^ Attempt to read empty dump
+  | MissingCase     -- ^ missing case-alternative
   deriving (Show, Eq)
 
 badType :: Exec a
@@ -88,6 +95,9 @@ stackIsEmpty = throwError StackIsEmpty
 
 dumpIsEmpty :: Exec a
 dumpIsEmpty = throwError DumpIsEmpty
+
+missingCase :: Exec a
+missingCase = throwError MissingCase
 
 -- | Monad for execution of Gmachine code
 newtype Exec a = Exec { unExec :: StateT Gmachine (Except Error) a }
@@ -169,6 +179,12 @@ getGlobals = fmap gmachine'globals get
 modifyGlobals :: (Globals -> Globals) -> Exec ()
 modifyGlobals update = modify' $ \st -> st
   { gmachine'globals = update $ gmachine'globals st }
+
+-- output
+
+modifyOutput :: (Output -> Output) -> Exec ()
+modifyOutput update = modify' $ \st -> st
+  { gmachine'output = update $ gmachine'output st }
 
 -- generic
 

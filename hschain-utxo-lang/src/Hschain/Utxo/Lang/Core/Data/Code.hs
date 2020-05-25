@@ -2,19 +2,25 @@
 module Hschain.Utxo.Lang.Core.Data.Code(
     Code
   , Instr(..)
+  , CaseMap
+  , getCaseCode
+  , GlobalName(..)
   , init
   , next
   , null
   , singleton
   , fromList
+  , appendSeq
 ) where
 
 import Prelude hiding (null, init)
 
+import Data.IntMap (IntMap)
 import Data.Sequence (Seq)
 
 import Hschain.Utxo.Lang.Core.Data.Utils
 
+import qualified Data.IntMap as IM
 import qualified Data.Sequence as S
 
 -- | Code to feed to machine
@@ -25,7 +31,7 @@ newtype Code = Code { unCode :: Seq Instr }
 data Instr
   = Unwind
   -- ^ finish the execution of the combinator body
-  | PushGlobal !Name
+  | PushGlobal !GlobalName
   -- ^ save the global name of supercombinator
   | PushInt !Int
   -- ^ save the constant int
@@ -50,11 +56,32 @@ data Instr
   -- ^ Comparison operations
   | Cond !Code !Code
   -- ^ low-level implementation of if
+  | Pack !Int !Int
+  -- ^ constructs saturated (all argumentss are applied) constructor
+  | CaseJump CaseMap
+  -- ^ performs execution of case-expression
+  | Split !Int
+  -- ^ uesd to gain access to the components of the constructor
+  | Print
+  -- ^ Prints result
   deriving (Show, Eq)
+
+type CaseMap = IntMap Code
+
+data GlobalName
+  = GlobalName !Name
+  -- ^ name of the global supercombinator
+  | ConstrName Int Int
+  -- ^ name of the global constructor (int tag, arity)
+  deriving (Show, Eq, Ord)
+
+getCaseCode :: Int -> CaseMap -> Maybe Code
+getCaseCode tagId caseMap =
+  IM.lookup tagId caseMap
 
 -- | Initial code for start of the program
 init :: Code
-init = Code $ S.fromList [PushGlobal "main", Eval]
+init = Code $ S.fromList [PushGlobal (GlobalName "main"), Eval, Print]
 
 -- | reads next instruction from the code sequence
 -- and removes it from the sequence
@@ -75,4 +102,6 @@ singleton a = Code $ S.singleton a
 fromList :: [Instr] -> Code
 fromList as = Code $ S.fromList as
 
+appendSeq :: Seq Instr -> Code -> Code
+appendSeq a (Code b) = Code (a <> b)
 

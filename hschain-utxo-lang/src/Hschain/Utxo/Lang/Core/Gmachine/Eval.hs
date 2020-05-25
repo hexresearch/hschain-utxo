@@ -7,19 +7,21 @@ import Debug.Trace
 
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 
-import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..))
+import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Node(..), Globals)
 import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Utils
 
+import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 
-import qualified Hschain.Utxo.Lang.Core.Data.Code  as Code
-import qualified Hschain.Utxo.Lang.Core.Data.Dump  as Dump
-import qualified Hschain.Utxo.Lang.Core.Data.Heap  as Heap
-import qualified Hschain.Utxo.Lang.Core.Data.Stack as Stack
-import qualified Hschain.Utxo.Lang.Core.Data.Stat  as Stat
+import qualified Hschain.Utxo.Lang.Core.Data.Code   as Code
+import qualified Hschain.Utxo.Lang.Core.Data.Dump   as Dump
+import qualified Hschain.Utxo.Lang.Core.Data.Heap   as Heap
+import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
+import qualified Hschain.Utxo.Lang.Core.Data.Stack  as Stack
+import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
 
 
 -- | Evaluates code for Gmachine and returns the final state
@@ -63,11 +65,33 @@ dispatch = \case
   Gt           -> condOp (>)
   Ge           -> condOp (>=)
   Cond c1 c2   -> cond c1 c2
+  Pack m n     -> pack m n
+  CaseJump as  -> caseJump as
+  Split n      -> split n
+  Print        -> printExpr
 
-pushGlobal :: Name -> Exec ()
-pushGlobal name = do
-  addr <- fromError (NotFound name) $ fmap (Heap.lookupGlobalScomb name) getGlobals
+pushGlobal :: GlobalName -> Exec ()
+pushGlobal = \case
+  GlobalName n   -> pushGlobalName n
+  ConstrName m n -> pushConstrName m n
+
+pushGlobalName :: Name -> Exec ()
+pushGlobalName name = do
+  addr <- fromError (NotFound name) $ fmap (Heap.lookupGlobalScomb (GlobalName name)) getGlobals
   putAddr addr
+
+pushConstrName :: Int -> Int -> Exec ()
+pushConstrName tag arity = do
+  mAddr <- fmap (Heap.lookupGlobalScomb (ConstrName tag arity)) getGlobals
+  case mAddr of
+    Just addr -> putAddr addr
+    Nothing   -> putAddr =<< initGlobalConstrName tag arity
+
+initGlobalConstrName :: Int -> Int -> Exec Addr
+initGlobalConstrName tag arity = do
+  addr <- alloc (Fun arity (Code.fromList [Pack tag arity, Update 0, Unwind]))
+  modifyGlobals $ Heap.insertGlobalScomb (ConstrName tag arity) addr
+  return addr
 
 pushInt :: Int -> Exec ()
 pushInt num = do
@@ -104,12 +128,16 @@ unwind = do
       Ap a1 _   -> onAp a1
       Fun size code -> onFun size code
       NodeInd addr -> onInd addr
+      NodeConstr _ _ -> onConstr addr
 
-    onNum topAddr = do
-      (code, stack) <- popDump
-      putStack stack
-      putAddr topAddr
-      putCode code
+    onNum    = returnVal
+    onConstr = returnVal
+
+    readNodeArg addr = do
+      node <- lookupHeap addr
+      case node of
+        Ap _ argAddr -> return argAddr
+        _            -> badType
 
     onAp addr = do
       putAddr addr
@@ -131,12 +159,11 @@ unwind = do
           putStack stack
           putAddr lastVal
 
-
-    readNodeArg addr = do
-      node <- lookupHeap addr
-      case node of
-        Ap _ argAddr -> return argAddr
-        _            -> badType
+    returnVal topAddr = do
+      (code, stack) <- popDump
+      putStack stack
+      putAddr topAddr
+      putCode code
 
     -- | Substitute top of the stack with indirection address
     onInd a = do
@@ -169,6 +196,9 @@ evalExpr = do
   insertDump code stack
   putCode  $ Code.singleton Unwind
   putStack $ Stack.singleton topAddr
+
+------------------------------------------------------
+-- primitive operators
 
 -- numbers
 
@@ -214,6 +244,45 @@ cond c1 c2 = do
   modifyCode (code <> )
 
 -------------------------------------------------------------
+-- execution of case-expression and custom data types
+
+pack :: Int -> Int -> Exec ()
+pack tagId arity = do
+  args <- popAddrList arity
+  topAddr <- alloc $ NodeConstr tagId args
+  putAddr topAddr
+
+caseJump :: CaseMap -> Exec ()
+caseJump caseMap = do
+  node <- lookupHeap =<< peekAddr
+  case node of
+    NodeConstr tagId _ -> do
+      code <- maybe missingCase pure $ Code.getCaseCode tagId caseMap
+      modifyCode (code <> )
+    _ -> badType
+
+split :: Int -> Exec ()
+split arity = do
+  node <- lookupHeap =<< popAddr
+  case node of
+    NodeConstr _ args -> modifyStack (Stack.appendSeq args)
+    _ -> badType
+
+
+printExpr :: Exec ()
+printExpr = do
+  node <- lookupHeap =<< popAddr
+  case node of
+    NodeInt n         -> modifyOutput (Output.put n)
+    NodeConstr _ args -> do
+      modifyStack (Stack.appendSeq args)
+      modifyCode  (Code.appendSeq $ printN args)
+  where
+    printN args = foldMap (const cmds) args
+      where
+        cmds = Seq.fromList [Eval, Print]
+
+-------------------------------------------------------------
 -- state update proxies for G-machine units
 
 -- stack
@@ -226,6 +295,12 @@ putAddr addr = modifyStack (Stack.put addr)
 popAddr :: Exec Addr
 popAddr = fromError StackIsEmpty $
   stateStack Stack.pop
+
+-- | Pops specified number of arguments
+--
+-- TODO: re-implement with stack operation directly (for efficient execution)
+popAddrList :: Int -> Exec (Seq Addr)
+popAddrList size = stateStack $ Stack.popN size
 
 -- | Read top of the stack without modifying it.
 peekAddr :: Exec Addr
