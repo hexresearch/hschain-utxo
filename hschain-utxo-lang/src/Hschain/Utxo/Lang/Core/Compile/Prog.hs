@@ -75,6 +75,7 @@ compile prog = Gmachine
   , gmachine'dump    = mempty
   , gmachine'stats   = Stat.empty
   , gmachine'output  = mempty
+  , gmachine'vstack  = mempty
   }
   where
     (heap, globals) = buildInitHeap prog

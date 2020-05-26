@@ -22,6 +22,7 @@ import qualified Hschain.Utxo.Lang.Core.Data.Heap   as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stack  as Stack
 import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
+import qualified Hschain.Utxo.Lang.Core.Data.Vstack as Vstack
 
 
 -- | Evaluates code for Gmachine and returns the final state
@@ -45,6 +46,7 @@ dispatch :: Instr -> Exec ()
 dispatch = \case
   PushGlobal n -> pushGlobal n
   PushInt n    -> pushInt n
+  PushBasic n  -> pushBasic n
   Push n       -> push n
   Mkap         -> mkap
   Unwind       -> unwind
@@ -69,6 +71,9 @@ dispatch = \case
   CaseJump as  -> caseJump as
   Split n      -> split n
   Print        -> printExpr
+  MkInt        -> mkInt
+  MkBool       -> mkBool
+  Get          -> getExpr
 
 pushGlobal :: GlobalName -> Exec ()
 pushGlobal = \case
@@ -102,6 +107,9 @@ pushInt num = do
       addr <- alloc (NodeInt num)
       modifyGlobals $ Heap.insertGlobalConst num addr
       return addr
+
+pushBasic :: Int -> Exec ()
+pushBasic n = putVstack n
 
 mkap :: Exec ()
 mkap = do
@@ -198,15 +206,36 @@ evalExpr = do
   putStack $ Stack.singleton topAddr
 
 ------------------------------------------------------
+-- V-stack operations
+
+mkInt :: Exec ()
+mkInt = do
+  addr <- alloc . NodeInt =<< popVstack
+  putAddr addr
+
+-- | We represent booleans with integers so it's the same as mkInt
+mkBool :: Exec ()
+mkBool = do
+  addr <- alloc . NodeInt =<< popVstack
+  putAddr addr
+
+getExpr :: Exec ()
+getExpr = do
+  node <- lookupHeap =<< popAddr
+  case node of
+    NodeInt n -> putVstack n
+    _         -> badType
+
+------------------------------------------------------
 -- primitive operators
 
 -- numbers
 
 binNumOp :: (Int -> Int -> Int) -> Exec ()
-binNumOp = primOp2 unboxInt unboxInt boxInt
+binNumOp = primOp2 popVstack popVstack putVstack
 
 negOp :: Exec ()
-negOp = primOp1 unboxInt boxInt negate
+negOp = primOp1 popVstack putVstack negate
 
 condOp :: (Int -> Int -> Bool) -> Exec ()
 condOp op = binNumOp (\a b -> boolToInt $ op a b)
@@ -215,6 +244,13 @@ condOp op = binNumOp (\a b -> boolToInt $ op a b)
       True  -> 1
       False -> 0
 
+popVstack :: Exec Int
+popVstack = fromError VstackIsEmpty $ stateVstack Vstack.pop
+
+putVstack :: Int -> Exec ()
+putVstack n = modifyVstack (Vstack.put n)
+
+{-
 unboxInt :: Exec Int
 unboxInt = getNum =<< lookupHeap =<< popAddr
   where
@@ -226,6 +262,7 @@ boxInt :: Int -> Exec ()
 boxInt n = do
   addr <- alloc (NodeInt n)
   putAddr addr
+-}
 
 primOp1 :: (Exec a) -> (b -> Exec ()) -> (a -> b) -> Exec ()
 primOp1 unbox box f =
@@ -239,7 +276,7 @@ primOp2 unboxA unboxB box f = do
 
 cond :: Code -> Code -> Exec ()
 cond c1 c2 = do
-  n <- unboxInt
+  n <- popVstack
   let code = if (n == 1) then c1 else c2
   modifyCode (code <> )
 

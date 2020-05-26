@@ -37,6 +37,9 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
   , putDump
   -- ** Output
   , modifyOutput
+  -- ** Vstack
+  , stateVstack
+  , modifyVstack
   -- * Re-exports
   , module X
 ) where
@@ -50,6 +53,7 @@ import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Node(..), Globals)
 import Hschain.Utxo.Lang.Core.Data.Output (Output)
 import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
+import Hschain.Utxo.Lang.Core.Data.Vstack (Vstack)
 import Hschain.Utxo.Lang.Core.Data.Utils
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code   as Code
@@ -58,6 +62,7 @@ import qualified Hschain.Utxo.Lang.Core.Data.Heap   as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stack  as Stack
 import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
+import qualified Hschain.Utxo.Lang.Core.Data.Vstack as Vstack
 
 
 -- | G-machine is FSM for fast graph reduction
@@ -68,6 +73,8 @@ data Gmachine = Gmachine
   , gmachine'globals :: Globals    -- ^ global definitions
   , gmachine'dump    :: Dump       -- ^ stack to save frame of the execution (code, currentStack)
   , gmachine'stats   :: Stat       -- ^ statistics of execution
+  , gmachine'vstack  :: Vstack     -- ^ stack for integer operations
+                                   -- we place arguments here to save heap allocations
   , gmachine'output  :: Output     -- ^ output of the execution
   } deriving (Show, Eq)
 
@@ -77,6 +84,7 @@ data Error
   | BadAddr Addr    -- ^ address is not defined on the heap
   | NotFound Name   -- ^ can not find global name
   | StackIsEmpty    -- ^ Need to read element from stack but it is empty
+  | VstackIsEmpty   -- ^ Need to read element from Vstack but it is empty
   | DumpIsEmpty     -- ^ Attempt to read empty dump
   | MissingCase     -- ^ missing case-alternative
   deriving (Show, Eq)
@@ -185,6 +193,21 @@ modifyGlobals update = modify' $ \st -> st
 modifyOutput :: (Output -> Output) -> Exec ()
 modifyOutput update = modify' $ \st -> st
   { gmachine'output = update $ gmachine'output st }
+
+-- vstack
+
+modifyVstack :: (Vstack -> Vstack) -> Exec ()
+modifyVstack update = modify' $ \st -> st
+  { gmachine'vstack = update $ gmachine'vstack st }
+
+stateVstack :: (Vstack -> (a, Vstack)) -> Exec a
+stateVstack = toState getVstack putVstack
+
+getVstack :: Exec Vstack
+getVstack = fmap gmachine'vstack get
+
+putVstack :: Vstack -> Exec ()
+putVstack stack = modify' $ \st -> st { gmachine'vstack = stack }
 
 -- generic
 

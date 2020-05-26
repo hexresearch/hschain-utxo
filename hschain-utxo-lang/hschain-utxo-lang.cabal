@@ -25,6 +25,7 @@ library
       Hschain.Utxo.Lang.Core.Data.Dump
       Hschain.Utxo.Lang.Core.Data.Heap
       Hschain.Utxo.Lang.Core.Data.Output
+      Hschain.Utxo.Lang.Core.Data.Vstack
       Hschain.Utxo.Lang.Core.Data.Stack
       Hschain.Utxo.Lang.Core.Data.Stat
       Hschain.Utxo.Lang.Core.Data.Utils

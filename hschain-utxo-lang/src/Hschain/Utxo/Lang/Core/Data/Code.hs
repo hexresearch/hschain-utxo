@@ -35,6 +35,8 @@ data Instr
   -- ^ save the global name of supercombinator
   | PushInt !Int
   -- ^ save the constant int
+  | PushBasic !Int
+  -- ^ push value to V-stack
   | Push !Int
   -- ^ push address on stack
   | Mkap
@@ -64,6 +66,12 @@ data Instr
   -- ^ uesd to gain access to the components of the constructor
   | Print
   -- ^ Prints result
+  | MkInt
+  -- ^ moves integer result from V-stack to heap
+  | MkBool
+  -- ^ moves boolean result from V-stack to heap
+  | Get
+  -- ^ moves value from heap (it's addressed from top of the stack) to V-stack
   deriving (Show, Eq)
 
 type CaseMap = IntMap Code
