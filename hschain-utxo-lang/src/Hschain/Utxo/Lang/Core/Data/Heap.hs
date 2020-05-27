@@ -21,6 +21,7 @@ import Prelude hiding (lookup)
 import Data.IntMap (IntMap)
 import Data.Map.Strict (Map)
 import Data.Sequence (Seq)
+import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Data.Utils
@@ -60,6 +61,7 @@ initGlobals = (\combs -> Globals combs M.empty) . M.fromList
 
 data Node
   = NodeInt !Int                -- ^ constant integer
+  | NodeText !Text              -- ^ constant text
   | NodeInd !Addr               -- ^ indirection node
   | NodeConstr !Int (Seq Addr)  -- ^ constructor (integer-tag, addresses to arguments)
   | Ap !Addr !Addr              -- ^ application

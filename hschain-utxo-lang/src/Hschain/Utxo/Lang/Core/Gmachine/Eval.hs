@@ -3,6 +3,8 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval(
   eval
 ) where
 
+import Data.Text (Text)
+
 import Debug.Trace
 
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
@@ -15,6 +17,7 @@ import Hschain.Utxo.Lang.Core.Data.Utils
 
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import qualified Data.Text as T
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code   as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Dump   as Dump
@@ -46,6 +49,7 @@ dispatch :: Instr -> Exec ()
 dispatch = \case
   PushGlobal n -> pushGlobal n
   PushInt n    -> pushInt n
+  PushText t   -> pushText t
   PushBasic n  -> pushBasic n
   Push n       -> push n
   Mkap         -> mkap
@@ -73,6 +77,11 @@ dispatch = \case
   Or           -> binNumOp max
   Xor          -> binNumOp (\a b -> boolToInt (a /= b))
   Not          -> notOp
+  -- text
+  TextAppend   -> binTextOp mappend
+  TextLength   -> textLength
+  HashBlake    -> hashBlake
+  HashSha      -> hashSha
   -- conditionals
   Cond c1 c2   -> cond c1 c2
   Pack m n     -> pack m n
@@ -81,9 +90,11 @@ dispatch = \case
   Print        -> printExpr
   MkInt        -> mkInt
   MkBool       -> mkBool
+  MkText       -> mkText
   Get          -> getExpr
   UpdateInt n  -> updateInt n
   UpdateBool n -> updateBool n
+  UpdateText n -> updateText n
 
 pushGlobal :: GlobalName -> Exec ()
 pushGlobal = \case
@@ -117,6 +128,9 @@ pushInt num = do
       addr <- alloc (NodeInt num)
       modifyGlobals $ Heap.insertGlobalConst num addr
       return addr
+
+pushText :: Text -> Exec ()
+pushText = undefined
 
 pushBasic :: Int -> Exec ()
 pushBasic n = putVstack n
@@ -210,39 +224,46 @@ evalExpr = do
 ------------------------------------------------------
 -- shortcuts for sequence [MkInt, Update n] and [MkBool, Update n]
 
-updateInt :: Int -> Exec ()
-updateInt n = do
-  topAddr <- alloc . NodeInt =<< popVstack
+updatePrimBy :: Exec a -> (a -> Node) -> Int -> Exec ()
+updatePrimBy getter toNode n = do
+  topAddr <- alloc . toNode =<< getter
   nAddr <- lookupAddr n
   modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
 
+updateInt :: Int -> Exec ()
+updateInt = updatePrimBy popVstack NodeInt
+
 updateBool :: Int -> Exec ()
-updateBool n = do
-  topAddr <- alloc . NodeInt =<< popVstack
-  nAddr <- lookupAddr n
-  modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
+updateBool = updatePrimBy popVstack NodeInt
+
+updateText :: Int -> Exec ()
+updateText = updatePrimBy popText NodeText
 
 ------------------------------------------------------
 -- V-stack operations
 
-mkInt :: Exec ()
-mkInt = do
-  addr <- alloc . NodeInt =<< popVstack
+mkBy :: Exec a -> (a -> Node) -> Exec ()
+mkBy getter toNode = do
+  addr <- alloc . toNode =<< getter
   putAddr addr
+
+mkInt :: Exec ()
+mkInt = mkBy popVstack NodeInt
 
 -- | We represent booleans with integers so it's the same as mkInt
 mkBool :: Exec ()
-mkBool = do
-  addr <- alloc . NodeInt =<< popVstack
-  putAddr addr
+mkBool = mkBy popVstack NodeInt
+
+mkText :: Exec ()
+mkText = mkBy popText NodeText
 
 getExpr :: Exec ()
-
 getExpr = do
   node <- lookupHeap =<< popAddr
   case node of
-    NodeInt n -> putVstack n
-    _         -> badType
+    NodeInt n  -> putVstack n
+    NodeText t -> putText t
+    _          -> badType
 
 ------------------------------------------------------
 -- primitive operators
@@ -291,6 +312,30 @@ cond c1 c2 = do
   n <- popVstack
   let code = if (n == 1) then c1 else c2
   modifyCode (code <> )
+
+-- text
+
+binTextOp :: (Text -> Text -> Text) -> Exec ()
+binTextOp = primOp2 popText popText putText
+
+popText :: Exec Text
+popText = undefined
+
+putText :: Text -> Exec ()
+putText = undefined
+
+textLength :: Exec ()
+textLength = primOp1 popText putVstack T.length
+
+hashBlake :: Exec ()
+hashBlake = primOp1 popText putText getBlakeHash
+  where
+    getBlakeHash = undefined
+
+hashSha :: Exec ()
+hashSha = primOp1 popText putText getSha256
+  where
+    getSha256 = undefined
 
 -------------------------------------------------------------
 -- execution of case-expression and custom data types

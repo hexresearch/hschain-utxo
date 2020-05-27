@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , CompiledScomb(..)
 ) where
 
+import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
@@ -32,6 +33,8 @@ data Expr
   -- ^ variables
   | ENum !Int
   -- ^ constant integer
+  | EText !Text
+  -- ^ constant text
   | EAp  Expr Expr
   -- ^ application
   | ELet [(Name, Expr)] Expr

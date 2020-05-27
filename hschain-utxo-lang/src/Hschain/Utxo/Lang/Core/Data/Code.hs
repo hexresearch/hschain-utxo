@@ -18,6 +18,7 @@ import Prelude hiding (null, init)
 
 import Data.IntMap (IntMap)
 import Data.Sequence (Seq, ViewR(..))
+import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Data.Utils
 
@@ -43,6 +44,8 @@ data Instr
   -- ^ save the global name of supercombinator
   | PushInt !Int
   -- ^ save the constant int
+  | PushText !Text
+  -- ^ save the constant text
   | PushBasic !Int
   -- ^ push value to V-stack
   | Push !Int
@@ -74,18 +77,24 @@ data Instr
   -- ^ moves integer result from V-stack to heap
   | MkBool
   -- ^ moves boolean result from V-stack to heap
+  | MkText
+  -- ^ moves text result from V-stack to heap
   | Get
   -- ^ moves value from heap (it's addressed from top of the stack) to V-stack
   | UpdateInt !Int
   -- ^ synonym for the sequence [MkInt, Update n]
   | UpdateBool !Int
   -- ^ Synonym for the sequence [MkBool, Update n]
+  | UpdateText !Int
+  -- ^ Synonym for the sequence [MkText, Update n]
   | Add | Sub | Mul | Div | Neg
   -- ^ Arithmetic operations
   | Eq | Ne | Lt | Le | Gt | Ge
   -- ^ Comparison operations
   | And | Or | Not | Xor
   -- ^ boolean operators
+  | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
+  -- ^ text operators
   deriving (Show, Eq)
 
 type CaseMap = IntMap Code
