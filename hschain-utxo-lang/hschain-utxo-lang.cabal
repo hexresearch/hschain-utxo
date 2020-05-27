@@ -19,7 +19,10 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
+      Hschain.Utxo.Lang.Core.Compile
       Hschain.Utxo.Lang.Core.Compile.Env
+      Hschain.Utxo.Lang.Core.Compile.Expr
+      Hschain.Utxo.Lang.Core.Compile.Primitives
       Hschain.Utxo.Lang.Core.Compile.Prog
       Hschain.Utxo.Lang.Core.Data.Code
       Hschain.Utxo.Lang.Core.Data.Dump

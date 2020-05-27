@@ -5,7 +5,7 @@ import Data.Either
 import Data.String
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Core.Compile.Prog
+import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Gmachine
 
 import qualified Data.Vector as V

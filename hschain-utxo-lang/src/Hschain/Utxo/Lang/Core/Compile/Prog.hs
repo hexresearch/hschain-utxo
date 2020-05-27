@@ -1,10 +1,5 @@
 module Hschain.Utxo.Lang.Core.Compile.Prog(
-    CoreProg
-  , Scomb(..)
-  , CaseAlt(..)
-  , Expr(..)
-  , CompiledScomb(..)
-  , compile
+    compile
   , compileSc
 ) where
 
@@ -13,10 +8,13 @@ import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.Compile.Env
+import Hschain.Utxo.Lang.Core.Compile.Primitives
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals, Node(..))
 import Hschain.Utxo.Lang.Core.Data.Utils
+
+import Hschain.Utxo.Lang.Core.Compile.Expr
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
@@ -26,46 +24,7 @@ import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
 
-type CoreProg = [Scomb]
-
--- | Supercobinators do not contain free variables.
---
--- > S a1 a2 a3 = expr
-data Scomb = Scomb
-  { scomb'name :: Name           -- ^ name
-  , scomb'args :: Vector Name    -- ^ list of arguments
-  , scomb'body :: Expr           -- ^ body
-  }
-
-data Expr
-  = EVar !Name
-  -- ^ variables
-  | ENum !Int
-  -- ^ constant integer
-  | EAp  Expr Expr
-  -- ^ application
-  | ELet [(Name, Expr)] Expr
-  -- ^ lent bindings
-  | ECase !Expr [CaseAlt]
-  -- ^ case alternatives
-  | EConstr !Int !Int
-  -- ^ constructor with tag and arity
-  deriving (Show, Eq)
-
--- | Case alternatives
-data CaseAlt = CaseAlt
-  { caseAlt'tag   :: !Int
-  , caseAlt'args  :: [Name]
-  , caseAlt'rhs   :: Expr
-  } deriving (Show, Eq)
-
--- | Compiled supercombinator
-data CompiledScomb = CompiledScomb
-  { compiledScomb'name  :: Name   -- ^ name
-  , compiledScomb'arity :: Int    -- ^ size of argument list
-  , compiledScomb'code  :: Code   -- ^ code to instantiate combinator
-  } deriving (Show, Eq)
-
+-- | Compiles program to the G-machine for execution
 compile :: CoreProg -> Gmachine
 compile prog = Gmachine
   { gmachine'code    = Code.init
@@ -83,7 +42,7 @@ compile prog = Gmachine
 buildInitHeap :: CoreProg -> (Heap, Globals)
 buildInitHeap prog = (heap, Heap.initGlobals globalElems)
   where
-    compiled = compiledPrimitives ++ fmap compileSc prog
+    compiled = fmap compileSc (primitives ++ prog)
 
     (heap, globalElems) = L.foldl' allocateSc (Heap.empty, []) compiled
 
@@ -99,17 +58,34 @@ compileSc Scomb{..} = CompiledScomb
   }
   where
     env   = initEnv scomb'args
-    code  = compileR scomb'body env
+    code  = compileR scomb'body env (getArity env)
 
-compileR :: Expr -> Env -> Code
-compileR expr env =
-  compileE expr env <> Code.fromList endInstrs
+compileR :: Expr -> Env -> Int -> Code
+compileR expr env arity =
+  case expr of
+    ELet es e                         -> compileLetR env arity es e
+    EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
+    ECase e alts                      -> compileCase e alts
+    _                                 -> defaultCase
   where
-    arity = getArity env
-
     endInstrs
       | arity == 0 = [Update 0, Unwind]
       | otherwise  = [Update arity, Pop arity, Unwind]
+
+    defaultCase = compileE expr env <> Code.fromList endInstrs
+
+    compileIf a b c =
+      compileB a env <> Code.singleton (Cond (compileR b env arity) (compileR c env arity))
+
+    compileCase e alts = compileE e env <> Code.singleton (CaseJump $ compileAltsR arity env alts)
+
+compileLetR :: Env -> Int -> [(Name, Expr)] -> Expr -> Code
+compileLetR env arity defs e =
+  lets <> compileR e env' (arity + length defs)
+  where
+    lets = snd $ foldr (\(name, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
+    env' = compileArgs defs env
+
 
 compileE :: Expr -> Env -> Code
 compileE expr env = case expr of
@@ -124,12 +100,13 @@ compileE expr env = case expr of
   where
     compileDiadic op a b =
       case M.lookup op builtInDiadic of
-        Just instr -> compileE b env <> compileE a (argOffset 1 env) <> Code.singleton instr
+        Just instr -> compileDiadicInstrB env instr a b
+                        <> Code.singleton (if (isIntOp op) then MkInt else MkBool)
         Nothing    -> defaultCase
 
-    compileIf a b c = compileE a env <> Code.singleton (Cond (compileE b env) (compileE c env))
+    compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 
-    compileNegate a = compileE a env <> Code.singleton Neg
+    compileNegate a = compileNegateB env a <> Code.singleton MkInt
 
     defaultCase = compileC expr env <> Code.singleton Eval
 
@@ -216,20 +193,68 @@ builtInDiadic = M.fromList
   , (">=", Ge)
   ]
 
-compileAlts :: Env -> [CaseAlt] -> CaseMap
-compileAlts env alts =
-  IM.fromList $ fmap (compileAlt env) alts
+compileAltsR :: Int -> Env -> [CaseAlt] -> CaseMap
+compileAltsR arity = compileAltsBy compileR'
+  where
+    compileR' :: Int -> Expr -> Env -> Code
+    compileR' offset expr env =
+         Code.singleton (Split offset)
+      <> compileR expr env (offset + arity)
 
-compileAlt :: Env -> CaseAlt -> (Int, Code)
-compileAlt env CaseAlt{..} = (caseAlt'tag, compileE' arity caseAlt'rhs env')
+compileAlts :: Env -> [CaseAlt] -> CaseMap
+compileAlts = compileAltsBy compileE'
+  where
+    compileE' :: Int -> Expr -> Env -> Code
+    compileE' offset expr env =
+        Code.singleton (Split offset)
+      <> compileE expr env
+      <> Code.singleton (Slide offset)
+
+compileAltsBy :: (Int -> Expr -> Env -> Code) -> Env -> [CaseAlt] -> CaseMap
+compileAltsBy comp env alts =
+  IM.fromList $ fmap (compileAlt comp env) alts
+
+compileAlt :: (Int -> Expr -> Env -> Code) -> Env -> CaseAlt -> (Int, Code)
+compileAlt comp env CaseAlt{..} = (caseAlt'tag, comp arity caseAlt'rhs env')
   where
     arity = length caseAlt'args
 
     env' = L.foldl' (\e (n, arg) -> insertEnv arg n e) (argOffset arity env) $ zip [0..] caseAlt'args
 
-compileE' :: Int -> Expr -> Env -> Code
-compileE' offset expr env =
-     Code.singleton (Split offset)
-  <> compileE expr env
-  <> Code.singleton (Slide offset)
+
+compileB :: Expr -> Env -> Code
+compileB expr env = case expr of
+  ENum n                            -> Code.singleton $ PushBasic n
+  ELet es e                         -> compileLetB env es e
+  EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
+  EAp (EVar "negate") a             -> compileNegateB env a
+  EAp (EAp (EVar op) a) b           -> compileDiadic op a b
+  _                                 -> defaultCase
+  where
+    compileIf a b c =
+      compileB a env <> Code.singleton (Cond (compileB b env) (compileB c env))
+
+    compileDiadic op a b =
+      case M.lookup op builtInDiadic of
+        Just instr -> compileDiadicInstrB env instr a b
+        Nothing    -> defaultCase
+
+    defaultCase = compileE expr env <> Code.singleton Get
+
+compileDiadicInstrB :: Env -> Instr -> Expr -> Expr -> Code
+compileDiadicInstrB env instr a b =
+  compileB b env <> compileB a env <> Code.singleton instr
+
+compileNegateB :: Env -> Expr -> Code
+compileNegateB env a =
+  compileB a env <> Code.singleton Neg
+
+compileLetB :: Env -> [(Name, Expr)] -> Expr -> Code
+compileLetB env defs e =
+  lets <> compileB e env' <> Code.singleton (Pop $ length defs)
+  where
+    lets = snd $ foldr (\(name, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
+
+    env' = compileArgs defs env
+
 
