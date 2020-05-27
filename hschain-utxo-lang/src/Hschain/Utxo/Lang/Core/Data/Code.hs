@@ -60,10 +60,6 @@ data Instr
   -- ^ Allocates N place-holder nodes on the heap
   | Eval
   -- ^ Evaluate the expression which is referenced from the top of the stack to WHNF
-  | Add | Sub | Mul | Div | Neg
-  -- ^ Arithmetic operations
-  | Eq | Ne | Lt | Le | Gt | Ge
-  -- ^ Comparison operations
   | Cond !Code !Code
   -- ^ low-level implementation of if
   | Pack !Int !Int
@@ -84,6 +80,12 @@ data Instr
   -- ^ synonym for the sequence [MkInt, Update n]
   | UpdateBool !Int
   -- ^ Synonym for the sequence [MkBool, Update n]
+  | Add | Sub | Mul | Div | Neg
+  -- ^ Arithmetic operations
+  | Eq | Ne | Lt | Le | Gt | Ge
+  -- ^ Comparison operations
+  | And | Or | Not | Xor
+  -- ^ boolean operators
   deriving (Show, Eq)
 
 type CaseMap = IntMap Code

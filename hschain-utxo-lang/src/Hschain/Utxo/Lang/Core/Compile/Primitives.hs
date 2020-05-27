@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
     primitives
   , isIntOp
+  , builtInUnary
   , builtInDiadic
 ) where
 
@@ -24,6 +25,7 @@ primitives =
   , op2 "*"
   , op2 "-"
   , op2 "/"
+  , op1 "negate"
   -- comparision
   , op2 "=="
   , op2 "/="
@@ -33,6 +35,13 @@ primitives =
   , op2 "<="
   -- conditionals
   , op3 "if"
+  -- booleans
+  , intConstant "true" 1
+  , intConstant "false" 0
+  , op2 "&&"
+  , op2 "||"
+  , op2 "^^"
+  , op1 "not"
   ]
 
 -- | Application of function to two arguments
@@ -42,6 +51,13 @@ ap2 f a b = EAp (EAp f a) b
 -- | Application of function to three arguments
 ap3 :: Expr -> Expr -> Expr -> Expr -> Expr
 ap3 f a b c = EAp (ap2 f a b) c
+
+intConstant :: Name -> Int -> Scomb
+intConstant name val = Scomb
+  { scomb'name = name
+  , scomb'args = V.empty
+  , scomb'body = ENum val
+  }
 
 op1 :: Name -> Scomb
 op1 name = Scomb
@@ -83,6 +99,14 @@ builtInDiadic = M.fromList
   , ("<=", Le)
   , (">", Gt)
   , (">=", Ge)
+  , ("&&", And)
+  , ("||", Or)
+  , ("^^", Xor)
   ]
 
+builtInUnary :: Map Name Instr
+builtInUnary = M.fromList
+  [ ("negate", Neg)
+  , ("not", Not)
+  ]
 

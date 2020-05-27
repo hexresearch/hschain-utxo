@@ -36,7 +36,8 @@ main =
 testAll = all (isRight . eval . compile)
   [ prog1, prog2, prog3, prog4, prog5, prog6
   , prog7, prog8, prog9, prog10, prog11, prog12
-  , prog13, prog14, prog15 ]
+  , prog13, prog14, prog15
+  , prog16, prog17, prog18 ]
 
 -- Prelude functions
 --
@@ -319,5 +320,65 @@ prog15 = [main, take', from, sieve, filter', nonMultiple] ++ prelude2
                                                                       (EAp "nonMultiple" "p")
                                                                       "ps")))
                   ])
+
+---------------------------------------------
+-- booleans
+
+-- | Simple boolean expression
+--
+-- > main = not (true && false)
+prog16 :: CoreProg
+prog16 = [main] ++ prelude2
+  where
+    main = scomb "main" [] (EAp "not" (ap2 "&&" "true" "false"))
+
+-- | Table of values for && function
+--
+-- main = [ true && true
+--        , true && false
+--        , false && true
+--        , false && false ]
+prog17 :: CoreProg
+prog17 = [main] ++ prelude2
+  where
+    main = scomb "main" []
+        (ap2 "cons"
+              (ap2 "&&" "true" "true")
+              (ap2 "cons"
+                  (ap2 "&&" "true" "false")
+                  (ap2 "cons"
+                        (ap2 "&&" "false" "true")
+                        (ap2 "cons"
+                              (ap2 "&&" "false" "false")
+                              "nil"
+                        )
+                  )
+              ))
+
+-- | Table of values for || function
+--
+-- main = [ true || true
+--        , true || false
+--        , false || true
+--        , false || false ]
+prog18 :: CoreProg
+prog18 = [main] ++ prelude2
+  where
+    main = scomb "main" []
+        (ap2 "cons"
+              (ap2 "||" "true" "true")
+              (ap2 "cons"
+                  (ap2 "||" "true" "false")
+                  (ap2 "cons"
+                        (ap2 "||" "false" "true")
+                        (ap2 "cons"
+                              (ap2 "||" "false" "false")
+                              "nil"
+                        )
+                  )
+              ))
+
+
+
 
 

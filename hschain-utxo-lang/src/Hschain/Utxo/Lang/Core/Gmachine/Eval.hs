@@ -55,17 +55,25 @@ dispatch = \case
   Slide n      -> slide n
   Alloc n      -> allocEmptyNodes n
   Eval         -> evalExpr
+  -- numeric
   Add          -> binNumOp (+)
   Sub          -> binNumOp (\a b -> a - b)
   Mul          -> binNumOp (*)
   Div          -> binNumOp div
   Neg          -> negOp
+  -- compare
   Eq           -> condOp (==)
   Ne           -> condOp (/=)
   Lt           -> condOp (<)
   Le           -> condOp (<=)
   Gt           -> condOp (>)
   Ge           -> condOp (>=)
+  -- booleans (encoded with integers)
+  And          -> binNumOp min
+  Or           -> binNumOp max
+  Xor          -> binNumOp (\a b -> boolToInt (a /= b))
+  Not          -> notOp
+  -- conditionals
   Cond c1 c2   -> cond c1 c2
   Pack m n     -> pack m n
   CaseJump as  -> caseJump as
@@ -249,10 +257,17 @@ negOp = primOp1 popVstack putVstack negate
 
 condOp :: (Int -> Int -> Bool) -> Exec ()
 condOp op = binNumOp (\a b -> boolToInt $ op a b)
-  where
-    boolToInt = \case
+
+boolToInt :: Bool -> Int
+boolToInt = \case
       True  -> 1
       False -> 0
+
+intToBool :: Int -> Bool
+intToBool n = n /= 0
+
+notOp :: Exec ()
+notOp = primOp1 popVstack putVstack (\x -> 1 - x)
 
 popVstack :: Exec Int
 popVstack = fromError VstackIsEmpty $ stateVstack Vstack.pop

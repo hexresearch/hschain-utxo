@@ -102,6 +102,7 @@ compileE expr env = case expr of
   ELet es e -> compileLet env es e
   EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
   EAp (EVar "negate") a             -> compileNegate a
+  EAp (EVar "not") a                -> compileNot a
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
   ECase e alts -> compileCase env e alts
   EConstr tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
@@ -116,6 +117,7 @@ compileE expr env = case expr of
     compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 
     compileNegate a = compileNegateB env a <> Code.singleton MkInt
+    compileNot a = compileNotB env a <> Code.singleton MkBool
 
     defaultCase = compileC expr env <> Code.singleton Eval
 
@@ -184,6 +186,7 @@ compileB expr env = case expr of
   ELet es e                         -> compileLetB env es e
   EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
   EAp (EVar "negate") a             -> compileNegateB env a
+  EAp (EVar "not") a                -> compileNotB env a
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
   _                                 -> defaultCase
   where
@@ -204,6 +207,10 @@ compileDiadicInstrB env instr a b =
 compileNegateB :: Env -> Expr -> Code
 compileNegateB env a =
   compileB a env <> Code.singleton Neg
+
+compileNotB :: Env -> Expr -> Code
+compileNotB env a =
+  compileB a env <> Code.singleton Not
 
 compileLetB :: Env -> [(Name, Expr)] -> Expr -> Code
 compileLetB env defs e =
