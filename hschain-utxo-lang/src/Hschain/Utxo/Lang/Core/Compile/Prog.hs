@@ -50,6 +50,7 @@ buildInitHeap prog = (heap, Heap.initGlobals globalElems)
       where
         (addr, heap') = Heap.alloc (Fun compiledScomb'arity compiledScomb'code) heap
 
+-- | Compile supercombinator.
 compileSc :: Scomb -> CompiledScomb
 compileSc Scomb{..} = CompiledScomb
   { compiledScomb'name  = scomb'name
@@ -72,7 +73,15 @@ compileR expr env arity =
       | arity == 0 = [Update 0, Unwind]
       | otherwise  = [Update arity, Pop arity, Unwind]
 
-    defaultCase = compileE expr env <> Code.fromList endInstrs
+    defaultCase =
+      case lastInstr of
+        Just MkInt  -> updatePrim UpdateInt
+        Just MkBool -> updatePrim UpdateBool
+        _           -> code <> Code.fromList endInstrs
+      where
+        code = compileE expr env
+        (lastInstr, prefCode) = Code.splitLastInstr code
+        updatePrim cons = prefCode <> Code.singleton (cons arity) <> (Code.fromList $ tail endInstrs)
 
     compileIf a b c =
       compileB a env <> Code.singleton (Cond (compileR b env arity) (compileR c env arity))
@@ -139,59 +148,6 @@ compileArgs defs env =
   where
     n = length defs
     env' = argOffset n env
-
-compiledPrimitives :: [CompiledScomb]
-compiledPrimitives =
-  [ op2 "+" Add
-  , op2 "*" Mul
-  , op2 "-" Sub
-  , op2 "/" Div
-  , op1 "negate" Neg
-  , op2 "==" Eq
-  , op2 "/=" Ne
-  , op2 "<"  Lt
-  , op2 "<=" Le
-  , op2 ">"  Gt
-  , op2 ">=" Ge
-  , ifOp
-  ]
-  where
-    op2 name op = CompiledScomb
-      { compiledScomb'name  = name
-      , compiledScomb'arity = 2
-      , compiledScomb'code  = Code.fromList
-          [Push 1, Eval, Push 1, Eval, op, Update 2, Pop 2, Unwind]
-      }
-
-    op1 name op = CompiledScomb
-      { compiledScomb'name  = name
-      , compiledScomb'arity = 1
-      , compiledScomb'code  = Code.fromList
-          [Push 0, Eval, Neg, Update 1, Pop 1, Unwind]
-      }
-
-    ifOp = CompiledScomb
-      { compiledScomb'name  = "if"
-      , compiledScomb'arity = 3
-      , compiledScomb'code  = Code.fromList
-          [ Push 0, Eval
-          , Cond (Code.singleton (Push 1)) (Code.singleton (Push 2))
-          , Update 3, Pop 3, Unwind ]
-      }
-
-builtInDiadic :: Map Name Instr
-builtInDiadic = M.fromList
-  [ ("+", Add)
-  , ("*", Mul)
-  , ("-", Sub)
-  , ("/", Div)
-  , ("==", Eq)
-  , ("/=", Ne)
-  , ("<", Lt)
-  , ("<=", Le)
-  , (">", Gt)
-  , (">=", Ge)
-  ]
 
 compileAltsR :: Int -> Env -> [CaseAlt] -> CaseMap
 compileAltsR arity = compileAltsBy compileR'

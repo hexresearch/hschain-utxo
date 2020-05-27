@@ -74,6 +74,8 @@ dispatch = \case
   MkInt        -> mkInt
   MkBool       -> mkBool
   Get          -> getExpr
+  UpdateInt n  -> updateInt n
+  UpdateBool n -> updateBool n
 
 pushGlobal :: GlobalName -> Exec ()
 pushGlobal = \case
@@ -160,25 +162,19 @@ unwind = do
           maybe stackIsEmpty putStack $ Stack.rearrange size heap stack
           modifyCode (code <>)
         else do
-          (code, stack) <- popDump
-          modifyStack $ Stack.drop (len - 1)
-          lastVal <- popAddr
-          putCode code
-          putStack stack
+          lastVal <- peekBottomAddr
+          loadDump
           putAddr lastVal
 
     returnVal topAddr = do
-      (code, stack) <- popDump
-      putStack stack
+      loadDump
       putAddr topAddr
-      putCode code
 
     -- | Substitute top of the stack with indirection address
     onInd a = do
       _ <- popAddr
       putAddr a
       modifyCode (Code.singleton Unwind <> )
-
 
 update :: Int -> Exec ()
 update n = do
@@ -199,11 +195,24 @@ allocEmptyNodes n = do
 evalExpr :: Exec ()
 evalExpr = do
   topAddr <- popAddr
-  code  <- getCode
-  stack <- getStack
-  insertDump code stack
+  saveDump
   putCode  $ Code.singleton Unwind
   putStack $ Stack.singleton topAddr
+
+------------------------------------------------------
+-- shortcuts for sequence [MkInt, Update n] and [MkBool, Update n]
+
+updateInt :: Int -> Exec ()
+updateInt n = do
+  topAddr <- alloc . NodeInt =<< popVstack
+  nAddr <- lookupAddr n
+  modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
+
+updateBool :: Int -> Exec ()
+updateBool n = do
+  topAddr <- alloc . NodeInt =<< popVstack
+  nAddr <- lookupAddr n
+  modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
 
 ------------------------------------------------------
 -- V-stack operations
@@ -220,6 +229,7 @@ mkBool = do
   putAddr addr
 
 getExpr :: Exec ()
+
 getExpr = do
   node <- lookupHeap =<< popAddr
   case node of
@@ -250,19 +260,6 @@ popVstack = fromError VstackIsEmpty $ stateVstack Vstack.pop
 putVstack :: Int -> Exec ()
 putVstack n = modifyVstack (Vstack.put n)
 
-{-
-unboxInt :: Exec Int
-unboxInt = getNum =<< lookupHeap =<< popAddr
-  where
-    getNum = \case
-      NodeInt n -> pure n
-      _         -> badType
-
-boxInt :: Int -> Exec ()
-boxInt n = do
-  addr <- alloc (NodeInt n)
-  putAddr addr
--}
 
 primOp1 :: (Exec a) -> (b -> Exec ()) -> (a -> b) -> Exec ()
 primOp1 unbox box f =
@@ -314,6 +311,7 @@ printExpr = do
     NodeConstr _ args -> do
       modifyStack (Stack.appendSeq args)
       modifyCode  (Code.appendSeq $ printN args)
+    _ -> error (show node)
   where
     printN args = foldMap (const cmds) args
       where
@@ -343,6 +341,10 @@ popAddrList size = stateStack $ Stack.popN size
 peekAddr :: Exec Addr
 peekAddr = fromError StackIsEmpty $
   fmap Stack.peek getStack
+
+peekBottomAddr :: Exec Addr
+peekBottomAddr = fromError StackIsEmpty $
+  fmap Stack.peekBottom getStack
 
 -- | Read stack by index.
 lookupAddr :: Int -> Exec Addr
@@ -385,6 +387,18 @@ lookupHeap addr = fromError (BadAddr addr) $
   fmap (Heap.lookup addr) getHeap
 
 -- dump
+
+loadDump :: Exec ()
+loadDump = do
+  (code, stack) <- popDump
+  putCode code
+  putStack stack
+
+saveDump :: Exec ()
+saveDump = do
+  code <- getCode
+  stack <- getStack
+  insertDump code stack
 
 popDump :: Exec (Code, Stack)
 popDump = do

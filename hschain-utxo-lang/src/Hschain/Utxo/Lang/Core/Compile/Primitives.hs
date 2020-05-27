@@ -2,13 +2,17 @@
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
     primitives
   , isIntOp
+  , builtInDiadic
 ) where
 
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
+import Hschain.Utxo.Lang.Core.Data.Code (Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Utils
 
+import qualified Data.Map.Strict as M
 import qualified Data.Set    as S
 import qualified Data.Vector as V
 
@@ -66,5 +70,19 @@ isIntOp name = S.member name intOps
 
 intOps :: Set Name
 intOps = S.fromList ["+", "*", "-", "/"]
+
+builtInDiadic :: Map Name Instr
+builtInDiadic = M.fromList
+  [ ("+", Add)
+  , ("*", Mul)
+  , ("-", Sub)
+  , ("/", Div)
+  , ("==", Eq)
+  , ("/=", Ne)
+  , ("<", Lt)
+  , ("<=", Le)
+  , (">", Gt)
+  , (">=", Ge)
+  ]
 
 

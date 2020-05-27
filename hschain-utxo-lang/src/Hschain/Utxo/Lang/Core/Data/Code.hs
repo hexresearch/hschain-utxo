@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Core.Data.Code(
   , init
   , next
   , null
+  , splitLastInstr
   , singleton
   , fromList
   , appendSeq
@@ -16,7 +17,7 @@ module Hschain.Utxo.Lang.Core.Data.Code(
 import Prelude hiding (null, init)
 
 import Data.IntMap (IntMap)
-import Data.Sequence (Seq)
+import Data.Sequence (Seq, ViewR(..))
 
 import Hschain.Utxo.Lang.Core.Data.Utils
 
@@ -26,6 +27,13 @@ import qualified Data.Sequence as S
 -- | Code to feed to machine
 newtype Code = Code { unCode :: Seq Instr }
   deriving newtype (Semigroup, Monoid, Show, Eq)
+
+-- | Get the last insttruction and remaining of the sequence. Executed in O(1)
+splitLastInstr :: Code -> (Maybe Instr, Code)
+splitLastInstr (Code seq) =
+  case S.viewr seq of
+    EmptyR  -> (Nothing, Code seq)
+    as :> a -> (Just a, Code as)
 
 -- | Instructions for G-machine
 data Instr
@@ -72,6 +80,10 @@ data Instr
   -- ^ moves boolean result from V-stack to heap
   | Get
   -- ^ moves value from heap (it's addressed from top of the stack) to V-stack
+  | UpdateInt !Int
+  -- ^ synonym for the sequence [MkInt, Update n]
+  | UpdateBool !Int
+  -- ^ Synonym for the sequence [MkBool, Update n]
   deriving (Show, Eq)
 
 type CaseMap = IntMap Code

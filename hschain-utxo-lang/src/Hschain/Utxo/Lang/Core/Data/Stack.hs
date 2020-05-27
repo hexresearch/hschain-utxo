@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Core.Data.Stack(
   , put
   , pop
   , peek
+  , peekBottom
   , popN
   , peekN
   , lookup
@@ -103,6 +104,14 @@ tailM x = case viewl x of
 -- | Create stack wich contains single value.
 singleton :: Addr -> Stack
 singleton a = Stack (S.singleton a)
+
+-- | Peeks the bottom element of the stack (in current implementation it is O(1))
+peekBottom :: Stack -> Maybe Addr
+peekBottom (Stack seq) =
+  case S.viewr seq of
+    EmptyR  -> Nothing
+    as :> a -> Just a
+
 
 
 
