@@ -20,7 +20,7 @@ import Data.IntMap (IntMap)
 import Data.Sequence (Seq, ViewR(..))
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.IntMap as IM
 import qualified Data.Sequence as S
@@ -42,11 +42,11 @@ data Instr
   -- ^ finish the execution of the combinator body
   | PushGlobal !GlobalName
   -- ^ save the global name of supercombinator
-  | PushInt !Int
-  -- ^ save the constant int
+  | PushPrim !Prim
+  -- ^ save the constant primitive
   | PushText !Text
   -- ^ save the constant text
-  | PushBasic !Int
+  | PushBasic !Prim
   -- ^ push value to V-stack
   | Push !Int
   -- ^ push address on stack
@@ -73,20 +73,12 @@ data Instr
   -- ^ uesd to gain access to the components of the constructor
   | Print
   -- ^ Prints result
-  | MkInt
-  -- ^ moves integer result from V-stack to heap
-  | MkBool
-  -- ^ moves boolean result from V-stack to heap
-  | MkText
-  -- ^ moves text result from V-stack to heap
+  | MkPrim
+  -- ^ moves primitive result from V-stack to heap
   | Get
   -- ^ moves value from heap (it's addressed from top of the stack) to V-stack
-  | UpdateInt !Int
-  -- ^ synonym for the sequence [MkInt, Update n]
-  | UpdateBool !Int
-  -- ^ Synonym for the sequence [MkBool, Update n]
-  | UpdateText !Int
-  -- ^ Synonym for the sequence [MkText, Update n]
+  | UpdatePrim !Int
+  -- ^ synonym for the sequence [MkPrim, Update n]
   | Add | Sub | Mul | Div | Neg
   -- ^ Arithmetic operations
   | Eq | Ne | Lt | Le | Gt | Ge

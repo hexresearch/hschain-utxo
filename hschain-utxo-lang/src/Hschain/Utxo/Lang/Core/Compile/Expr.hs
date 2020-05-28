@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 -- | core program is a sequence of supercombinator definitions
 -- that includes supercombinator called main. The main is an entry point
@@ -31,10 +31,8 @@ data Scomb = Scomb
 data Expr
   = EVar !Name
   -- ^ variables
-  | ENum !Int
-  -- ^ constant integer
-  | EText !Text
-  -- ^ constant text
+  | EPrim !Prim
+  -- ^ constant primitive
   | EAp  Expr Expr
   -- ^ application
   | ELet [(Name, Expr)] Expr

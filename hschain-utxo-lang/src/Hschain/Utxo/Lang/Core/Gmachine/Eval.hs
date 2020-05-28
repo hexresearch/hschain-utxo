@@ -10,10 +10,11 @@ import Debug.Trace
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
-import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Node(..), Globals)
+import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals)
+import Hschain.Utxo.Lang.Core.Data.Node
 import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
@@ -48,7 +49,7 @@ eval = runExec loop
 dispatch :: Instr -> Exec ()
 dispatch = \case
   PushGlobal n -> pushGlobal n
-  PushInt n    -> pushInt n
+  PushPrim n   -> pushPrim n
   PushText t   -> pushText t
   PushBasic n  -> pushBasic n
   Push n       -> push n
@@ -88,13 +89,9 @@ dispatch = \case
   CaseJump as  -> caseJump as
   Split n      -> split n
   Print        -> printExpr
-  MkInt        -> mkInt
-  MkBool       -> mkBool
-  MkText       -> mkText
+  MkPrim       -> mkPrim
   Get          -> getExpr
-  UpdateInt n  -> updateInt n
-  UpdateBool n -> updateBool n
-  UpdateText n -> updateText n
+  UpdatePrim p -> updatePrim p
 
 pushGlobal :: GlobalName -> Exec ()
 pushGlobal = \case
@@ -119,20 +116,20 @@ initGlobalConstrName tag arity = do
   modifyGlobals $ Heap.insertGlobalScomb (ConstrName tag arity) addr
   return addr
 
-pushInt :: Int -> Exec ()
-pushInt num = do
-  mAddr <- fmap (Heap.lookupGlobalConst num) getGlobals
+pushPrim :: Prim -> Exec ()
+pushPrim prim = do
+  mAddr <- fmap (Heap.lookupGlobalConst prim) getGlobals
   putAddr =<< maybe onMissing pure mAddr
   where
     onMissing = do
-      addr <- alloc (NodeInt num)
-      modifyGlobals $ Heap.insertGlobalConst num addr
+      addr <- alloc (NodePrim prim)
+      modifyGlobals $ Heap.insertGlobalConst prim addr
       return addr
 
 pushText :: Text -> Exec ()
 pushText = undefined
 
-pushBasic :: Int -> Exec ()
+pushBasic :: Prim -> Exec ()
 pushBasic n = putVstack n
 
 mkap :: Exec ()
@@ -156,13 +153,13 @@ unwind = do
   newState addr node
   where
     newState addr = \case
-      NodeInt n -> onNum addr
+      NodePrim n -> onPrim addr
       Ap a1 _   -> onAp a1
       Fun size code -> onFun size code
       NodeInd addr -> onInd addr
       NodeConstr _ _ -> onConstr addr
 
-    onNum    = returnVal
+    onPrim   = returnVal
     onConstr = returnVal
 
     readNodeArg addr = do
@@ -222,48 +219,27 @@ evalExpr = do
   putStack $ Stack.singleton topAddr
 
 ------------------------------------------------------
--- shortcuts for sequence [MkInt, Update n] and [MkBool, Update n]
+-- | shortcuts for sequence [MkPrim, Update n]
 
-updatePrimBy :: Exec a -> (a -> Node) -> Int -> Exec ()
-updatePrimBy getter toNode n = do
-  topAddr <- alloc . toNode =<< getter
+updatePrim :: Int -> Exec ()
+updatePrim n = do
+  topAddr <- alloc . NodePrim =<< popVstack
   nAddr <- lookupAddr n
   modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
-
-updateInt :: Int -> Exec ()
-updateInt = updatePrimBy popVstack NodeInt
-
-updateBool :: Int -> Exec ()
-updateBool = updatePrimBy popVstack NodeInt
-
-updateText :: Int -> Exec ()
-updateText = updatePrimBy popText NodeText
 
 ------------------------------------------------------
 -- V-stack operations
 
-mkBy :: Exec a -> (a -> Node) -> Exec ()
-mkBy getter toNode = do
-  addr <- alloc . toNode =<< getter
+mkPrim :: Exec ()
+mkPrim = do
+  addr <- alloc . NodePrim =<< popVstack
   putAddr addr
 
-mkInt :: Exec ()
-mkInt = mkBy popVstack NodeInt
-
--- | We represent booleans with integers so it's the same as mkInt
-mkBool :: Exec ()
-mkBool = mkBy popVstack NodeInt
-
-mkText :: Exec ()
-mkText = mkBy popText NodeText
-
+-- | Implementation of Get instruction
 getExpr :: Exec ()
 getExpr = do
   node <- lookupHeap =<< popAddr
-  case node of
-    NodeInt n  -> putVstack n
-    NodeText t -> putText t
-    _          -> badType
+  maybe badType putVstack $ getNodePrim node
 
 ------------------------------------------------------
 -- primitive operators
@@ -271,10 +247,10 @@ getExpr = do
 -- numbers
 
 binNumOp :: (Int -> Int -> Int) -> Exec ()
-binNumOp = primOp2 popVstack popVstack putVstack
+binNumOp = primOp2 popInt popInt putInt
 
 negOp :: Exec ()
-negOp = primOp1 popVstack putVstack negate
+negOp = primOp1 popInt putInt negate
 
 condOp :: (Int -> Int -> Bool) -> Exec ()
 condOp op = binNumOp (\a b -> boolToInt $ op a b)
@@ -288,14 +264,39 @@ intToBool :: Int -> Bool
 intToBool n = n /= 0
 
 notOp :: Exec ()
-notOp = primOp1 popVstack putVstack (\x -> 1 - x)
+notOp = primOp1 popInt putInt (\x -> 1 - x)
 
-popVstack :: Exec Int
+popInt :: Exec Int
+popInt = popVstackBy getPrimInt
+
+putInt :: Int -> Exec ()
+putInt = putVstackBy PrimInt
+
+popText :: Exec Text
+popText = popVstackBy getPrimText
+
+putText :: Text -> Exec ()
+putText = putVstackBy PrimText
+
+popBool :: Exec BoolExpr
+popBool = popVstackBy getPrimBool
+
+putBool :: BoolExpr -> Exec ()
+putBool = putVstackBy PrimBool
+
+
+popVstack :: Exec Prim
 popVstack = fromError VstackIsEmpty $ stateVstack Vstack.pop
 
-putVstack :: Int -> Exec ()
+putVstack :: Prim -> Exec ()
 putVstack n = modifyVstack (Vstack.put n)
 
+popVstackBy :: (Prim -> Maybe a) -> Exec a
+popVstackBy extract = do
+  fromError BadType $ fmap extract popVstack
+
+putVstackBy :: (a -> Prim) -> a -> Exec ()
+putVstackBy wrap = putVstack . wrap
 
 primOp1 :: (Exec a) -> (b -> Exec ()) -> (a -> b) -> Exec ()
 primOp1 unbox box f =
@@ -309,7 +310,7 @@ primOp2 unboxA unboxB box f = do
 
 cond :: Code -> Code -> Exec ()
 cond c1 c2 = do
-  n <- popVstack
+  n <- popInt
   let code = if (n == 1) then c1 else c2
   modifyCode (code <> )
 
@@ -318,14 +319,8 @@ cond c1 c2 = do
 binTextOp :: (Text -> Text -> Text) -> Exec ()
 binTextOp = primOp2 popText popText putText
 
-popText :: Exec Text
-popText = undefined
-
-putText :: Text -> Exec ()
-putText = undefined
-
 textLength :: Exec ()
-textLength = primOp1 popText putVstack T.length
+textLength = primOp1 popText putInt T.length
 
 hashBlake :: Exec ()
 hashBlake = primOp1 popText putText getBlakeHash
@@ -367,7 +362,7 @@ printExpr :: Exec ()
 printExpr = do
   node <- lookupHeap =<< popAddr
   case node of
-    NodeInt n         -> modifyOutput (Output.put n)
+    NodePrim p        -> modifyOutput (Output.put p)
     NodeConstr _ args -> do
       modifyStack (Stack.appendSeq args)
       modifyCode  (Code.appendSeq $ printN args)

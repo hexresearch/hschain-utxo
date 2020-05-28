@@ -1,7 +1,6 @@
 -- | Built-in language primitives
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
     primitives
-  , isIntOp
   , builtInUnary
   , builtInDiadic
 ) where
@@ -11,7 +10,7 @@ import Data.Set (Set)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Code (Instr(..))
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set    as S
@@ -53,10 +52,13 @@ ap3 :: Expr -> Expr -> Expr -> Expr -> Expr
 ap3 f a b c = EAp (ap2 f a b) c
 
 intConstant :: Name -> Int -> Scomb
-intConstant name val = Scomb
+intConstant name val = constant name (PrimInt val)
+
+constant :: Name -> Prim -> Scomb
+constant name val = Scomb
   { scomb'name = name
   , scomb'args = V.empty
-  , scomb'body = ENum val
+  , scomb'body = EPrim val
   }
 
 op1 :: Name -> Scomb
@@ -79,13 +81,6 @@ op3 name = Scomb
   , scomb'args = V.fromList ["x", "y", "z"]
   , scomb'body = ap3 (EVar name) (EVar "x") (EVar "y") (EVar "z")
   }
-
--- | Check if primitive operation is defined on integers
-isIntOp :: Name -> Bool
-isIntOp name = S.member name intOps
-
-intOps :: Set Name
-intOps = S.fromList ["+", "*", "-", "/"]
 
 builtInDiadic :: Map Name Instr
 builtInDiadic = M.fromList

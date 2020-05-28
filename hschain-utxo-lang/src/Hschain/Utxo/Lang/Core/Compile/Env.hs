@@ -12,7 +12,7 @@ module Hschain.Utxo.Lang.Core.Compile.Env(
 import Data.Map.Strict (Map)
 import Data.Vector (Vector)
 
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector     as V

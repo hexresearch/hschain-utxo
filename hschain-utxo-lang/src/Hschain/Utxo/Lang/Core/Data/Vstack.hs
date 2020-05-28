@@ -4,16 +4,18 @@ module Hschain.Utxo.Lang.Core.Data.Vstack(
   , pop
 ) where
 
+import Hschain.Utxo.Lang.Core.Data.Prim
+
 import Data.Sequence (Seq, (<|), ViewL(..))
 import qualified Data.Sequence as S
 
-newtype Vstack = Vstack (Seq Int)
+newtype Vstack = Vstack (Seq Prim)
   deriving newtype (Show, Eq, Semigroup, Monoid)
 
-put :: Int -> Vstack -> Vstack
+put :: Prim -> Vstack -> Vstack
 put n (Vstack seq) = Vstack (n <| seq)
 
-pop :: Vstack -> (Maybe Int, Vstack)
+pop :: Vstack -> (Maybe Prim, Vstack)
 pop (Vstack seq) =
   case S.viewl seq of
     EmptyL  -> (Nothing, Vstack seq)

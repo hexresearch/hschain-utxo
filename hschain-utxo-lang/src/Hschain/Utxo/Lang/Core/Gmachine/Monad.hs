@@ -49,12 +49,12 @@ import Control.Monad.Except        as X
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Dump (Dump)
-import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Node(..), Globals)
+import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals)
 import Hschain.Utxo.Lang.Core.Data.Output (Output)
 import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Vstack (Vstack)
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code   as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Dump   as Dump

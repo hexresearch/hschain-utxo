@@ -7,6 +7,7 @@ import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Gmachine
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.Vector as V
 
@@ -26,6 +27,14 @@ ap3 f a b c = EAp (ap2 f a b) c
 
 instance IsString Expr where
   fromString = EVar . fromString
+
+instance Num Expr where
+  (+) = ap2 "+"
+  (*) = ap2 "*"
+  negate = EAp "negate"
+  abs = undefined
+  signum = undefined
+  fromInteger = EPrim . PrimInt . fromInteger
 
 ----------------------------------------------
 
@@ -68,7 +77,7 @@ prelude2 = [s, k, k1, id', cons, nil]
 prog1 :: CoreProg
 prog1 = main : prelude
   where
-    main = scomb "main" [] (ap3 "S" "K" "K" (ENum 3))
+    main = scomb "main" [] (ap3 "S" "K" "K" 3)
 
 -- | Program
 --
@@ -79,14 +88,14 @@ prog2 :: CoreProg
 prog2 = [ twice, main ] ++ prelude
   where
     twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x"))
-    main  = scomb "main"  []         (ap3 "twice" "twice" "I" (ENum 3))
+    main  = scomb "main"  []         (ap3 "twice" "twice" "I" 3)
 
 
 prog3 :: CoreProg
 prog3 = main : twice : prelude
   where
     twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x"))
-    main = scomb "main" [] (ap2 "twice" (ap2 "I" "I" "I") (ENum 3))
+    main = scomb "main" [] (ap2 "twice" (ap2 "I" "I" "I") 3)
 
 -- | Functional representation of the lists. Test for lazy evaluation.
 -- Programm creates infinite list of 4s, and takes second element of the list
@@ -109,7 +118,7 @@ prog4 = [cons, nil, hd, tl, abort, infinite, main] ++ prelude
     abort = scomb "abort" []                    "abort"
     infinite = scomb "infinite" ["x"]           (ap2 "cons" "x" (EAp "infinite" "x"))
 
-    main  = scomb "main" []                     (EAp "hd" (EAp "tl" (EAp "infinite" (ENum 4))))
+    main  = scomb "main" []                     (EAp "hd" (EAp "tl" (EAp "infinite" 4)))
 
 
 
@@ -120,7 +129,7 @@ prog4 = [cons, nil, hd, tl, abort, infinite, main] ++ prelude
 prog5 :: CoreProg
 prog5 = main : prelude
   where
-    main = scomb "main" [] (ELet [("id1", ap2 "I" "I" "I")] (ap3 "id1" "id1" "id1" (ENum 3)))
+    main = scomb "main" [] (ELet [("id1", ap2 "I" "I" "I")] (ap3 "id1" "id1" "id1" 3))
 
 -- | Simple arithmetic
 --
@@ -128,7 +137,7 @@ prog5 = main : prelude
 prog6 :: CoreProg
 prog6 = [main]
   where
-    main = scomb "main" [] (ap2 "+" (ENum 3) (ap2 "*" (ENum 4) (ENum 5)))
+    main = scomb "main" [] (3 + 4 * 5)
 
 
 -- | Simple arithmetic
@@ -137,14 +146,14 @@ prog6 = [main]
 prog7 :: CoreProg
 prog7 = [main]
   where
-    main = scomb "main" [] (ELet [("x", ap2 "*" (ENum 3) (ap2 "+" (ENum 2) (ENum 2)))] (ap2 "*" "x" "x"))
+    main = scomb "main" [] (ELet [("x", 3 * (2 + 2))] ("x" * "x"))
 
 prog8 :: CoreProg
 prog8 = [main, inc, twice] ++ prelude
   where
-    inc = scomb "inc" ["x"] (ap2 "+" "x" (ENum 1))
+    inc = scomb "inc" ["x"] ("x" + 1)
     twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x"))
-    main = scomb "main" [] (ap3 "twice" "twice" "inc" (ENum 4))
+    main = scomb "main" [] (ap3 "twice" "twice" "inc" 4)
 
 -- | Test for arithmetic. Length of the list
 --
@@ -157,9 +166,9 @@ prog9 = [main, length', length1, cons, nil] ++ prelude
   where
     cons  = scomb "cons" ["a", "b", "cc", "cn"] (ap2 "cc" "a" "b")
     nil   = scomb "nil"  ["cc", "cn"]           "cn"
-    length' = scomb "length" ["xs"] (ap2 "xs" "length1" (ENum 0))
-    length1 = scomb "length1" ["x", "xs"] (ap2 "+" (ENum 1) (EAp "length" "xs"))
-    main = scomb "main" [] (EAp "length" (ap2 "cons" (ENum 3) (ap2 "cons" (ENum 3) (ap2 "cons" (ENum 3) "nil"))))
+    length' = scomb "length" ["xs"] (ap2 "xs" "length1" 0)
+    length1 = scomb "length1" ["x", "xs"] (1 + (EAp "length" "xs"))
+    main = scomb "main" [] (EAp "length" (ap2 "cons" 3 (ap2 "cons" 3 (ap2 "cons" 3 "nil"))))
 
 -- | With conditionals. Factorial
 --
@@ -167,8 +176,8 @@ prog9 = [main, length', length1, cons, nil] ++ prelude
 -- > main = fac 10
 prog10 = [main, fac]
   where
-    fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" (ENum 0)) (ENum 1) (ap2 "*" "n" (EAp "fac" (ap2 "-" "n" (ENum 1)))) )
-    main = scomb "main" [] (EAp "fac" (ENum 10))
+    fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" 0) 1 ("n" * (EAp "fac" ("n" - 1))) )
+    main = scomb "main" [] (EAp "fac" 10)
 
 -- > gcd a b = if (a == b)
 -- >              a
@@ -185,7 +194,7 @@ prog11 = [main, gcd]
                                                 (ap2 "<" "a" "b")
                                                 (ap2 "gcd" "b" "a")
                                                 (ap2 "gcd" "b" (ap2 "-" "a" "b")) ))
-    main = scomb "main" [] (ap2 "gcd" (ENum 6) (ENum 10))
+    main = scomb "main" [] (ap2 "gcd" 6 10)
 
 -- | Fibonacci numbers
 --
@@ -194,14 +203,12 @@ prog11 = [main, gcd]
 prog12 = [main, nfib]
   where
     nfib = scomb "nfib" ["n"] (ap3 "if"
-                                   (ap2 "<=" "n" (ENum 0))
-                                   (ENum 1)
-                                   (ap2 "+"
-                                         (ENum 1)
-                                         (ap2 "+"
-                                               (EAp "nfib" (ap2 "-" "n" (ENum 1)))
-                                               (EAp "nfib" (ap2 "-" "n" (ENum 2)))  )))
-    main = scomb "main" [] (EAp "nfib" (ENum 5))
+                                   (ap2 "<=" "n" 0)
+                                   1
+                                   (1 +
+                                         ( (EAp "nfib" ("n" - 1))
+                                         + (EAp "nfib" ("n" - 2))  )))
+    main = scomb "main" [] (EAp "nfib" 5)
 
 -- | Infinite term programm. Evaluation does not terminate.
 --
@@ -227,12 +234,12 @@ badProg = [main, f]
 prog13 :: CoreProg
 prog13 = [main, downfrom] ++ prelude2
   where
-    main = scomb "main" [] (EAp "downfrom" (ENum 5))
+    main = scomb "main" [] (EAp "downfrom" 5)
     downfrom = scomb "downfrom" ["n"]
         (ap3 "if"
-              (ap2 "==" "n" (ENum 0))
+              (ap2 "==" "n" 0)
               "nil"
-              (ap2 "cons" "n" (EAp "downfrom" (ap2 "-" "n" (ENum 1))))
+              (ap2 "cons" "n" (EAp "downfrom" (ap2 "-" "n" 1)))
         )
 
 
@@ -251,16 +258,16 @@ prog13 = [main, downfrom] ++ prelude2
 prog14 :: CoreProg
 prog14 = [main, take', from] ++ prelude2
   where
-    main = scomb "main" [] (ap2 "take" (ENum 5) (EAp "from" (ENum 0)))
+    main = scomb "main" [] (ap2 "take" 5 (EAp "from" 0))
     take' = scomb "take" ["n", "xs"]
       (ap3 "if"
-           (ap2 "<=" "n" (ENum 0))
+           (ap2 "<=" "n" 0)
            "nil"
            (ECase "xs" [ CaseAlt 1 [] "nil"
-                       , CaseAlt 2 ["p", "ps"] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" (ENum 1)) "ps"))
+                       , CaseAlt 2 ["p", "ps"] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
                         ])
            )
-    from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" (ENum 1))))
+    from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" 1)))
 
 
 -- | Eratosthenes sieve. Prints list of prime numbers
@@ -290,19 +297,19 @@ prog14 = [main, take', from] ++ prelude2
 prog15 :: CoreProg
 prog15 = [main, take', from, sieve, filter', nonMultiple] ++ prelude2
   where
-    main = scomb "main" [] (ap2 "take" (ENum 5) (EAp "sieve" (EAp "from" (ENum 2))))
+    main = scomb "main" [] (ap2 "take" 5 (EAp "sieve" (EAp "from" 2)))
 
     nonMultiple = scomb "nonMultiple" ["p", "n"] (ap2 "/=" (ap2 "*" (ap2 "/" "n" "p") "p") "n")
 
     take' = scomb "take" ["n", "xs"]
       (ap3 "if"
-           (ap2 "<=" "n" (ENum 0))
+           (ap2 "<=" "n" 0)
            "nil"
            (ECase "xs" [ CaseAlt 1 [] "nil"
-                       , CaseAlt 2 ["p", "ps"] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" (ENum 1)) "ps"))
+                       , CaseAlt 2 ["p", "ps"] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
                         ])
            )
-    from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" (ENum 1))))
+    from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" 1)))
 
     filter' = scomb "filter" ["predicate", "xs"]
       (ECase "xs" [ CaseAlt 1 [] "nil"

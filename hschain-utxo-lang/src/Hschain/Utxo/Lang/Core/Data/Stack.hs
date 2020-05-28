@@ -24,10 +24,11 @@ import Data.Foldable (toList)
 import Data.Sequence hiding (lookup, length, drop, singleton)
 
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap)
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.Sequence as S
 
+import qualified Hschain.Utxo.Lang.Core.Data.Node as Node
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 
 -- | Current stack of the G-machine
@@ -94,7 +95,7 @@ length (Stack seq) = S.length seq
 rearrange :: Int -> Heap -> Stack -> Maybe Stack
 rearrange n heap (Stack seq) = fmap (\as -> Stack $ S.take n as <> S.drop n seq) mAs
   where
-    mAs = mapM (Heap.getNodeApArg <=< (\addr -> Heap.lookup addr heap)) =<< tailM seq
+    mAs = mapM (Node.getNodeApArg <=< (\addr -> Heap.lookup addr heap)) =<< tailM seq
 
 tailM :: Seq a -> Maybe (Seq a)
 tailM x = case viewl x of

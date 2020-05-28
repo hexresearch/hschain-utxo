@@ -11,8 +11,9 @@ import Hschain.Utxo.Lang.Core.Compile.Env
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
-import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals, Node(..))
-import Hschain.Utxo.Lang.Core.Data.Utils
+import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals)
+import Hschain.Utxo.Lang.Core.Data.Node
+import Hschain.Utxo.Lang.Core.Data.Prim
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 
@@ -75,13 +76,12 @@ compileR expr env arity =
 
     defaultCase =
       case lastInstr of
-        Just MkInt  -> updatePrim UpdateInt
-        Just MkBool -> updatePrim UpdateBool
+        Just MkPrim -> updatePrim
         _           -> code <> Code.fromList endInstrs
       where
         code = compileE expr env
         (lastInstr, prefCode) = Code.splitLastInstr code
-        updatePrim cons = prefCode <> Code.singleton (cons arity) <> (Code.fromList $ tail endInstrs)
+        updatePrim = prefCode <> Code.singleton (UpdatePrim arity) <> (Code.fromList $ tail endInstrs)
 
     compileIf a b c =
       compileB a env <> Code.singleton (Cond (compileR b env arity) (compileR c env arity))
@@ -98,7 +98,7 @@ compileLetR env arity defs e =
 
 compileE :: Expr -> Env -> Code
 compileE expr env = case expr of
-  ENum n -> Code.singleton $ PushInt n
+  EPrim n -> Code.singleton $ PushPrim n
   ELet es e -> compileLet env es e
   EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
   EAp (EVar "negate") a             -> compileNegate a
@@ -111,13 +111,13 @@ compileE expr env = case expr of
     compileDiadic op a b =
       case M.lookup op builtInDiadic of
         Just instr -> compileDiadicInstrB env instr a b
-                        <> Code.singleton (if (isIntOp op) then MkInt else MkBool)
+                        <> Code.singleton MkPrim
         Nothing    -> defaultCase
 
     compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 
-    compileNegate a = compileNegateB env a <> Code.singleton MkInt
-    compileNot a = compileNotB env a <> Code.singleton MkBool
+    compileNegate a = compileNegateB env a <> Code.singleton MkPrim
+    compileNot a = compileNotB env a <> Code.singleton MkPrim
 
     defaultCase = compileC expr env <> Code.singleton Eval
 
@@ -129,7 +129,7 @@ compileC expr env = case expr of
   EVar v  -> Code.singleton $ case lookupEnv v env of
                Just n  -> Push n
                Nothing -> PushGlobal (GlobalName v)
-  ENum n  -> Code.singleton $ PushInt n
+  EPrim n  -> Code.singleton $ PushPrim n
   EAp a b -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
   ELet es e -> compileLet env es e
   EConstr tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
@@ -182,7 +182,7 @@ compileAlt comp env CaseAlt{..} = (caseAlt'tag, comp arity caseAlt'rhs env')
 
 compileB :: Expr -> Env -> Code
 compileB expr env = case expr of
-  ENum n                            -> Code.singleton $ PushBasic n
+  EPrim n                           -> Code.singleton $ PushBasic n
   ELet es e                         -> compileLetB env es e
   EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
   EAp (EVar "negate") a             -> compileNegateB env a
