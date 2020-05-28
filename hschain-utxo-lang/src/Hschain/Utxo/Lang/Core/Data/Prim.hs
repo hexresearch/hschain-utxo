@@ -3,10 +3,11 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
   , Addr
   , Prim(..)
-  , BoolExpr(..)
+  , SigmaExpr(..)
   , getPrimInt
   , getPrimText
   , getPrimBool
+  , getPrimSigma
 ) where
 
 import Data.Text (Text)
@@ -19,20 +20,19 @@ type Addr = Int
 
 -- | Primitive types
 data Prim
-  = PrimInt  !Int
-  | PrimText !Text
-  | PrimBool !BoolExpr
+  = PrimInt   !Int
+  | PrimText  !Text
+  | PrimBool  !Bool
+  | PrimSigma !SigmaExpr
   deriving (Show, Eq, Ord)
 
 -- | Boolean expressions
 -- that include Sigma-expressions
-data BoolExpr
-  = BoolValue Bool              -- ^ constant values
-  | BoolAnd BoolExpr BoolExpr   -- ^ boolean AND
-  | BoolOr  BoolExpr BoolExpr   -- ^ boolean OR
-  | BoolXor BoolExpr BoolExpr   -- ^ boolean XOR
-  | BoolNot BoolExpr            -- ^ boolean NOT
-  | Pk Text                     -- ^ public key ownership
+data SigmaExpr
+  = SigmaBool Bool                 -- ^ constant values
+  | SigmaAnd  SigmaExpr SigmaExpr  -- ^ boolean AND
+  | SigmaOr   SigmaExpr SigmaExpr  -- ^ boolean OR
+  | SigmaPk   Text                 -- ^ public key ownership
   deriving (Show, Eq, Ord)
 
 -- | Extract integer primitive
@@ -42,7 +42,7 @@ getPrimInt = \case
   _         -> Nothing
 
 -- | Extract boolean primitive
-getPrimBool :: Prim -> Maybe BoolExpr
+getPrimBool :: Prim -> Maybe Bool
 getPrimBool = \case
   PrimBool b -> Just b
   _          -> Nothing
@@ -52,4 +52,10 @@ getPrimText :: Prim -> Maybe Text
 getPrimText = \case
   PrimText t -> Just t
   _          -> Nothing
+
+-- | Extract textual primitive
+getPrimSigma :: Prim -> Maybe SigmaExpr
+getPrimSigma = \case
+  PrimSigma t -> Just t
+  _           -> Nothing
 

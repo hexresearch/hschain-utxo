@@ -44,8 +44,6 @@ data Instr
   -- ^ save the global name of supercombinator
   | PushPrim !Prim
   -- ^ save the constant primitive
-  | PushText !Text
-  -- ^ save the constant text
   | PushBasic !Prim
   -- ^ push value to V-stack
   | Push !Int
@@ -85,6 +83,8 @@ data Instr
   -- ^ Comparison operations
   | And | Or | Not | Xor
   -- ^ boolean operators
+  | SAnd | SOr | Pk | SBool
+  -- ^ sigma operators
   | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
   -- ^ text operators
   deriving (Show, Eq)

@@ -35,6 +35,11 @@ library
       Hschain.Utxo.Lang.Core.Data.Vstack
       Hschain.Utxo.Lang.Core.Gmachine
       Hschain.Utxo.Lang.Core.Gmachine.Eval
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Dump
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Heap
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Stack
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
       Hschain.Utxo.Lang.Core.Gmachine.Monad
       Hschain.Utxo.Lang.Desugar
       Hschain.Utxo.Lang.Desugar.FreshVar

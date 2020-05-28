@@ -16,6 +16,12 @@ import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
+import Hschain.Utxo.Lang.Core.Gmachine.Eval.Dump
+import Hschain.Utxo.Lang.Core.Gmachine.Eval.Heap
+import Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim
+import Hschain.Utxo.Lang.Core.Gmachine.Eval.Stack
+import Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
+
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
@@ -50,7 +56,6 @@ dispatch :: Instr -> Exec ()
 dispatch = \case
   PushGlobal n -> pushGlobal n
   PushPrim n   -> pushPrim n
-  PushText t   -> pushText t
   PushBasic n  -> pushBasic n
   Push n       -> push n
   Mkap         -> mkap
@@ -67,22 +72,27 @@ dispatch = \case
   Div          -> binNumOp div
   Neg          -> negOp
   -- compare
-  Eq           -> condOp (==)
-  Ne           -> condOp (/=)
-  Lt           -> condOp (<)
-  Le           -> condOp (<=)
-  Gt           -> condOp (>)
-  Ge           -> condOp (>=)
+  Eq           -> compareOp (==)
+  Ne           -> compareOp (/=)
+  Lt           -> compareOp (<)
+  Le           -> compareOp (<=)
+  Gt           -> compareOp (>)
+  Ge           -> compareOp (>=)
   -- booleans (encoded with integers)
-  And          -> binNumOp min
-  Or           -> binNumOp max
-  Xor          -> binNumOp (\a b -> boolToInt (a /= b))
+  And          -> binBoolOp (&&)
+  Or           -> binBoolOp (||)
+  Xor          -> binBoolOp  (/=)
   Not          -> notOp
   -- text
   TextAppend   -> binTextOp mappend
   TextLength   -> textLength
   HashBlake    -> hashBlake
   HashSha      -> hashSha
+  -- sigma expressions
+  SAnd         -> binSigmaOp SigmaAnd
+  SOr          -> binSigmaOp SigmaOr
+  Pk           -> pkOp
+  SBool        -> boolToSigmaOp
   -- conditionals
   Cond c1 c2   -> cond c1 c2
   Pack m n     -> pack m n
@@ -126,25 +136,12 @@ pushPrim prim = do
       modifyGlobals $ Heap.insertGlobalConst prim addr
       return addr
 
-pushText :: Text -> Exec ()
-pushText = undefined
-
-pushBasic :: Prim -> Exec ()
-pushBasic n = putVstack n
-
 mkap :: Exec ()
 mkap = do
   a1  <- popAddr
   a2  <- popAddr
   res <- alloc (Ap a1 a2)
   putAddr res
-
-push :: Int -> Exec ()
-push n =
-  putAddr =<< lookupAddr n
-
-slide :: Int -> Exec ()
-slide n = modifyStack (Stack.slide n)
 
 unwind :: Exec ()
 unwind = do
@@ -201,9 +198,6 @@ update n = do
   nAddr <- lookupAddr n
   modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
 
-pop :: Int -> Exec ()
-pop n = modifyStack $ Stack.drop n
-
 allocEmptyNodes :: Int -> Exec ()
 allocEmptyNodes n = do
   as <- mapM (const $ alloc emptyNode) $ Seq.fromList [1 .. n]
@@ -219,118 +213,12 @@ evalExpr = do
   putStack $ Stack.singleton topAddr
 
 ------------------------------------------------------
--- | shortcuts for sequence [MkPrim, Update n]
-
-updatePrim :: Int -> Exec ()
-updatePrim n = do
-  topAddr <- alloc . NodePrim =<< popVstack
-  nAddr <- lookupAddr n
-  modifyHeap $ Heap.insertNode nAddr (NodeInd topAddr)
-
-------------------------------------------------------
--- V-stack operations
-
-mkPrim :: Exec ()
-mkPrim = do
-  addr <- alloc . NodePrim =<< popVstack
-  putAddr addr
-
--- | Implementation of Get instruction
-getExpr :: Exec ()
-getExpr = do
-  node <- lookupHeap =<< popAddr
-  maybe badType putVstack $ getNodePrim node
-
-------------------------------------------------------
--- primitive operators
-
--- numbers
-
-binNumOp :: (Int -> Int -> Int) -> Exec ()
-binNumOp = primOp2 popInt popInt putInt
-
-negOp :: Exec ()
-negOp = primOp1 popInt putInt negate
-
-condOp :: (Int -> Int -> Bool) -> Exec ()
-condOp op = binNumOp (\a b -> boolToInt $ op a b)
-
-boolToInt :: Bool -> Int
-boolToInt = \case
-      True  -> 1
-      False -> 0
-
-intToBool :: Int -> Bool
-intToBool n = n /= 0
-
-notOp :: Exec ()
-notOp = primOp1 popInt putInt (\x -> 1 - x)
-
-popInt :: Exec Int
-popInt = popVstackBy getPrimInt
-
-putInt :: Int -> Exec ()
-putInt = putVstackBy PrimInt
-
-popText :: Exec Text
-popText = popVstackBy getPrimText
-
-putText :: Text -> Exec ()
-putText = putVstackBy PrimText
-
-popBool :: Exec BoolExpr
-popBool = popVstackBy getPrimBool
-
-putBool :: BoolExpr -> Exec ()
-putBool = putVstackBy PrimBool
-
-
-popVstack :: Exec Prim
-popVstack = fromError VstackIsEmpty $ stateVstack Vstack.pop
-
-putVstack :: Prim -> Exec ()
-putVstack n = modifyVstack (Vstack.put n)
-
-popVstackBy :: (Prim -> Maybe a) -> Exec a
-popVstackBy extract = do
-  fromError BadType $ fmap extract popVstack
-
-putVstackBy :: (a -> Prim) -> a -> Exec ()
-putVstackBy wrap = putVstack . wrap
-
-primOp1 :: (Exec a) -> (b -> Exec ()) -> (a -> b) -> Exec ()
-primOp1 unbox box f =
-  box =<< fmap f unbox
-
-primOp2 :: (Exec a) -> (Exec b) -> (c -> Exec ()) -> (a -> b -> c) -> Exec ()
-primOp2 unboxA unboxB box f = do
-  a <- unboxA
-  b <- unboxB
-  box $ f a b
 
 cond :: Code -> Code -> Exec ()
 cond c1 c2 = do
-  n <- popInt
-  let code = if (n == 1) then c1 else c2
+  pred <- popBool
+  let code = if pred then c1 else c2
   modifyCode (code <> )
-
--- text
-
-binTextOp :: (Text -> Text -> Text) -> Exec ()
-binTextOp = primOp2 popText popText putText
-
-textLength :: Exec ()
-textLength = primOp1 popText putInt T.length
-
-hashBlake :: Exec ()
-hashBlake = primOp1 popText putText getBlakeHash
-  where
-    getBlakeHash = undefined
-
-hashSha :: Exec ()
-hashSha = primOp1 popText putText getSha256
-  where
-    getSha256 = undefined
 
 -------------------------------------------------------------
 -- execution of case-expression and custom data types
@@ -375,41 +263,6 @@ printExpr = do
 -------------------------------------------------------------
 -- state update proxies for G-machine units
 
--- stack
-
--- | Puts address on top of the stack
-putAddr :: Addr -> Exec ()
-putAddr addr = modifyStack (Stack.put addr)
-
--- | Read top of the stack and remove that element from the stack
-popAddr :: Exec Addr
-popAddr = fromError StackIsEmpty $
-  stateStack Stack.pop
-
--- | Pops specified number of arguments
---
--- TODO: re-implement with stack operation directly (for efficient execution)
-popAddrList :: Int -> Exec (Seq Addr)
-popAddrList size = stateStack $ Stack.popN size
-
--- | Read top of the stack without modifying it.
-peekAddr :: Exec Addr
-peekAddr = fromError StackIsEmpty $
-  fmap Stack.peek getStack
-
-peekBottomAddr :: Exec Addr
-peekBottomAddr = fromError StackIsEmpty $
-  fmap Stack.peekBottom getStack
-
--- | Read stack by index.
-lookupAddr :: Int -> Exec Addr
-lookupAddr n = fromError StackIsEmpty $
-  fmap (Stack.lookup n) getStack
-
--- | Read stack size
-getStackSize :: Exec Int
-getStackSize = fmap Stack.length getStack
-
 -- code
 
 -- | Is final state of G-machine reached (no code left to execute)
@@ -430,38 +283,4 @@ getNextInstr = do
 updateStats :: Exec ()
 updateStats = modifyStats Stat.update
 
--- heap
-
--- | allocate new cell for the node on the heap,
-alloc :: Node -> Exec Addr
-alloc node = stateHeap (Heap.alloc node)
-
--- | Get the node stored in the heap by its address.
-lookupHeap :: Addr -> Exec Node
-lookupHeap addr = fromError (BadAddr addr) $
-  fmap (Heap.lookup addr) getHeap
-
--- dump
-
-loadDump :: Exec ()
-loadDump = do
-  (code, stack) <- popDump
-  putCode code
-  putStack stack
-
-saveDump :: Exec ()
-saveDump = do
-  code <- getCode
-  stack <- getStack
-  insertDump code stack
-
-popDump :: Exec (Code, Stack)
-popDump = do
-  dump <- getDump
-  let (mRes, dump') = Dump.pop dump
-  putDump dump'
-  maybe dumpIsEmpty pure mRes
-
-insertDump :: Code -> Stack -> Exec ()
-insertDump code stack = modifyDump $ Dump.put code stack
 
