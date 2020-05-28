@@ -101,9 +101,8 @@ compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
   ELet es e -> compileLet env es e
   EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
-  EAp (EVar "negate") a             -> compileNegate a
-  EAp (EVar "not") a                -> compileNot a
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
+  EAp (EVar op) a                   -> compileUnary op a
   ECase e alts -> compileCase env e alts
   EConstr tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   _ -> defaultCase
@@ -114,10 +113,12 @@ compileE expr env = case expr of
                         <> Code.singleton MkPrim
         Nothing    -> defaultCase
 
-    compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
+    compileUnary op a =
+      case M.lookup op builtInUnary of
+        Just instr -> compileUnaryInstrB env instr a <> Code.singleton MkPrim
+        Nothing    -> defaultCase
 
-    compileNegate a = compileNegateB env a <> Code.singleton MkPrim
-    compileNot a = compileNotB env a <> Code.singleton MkPrim
+    compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 
     defaultCase = compileC expr env <> Code.singleton Eval
 
@@ -185,9 +186,8 @@ compileB expr env = case expr of
   EPrim n                           -> Code.singleton $ PushBasic n
   ELet es e                         -> compileLetB env es e
   EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
-  EAp (EVar "negate") a             -> compileNegateB env a
-  EAp (EVar "not") a                -> compileNotB env a
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
+  EAp (EVar op) a                   -> compileUnary op a
   _                                 -> defaultCase
   where
     compileIf a b c =
@@ -198,19 +198,20 @@ compileB expr env = case expr of
         Just instr -> compileDiadicInstrB env instr a b
         Nothing    -> defaultCase
 
+    compileUnary op a =
+      case M.lookup op builtInUnary of
+        Just instr -> compileUnaryInstrB env instr a
+        Nothing    -> defaultCase
+
     defaultCase = compileE expr env <> Code.singleton Get
 
 compileDiadicInstrB :: Env -> Instr -> Expr -> Expr -> Code
 compileDiadicInstrB env instr a b =
   compileB b env <> compileB a env <> Code.singleton instr
 
-compileNegateB :: Env -> Expr -> Code
-compileNegateB env a =
-  compileB a env <> Code.singleton Neg
-
-compileNotB :: Env -> Expr -> Code
-compileNotB env a =
-  compileB a env <> Code.singleton Not
+compileUnaryInstrB :: Env -> Instr -> Expr -> Code
+compileUnaryInstrB env instr a =
+  compileB a env <> Code.singleton instr
 
 compileLetB :: Env -> [(Name, Expr)] -> Expr -> Code
 compileLetB env defs e =

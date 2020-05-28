@@ -22,17 +22,13 @@ import Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Stack
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
 
-import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
-import qualified Data.Text as T
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code   as Code
-import qualified Hschain.Utxo.Lang.Core.Data.Dump   as Dump
 import qualified Hschain.Utxo.Lang.Core.Data.Heap   as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stack  as Stack
 import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
-import qualified Hschain.Utxo.Lang.Core.Data.Vstack as Vstack
 
 
 -- | Evaluates code for Gmachine and returns the final state

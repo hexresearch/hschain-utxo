@@ -35,12 +35,22 @@ primitives =
   -- conditionals
   , op3 "if"
   -- booleans
-  , intConstant "true" 1
-  , intConstant "false" 0
+  , constant "true"  (PrimBool True)
+  , constant "false" (PrimBool False)
   , op2 "&&"
   , op2 "||"
   , op2 "^^"
   , op1 "not"
+  -- text
+  , op1 "lengthText"
+  , op2 "<>"
+  , op1 "hashBlake"
+  , op1 "hashSha"
+  -- sigma-expressions
+  , op2 "&"
+  , op2 "|"
+  , op1 "pk"
+  , op1 "toSigma"
   ]
 
 -- | Application of function to two arguments
@@ -97,11 +107,19 @@ builtInDiadic = M.fromList
   , ("&&", And)
   , ("||", Or)
   , ("^^", Xor)
+  , ("&", SAnd)
+  , ("|", SOr)
+  , ("<>", TextAppend)
   ]
 
 builtInUnary :: Map Name Instr
 builtInUnary = M.fromList
   [ ("negate", Neg)
   , ("not", Not)
+  , ("pk", Pk)
+  , ("toSigma", SBool)
+  , ("lengthText", TextLength)
+  , ("hashBlake", HashBlake)
+  , ("hashSha", HashSha)
   ]
 

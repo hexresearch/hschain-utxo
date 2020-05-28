@@ -243,9 +243,9 @@ prog13 = [main, downfrom] ++ prelude2
         )
 
 
--- | Program that takes first 5 elements of infinite list of twos.
+-- | Program that takes first 5 elements of infinite list of integers.
 --
--- > main = take 5 (repeat 2)
+-- > main = take 5 (from 0)
 -- >
 -- > take n xs = if (n <= 0)
 -- >                nil
