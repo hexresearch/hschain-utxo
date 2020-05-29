@@ -2,7 +2,6 @@
 module Gmachine where
 
 import Data.Either
-import Data.String
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Compile
@@ -24,9 +23,6 @@ ap2 f a b = EAp (EAp f a) b
 
 ap3 :: Expr -> Expr -> Expr -> Expr -> Expr
 ap3 f a b c = EAp (ap2 f a b) c
-
-instance IsString Expr where
-  fromString = EVar . fromString
 
 instance Num Expr where
   (+) = ap2 "+"
