@@ -21,6 +21,28 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
+      Hschain.Utxo.Lang.Core.Compile
+      Hschain.Utxo.Lang.Core.Compile.Env
+      Hschain.Utxo.Lang.Core.Compile.Expr
+      Hschain.Utxo.Lang.Core.Compile.Primitives
+      Hschain.Utxo.Lang.Core.Compile.Prog
+      Hschain.Utxo.Lang.Core.Data.Code
+      Hschain.Utxo.Lang.Core.Data.Dump
+      Hschain.Utxo.Lang.Core.Data.Heap
+      Hschain.Utxo.Lang.Core.Data.Node
+      Hschain.Utxo.Lang.Core.Data.Output
+      Hschain.Utxo.Lang.Core.Data.Prim
+      Hschain.Utxo.Lang.Core.Data.Stack
+      Hschain.Utxo.Lang.Core.Data.Stat
+      Hschain.Utxo.Lang.Core.Data.Vstack
+      Hschain.Utxo.Lang.Core.Gmachine
+      Hschain.Utxo.Lang.Core.Gmachine.Eval
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Dump
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Heap
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Stack
+      Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
+      Hschain.Utxo.Lang.Core.Gmachine.Monad
       Hschain.Utxo.Lang.Desugar
       Hschain.Utxo.Lang.Desugar.FreshVar
       Hschain.Utxo.Lang.Desugar.Guard
