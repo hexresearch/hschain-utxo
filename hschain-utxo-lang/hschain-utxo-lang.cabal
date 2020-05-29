@@ -26,6 +26,7 @@ library
       Hschain.Utxo.Lang.Core.Compile.Expr
       Hschain.Utxo.Lang.Core.Compile.Primitives
       Hschain.Utxo.Lang.Core.Compile.Prog
+      Hschain.Utxo.Lang.Core.Compile.TypeCheck
       Hschain.Utxo.Lang.Core.Data.Code
       Hschain.Utxo.Lang.Core.Data.Dump
       Hschain.Utxo.Lang.Core.Data.Heap

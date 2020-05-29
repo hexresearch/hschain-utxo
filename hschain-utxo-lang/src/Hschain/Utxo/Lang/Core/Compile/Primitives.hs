@@ -21,7 +21,9 @@ import qualified Data.Vector as V
 
 -- | Built-in language primitives
 primitives :: [Scomb]
-primitives =
+primitives = []
+
+{-
   -- numeric operators
   [ op2 "+"
   , op2 "*"
@@ -136,37 +138,6 @@ op3 name = Scomb
   , scomb'args = V.fromList ["x", "y", "z"]
   , scomb'body = ap3 (EVar name) (EVar "x") (EVar "y") (EVar "z")
   }
-
-builtInDiadic :: Map Name Instr
-builtInDiadic = M.fromList
-  [ ("+", Add)
-  , ("*", Mul)
-  , ("-", Sub)
-  , ("/", Div)
-  , ("==", Eq)
-  , ("/=", Ne)
-  , ("<", Lt)
-  , ("<=", Le)
-  , (">", Gt)
-  , (">=", Ge)
-  , ("&&", And)
-  , ("||", Or)
-  , ("^^", Xor)
-  , ("&", SAnd)
-  , ("|", SOr)
-  , ("<>", TextAppend)
-  ]
-
-builtInUnary :: Map Name Instr
-builtInUnary = M.fromList
-  [ ("negate", Neg)
-  , ("not", Not)
-  , ("pk", Pk)
-  , ("toSigma", SBool)
-  , ("lengthText", TextLength)
-  , ("hashBlake", HashBlake)
-  , ("hashSha", HashSha)
-  ]
 
 -- lists
 
@@ -387,4 +358,37 @@ getOutputs = getEnvField "getOutputs" "outputs"
 
 getArgs :: Scomb
 getArgs = getEnvField "getArgs" "args"
+-}
+
+builtInDiadic :: Map Name Instr
+builtInDiadic = M.fromList
+  [ ("+", Add)
+  , ("*", Mul)
+  , ("-", Sub)
+  , ("/", Div)
+  , ("==", Eq)
+  , ("/=", Ne)
+  , ("<", Lt)
+  , ("<=", Le)
+  , (">", Gt)
+  , (">=", Ge)
+  , ("&&", And)
+  , ("||", Or)
+  , ("^^", Xor)
+  , ("&", SAnd)
+  , ("|", SOr)
+  , ("<>", TextAppend)
+  ]
+
+builtInUnary :: Map Name Instr
+builtInUnary = M.fromList
+  [ ("negate", Neg)
+  , ("not", Not)
+  , ("pk", Pk)
+  , ("toSigma", SBool)
+  , ("lengthText", TextLength)
+  , ("hashBlake", HashBlake)
+  , ("hashSha", HashSha)
+  ]
+
 
