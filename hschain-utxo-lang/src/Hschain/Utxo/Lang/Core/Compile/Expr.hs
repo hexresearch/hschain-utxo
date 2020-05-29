@@ -7,10 +7,9 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , CompiledScomb(..)
 ) where
 
-import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
+import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
 -- | core program is a sequence of supercombinator definitions

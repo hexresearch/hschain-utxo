@@ -18,8 +18,6 @@ import Prelude hiding (lookup)
 
 import Data.IntMap (IntMap)
 import Data.Map.Strict (Map)
-import Data.Sequence (Seq)
-import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Data.Node

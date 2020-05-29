@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types where
 

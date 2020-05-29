@@ -20,7 +20,6 @@ import Prelude hiding (lookup, length, drop)
 
 import Control.Monad
 
-import Data.Foldable (toList)
 import Data.Sequence hiding (lookup, length, drop, singleton)
 
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap)
@@ -32,47 +31,47 @@ import qualified Hschain.Utxo.Lang.Core.Data.Node as Node
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 
 -- | Current stack of the G-machine
-newtype Stack = Stack { unStack :: Seq Addr }
+newtype Stack = Stack (Seq Addr)
   deriving newtype (Semigroup, Monoid, Show, Eq)
 
 -- | Put address on top of the stack
 put :: Addr -> Stack -> Stack
-put a (Stack seq) = Stack (a <| seq)
+put a (Stack xs) = Stack (a <| xs)
 
 -- | Pop element from top of the stack
 pop :: Stack -> (Maybe Addr, Stack)
-pop (Stack seq) =
-  case viewl seq of
-    EmptyL  -> (Nothing, Stack seq)
+pop (Stack xs) =
+  case viewl xs of
+    EmptyL  -> (Nothing, Stack xs)
     a :< as -> (Just a, Stack as)
 
 -- | Drops Nth elements from top of the stack
 drop :: Int -> Stack -> Stack
-drop n (Stack seq) = Stack $ S.drop n seq
+drop n (Stack xs) = Stack $ S.drop n xs
 
 -- | Pop N elements from the stack.
 popN :: Int -> Stack -> (Seq Addr, Stack)
-popN n (Stack seq) = (S.take n seq, Stack $ S.drop n seq)
+popN n (Stack xs) = (S.take n xs, Stack $ S.drop n xs)
 
 -- | Reads top element of tthe stack and keeps it on the stack.
 peek :: Stack -> Maybe Addr
-peek (Stack seq) =
-  case viewl seq of
+peek (Stack xs) =
+  case viewl xs of
     EmptyL -> Nothing
     a :< _ -> Just a
 
 -- | Peek N elements from the stack.
 peekN :: Int -> Stack -> (Seq Addr, Stack)
-peekN n (Stack seq) = (S.take n seq, Stack seq)
+peekN n (Stack xs) = (S.take n xs, Stack xs)
 
 -- | Appends sequence of elements to top of the stack
 -- The first element of the sequence becomes top element of the stack.
 appendSeq :: Seq Addr -> Stack -> Stack
-appendSeq seq (Stack st) = Stack (seq <> st)
+appendSeq xs (Stack st) = Stack (xs <> st)
 
 -- | Lookup Nth element of the stack
 lookup :: Int -> Stack -> Maybe Addr
-lookup n (Stack seq) = S.lookup n seq
+lookup n (Stack xs) = S.lookup n xs
 
 -- | Slide keeps top of the stack and removes
 -- Nth elements after it
@@ -85,17 +84,17 @@ slide n st = case mTop of
   where
     (mTop, st1) = pop st
 
-    remove n (Stack seq) = Stack $ S.drop n seq
+    remove m (Stack xs) = Stack $ S.drop m xs
 
 -- | Get the size of the stack.
 length :: Stack -> Int
-length (Stack seq) = S.length seq
+length (Stack xs) = S.length xs
 
 
 rearrange :: Int -> Heap -> Stack -> Maybe Stack
-rearrange n heap (Stack seq) = fmap (\as -> Stack $ S.take n as <> S.drop n seq) mAs
+rearrange n heap (Stack xs) = fmap (\as -> Stack $ S.take n as <> S.drop n xs) mAs
   where
-    mAs = mapM (Node.getNodeApArg <=< (\addr -> Heap.lookup addr heap)) =<< tailM seq
+    mAs = mapM (Node.getNodeApArg <=< (\addr -> Heap.lookup addr heap)) =<< tailM xs
 
 tailM :: Seq a -> Maybe (Seq a)
 tailM x = case viewl x of
@@ -108,10 +107,10 @@ singleton a = Stack (S.singleton a)
 
 -- | Peeks the bottom element of the stack (in current implementation it is O(1))
 peekBottom :: Stack -> Maybe Addr
-peekBottom (Stack seq) =
-  case S.viewr seq of
+peekBottom (Stack xs) =
+  case S.viewr xs of
     EmptyR  -> Nothing
-    as :> a -> Just a
+    _ :> a  -> Just a
 
 
 

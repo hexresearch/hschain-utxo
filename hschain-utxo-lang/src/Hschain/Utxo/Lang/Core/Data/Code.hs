@@ -18,7 +18,6 @@ import Prelude hiding (null, init)
 
 import Data.IntMap (IntMap)
 import Data.Sequence (Seq, ViewR(..))
-import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Data.Prim
 
@@ -31,9 +30,9 @@ newtype Code = Code { unCode :: Seq Instr }
 
 -- | Get the last insttruction and remaining of the sequence. Executed in O(1)
 splitLastInstr :: Code -> (Maybe Instr, Code)
-splitLastInstr (Code seq) =
-  case S.viewr seq of
-    EmptyR  -> (Nothing, Code seq)
+splitLastInstr (Code xs) =
+  case S.viewr xs of
+    EmptyR  -> (Nothing, Code xs)
     as :> a -> (Just a, Code as)
 
 -- | Instructions for G-machine

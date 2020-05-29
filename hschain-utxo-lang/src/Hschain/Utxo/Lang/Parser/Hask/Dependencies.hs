@@ -42,7 +42,9 @@ groupAdjacentFunDecl ds = onFunDecl (fmap joinGroup . L.groupBy sameFunDecl) =<<
 
     sameFunDecl = (==) `on` fst
 
-    joinGroup xs@(a:as) = [(fst a, concat $ fmap snd xs)]
+    joinGroup xs = case xs of
+      (a:_) -> [(fst a, concat $ fmap snd xs)]
+      []    -> []
 
 -- | Sorts declarations and converts them to the list of bindings.
 toBindGroup :: [Decl] -> ParseResult (BindGroup Lang)
@@ -58,7 +60,7 @@ getTypeMap :: [Decl] -> ParseResult TypeMap
 getTypeMap = foldM accumTypeMap Map.empty . concat . catMaybes . fmap getTypeSig
   where
     getTypeSig = \case
-      TypeSig loc vs ty -> Just $ fmap (\v -> (v, ty)) vs
+      TypeSig _ vs ty -> Just $ fmap (\v -> (v, ty)) vs
       _                 -> Nothing
 
     accumTypeMap m (v, ty) = case Map.lookup v m of

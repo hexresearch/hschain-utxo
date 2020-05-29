@@ -14,8 +14,8 @@ newtype Output = Output (Seq Prim)
   deriving newtype (Semigroup, Monoid, Eq, Show)
 
 put :: Prim -> Output -> Output
-put elem (Output seq) = Output $ seq |> elem
+put el (Output xs) = Output $ xs |> el
 
 toList :: Output -> [Prim]
-toList (Output seq) = F.toList seq
+toList (Output xs) = F.toList xs
 

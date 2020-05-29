@@ -47,7 +47,7 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
 import Control.Monad.State.Strict
 import Control.Monad.Except        as X
 
-import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..))
+import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Dump (Dump)
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals)
 import Hschain.Utxo.Lang.Core.Data.Output (Output)
@@ -55,15 +55,6 @@ import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Vstack (Vstack)
 import Hschain.Utxo.Lang.Core.Data.Prim
-
-import qualified Hschain.Utxo.Lang.Core.Data.Code   as Code
-import qualified Hschain.Utxo.Lang.Core.Data.Dump   as Dump
-import qualified Hschain.Utxo.Lang.Core.Data.Heap   as Heap
-import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
-import qualified Hschain.Utxo.Lang.Core.Data.Stack  as Stack
-import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
-import qualified Hschain.Utxo.Lang.Core.Data.Vstack as Vstack
-
 
 -- | G-machine is FSM for fast graph reduction
 data Gmachine = Gmachine

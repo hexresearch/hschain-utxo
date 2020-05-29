@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Built-in language primitives
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
     primitives
@@ -8,7 +9,6 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
 import Hex.Common.Text
 
 import Data.Map.Strict (Map)
-import Data.Set (Set)
 import Data.String
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -17,7 +17,6 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
-import qualified Data.Set    as S
 import qualified Data.Vector as V
 
 -- | Built-in language primitives
@@ -104,18 +103,11 @@ ap2 f a b = EAp (EAp f a) b
 ap3 :: Expr -> Expr -> Expr -> Expr -> Expr
 ap3 f a b c = EAp (ap2 f a b) c
 
--- | Application of function to three arguments
-ap4 :: Expr -> Expr -> Expr -> Expr -> Expr -> Expr
-ap4 f a b c d = EAp (ap3 f a b c) d
-
 int :: Int -> Expr
 int = EPrim . PrimInt
 
 instance IsString Expr where
   fromString = EVar . fromString
-
-intConstant :: Name -> Int -> Scomb
-intConstant name val = constant name (PrimInt val)
 
 constant :: Name -> Prim -> Scomb
 constant name val = Scomb
@@ -304,7 +296,7 @@ tupleCons :: Int -> Scomb
 tupleCons arity = Scomb
   { scomb'name = mappend "Tuple" (showt arity)
   , scomb'args = V.fromList vs
-  , scomb'body = L.foldl' (\ap arg -> EAp ap (EVar arg)) (EConstr 0 arity) vs
+  , scomb'body = L.foldl' (\f arg -> EAp f (EVar arg)) (EConstr 0 arity) vs
   }
   where
     vs = fmap (\n -> mappend "v" (showt n)) [1 .. arity]

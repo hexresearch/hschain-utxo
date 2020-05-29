@@ -202,11 +202,6 @@ isVarPat = isJust . getVarPat
 isNotVarPat :: Pat -> Bool
 isNotVarPat = not . isVarPat
 
-isConsPat :: Pat -> Bool
-isConsPat = \case
-  PCons _ _ _ -> True
-  _           -> False
-
 getPrimPat :: Pat -> Maybe (Loc, Prim)
 getPrimPat = \case
   PPrim loc p -> Just (loc, p)
@@ -285,7 +280,7 @@ fromGroupCons headArgs errorCase GroupCons{..} = do
         fmap (CaseExpr (PTuple loc pvars)) $
           toCaseBody $ Pattern (V.fromList vars <> headArgs) (toPatCases xs) other
 
-    fromWild other (loc, xs) =
+    fromWild other (_loc, xs) =
       toCaseBody $ Pattern headArgs (V.fromList xs) other
 
 
@@ -298,8 +293,8 @@ groupConsPats headVar xs = GroupCons
   , groupCons'wild    = groupWilds xs
   }
   where
-    groupPrims as =
-      regroup $ groupSortOn fst $ catMaybes $ onPair (getPrimPat) as
+    groupPrims ys =
+      regroup $ groupSortOn fst $ catMaybes $ onPair (getPrimPat) ys
       where
         regroup = mapMaybe $ \case
           a:as -> Just (fst a, fmap snd (a:as))
@@ -312,16 +307,16 @@ groupConsPats headVar xs = GroupCons
           (a,_):_ -> Just $ (fst a, fmap (\((_, ps), expr) -> (ps, expr)) x)
           []         -> Nothing
 
-    groupTuples xs = case catMaybes $ onPair (getTuplePat) xs of
+    groupTuples ys = case catMaybes $ onPair (getTuplePat) ys of
       []   -> Nothing
       a:as -> Just (fst $ fst a, fmap (\(b, c) -> (snd b, c)) (a:as))
 
 
     groupWilds as = regroup $ catMaybes $ onPair getWildCardPat as
       where
-        regroup xs = case xs of
+        regroup ys = case ys of
           []  -> Nothing
-          x:_ -> Just (fst x, fmap snd xs)
+          x:_ -> Just (fst x, fmap snd ys)
 
 
 
@@ -331,22 +326,6 @@ groupSortOn :: Ord b => (a -> b) -> [a] -> [[a]]
 groupSortOn f = L.groupBy ((==) `on` f) . L.sortBy (compare `on` f)
 
 ---------------------------------------------------
-
-data PatNoLoc
-  = PVar' VarName
-  | PPrim' Prim
-  | PCons' ConsName [PatNoLoc]
-  | PTuple' [PatNoLoc]
-  | PWildCard'
-  deriving (Show, Eq, Ord)
-
-ignoreLoc :: Pat -> PatNoLoc
-ignoreLoc = \case
-  PVar _  v       -> PVar' v
-  PPrim _ p       -> PPrim' p
-  PCons _ name ps -> PCons' name (fmap ignoreLoc ps)
-  PTuple _ ps     -> PTuple' (fmap ignoreLoc ps)
-  PWildCard _     -> PWildCard'
 
 substWildCards :: MonadLang m => Pattern -> m Pattern
 substWildCards p = do
@@ -365,6 +344,6 @@ removeEmptyCases :: Lang -> Lang
 removeEmptyCases x = cata go x
   where
     go expr = case expr of
-      CaseOf loc (Fix (Var _ _)) [CaseExpr (PWildCard _) next] -> next
+      CaseOf _ (Fix (Var _ _)) [CaseExpr (PWildCard _) next] -> next
       _ -> Fix expr
 

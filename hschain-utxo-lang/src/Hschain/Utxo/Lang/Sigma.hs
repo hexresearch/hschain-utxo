@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | It defines types and functions for Sigma-expressions.
 -- Sigma-expressions are used to sign scripts without providing
 -- the information on who signed the script.
@@ -140,7 +141,7 @@ instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)
 -- not (pk owner) - evaluates to Fasle for any owner
 notSigma :: forall k . Sigma k -> Either Bool (Sigma k)
 notSigma = cata $ \case
-      SigmaPk  key -> Left False
+      SigmaPk  _   -> Left False
       SigmaAnd as  -> orTag as
       SigmaOr  as  -> andTag as
   where

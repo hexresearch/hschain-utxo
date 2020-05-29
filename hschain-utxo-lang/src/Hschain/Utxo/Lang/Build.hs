@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Functions to construct AST for our language programmatically (not parsed from the code).
 -- They are well-typed with usage of phantom type but under the hood they all use type Lang.
 module Hschain.Utxo.Lang.Build(
@@ -25,6 +26,11 @@ module Hschain.Utxo.Lang.Build(
   , sha256
   , blake2b256
   , trace
+  , pair
+  , pairAt1
+  , pairAt2
+  , tuple3
+  , tuple4
 ) where
 
 import Data.Boolean
@@ -217,10 +223,10 @@ instance IfB (Expr (a, b, c)) where
   ifB = ifExpr
 
 ifExpr :: Expr Bool -> Expr a -> Expr a -> Expr a
-ifExpr (Expr cond) (Expr t) (Expr e) =  Expr $ ifExprLang cond t e
+ifExpr (Expr c) (Expr t) (Expr e) =  Expr $ ifExprLang c t e
 
 ifExprLang :: Lang -> Lang -> Lang -> Lang
-ifExprLang cond t e = Fix $ If noLoc cond t e
+ifExprLang c t e = Fix $ If noLoc c t e
 
 -------------------------------------------------
 -- numeric

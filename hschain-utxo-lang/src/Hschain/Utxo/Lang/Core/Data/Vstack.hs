@@ -13,12 +13,12 @@ newtype Vstack = Vstack (Seq Prim)
   deriving newtype (Show, Eq, Semigroup, Monoid)
 
 put :: Prim -> Vstack -> Vstack
-put n (Vstack seq) = Vstack (n <| seq)
+put n (Vstack xs) = Vstack (n <| xs)
 
 pop :: Vstack -> (Maybe Prim, Vstack)
-pop (Vstack seq) =
-  case S.viewl seq of
-    EmptyL  -> (Nothing, Vstack seq)
+pop (Vstack xs) =
+  case S.viewl xs of
+    EmptyL  -> (Nothing, Vstack xs)
     a :< as -> (Just a, Vstack as)
 
 

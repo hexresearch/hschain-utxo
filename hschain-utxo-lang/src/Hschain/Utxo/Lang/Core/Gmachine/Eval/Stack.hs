@@ -16,7 +16,6 @@ import Data.Sequence (Seq)
 
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 
 import qualified Hschain.Utxo.Lang.Core.Data.Stack as Stack
 

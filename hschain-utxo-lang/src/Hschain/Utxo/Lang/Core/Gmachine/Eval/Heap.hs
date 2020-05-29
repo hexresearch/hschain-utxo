@@ -4,8 +4,6 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Heap(
   , lookupHeap
 ) where
 
-import Data.Text (Text)
-
 import Hschain.Utxo.Lang.Core.Data.Node(Node)
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Gmachine.Monad

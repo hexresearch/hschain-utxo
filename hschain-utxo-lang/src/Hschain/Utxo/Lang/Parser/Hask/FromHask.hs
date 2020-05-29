@@ -35,8 +35,8 @@ fromHaskExp topExp = case topExp of
   H.Lambda loc ps body -> case ps of
     [p] -> fromLam loc p body
     _   -> fromLamList loc ps body
-  H.Let _ binds exp -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec exp)
-  H.ExpTypeSig loc exp ty -> liftA2 (\x y -> Fix $ Ascr loc x (HM.typeToSignature y)) (rec exp) (fromType ty)
+  H.Let _ binds expr -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec expr)
+  H.ExpTypeSig loc expr ty -> liftA2 (\x y -> Fix $ Ascr loc x (HM.typeToSignature y)) (rec expr) (fromType ty)
   H.Lit loc lit -> fmap (Fix . PrimE loc) $ fromLit lit
   H.If loc a b c -> liftA3 (\x y z -> Fix $ If loc x y z) (rec a) (rec b) (rec c)
   H.Tuple loc H.Boxed es -> fmap (Fix . Tuple loc . V.fromList) (mapM rec es)
@@ -49,13 +49,13 @@ fromHaskExp topExp = case topExp of
       _       -> Fix $ Cons loc (varToConsName n) V.empty
   H.List loc es -> fmap (Fix . VecE loc . NewVec loc . V.fromList) (mapM rec es)
   H.InfixApp loc a op b -> fromInfixApp loc op a b
-  H.Paren _ exp         -> rec exp
+  H.Paren _ expr        -> rec expr
   H.LeftSection loc a op  -> rec $ unfoldLeftSection loc a op
   H.RightSection loc op a -> rec $ unfoldRightSection loc op a
   H.Case loc expr alts -> liftA2 (fromCase loc) (rec expr) (mapM fromCaseAlt alts)
   H.RecConstr loc name fields -> liftA2 (fromRecConstr loc) (fromQName name) (mapM fromField fields)
-  H.RecUpdate loc exp fields -> liftA2 (fromRecUpdate loc) (rec exp) (mapM fromField fields)
-  H.NegApp loc exp -> fmap (fromNegApp loc) (rec exp)
+  H.RecUpdate loc expr fields -> liftA2 (fromRecUpdate loc) (rec expr) (mapM fromField fields)
+  H.NegApp loc expr -> fmap (fromNegApp loc) (rec expr)
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
@@ -84,7 +84,7 @@ fromHaskExp topExp = case topExp of
     fromRecUpdate loc expr fields = Fix $ RecUpdate loc expr fields
 
     fromField = \case
-      H.FieldUpdate _ name exp -> liftA2 (,) (fromQName name) (rec exp)
+      H.FieldUpdate _ name expr -> liftA2 (,) (fromQName name) (rec expr)
       _                        ->  parseFailedBy "Failed to parse field" topExp
 
     fromCaseAlt :: H.Alt Loc -> ParseResult (CaseExpr Lang)
@@ -96,7 +96,7 @@ fromHaskExp topExp = case topExp of
         guardsNotSupported = parseFailedBy "Guards for case expressions are not supported" topExp
         noBinds = isNothing
 
-        fromRhs rhs = case rhs of
+        fromRhs = \case
           H.UnGuardedRhs _ expr -> fromHaskExp expr
           H.GuardedRhss _ _ -> guardsNotSupported
 
@@ -145,8 +145,8 @@ toDecl x = case x of
 
     toAlt pats rhs mBinds = pure $ Alt pats rhs mBinds
 
-    fromRhs x = case x of
-      H.UnGuardedRhs _ exp   -> fmap UnguardedRhs $ fromHaskExp exp
+    fromRhs = \case
+      H.UnGuardedRhs _ expr  -> fmap UnguardedRhs $ fromHaskExp expr
       H.GuardedRhss _ guards -> fmap GuardedRhs $ mapM (fromGuard x) guards
 
     fromGuard topExpr (H.GuardedRhs _ stmts expr) = case stmts of
@@ -154,7 +154,7 @@ toDecl x = case x of
       _      -> parseFailedBy "Multiple statements are not supported" topExpr
       where
         fromGuardStmt = \case
-          H.Qualifier _ expr -> fromHaskExp expr
+          H.Qualifier _ e    -> fromHaskExp e
           _                  -> parseFailedBy "Not supported type of statement in guard" topExpr
 
     getPatName = \case
@@ -242,11 +242,6 @@ fromBinds topExp = \case
   H.BDecls _ decls -> toBindGroup =<< mapM toDecl decls
   _                -> parseFailedBy "Failed to parse binding group for expression" topExp
 
-fromPatToVar :: H.Pat Loc -> ParseResult VarName
-fromPatToVar = \case
-  H.PVar _ name -> return $ toName name
-  other         -> parseFailedBy "Failed to parse patter" other
-
 toConsName :: H.QName Loc -> ParseResult ConsName
 toConsName = fmap varToConsName . fromQName
 
@@ -288,7 +283,7 @@ fromType = \case
 
     getTyApp _ a b = go a [b]
       where
-        go a res = case a of
+        go x res = case x of
           H.TyApp _ a1 b1 -> go a1 (b1 : res)
           H.TyCon _ name  -> return (name, res)
           H.TyParen _ ty  -> go ty res

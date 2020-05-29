@@ -46,7 +46,7 @@ desugar :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugar ctx expr = removeRecordCons ctx expr
 
 unfoldLamList :: Loc -> [Pat] -> Lang -> Lang
-unfoldLamList loc pats a = L.foldl' (\z a -> z . Fix . Lam loc a) id pats a
+unfoldLamList loc pats a = L.foldl' (\z x -> z . Fix . Lam loc x) id pats a
 
 unfoldLetArg :: Loc -> VarName -> [VarName] -> Lang -> Lang -> Lang
 unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc (fmap varToPat args) a)
@@ -96,7 +96,7 @@ caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix 
 
     fromCase CaseExpr{..} = fmap (getLoc caseExpr'lhs, ) $ case caseExpr'lhs of
       PVar ploc pvar -> return $ Fix $ Let ploc [simpleBind pvar $ toVarExpr ploc var] caseExpr'rhs
-      PWildCard loc -> return $ caseExpr'rhs
+      PWildCard _ -> return $ caseExpr'rhs
       PPrim ploc p -> return $ Fix $ If ploc (eqPrim ploc var p) caseExpr'rhs failCase
       PCons ploc cons pats ->
         case pats of
@@ -120,7 +120,7 @@ caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix 
 
     failCase = Fix $ FailCase topLoc
 
-    eqPrim ploc v p = Fix $ BinOpE ploc Equals (toVarExpr ploc var) (Fix $ PrimE ploc p)
+    eqPrim ploc v p = Fix $ BinOpE ploc Equals (toVarExpr ploc v) (Fix $ PrimE ploc p)
 
 reduceSubPats :: forall m . MonadLang m => [Pat] -> Lang -> m ([VarName], Lang)
 reduceSubPats pats rhs = runStateT (mapM go pats) rhs

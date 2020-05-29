@@ -52,16 +52,13 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Language.HM as H
 
+{- for debug
 import Debug.Trace
 import Text.Show.Pretty (ppShow)
 
-removeAscr :: Lang -> Lang
-removeAscr = cata $ \case
-  Ascr _ a _ -> a
-  other      -> Fix other
-
 trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
+-}
 
 -- | Context of execution
 data Ctx = Ctx
@@ -78,6 +75,15 @@ data Ctx = Ctx
 newtype Exec a = Exec (StateT Ctx (Either Error) a)
   deriving newtype (MonadState Ctx, Monad, Functor, Applicative, MonadError Error)
 
+instance Alternative Exec where
+  empty = throwError $ ExecError $ Undefined noLoc
+  (Exec stA) <|> (Exec stB) =
+    Exec $ StateT $ \s ->
+      let eRes = runStateT stA s
+      in  case eRes of
+            Right res -> return res
+            Left _    -> runStateT stB s
+
 getHeight :: Exec Int
 getHeight = fmap (fromInteger . ctx'height) get
 
@@ -86,10 +92,6 @@ getInputs = fmap ctx'inputs get
 
 getOutputs :: Exec (Vector Box)
 getOutputs = fmap ctx'outputs get
-
-insertVar :: VarName -> Lang -> Exec ()
-insertVar varName expr =
-  modify' $ \st -> st { ctx'vars = M.insert varName expr $ ctx'vars st }
 
 instance MonadFreshVar Exec where
   getFreshVarName = do
@@ -120,7 +122,7 @@ applyBase (Expr a) = Expr $ importBase a
 
 -- | Performs execution of expression.
 execLang :: Lang -> Exec Lang
-execLang (Fix x) = case x of
+execLang (Fix topExpr) = case topExpr of
     Var _ name -> getVar name
     PrimE loc p  -> pure $ Fix $ PrimE loc p
     Tuple loc as -> Fix . Tuple loc <$> mapM rec as
@@ -129,7 +131,7 @@ execLang (Fix x) = case x of
     -- case of
     CaseOf loc v xs -> fromCaseOf loc v xs
     -- records
-    RecConstr _ _ _ -> thisShouldNotHappen (Fix x)
+    RecConstr _ _ _ -> thisShouldNotHappen (Fix topExpr)
     RecUpdate loc a upds -> fromRecUpdate loc a upds
     -- operations
     UnOpE loc uo x -> fromUnOp loc uo x
@@ -148,6 +150,7 @@ execLang (Fix x) = case x of
     VecE loc vec -> fromVec loc vec
     TextE loc txt -> fromText loc txt
     Trace loc str a -> fromTrace loc str a
+    AltE loc a b -> rec a <|> rec b <|>  (throwError $ ExecError $ Undefined loc)
     FailCase loc -> throwError $ ExecError $ Undefined loc
     Undef loc -> throwError $ ExecError $ Undefined loc
   where
@@ -171,13 +174,13 @@ execLang (Fix x) = case x of
         matchCase :: Lang -> CaseExpr Lang -> Exec (Maybe Lang)
         matchCase expr CaseExpr{..} =
           case caseExpr'lhs of
-            PVar _ v              -> onVar v
+            PVar _ pv             -> onVar pv
             PPrim _ p             -> onPrim p
             PCons _ consName pats -> onCons consName pats
             PTuple _ pats         -> onTuple pats
             PWildCard _           -> onWildCard
           where
-            onVar v  = return $ Just $ singleLet (H.getLoc v) v expr caseExpr'rhs
+            onVar pv  = return $ Just $ singleLet (H.getLoc pv) pv expr caseExpr'rhs
 
             onPrim p = return $ matchPrim p expr caseExpr'rhs
 
@@ -198,15 +201,15 @@ execLang (Fix x) = case x of
 
         matchCons consName (Fix expr) vs rhs =
           case expr of
-            Cons loc exprName args ->
+            Cons src exprName args ->
               if exprName == consName
-                then Just $ Fix $ Let loc (zipWith simpleBind vs (V.toList args)) rhs
+                then Just $ Fix $ Let src (zipWith simpleBind vs (V.toList args)) rhs
                 else Nothing
             _ -> Nothing
 
         matchTuple (Fix expr) vs rhs =
           case expr of
-            Tuple loc args -> Just $ Fix $ Let loc (zipWith simpleBind vs (V.toList args)) rhs
+            Tuple src args -> Just $ Fix $ Let src (zipWith simpleBind vs (V.toList args)) rhs
             _              -> Nothing
 
     fromRecUpdate _ a upds = rec $ foldl go a upds
@@ -365,13 +368,13 @@ execLang (Fix x) = case x of
       where
         err = thisShouldNotHappen $ Fix $ BinOpE loc GreaterThanEquals (Fix x) (Fix y)
 
-    fromIf loc cond t e  = do
-      Fix cond' <- rec cond
-      case cond' of
+    fromIf loc c t e  = do
+      Fix c' <- rec c
+      case c' of
         PrimE _ (PrimBool b) -> if b then rec t else rec e
         _                      -> err
       where
-        err = thisShouldNotHappen $ Fix $ If loc cond t e
+        err = thisShouldNotHappen $ Fix $ If loc c t e
 
     -- we transform generic patterns in lambdas to simple lambdas with case-expressions.
     fromLam loc pat b = case pat of
@@ -432,7 +435,7 @@ execLang (Fix x) = case x of
       Fix (TextE _ (TextHash _ Blake2b256)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ blake2b256 arg'
-      Fix (Cons loc name vs) -> rec $ Fix $ Cons loc name (mappend vs $ V.singleton arg)
+      Fix (Cons src name vs) -> rec $ Fix $ Cons src name (mappend vs $ V.singleton arg)
       _ -> do
         Fix fun' <- rec fun
         case fun' of
@@ -443,9 +446,9 @@ execLang (Fix x) = case x of
             v <- getFreshVar (H.getLoc x)
             arg' <- rec arg
             rec $ subst (desugarGenLamPattern v x body) v arg'
-          LamList loc vars a -> do
-            f <- fromLamList loc vars a
-            fromApply loc f arg
+          LamList src vars a -> do
+            f <- fromLamList src vars a
+            fromApply src f arg
           VecE loc1 (VecMap loc2) -> do
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix (VecE loc1 (VecMap loc2))) arg'
@@ -456,7 +459,7 @@ execLang (Fix x) = case x of
             a' <- rec a
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix $ Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a') arg'
-          Cons loc name vs -> rec $ Fix $ Cons loc name (mappend vs $ V.singleton arg)
+          Cons src name vs -> rec $ Fix $ Cons src name (mappend vs $ V.singleton arg)
           other              -> throwError $ ExecError $ AppliedNonFunction $ Fix other
 
     desugarGenLamPattern newVar pat body =
@@ -561,6 +564,7 @@ execLang (Fix x) = case x of
           PrimInt n       -> showt n
           PrimString t    -> t
           PrimBool b      -> showt b
+          PrimSigma s     -> showt s
 
     sha256 (Fix x) = case x of
       PrimE _ (PrimString t) -> Just $ hashText t
@@ -618,7 +622,7 @@ substSelfIndex selfId (Expr x) = Expr $ cata phi x
   where
     phi = \case
       GetEnv loc idx -> Fix $ GetEnv loc $ case idx of
-        Self loc -> Input loc $ Fix $ PrimE loc $ PrimInt $ fromIntegral selfId
+        Self src -> Input src $ Fix $ PrimE src $ PrimInt $ fromIntegral selfId
         _        -> idx
       other  -> Fix other
 

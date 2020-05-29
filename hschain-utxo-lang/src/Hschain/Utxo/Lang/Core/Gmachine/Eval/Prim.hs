@@ -14,7 +14,11 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim(
   , textLength
   , hashBlake
   , hashSha
+  , showInt
+  , showBool
 ) where
+
+import Hex.Common.Text
 
 import Data.Text (Text)
 
@@ -86,4 +90,11 @@ hashSha :: Exec ()
 hashSha = primOp1 popText putText getSha256
   where
     getSha256 = undefined
+
+showInt :: Exec ()
+showInt = primOp1 popText putText showt
+
+showBool :: Exec ()
+showBool = primOp1 popText putText showt
+
 

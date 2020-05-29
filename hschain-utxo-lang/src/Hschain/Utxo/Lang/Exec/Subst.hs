@@ -20,7 +20,7 @@ subst :: Lang -> VarName -> Lang -> Lang
 subst (Fix body) varName sub = case body of
   Var loc e                | e == varName  -> sub
                            | otherwise     -> Fix $ Var loc e
-  PrimE _ p                                -> Fix body
+  PrimE loc p                              -> Fix $ PrimE loc p
   Ascr loc lc t                            -> Fix $ Ascr loc (rec lc) t
   UnOpE loc uo lc                          -> Fix $ UnOpE loc uo $ rec lc
   BinOpE loc bo a b                        -> Fix $ BinOpE loc bo (rec a) (rec b)
@@ -44,14 +44,15 @@ subst (Fix body) varName sub = case body of
   Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
   RecConstr loc name vals                  -> Fix $ RecConstr loc name (fmap (second rec) vals)
   RecUpdate loc a upds                     -> Fix $ RecUpdate loc (rec a) (fmap (second rec) upds)
+  Undef loc                                -> Fix $ Undef loc
   where
     subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
 
     rec x = subst x varName sub
 
-    recBy bindVars x
-      | S.member varName bindVars = x
-      | otherwise                   = subst x varName sub
+    recBy vars x
+      | S.member varName vars = x
+      | otherwise             = subst x varName sub
 
     substBindGroup = fmap substBind
 

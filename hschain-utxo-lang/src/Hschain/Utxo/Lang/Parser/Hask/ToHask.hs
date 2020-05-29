@@ -31,10 +31,10 @@ toHaskExp (Fix expr) = case expr of
   Ascr loc a ty -> H.ExpTypeSig loc (rec a) (toType ty)
   -- case
   Cons loc name args -> foldl (\f z -> H.App loc f z) (toCon loc name) $ fmap rec args
-  CaseOf loc expr alts -> H.Case loc (rec expr) (fmap (toCaseAlt loc) alts)
+  CaseOf loc e alts -> H.Case loc (rec e) (fmap (toCaseAlt loc) alts)
   -- records
   RecConstr loc cons fields -> H.RecConstr loc (toQName $ consToVarName cons) $ fmap toRecField fields
-  RecUpdate loc expr fields -> H.RecUpdate loc (rec expr) $ fmap toRecField fields
+  RecUpdate loc e fields -> H.RecUpdate loc (rec e) $ fmap toRecField fields
   -- primitives
   PrimE loc p -> toLiteral loc p
   -- logic
@@ -58,15 +58,15 @@ toHaskExp (Fix expr) = case expr of
   -- debug
   Trace loc a b -> ap2 (VarName loc "trace") a b
   FailCase loc -> H.Var loc (H.UnQual loc $ H.Ident loc "undefined")
+  Let loc binds e -> H.Let loc (toLetBinds loc binds) (rec e)
+  AltE _ _ _ -> error "Alt is for internal usage"
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
     ap2 f x y = H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)
---    op2 f x y = H.InfixApp (getLoc f) (rec x) (H.QVarOp (getLoc f) $ toSymbolQName' f) (rec y)
-
-    toRecField (name, expr) = H.FieldUpdate (HM.getLoc name) (toQName name) (rec expr)
-
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
+
+    toRecField (name, e) = H.FieldUpdate (HM.getLoc name) (toQName name) (rec e)
 
     toCon loc = H.Con loc . toQName . consToVarName
 
@@ -161,19 +161,19 @@ toLiteral loc = \case
   PrimSigma x -> sigma loc x
   where
     lit = H.Lit loc
-    bool loc x = H.UnQual loc $ H.Ident loc $ show x
+    bool src x = H.UnQual src $ H.Ident loc $ show x
 
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
-    sigma loc x = cata go x
+    sigma src x = cata go x
       where
         go :: SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
           SigmaPk pkey -> let keyTxt = publicKeyToText pkey
-                            in  ap (VarName loc "pk") $ lit $ H.String loc (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (op2 loc "&&") as
-          SigmaOr  as  -> foldl1 (op2 loc "||") as
+                            in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
+          SigmaAnd as  -> foldl1 (op2 src "&&") as
+          SigmaOr  as  -> foldl1 (op2 src "||") as
 
-        ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) x
+        ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
 
 -- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc
@@ -207,7 +207,7 @@ toDecl bs = toBind =<< bs
       GuardedRhs guards -> H.GuardedRhss (HM.getLoc alt'expr) (fmap toGuard guards)
 
     toGuard :: Guard Lang -> H.GuardedRhs Loc
-    toGuard x@Guard{..} =
+    toGuard Guard{..} =
       H.GuardedRhs
         (HM.getLoc guard'predicate)
         [H.Qualifier (HM.getLoc guard'predicate) $ toHaskExp guard'predicate]
@@ -215,7 +215,7 @@ toDecl bs = toBind =<< bs
 
 toPat :: Pat -> H.Pat Loc
 toPat pat = case pat of
-  PVar _ var -> toVar var
+  PVar _ var -> toPVar var
   PPrim loc p -> toLit loc p
   PCons loc name args -> H.PApp loc (toQName $ consToVarName name) $ fmap toPat args
   PTuple loc args -> H.PTuple loc H.Boxed (fmap toPat args)
@@ -227,7 +227,7 @@ toPat pat = case pat of
       PrimBool x -> H.PApp loc (bool loc x) []
       _ -> error "Failed to convert literal"
 
-    toVar var = H.PVar (varName'loc var) (toIdentName var)
+    toPVar var = H.PVar (varName'loc var) (toIdentName var)
 
     bool loc x = H.UnQual loc $ H.Ident loc $ show x
     lit loc = H.PLit loc (H.Signless loc)

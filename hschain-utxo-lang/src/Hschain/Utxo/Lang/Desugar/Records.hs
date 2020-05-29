@@ -41,7 +41,7 @@ orderRecordFields (RecordFieldOrder consOrder) cons fields =
   where
     m = M.fromList $ fmap (first varName'name) fields
 
-    toArg m name = maybe (err name) pure $ M.lookup name m
+    toArg mp name = maybe (err name) pure $ M.lookup name mp
 
     err field = throwError $ ExecError $ UndefinedReocrdField (getLoc cons) cons field
 

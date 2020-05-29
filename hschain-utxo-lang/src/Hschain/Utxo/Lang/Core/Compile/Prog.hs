@@ -3,9 +3,6 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
   , compileSc
 ) where
 
-import Data.Map.Strict (Map)
-import Data.Vector (Vector)
-
 import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.Compile.Env
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -47,9 +44,9 @@ buildInitHeap prog = (heap, Heap.initGlobals globalElems)
 
     (heap, globalElems) = L.foldl' allocateSc (Heap.empty, []) compiled
 
-    allocateSc (heap, globals) CompiledScomb{..} = (heap', (GlobalName compiledScomb'name, addr) : globals)
+    allocateSc (hp, globals) CompiledScomb{..} = (hp', (GlobalName compiledScomb'name, addr) : globals)
       where
-        (addr, heap') = Heap.alloc (Fun compiledScomb'arity compiledScomb'code) heap
+        (addr, hp') = Heap.alloc (Fun compiledScomb'arity compiledScomb'code) hp
 
 -- | Compile supercombinator.
 compileSc :: Scomb -> CompiledScomb
@@ -67,7 +64,7 @@ compileR expr env arity =
   case expr of
     ELet es e                         -> compileLetR env arity es e
     EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
-    ECase e alts                      -> compileCase e alts
+    ECase e alts                      -> compileCaseR e alts
     _                                 -> defaultCase
   where
     endInstrs
@@ -86,13 +83,13 @@ compileR expr env arity =
     compileIf a b c =
       compileB a env <> Code.singleton (Cond (compileR b env arity) (compileR c env arity))
 
-    compileCase e alts = compileE e env <> Code.singleton (CaseJump $ compileAltsR arity env alts)
+    compileCaseR e alts = compileE e env <> Code.singleton (CaseJump $ compileAltsR arity env alts)
 
 compileLetR :: Env -> Int -> [(Name, Expr)] -> Expr -> Code
 compileLetR env arity defs e =
   lets <> compileR e env' (arity + length defs)
   where
-    lets = snd $ foldr (\(name, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
+    lets = snd $ foldr (\(_, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
     env' = compileArgs defs env
 
 
@@ -141,7 +138,7 @@ compileLet :: Env -> [(Name, Expr)] -> Expr -> Code
 compileLet env defs e =
   lets <> compileE e env' <> Code.singleton (Slide $ length defs)
   where
-    lets = snd $ foldr (\(name, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
+    lets = snd $ foldr (\(_, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
 
     env' = compileArgs defs env
 
@@ -217,7 +214,7 @@ compileLetB :: Env -> [(Name, Expr)] -> Expr -> Code
 compileLetB env defs e =
   lets <> compileB e env' <> Code.singleton (Pop $ length defs)
   where
-    lets = snd $ foldr (\(name, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
+    lets = snd $ foldr (\(_, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
 
     env' = compileArgs defs env
 

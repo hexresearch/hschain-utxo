@@ -3,17 +3,10 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval(
   eval
 ) where
 
-import Data.Text (Text)
-
-import Debug.Trace
-
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
-import Hschain.Utxo.Lang.Core.Data.Heap (Heap, Globals)
 import Hschain.Utxo.Lang.Core.Data.Node
-import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
-import Hschain.Utxo.Lang.Core.Data.Stat (Stat)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Dump
@@ -84,6 +77,8 @@ dispatch = \case
   TextLength   -> textLength
   HashBlake    -> hashBlake
   HashSha      -> hashSha
+  ShowInt      -> showInt
+  ShowBool     -> showBool
   -- sigma expressions
   SAnd         -> binSigmaOp SigmaAnd
   SOr          -> binSigmaOp SigmaOr
@@ -146,20 +141,14 @@ unwind = do
   newState addr node
   where
     newState addr = \case
-      NodePrim n -> onPrim addr
+      NodePrim _ -> onPrim addr
       Ap a1 _   -> onAp a1
       Fun size code -> onFun size code
-      NodeInd addr -> onInd addr
+      NodeInd indAddr -> onInd indAddr
       NodeConstr _ _ -> onConstr addr
 
     onPrim   = returnVal
     onConstr = returnVal
-
-    readNodeArg addr = do
-      node <- lookupHeap addr
-      case node of
-        Ap _ argAddr -> return argAddr
-        _            -> badType
 
     onAp addr = do
       putAddr addr
@@ -212,8 +201,8 @@ evalExpr = do
 
 cond :: Code -> Code -> Exec ()
 cond c1 c2 = do
-  pred <- popBool
-  let code = if pred then c1 else c2
+  predicate <- popBool
+  let code = if predicate then c1 else c2
   modifyCode (code <> )
 
 -------------------------------------------------------------
@@ -238,7 +227,7 @@ split :: Int -> Exec ()
 split arity = do
   node <- lookupHeap =<< popAddr
   case node of
-    NodeConstr _ args -> modifyStack (Stack.appendSeq args)
+    NodeConstr _ args -> modifyStack (Stack.appendSeq $ Seq.take arity args)
     _ -> badType
 
 
@@ -260,10 +249,6 @@ printExpr = do
 -- state update proxies for G-machine units
 
 -- code
-
--- | Is final state of G-machine reached (no code left to execute)
-isFinal :: Exec Bool
-isFinal = fmap Code.null getCode
 
 -- | read next code instruction to execute
 getNextInstr :: Exec (Maybe Instr)

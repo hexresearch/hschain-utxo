@@ -115,7 +115,10 @@ instance Pretty ConsName where
 instance Pretty Pat where
   pretty = \case
     PVar _ idx  -> pretty idx
-    -- PWildcard _ -> "_"
+    PWildCard _ -> "_"
+    PPrim _ p -> pretty p
+    PCons _ name args -> parens $ hsep [pretty name, hsep $ fmap pretty args]
+    PTuple _ args -> parens $ hsep $ punctuate comma $ fmap pretty args
     -- PLit _ p    -> pretty p
 
 instance Pretty UnOp where
@@ -144,6 +147,7 @@ instance Pretty Prim where
     PrimInt      n -> pretty n
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
+    PrimSigma    s -> pretty $ show s
 
 instance Pretty a => Pretty (EnvId a) where
   pretty = prettyId . fmap pretty
@@ -207,6 +211,7 @@ instance Pretty TypeError where
     H.OccursErr src name     -> err src $ hsep ["Occurs error", pretty name]
     H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
+    H.SubtypeErr src tyA tyB -> err src $ hsep ["Subtype error", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
       inTicks x = hcat ["'", x, "'"]

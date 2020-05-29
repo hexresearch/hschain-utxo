@@ -120,13 +120,6 @@ moduleToMainExpr typeCtx prog = do
   modCtx <- liftEither $ evalModule typeCtx prog
   return $ appendExecCtx (moduleCtx'exprs modCtx) (Fix $ Var noLoc "main")
 
-data SimplifyCtx = SimplifyCtx
-  { simplifyCtx'types :: UserTypeCtx
-  }
-
-simplifyExpr :: MonadLang m => SimplifyCtx -> Lang -> m Lang
-simplifyExpr SimplifyCtx{..} expr = desugar simplifyCtx'types expr
-
 -- | type-checks all bindings in the module.
 --
 -- It takes type-context for all free-variables in the module and module itself

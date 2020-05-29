@@ -141,14 +141,14 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
     getRootChallenge =
       maybe (Left "No root challenge") Right . proofTag'challenge . sexprAnn
 
-    getProvenTree x = case x of
-      Leaf tag p -> Right $ ProvenLeaf (responseZ p) (publicK p)
-      AND _ es   -> ProvenAnd  <$> traverse getProvenTree es
-      OR  _ es   -> case es of
+    getProvenTree ptree = case ptree of
+      Leaf _ p  -> Right $ ProvenLeaf (responseZ p) (publicK p)
+      AND _ es  -> ProvenAnd  <$> traverse getProvenTree es
+      OR  _ es  -> case es of
         []   -> Left "No children for OR-node"
-        e:es -> liftA2 ProvenOr (getOrleftmostChild e) (getOrRest es)
+        a:as -> liftA2 ProvenOr (getOrleftmostChild a) (getOrRest as)
       where
-        getOrleftmostChild x = getProvenTree x
+        getOrleftmostChild = getProvenTree
 
         getOrRest xs = fmap Seq.fromList $ traverse go xs
           where
@@ -278,6 +278,7 @@ generateProofs (Env env) expr0 = goReal ch0 expr0
                                     , responseZ   = z
                                     }
         (Simulated, Right e)   -> return $ Leaf (ProofTag Simulated $ Just ch) e
+        _                      -> error $ "impossible happened in Sigma/Interpreter"
       AND tag es -> case proofTag'flag tag of
         Real      -> AND (withChallenge ch tag) <$> traverse (goReal ch) es
         Simulated -> AND (withChallenge ch tag) <$> traverse goSim es

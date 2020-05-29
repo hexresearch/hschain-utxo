@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
@@ -681,8 +682,8 @@ freeVarsRhs :: Rhs (Set VarName) -> Set VarName
 freeVarsRhs = \case
   UnguardedRhs a -> a
   GuardedRhs as -> foldMap freeVarsGuard as
-
-freeVarsGuard Guard{..} = guard'predicate <> guard'rhs
+  where
+    freeVarsGuard Guard{..} = guard'predicate <> guard'rhs
 
 
 freeVarsPat :: Pat -> Set VarName
