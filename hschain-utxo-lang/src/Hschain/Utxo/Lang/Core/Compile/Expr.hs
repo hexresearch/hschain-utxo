@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
     CoreProg
   , Scomb(..)
   , Typed(..)
+  , Type
   , Expr(..)
   , CaseAlt(..)
   , CompiledScomb(..)
@@ -10,7 +11,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
 
 import Data.Vector (Vector)
 
-import Language.HM (Type)
+import qualified Language.HM as H
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -20,10 +21,12 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 -- for the execution of the program.
 type CoreProg = [Scomb]
 
+type Type = H.Type () Name
+
 -- | Type tags for values
 data Typed a = Typed
   { typed'value :: a
-  , typed'type  :: Type () Name
+  , typed'type  :: Type
   } deriving (Show, Eq)
 
 -- | Supercobinators do not contain free variables.
@@ -47,8 +50,9 @@ data Expr
   -- ^ lent bindings
   | ECase !(Typed Expr) [CaseAlt]
   -- ^ case alternatives
-  | EConstr !Int !Int
-  -- ^ constructor with tag and arity
+  | EConstr Type !Int !Int
+  -- ^ constructor with tag and arity, also we should provide the type
+  -- of constructor as afunction for a type-checker
   deriving (Show, Eq)
 
 -- | Case alternatives
