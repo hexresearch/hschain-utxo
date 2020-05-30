@@ -1,5 +1,5 @@
 -- | Programms to test G-machine evaluation
-module Gmachine where
+module Hschain.Utxo.Lang.Core.Compile.Example where
 
 import Data.Either
 import Data.Text (Text)
@@ -7,7 +7,9 @@ import Data.Text (Text)
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Compile.Primitives(preludeTypeContext)
 
+import qualified Data.List as L
 import qualified Data.Vector as V
 
 import Text.Show.Pretty
@@ -15,8 +17,9 @@ import Text.Show.Pretty
 ---------------------------------------------
 -- utils
 
-scomb :: Text -> [Text] -> Expr -> Scomb
-scomb name args body = Scomb name (V.fromList args) body
+scomb :: Text -> [Text] -> Expr -> [Type] -> Type -> Scomb
+scomb name args body argsT bodyT =
+  Scomb name (V.fromList $ zipWith Typed args argsT) (Typed body bodyT)
 
 ap2 :: Expr -> Expr -> Expr -> Expr
 ap2 f a b = EAp (EAp f a) b
@@ -32,17 +35,42 @@ instance Num Expr where
   signum = undefined
   fromInteger = EPrim . PrimInt . fromInteger
 
+varA, varB, varC, varD :: Type
+
+varA = varT "a"
+varB = varT "b"
+varC = varT "c"
+varD = varT "d"
+
+arrow2 :: Type -> Type -> Type -> Type
+arrow2 a b c = arrowT a (arrowT b c)
+
+funT :: [Type] -> Type -> Type
+funT args resT = L.foldl' (\res arg -> arrowT arg res) resT args
+
 ----------------------------------------------
 
+main :: IO ()
 main =
   pPrint $ eval $ compile prog2
 
 -- | Test that all programms terminate without errors.
-testAll = all (isRight . eval . compile)
-  [ prog1, prog2, prog3, prog4, prog5, prog6
-  , prog7, prog8, prog9, prog10, prog11, prog12
-  , prog13, prog14, prog15
-  , prog16, prog17, prog18 ]
+-- Shows only failed cases. If list is empty then everything is fine.
+testAll :: [(Int, Either Error Gmachine)]
+testAll = filter (isLeft . snd) $
+  zipWith (\n prog -> (n, eval $ compile prog)) [1..] allProgs
+
+-- | Type check all programms and show which one are ill-typed.
+typeCheckAll :: [Int]
+typeCheckAll = fmap fst $ filter (not . snd) $
+  zipWith (\n prog -> (n, typeCheck preludeTypeContext prog)) [1..] allProgs
+
+allProgs :: [CoreProg]
+allProgs =
+    [ prog1, prog2, prog3, prog4, prog5, prog6
+    , prog7, prog8, prog9, prog10, prog11, prog12
+    , prog13, prog14, prog15
+    , prog16, prog17, prog18 ]
 
 -- Prelude functions
 --
@@ -52,20 +80,21 @@ testAll = all (isRight . eval . compile)
 prelude :: [Scomb]
 prelude = [s, k, k1, id']
   where
-    s   = scomb "S"   ["x", "y", "z"]  (ap2 "x" "z" (EAp "y" "z"))
-    k   = scomb "K"   ["x", "y"]       "x"
-    k1  = scomb "K1"  ["x", "y"]       "y"
-    id' = scomb "I"   ["x"]            "x"
+    s   = scomb "S"   ["x", "y", "z"]  (ap2 "x" "z" (EAp "y" "z")) [arrow2 varA varB varC, arrowT varA varB,varA] varC
+    k   = scomb "K"   ["x", "y"]       "x"  [varA, varB] varA
+    k1  = scomb "K1"  ["x", "y"]       "y"  [varA, varB] varB
+    id' = scomb "I"   ["x"]            "x"  [varA]       varA
 
 prelude2 :: [Scomb]
 prelude2 = [s, k, k1, id', cons, nil]
   where
-    s   = scomb "S"   ["x", "y", "z"]  (ap2 "x" "z" (EAp "y" "z"))
-    k   = scomb "K"   ["x", "y"]       "x"
-    k1  = scomb "K1"  ["x", "y"]       "y"
-    id' = scomb "I"   ["x"]            "x"
-    cons = scomb "cons" ["x", "y"] (ap2 (EConstr 2 2) "x" "y")
-    nil  = scomb "nil" [] (EConstr 1 0)
+    s   = scomb "S"   ["x", "y", "z"]  (ap2 "x" "z" (EAp "y" "z")) [arrow2 varA varB varC, arrowT varA varB,varA] varC
+    k   = scomb "K"   ["x", "y"]       "x"  [varA, varB] varA
+    k1  = scomb "K1"  ["x", "y"]       "y"  [varA, varB] varB
+    id' = scomb "I"   ["x"]            "x"  [varA]       varA
+    cons = scomb "cons" ["x", "y"] (ap2 (EConstr consTy 2 2) "x" "y") [varA, listT varA] (listT varA)
+    nil  = scomb "nil" [] (EConstr (listT varA) 1 0) [] (listT varA)
+    consTy = arrow2 varA (listT varA) (listT varA)
 
 -- | Programm
 --
@@ -73,7 +102,7 @@ prelude2 = [s, k, k1, id', cons, nil]
 prog1 :: CoreProg
 prog1 = main : prelude
   where
-    main = scomb "main" [] (ap3 "S" "K" "K" 3)
+    main = scomb "main" [] (ap3 "S" "K" "K" 3) [] intT
 
 -- | Program
 --
@@ -83,18 +112,19 @@ prog1 = main : prelude
 prog2 :: CoreProg
 prog2 = [ twice, main ] ++ prelude
   where
-    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x"))
-    main  = scomb "main"  []         (ap3 "twice" "twice" "I" 3)
+    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x")) [arrowT varA varA, varA] varA
+    main  = scomb "main"  []         (ap3 "twice" "twice" "I" 3) [] intT
 
 
 prog3 :: CoreProg
 prog3 = main : twice : prelude
   where
-    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x"))
-    main = scomb "main" [] (ap2 "twice" (ap2 "I" "I" "I") 3)
+    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x")) [arrowT varA varA, varA] varA
+    main = scomb "main" [] (ap2 "twice" (ap2 "I" "I" "I") 3) [] intT
 
 -- | Functional representation of the lists. Test for lazy evaluation.
 -- Programm creates infinite list of 4s, and takes second element of the list
+-- notice that this program is ill-typed
 --
 -- > cons a b cc cn = cc a b
 -- > nil cc cn = cn
@@ -107,16 +137,14 @@ prog3 = main : twice : prelude
 prog4 :: CoreProg
 prog4 = [cons, nil, hd, tl, abort, infinite, main] ++ prelude
   where
-    cons  = scomb "cons" ["a", "b", "cc", "cn"] (ap2 "cc" "a" "b")
-    nil   = scomb "nil"  ["cc", "cn"]           "cn"
-    hd    = scomb "hd"   ["list"]               (ap2 "list" "K" "abort")
-    tl    = scomb "tl"   ["list"]               (ap2 "list" "K1" "abort")
-    abort = scomb "abort" []                    "abort"
-    infinite = scomb "infinite" ["x"]           (ap2 "cons" "x" (EAp "infinite" "x"))
+    cons  = scomb "cons" ["a", "b", "cc", "cn"] (ap2 "cc" "a" "b") [varA, varB, arrow2 varA varB varC, varD] varC
+    nil   = scomb "nil"  ["cc", "cn"]           "cn" [varA, varB] varB
+    hd    = scomb "hd"   ["list"]               (ap2 "list" "K" "abort") [arrow2 (arrow2 varA varB varA) varC varD] varD
+    tl    = scomb "tl"   ["list"]               (ap2 "list" "K1" "abort") [arrow2 (arrow2 varA varB varB) varC varD] varD
+    abort = scomb "abort" []                    "abort" [] varA
+    infinite = scomb "infinite" ["x"]           (ap2 "cons" "x" (EAp "infinite" "x")) [varA] (varB)
 
-    main  = scomb "main" []                     (EAp "hd" (EAp "tl" (EAp "infinite" 4)))
-
-
+    main  = scomb "main" []                     (EAp "hd" (EAp "tl" (EAp "infinite" 4))) [] intT
 
 -- | Simple test for let-expressions
 --
@@ -125,7 +153,7 @@ prog4 = [cons, nil, hd, tl, abort, infinite, main] ++ prelude
 prog5 :: CoreProg
 prog5 = main : prelude
   where
-    main = scomb "main" [] (ELet [("id1", ap2 "I" "I" "I")] (ap3 "id1" "id1" "id1" 3))
+    main = scomb "main" [] (ELet [(Typed "id1" (arrowT varA varA), ap2 "I" "I" "I")] (ap3 "id1" "id1" "id1" 3)) [] intT
 
 -- | Simple arithmetic
 --
@@ -133,7 +161,7 @@ prog5 = main : prelude
 prog6 :: CoreProg
 prog6 = [main]
   where
-    main = scomb "main" [] (3 + 4 * 5)
+    main = scomb "main" [] (3 + 4 * 5) [] intT
 
 
 -- | Simple arithmetic
@@ -142,16 +170,17 @@ prog6 = [main]
 prog7 :: CoreProg
 prog7 = [main]
   where
-    main = scomb "main" [] (ELet [("x", 3 * (2 + 2))] ("x" * "x"))
+    main = scomb "main" [] (ELet [(Typed "x" intT, 3 * (2 + 2))] ("x" * "x")) [] intT
 
 prog8 :: CoreProg
 prog8 = [main, inc, twice] ++ prelude
   where
-    inc = scomb "inc" ["x"] ("x" + 1)
-    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x"))
-    main = scomb "main" [] (ap3 "twice" "twice" "inc" 4)
+    inc = scomb "inc" ["x"] ("x" + 1) [intT] intT
+    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x")) [arrowT varA varA, varA] varA
+    main = scomb "main" [] (ap3 "twice" "twice" "inc" 4) [] intT
 
 -- | Test for arithmetic. Length of the list
+-- ill-typed program
 --
 -- > length xs = xs length1 0
 -- > length1 x xs = 1 + (length xs)
@@ -160,11 +189,11 @@ prog8 = [main, inc, twice] ++ prelude
 prog9 :: CoreProg
 prog9 = [main, length', length1, cons, nil] ++ prelude
   where
-    cons  = scomb "cons" ["a", "b", "cc", "cn"] (ap2 "cc" "a" "b")
-    nil   = scomb "nil"  ["cc", "cn"]           "cn"
-    length' = scomb "length" ["xs"] (ap2 "xs" "length1" 0)
-    length1 = scomb "length1" ["x", "xs"] (1 + (EAp "length" "xs"))
-    main = scomb "main" [] (EAp "length" (ap2 "cons" 3 (ap2 "cons" 3 (ap2 "cons" 3 "nil"))))
+    cons  = scomb "cons" ["a", "b", "cc", "cn"] (ap2 "cc" "a" "b") [varA, varB, varC, varD] varA
+    nil   = scomb "nil"  ["cc", "cn"]           "cn" [varA, varB] varC
+    length' = scomb "length" ["xs"] (ap2 "xs" "length1" 0) [varA] varB
+    length1 = scomb "length1" ["x", "xs"] (1 + (EAp "length" "xs")) [varA, varB] varC
+    main = scomb "main" [] (EAp "length" (ap2 "cons" 3 (ap2 "cons" 3 (ap2 "cons" 3 "nil")))) [] varA
 
 -- | With conditionals. Factorial
 --
@@ -172,8 +201,8 @@ prog9 = [main, length', length1, cons, nil] ++ prelude
 -- > main = fac 10
 prog10 = [main, fac]
   where
-    fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" 0) 1 ("n" * (EAp "fac" ("n" - 1))) )
-    main = scomb "main" [] (EAp "fac" 10)
+    fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" 0) 1 ("n" * (EAp "fac" ("n" - 1))) ) [intT] intT
+    main = scomb "main" [] (EAp "fac" 10) [] intT
 
 -- > gcd a b = if (a == b)
 -- >              a
@@ -190,7 +219,9 @@ prog11 = [main, gcd]
                                                 (ap2 "<" "a" "b")
                                                 (ap2 "gcd" "b" "a")
                                                 (ap2 "gcd" "b" (ap2 "-" "a" "b")) ))
-    main = scomb "main" [] (ap2 "gcd" 6 10)
+                 [intT, intT]
+                 intT
+    main = scomb "main" [] (ap2 "gcd" 6 10) [] intT
 
 -- | Fibonacci numbers
 --
@@ -204,17 +235,20 @@ prog12 = [main, nfib]
                                    (1 +
                                          ( (EAp "nfib" ("n" - 1))
                                          + (EAp "nfib" ("n" - 2))  )))
-    main = scomb "main" [] (EAp "nfib" 5)
+                 [intT]
+                 intT
+    main = scomb "main" [] (EAp "nfib" 5) [] intT
 
 -- | Infinite term programm. Evaluation does not terminate.
+-- ill-typed programm
 --
 -- F x = x x x
 -- main = F F
 badProg :: CoreProg
 badProg = [main, f]
   where
-    f = scomb "F" ["x"] (ap2 "x" "x" "x")
-    main = scomb "main" [] (EAp "F" "F")
+    f = scomb "F" ["x"] (ap2 "x" "x" "x") [varA] varB
+    main = scomb "main" [] (EAp "F" "F") [] varA
 
 ---------------------------------------------
 -- data structures. we use prelude2 where there are supercombinators cons and nil
@@ -230,13 +264,14 @@ badProg = [main, f]
 prog13 :: CoreProg
 prog13 = [main, downfrom] ++ prelude2
   where
-    main = scomb "main" [] (EAp "downfrom" 5)
+    main = scomb "main" [] (EAp "downfrom" 5) [] (listT intT)
     downfrom = scomb "downfrom" ["n"]
         (ap3 "if"
               (ap2 "==" "n" 0)
               "nil"
               (ap2 "cons" "n" (EAp "downfrom" (ap2 "-" "n" 1)))
         )
+        [intT] (listT intT)
 
 
 -- | Program that takes first 5 elements of infinite list of integers.
@@ -254,16 +289,20 @@ prog13 = [main, downfrom] ++ prelude2
 prog14 :: CoreProg
 prog14 = [main, take', from] ++ prelude2
   where
-    main = scomb "main" [] (ap2 "take" 5 (EAp "from" 0))
+    main = scomb "main" [] (ap2 "take" 5 (EAp "from" 0)) [] (listT intT)
     take' = scomb "take" ["n", "xs"]
       (ap3 "if"
            (ap2 "<=" "n" 0)
            "nil"
-           (ECase "xs" [ CaseAlt 1 [] "nil"
-                       , CaseAlt 2 ["p", "ps"] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
+           (ECase (Typed "xs" (listT varA))
+                       [ CaseAlt 1 [] "nil"
+                       , CaseAlt 2 [ Typed "p" varA
+                                   , Typed "ps" (listT varA)] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
                         ])
            )
+          [intT, listT varA] (listT varA)
     from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" 1)))
+              [intT] (listT intT)
 
 
 -- | Eratosthenes sieve. Prints list of prime numbers
@@ -293,36 +332,49 @@ prog14 = [main, take', from] ++ prelude2
 prog15 :: CoreProg
 prog15 = [main, take', from, sieve, filter', nonMultiple] ++ prelude2
   where
-    main = scomb "main" [] (ap2 "take" 5 (EAp "sieve" (EAp "from" 2)))
+    main = scomb "main" [] (ap2 "take" 5 (EAp "sieve" (EAp "from" 2))) [] (listT intT)
 
     nonMultiple = scomb "nonMultiple" ["p", "n"] (ap2 "/=" (ap2 "*" (ap2 "/" "n" "p") "p") "n")
+                        [intT, intT] boolT
 
     take' = scomb "take" ["n", "xs"]
       (ap3 "if"
            (ap2 "<=" "n" 0)
            "nil"
-           (ECase "xs" [ CaseAlt 1 [] "nil"
-                       , CaseAlt 2 ["p", "ps"] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
+           (ECase (Typed "xs" (listT varA))
+                       [ CaseAlt 1 [] "nil"
+                       , CaseAlt 2 [ Typed "p" varA
+                                   , Typed "ps" (listT varA)] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
                         ])
            )
+      [intT, listT varA] (listT varA)
+
     from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" 1)))
+                [intT] (listT intT)
 
     filter' = scomb "filter" ["predicate", "xs"]
-      (ECase "xs" [ CaseAlt 1 [] "nil"
-                  , CaseAlt 2 ["p", "ps"] (ELet [("rest", (ap2 "filter" "predicate" "ps"))]
+      (ECase (Typed "xs" (listT varA))
+                  [ CaseAlt 1 [] "nil"
+                  , CaseAlt 2 [ Typed "p" varA
+                              , Typed "ps" (listT varA)]
+                                        (ELet [(Typed "rest" (listT varA), (ap2 "filter" "predicate" "ps"))]
                                            (ap3 "if"
                                                  (EAp "predicate" "p")
                                                  (ap2 "cons" "p" "rest")
                                                  "rest"
                                            ))
                   ])
+          [arrowT varA boolT, listT varA] (listT varA)
     sieve = scomb "sieve" ["xs"]
-      (ECase "xs" [ CaseAlt 1 [] "nil"
-                  , CaseAlt 2 ["p", "ps"] (ap2 "cons" "p" (EAp "sieve"
+      (ECase (Typed "xs" (listT intT))
+                  [ CaseAlt 1 [] "nil"
+                  , CaseAlt 2 [ Typed "p" intT
+                              , Typed "ps" (listT intT)] (ap2 "cons" "p" (EAp "sieve"
                                                                 (ap2 "filter"
                                                                       (EAp "nonMultiple" "p")
                                                                       "ps")))
                   ])
+                [listT intT] (listT intT)
 
 ---------------------------------------------
 -- booleans
@@ -333,7 +385,7 @@ prog15 = [main, take', from, sieve, filter', nonMultiple] ++ prelude2
 prog16 :: CoreProg
 prog16 = [main] ++ prelude2
   where
-    main = scomb "main" [] (EAp "not" (ap2 "&&" "true" "false"))
+    main = scomb "main" [] (EAp "not" (ap2 "&&" "true" "false")) [] boolT
 
 -- | Table of values for && function
 --
@@ -357,6 +409,8 @@ prog17 = [main] ++ prelude2
                         )
                   )
               ))
+            []
+            (listT boolT)
 
 -- | Table of values for || function
 --
@@ -380,8 +434,6 @@ prog18 = [main] ++ prelude2
                         )
                   )
               ))
-
-
-
-
+        []
+        (listT boolT)
 

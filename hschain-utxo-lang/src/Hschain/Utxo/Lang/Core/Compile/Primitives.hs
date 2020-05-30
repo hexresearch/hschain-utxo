@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
     primitives
   , builtInUnary
   , builtInDiadic
+  , preludeTypeContext
 ) where
 
 import Hex.Common.Text
@@ -19,6 +20,10 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
+
+preludeTypeContext :: TypeContext
+preludeTypeContext = TypeContext $ M.fromList $
+  fmap (\sc -> (scomb'name sc, getScombType sc)) primitives
 
 -- | Built-in language primitives
 primitives :: [Scomb]

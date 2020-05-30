@@ -5,6 +5,8 @@
 -- polymorphic types with unification algorithm but do we really need to do it?
 module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
     typeCheck
+  , TypeContext(..)
+  , getScombType
   -- * primitive types
   , intT
   , boolT
@@ -54,8 +56,8 @@ getType name = do
   TypeContext ctx <- ask
   lift $ M.lookup name ctx
 
-getSignature :: Scomb -> Type
-getSignature Scomb{..} = L.foldl' (H.arrowT ()) res args
+getScombType :: Scomb -> Type
+getScombType Scomb{..} = L.foldl' (H.arrowT ()) res args
   where
     args = fmap typed'type $ V.toList scomb'args
     res  = typed'type scomb'body
@@ -144,7 +146,7 @@ newtype TypeContext = TypeContext (Map Name Type)
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext -> TypeContext
 loadContext defs ctx =
-  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getSignature sc) res) ctx defs
+  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) ctx defs
 
 insertSignature :: Name -> Type -> TypeContext -> TypeContext
 insertSignature name ty (TypeContext m) =
