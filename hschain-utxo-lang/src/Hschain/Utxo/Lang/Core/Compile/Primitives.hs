@@ -12,6 +12,7 @@ import Data.Map.Strict (Map)
 import Data.String
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Code (Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Prim
 
@@ -21,46 +22,44 @@ import qualified Data.Vector as V
 
 -- | Built-in language primitives
 primitives :: [Scomb]
-primitives = []
-
-{-
+primitives =
   -- numeric operators
-  [ op2 "+"
-  , op2 "*"
-  , op2 "-"
-  , op2 "/"
-  , op1 "negate"
+  [ intOp2 "+"
+  , intOp2 "*"
+  , intOp2 "-"
+  , intOp2 "/"
+  , op1 "negate" intT intT
 
   -- comparision
-  , op2 "=="
-  , op2 "/="
-  , op2 ">"
-  , op2 ">="
-  , op2 "<"
-  , op2 "<="
+  , compareOp "=="
+  , compareOp "/="
+  , compareOp ">"
+  , compareOp ">="
+  , compareOp "<"
+  , compareOp "<="
 
   -- conditionals
-  , op3 "if"
+  , op3 "if" (boolT, varA, varA) varA
 
   -- booleans
   , constant "true"  (PrimBool True)
   , constant "false" (PrimBool False)
-  , op2 "&&"
-  , op2 "||"
-  , op2 "^^"
-  , op1 "not"
+  , boolOp2 "&&"
+  , boolOp2 "||"
+  , boolOp2 "^^"
+  , op1 "not" boolT boolT
 
   -- text
-  , op1 "lengthText"
-  , op2 "<>"
-  , op1 "hashBlake"
-  , op1 "hashSha"
+  , op1 "lengthText" textT intT
+  , op2 "<>" (textT, textT) textT
+  , op1 "hashBlake" textT textT
+  , op1 "hashSha" textT textT
 
   -- sigma-expressions
-  , op2 "&"
-  , op2 "|"
-  , op1 "pk"
-  , op1 "toSigma"
+  , sigmaOp2 "&"
+  , sigmaOp2 "|"
+  , op1 "pk" textT sigmaT
+  , op1 "toSigma" boolT sigmaT
 
   -- lists
   , cons
@@ -115,28 +114,41 @@ constant :: Name -> Prim -> Scomb
 constant name val = Scomb
   { scomb'name = name
   , scomb'args = V.empty
-  , scomb'body = EPrim val
+  , scomb'body = Typed (EPrim val) (primToType val)
   }
 
-op1 :: Name -> Scomb
-op1 name = Scomb
+op1 :: Name -> Type -> Type -> Scomb
+op1 name argT resT = Scomb
   { scomb'name = name
-  , scomb'args = V.fromList ["x"]
-  , scomb'body = EAp (EVar name) (EVar "x")
+  , scomb'args = V.fromList $ [Typed "x" argT]
+  , scomb'body = Typed (EAp (EVar name) (EVar "x")) resT
   }
 
-op2 :: Name -> Scomb
-op2 name = Scomb
+intOp2 :: Name -> Scomb
+intOp2 name = op2 name (intT, intT) intT
+
+boolOp2 :: Name -> Scomb
+boolOp2 name = op2 name (boolT, boolT) boolT
+
+sigmaOp2 :: Name -> Scomb
+sigmaOp2 name = op2 name (sigmaT, sigmaT) sigmaT
+
+-- | TODO: do we need polymorphic comparison?
+compareOp :: Name -> Scomb
+compareOp name = op2 name (intT, intT) boolT
+
+op2 :: Name -> (Type, Type) -> Type -> Scomb
+op2 name (xT, yT) resT = Scomb
   { scomb'name = name
-  , scomb'args = V.fromList ["x", "y"]
-  , scomb'body = ap2 (EVar name) (EVar "x") (EVar "y")
+  , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT]
+  , scomb'body = Typed (ap2 (EVar name) (EVar "x") (EVar "y")) resT
   }
 
-op3 :: Name -> Scomb
-op3 name = Scomb
+op3 :: Name -> (Type, Type, Type) -> Type -> Scomb
+op3 name (xT, yT, zT) resT = Scomb
   { scomb'name = name
-  , scomb'args = V.fromList ["x", "y", "z"]
-  , scomb'body = ap3 (EVar name) (EVar "x") (EVar "y") (EVar "z")
+  , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT, Typed "z" zT]
+  , scomb'body = Typed (ap3 (EVar name) (EVar "x") (EVar "y") (EVar "z")) resT
   }
 
 -- lists
@@ -145,97 +157,137 @@ nil :: Scomb
 nil = Scomb
   { scomb'name = "Nil"
   , scomb'args = V.empty
-  , scomb'body = EConstr 0 0
+  , scomb'body = Typed (EConstr (listT varA) 0 0) (listT varA)
   }
 
 cons :: Scomb
 cons = Scomb
   { scomb'name = "Cons"
-  , scomb'args = V.fromList ["a", "as"]
-  , scomb'body = ap2 (EConstr 1 2) (EVar "a") (EVar "as")
+  , scomb'args = V.fromList [Typed "a" varA, Typed "as" (listT varA)]
+  , scomb'body = Typed (ap2 (EConstr consTy 1 2) (EVar "a") (EVar "as")) (listT varA)
   }
+  where
+   consTy = arrow2 varA (listT varA) (listT varA)
 
 head' :: Scomb
 head' = Scomb
   { scomb'name = "head"
-  , scomb'args = V.fromList ["xs"]
-  , scomb'body = ECase "xs" [ CaseAlt 1 ["a", "as"] "a"]
+  , scomb'args = V.fromList [Typed "xs" (listT varA)]
+  , scomb'body = Typed (ECase (Typed "xs" (listT varA))
+      [ CaseAlt 1 [Typed "a" varA, Typed "as" (listT varA)] "a"]) varA
+
   }
 
 tail' :: Scomb
 tail' = Scomb
   { scomb'name = "head"
-  , scomb'args = V.fromList ["xs"]
-  , scomb'body = ECase "xs" [ CaseAlt 1 ["a", "as"] "as"]
+  , scomb'args = V.fromList [Typed "xs" (listT varA)]
+  , scomb'body = Typed (ECase (Typed "xs" (listT varA))
+      [ CaseAlt 1 [Typed "a" varA, Typed "as" (listT varA)] "as"]) (listT varA)
   }
 
 foldr' :: Scomb
 foldr' = Scomb
   { scomb'name = "foldr"
-  , scomb'args = V.fromList ["cons", "nil", "xs"]
-  , scomb'body = ECase "xs"
-      [ CaseAlt 0 []           "nil"
-      , CaseAlt 1 ["a", "as"]  (ap2 "cons" "a" "as")
-      ]
+  , scomb'args = V.fromList
+                    [ Typed "cons" (arrow2 varA varB varB)
+                    , Typed "nil"  varB
+                    , Typed "xs"   (listT varA)
+                    ]
+  , scomb'body =
+      Typed
+          (ECase (Typed "xs" (listT varA))
+          [ CaseAlt 0 []                                         "nil"
+          , CaseAlt 1 [Typed "a" varA, Typed "as" (listT varA)]  (ap2 "cons" "a" (ap3 "foldr" "cons" "nil" "as"))
+          ])
+          varA
   }
 
 map' :: Scomb
 map' = Scomb
   { scomb'name = "map"
-  , scomb'args = V.fromList ["f", "xs"]
-  , scomb'body = ECase "xs"
-      [ CaseAlt 0 []           "nil"
-      , CaseAlt 1 ["a", "as"]  (ap2 "cons" (EAp "f" "a") (ap2 "map" "f" "as"))
-      ]
+  , scomb'args = V.fromList
+                    [ Typed "f"  (arrowT varA varB)
+                    , Typed "xs" (listT varA)]
+  , scomb'body =
+      Typed
+        (ECase (Typed "xs" (listT varA))
+        [ CaseAlt 0 []           "nil"
+        , CaseAlt 1 [Typed "a" varA, Typed "as" (listT varA)]  (ap2 "cons" (EAp "f" "a") (ap2 "map" "f" "as"))
+        ])
+        (listT varB)
   }
 
 concat' :: Scomb
 concat' = Scomb
   { scomb'name = "concat"
-  , scomb'args = V.fromList ["as", "bs"]
-  , scomb'body = ECase "as"
-      [ CaseAlt 0 []           "bs"
-      , CaseAlt 1 ["x", "xs"]  (ap2 "Cons" "x" (ap2 "concat" "xs" "bs"))
-      ]
+  , scomb'args = V.fromList
+                    [ Typed "as" (listT varA)
+                    , Typed "bs" (listT varA)
+                    ]
+  , scomb'body =
+      Typed
+        (ECase (Typed "as" (listT varA))
+        [ CaseAlt 0 []           "bs"
+        , CaseAlt 1 [Typed "x" varA, Typed "xs" (listT varA)]  (ap2 "Cons" "x" (ap2 "concat" "xs" "bs"))
+        ])
+      (listT varA)
   }
 
 
 filter' :: Scomb
 filter' = Scomb
   { scomb'name = "filter"
-  , scomb'args = V.fromList ["predicate", "xs"]
+  , scomb'args = V.fromList
+                     [ Typed "predicate" (arrowT varA boolT)
+                     , Typed "xs"        (listT varA) ]
   , scomb'body =
-      (ECase "xs" [ CaseAlt 1 [] "Nil"
-                  , CaseAlt 2 ["p", "ps"] (ELet [("rest", (ap2 "filter" "predicate" "ps"))]
-                                           (ap3 "if"
-                                                 (EAp "predicate" "p")
-                                                 (ap2 "Cons" "p" "rest")
-                                                 "rest"
-                                           ))
-                  ])
+      Typed
+        (ECase (Typed "xs" (listT varA))
+                    [ CaseAlt 1 [] "Nil"
+                    , CaseAlt 2 [ Typed "p"  varA
+                                , Typed "ps" (listT varA)
+                                ] (ELet [(Typed "rest" (listT varA), (ap2 "filter" "predicate" "ps"))]
+                                            (ap3 "if"
+                                                  (EAp "predicate" "p")
+                                                  (ap2 "Cons" "p" "rest")
+                                                  "rest"
+                                            ))
+                    ])
+        (listT varA)
   }
 
 foldl' :: Scomb
 foldl' = Scomb
   { scomb'name = "foldl"
-  , scomb'args = V.fromList ["accum", "z", "xs"]
-  , scomb'body = ECase "xs"
-      [ CaseAlt 0 []  "z"
-      , CaseAlt 1 ["a", "as"]  (ap3 "foldl" "accum" (ap2 "accum" "z" "a") "as")
-      ]
+  , scomb'args = V.fromList
+                    [ Typed "accum" (arrow2 varA varB varA)
+                    , Typed "z"     varA
+                    , Typed "xs"    (listT varB)
+                    ]
+  , scomb'body =
+      Typed
+        (ECase (Typed "xs" (listT varB))
+        [ CaseAlt 0 []  "z"
+        , CaseAlt 1 [Typed "a" varB, Typed "as" (listT varB)]  (ap3 "foldl" "accum" (ap2 "accum" "z" "a") "as")
+        ])
+        varA
   }
 
 listAt :: Scomb
 listAt = Scomb
   { scomb'name = "listAt"
-  , scomb'args = V.fromList ["n", "xs"]
-  , scomb'body = ECase "xs"
-      [CaseAlt 1 ["a", "as"]
-          (ap3 "if" (ap2 "<=" "n" (int 0))
-               "a"
-               (ap2 "listAt" (ap2 "-" "n" (int 1)) "as")
-          )
-      ]
+  , scomb'args = V.fromList [Typed "n" intT, Typed "xs" (listT varA)]
+  , scomb'body =
+      Typed
+        (ECase (Typed "xs" (listT varA))
+          [CaseAlt 1 [Typed "a" varA, Typed "as" (listT varA)]
+              (ap3 "if" (ap2 "<=" "n" (int 0))
+                  "a"
+                  (ap2 "listAt" (ap2 "-" "n" (int 1)) "as")
+              )
+          ])
+      varA
   }
 
 -- functions
@@ -243,22 +295,26 @@ listAt = Scomb
 id' :: Scomb
 id' = Scomb
   { scomb'name = "id"
-  , scomb'args = V.fromList ["x"]
-  , scomb'body = "x"
+  , scomb'args = V.fromList [Typed "x" varA]
+  , scomb'body = Typed "x" varA
   }
 
 const' :: Scomb
 const' = Scomb
   { scomb'name = "const"
-  , scomb'args = V.fromList ["x", "y"]
-  , scomb'body = "x"
+  , scomb'args = V.fromList [Typed "x" varA, Typed "y" varB]
+  , scomb'body = Typed "x" varA
   }
 
 compose :: Scomb
 compose = Scomb
   { scomb'name = "compose"
-  , scomb'args = V.fromList ["f", "g", "x"]
-  , scomb'body = EAp "f" (EAp "g" "x")
+  , scomb'args = V.fromList
+                    [ Typed "f" (arrowT varB varC)
+                    , Typed "g" (arrowT varA varB)
+                    , Typed "x" varA
+                    ]
+  , scomb'body = Typed (EAp "f" (EAp "g" "x")) varC
   }
 
 -- tuples
@@ -266,11 +322,13 @@ compose = Scomb
 tupleCons :: Int -> Scomb
 tupleCons arity = Scomb
   { scomb'name = mappend "Tuple" (showt arity)
-  , scomb'args = V.fromList vs
-  , scomb'body = L.foldl' (\f arg -> EAp f (EVar arg)) (EConstr 0 arity) vs
+  , scomb'args = V.fromList $ zipWith Typed vs vTs
+  , scomb'body = Typed (L.foldl' (\f arg -> EAp f (EVar arg)) (EConstr consTy 0 arity) vs) (tupleT vTs)
   }
   where
     vs = fmap (\n -> mappend "v" (showt n)) [1 .. arity]
+    vTs = fmap varT vs
+    consTy = funT vTs (tupleT vTs)
 
 maxTupleSize :: Int
 maxTupleSize = 13
@@ -281,16 +339,25 @@ tuples = fst' : snd' : fmap tupleCons [2 .. maxTupleSize]
 fst' :: Scomb
 fst' = Scomb
   { scomb'name = "fst"
-  , scomb'args = V.fromList ["x"]
-  , scomb'body = ECase "x" [CaseAlt 0 ["a", "b"] "a"]
+  , scomb'args = V.fromList [Typed "x" argT]
+  , scomb'body = Typed
+      (ECase (Typed "x" argT) [CaseAlt 0 [Typed "a" varA, Typed "b" varB] "a"])
+      varA
   }
+  where
+    argT = tupleT [varA, varB]
 
 snd' :: Scomb
 snd' = Scomb
   { scomb'name = "snd"
-  , scomb'args = V.fromList ["x"]
-  , scomb'body = ECase "x" [CaseAlt 0 ["a", "b"] "b"]
+  , scomb'args = V.fromList [Typed "x" argT]
+  , scomb'body =
+      Typed
+        (ECase (Typed "x" argT) [CaseAlt 0 [Typed "a" varA, Typed "b" varB] "b"])
+        varB
   }
+  where
+    argT = tupleT [varA, varB]
 
 -- boxes
 
@@ -300,31 +367,40 @@ boxCons :: Scomb
 boxCons = Scomb
   { scomb'name = "Box"
   , scomb'args = V.fromList boxArgs
-  , scomb'body = ap (EConstr 0 4) boxArgs
+  , scomb'body = Typed (ap (EConstr consTy 0 4) $ fmap (EVar . typed'value) boxArgs) boxT
   }
+  where
+    consTy = funT (fmap typed'type boxArgs) boxT
 
-getBoxField :: Name -> Name -> Scomb
-getBoxField name field = Scomb
+getBoxField :: Name -> Name -> Type -> Scomb
+getBoxField name field resT = Scomb
   { scomb'name = name
-  , scomb'args = V.fromList ["box"]
-  , scomb'body = ECase (EVar "box") [CaseAlt 0 boxArgs (EVar field)]
+  , scomb'args = V.fromList [Typed "box" boxT]
+  , scomb'body =
+      Typed
+        (ECase (Typed "box" boxT) [CaseAlt 0 boxArgs (EVar field)])
+        resT
   }
   where
 
-boxArgs :: IsString a => [a]
-boxArgs = ["name", "script", "value", "args"]
+boxArgs :: [Typed Name]
+boxArgs =
+  [ Typed "name"   textT
+  , Typed "script" textT
+  , Typed "value"  intT
+  , Typed "args"   (arrowT textT intT)] -- TODO: think out type for argument it's not only int
 
 getBoxName :: Scomb
-getBoxName = getBoxField "getBoxName" "name"
+getBoxName = getBoxField "getBoxName" "name" textT
 
 getBoxScript :: Scomb
-getBoxScript = getBoxField "getBoxScript" "script"
+getBoxScript = getBoxField "getBoxScript" "script" textT
 
 getBoxValue :: Scomb
-getBoxValue = getBoxField "getBoxValue" "value"
+getBoxValue = getBoxField "getBoxValue" "value" intT
 
 getBoxArgs :: Scomb
-getBoxArgs = getBoxField "getBoxArgs" "args"
+getBoxArgs = getBoxField "getBoxArgs" "args" (arrowT textT intT) -- TODO: think on result type of getArg
 
 -- environment
 
@@ -334,31 +410,40 @@ envCons :: Scomb
 envCons = Scomb
   { scomb'name = "Env"
   , scomb'args = V.fromList envArgs
-  , scomb'body = ap (EConstr 0 4) envArgs
+  , scomb'body = Typed (ap (EConstr consTy 0 4) (fmap (EVar . typed'value) envArgs)) envT
   }
+  where
+    consTy = funT (fmap typed'type envArgs) envT
 
-envArgs :: IsString a => [a]
-envArgs = ["height", "inputs", "outputs", "args"]
+envArgs :: [Typed Name]
+envArgs =
+  [ Typed "height"  intT
+  , Typed "inputs"  (listT boxT)
+  , Typed "outputs" (listT boxT)
+  , Typed "args"    (listT intT) -- TODO: reconsider type for args it can be not only int as a result
+  ]
 
-getEnvField :: Name -> Name -> Scomb
-getEnvField name field = Scomb
+getEnvField :: Name -> Name -> Type -> Scomb
+getEnvField name field resT = Scomb
   { scomb'name = name
-  , scomb'args = V.fromList ["env"]
-  , scomb'body = ECase "env" [CaseAlt 0 envArgs (EVar field)]
+  , scomb'args = V.fromList [Typed "env" envT]
+  , scomb'body =
+      Typed
+        (ECase (Typed "env" envT) [CaseAlt 0 envArgs (EVar field)])
+        resT
   }
 
 getHeight :: Scomb
-getHeight = getEnvField "getHeight" "height"
+getHeight = getEnvField "getHeight" "height" intT
 
 getInputs :: Scomb
-getInputs = getEnvField "getInputs" "inputs"
+getInputs = getEnvField "getInputs" "inputs" (listT boxT)
 
 getOutputs :: Scomb
-getOutputs = getEnvField "getOutputs" "outputs"
+getOutputs = getEnvField "getOutputs" "outputs" (listT boxT)
 
 getArgs :: Scomb
-getArgs = getEnvField "getArgs" "args"
--}
+getArgs = getEnvField "getArgs" "args" (listT intT)
 
 builtInDiadic :: Map Name Instr
 builtInDiadic = M.fromList
@@ -391,4 +476,18 @@ builtInUnary = M.fromList
   , ("hashSha", HashSha)
   ]
 
+arrow2 :: Type -> Type -> Type -> Type
+arrow2 a b c = arrowT a (arrowT b c)
+
+varA :: Type
+varA = varT "a"
+
+varB :: Type
+varB = varT "b"
+
+varC :: Type
+varC = varT "c"
+
+funT :: [Type] -> Type -> Type
+funT args resT = L.foldl' (\res arg -> arrowT arg res) resT args
 
