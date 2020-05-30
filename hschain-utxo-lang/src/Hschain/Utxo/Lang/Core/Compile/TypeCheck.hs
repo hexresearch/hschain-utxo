@@ -10,6 +10,14 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , boolT
   , textT
   , sigmaT
+  , primT
+  , boxT
+  , envT
+  , primToType
+  , varT
+  , listT
+  , tupleT
+  , arrowT
 ) where
 
 import Control.Monad.Reader
@@ -171,6 +179,24 @@ boolT = primT "Bool"
 sigmaT :: Type
 sigmaT = primT "Sigma"
 
+boxT :: Type
+boxT = primT "Box"
+
+envT :: Type
+envT = primT "Environment"
+
 primT :: Name -> Type
 primT name = H.conT () name []
+
+varT :: Name -> Type
+varT name = H.varT () name
+
+listT :: Type -> Type
+listT ty = H.listT () ty
+
+tupleT :: [Type] -> Type
+tupleT ts = H.tupleT () ts
+
+arrowT :: Type -> Type -> Type
+arrowT a b = H.arrowT () a b
 
