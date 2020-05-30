@@ -104,7 +104,7 @@ compileE expr env = case expr of
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
   EAp (EVar op) a                   -> compileUnary op a
   ECase e alts -> compileCase env (typed'value e) alts
-  EConstr tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
+  EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   _ -> defaultCase
   where
     compileDiadic op a b =
@@ -133,7 +133,7 @@ compileC expr env = case expr of
   EPrim n  -> Code.singleton $ PushPrim n
   EAp a b -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
   ELet es e -> compileLet env (fmap stripLetType es) e
-  EConstr tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
+  EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   ECase e alts -> compileCase env (typed'value e) alts
   -- TODO: we need to substitute it with special case
   -- see discussion at the book on impl at p. 136 section: 3.8.7
