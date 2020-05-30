@@ -4,9 +4,13 @@
 -- Since we test for equality but it's easy to extend for
 -- polymorphic types with unification algorithm but do we really need to do it?
 module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
-  typeCheck
+    typeCheck
+  -- * primitive types
+  , intT
+  , boolT
+  , textT
+  , sigmaT
 ) where
-
 
 import Control.Monad.Reader
 
@@ -43,7 +47,10 @@ getType name = do
   lift $ M.lookup name ctx
 
 getSignature :: Scomb -> Type
-getSignature = undefined
+getSignature Scomb{..} = L.foldl' (H.arrowT ()) res args
+  where
+    args = fmap typed'type $ V.toList scomb'args
+    res  = typed'type scomb'body
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check Bool
@@ -166,3 +173,4 @@ sigmaT = primT "Sigma"
 
 primT :: Name -> Type
 primT name = H.conT () name []
+
