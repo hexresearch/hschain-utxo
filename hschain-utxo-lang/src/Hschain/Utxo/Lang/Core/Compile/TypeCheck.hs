@@ -83,6 +83,7 @@ getType name = do
   TypeContext ctx <- ask
   lift $ M.lookup name ctx
 
+-- | Reads  type signature of supercombinator
 getScombType :: Scomb -> Type
 getScombType Scomb{..} = foldr (H.arrowT ()) res args
   where

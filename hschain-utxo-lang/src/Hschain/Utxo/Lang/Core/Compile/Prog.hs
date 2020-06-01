@@ -1,6 +1,7 @@
 module Hschain.Utxo.Lang.Core.Compile.Prog(
     compile
   , compileSc
+  , coreProgTerminates
 ) where
 
 import Hschain.Utxo.Lang.Core.Gmachine
@@ -13,14 +14,39 @@ import Hschain.Utxo.Lang.Core.Data.Node
 import Hschain.Utxo.Lang.Core.Data.Prim
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
+import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap     as IM
+import qualified Data.Vector     as V
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
+
+-- | Check that program terminates.
+--
+-- It should
+-- * be well typed
+-- * has no recursion
+-- * has main program that returns sigma expression
+coreProgTerminates :: TypeContext -> CoreProg -> Bool
+coreProgTerminates ctx prog =
+     typeCheck ctx prog
+  && recursionCheck prog
+  && mainIsSigma prog
+
+mainIsSigma :: CoreProg -> Bool
+mainIsSigma prog =
+  case L.find (\sc -> scomb'name sc == "main") prog of
+    Just mainComb -> hasNoArgs mainComb && resultIsSigma mainComb
+    Nothing       -> False
+  where
+    hasNoArgs Scomb{..} = V.null scomb'args
+    resultIsSigma Scomb{..} = sigmaT == typed'type scomb'body
+
 
 -- | Compiles program to the G-machine for execution
 compile :: CoreProg -> Gmachine
