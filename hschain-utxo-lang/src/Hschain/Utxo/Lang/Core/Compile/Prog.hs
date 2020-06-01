@@ -2,6 +2,7 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
     compile
   , compileSc
   , coreProgTerminates
+  , isSigmaScript
 ) where
 
 import Hschain.Utxo.Lang.Core.Gmachine
@@ -26,17 +27,25 @@ import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
 
+-- | the program is sigma script if
+--
+-- * it terminates
+-- * main function returns sigma-expression
+isSigmaScript :: CoreProg -> Bool
+isSigmaScript prog =
+     coreProgTerminates prog
+  && mainIsSigma prog
+
 -- | Check that program terminates.
 --
 -- It should
+--
 -- * be well typed
 -- * has no recursion
--- * has main program that returns sigma expression
-coreProgTerminates :: TypeContext -> CoreProg -> Bool
-coreProgTerminates ctx prog =
-     typeCheck ctx prog
+coreProgTerminates :: CoreProg -> Bool
+coreProgTerminates prog =
+     typeCheck preludeTypeContext prog
   && recursionCheck prog
-  && mainIsSigma prog
 
 mainIsSigma :: CoreProg -> Bool
 mainIsSigma prog =
