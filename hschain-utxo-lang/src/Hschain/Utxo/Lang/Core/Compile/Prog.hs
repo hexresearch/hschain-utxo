@@ -63,7 +63,7 @@ compileR :: Expr -> Env -> Int -> Code
 compileR expr env arity =
   case expr of
     ELet es e                         -> compileLetR env arity (fmap stripLetType es) e
-    EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
+    EIf a b c                         -> compileIf a b c
     ECase e alts                      -> compileCaseR (typed'value e) alts
     _                                 -> defaultCase
   where
@@ -100,7 +100,7 @@ compileE :: Expr -> Env -> Code
 compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
   ELet es e -> compileLet env (fmap stripLetType es) e
-  EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
+  EIf a b c                         -> compileIf a b c
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
   EAp (EVar op) a                   -> compileUnary op a
   ECase e alts -> compileCase env (typed'value e) alts
@@ -130,13 +130,16 @@ compileC expr env = case expr of
   EVar v  -> Code.singleton $ case lookupEnv v env of
                Just n  -> Push n
                Nothing -> PushGlobal (GlobalName v)
-  EPrim n  -> Code.singleton $ PushPrim n
-  EAp a b -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
-  ELet es e -> compileLet env (fmap stripLetType es) e
+  EPrim n             -> Code.singleton $ PushPrim n
+  EAp a b             -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
+  ELet es e           -> compileLet env (fmap stripLetType es) e
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
-  ECase e alts -> compileCase env (typed'value e) alts
+  ECase e alts        -> compileCase env (typed'value e) alts
+  EIf a b c           -> compileIf a b c
   -- TODO: we need to substitute it with special case
   -- see discussion at the book on impl at p. 136 section: 3.8.7
+  where
+    compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 
 compileLet :: Env -> [(Name, Expr)] -> Expr -> Code
 compileLet env defs e =
@@ -186,7 +189,7 @@ compileB :: Expr -> Env -> Code
 compileB expr env = case expr of
   EPrim n                           -> Code.singleton $ PushBasic n
   ELet es e                         -> compileLetB env (fmap stripLetType es) e
-  EAp (EAp (EAp (EVar "if") a) b) c -> compileIf a b c
+  EIf a b c                         -> compileIf a b c
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
   EAp (EVar op) a                   -> compileUnary op a
   _                                 -> defaultCase

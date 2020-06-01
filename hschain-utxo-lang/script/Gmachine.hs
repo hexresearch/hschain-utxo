@@ -61,6 +61,8 @@ testAll = filter (isLeft . snd) $
   zipWith (\n prog -> (n, eval $ compile prog)) [1..] allProgs
 
 -- | Type check all programms and show which one are ill-typed.
+-- many examle programms are ill-typed because they use polymorphism
+-- which is prohibited in our core language.
 typeCheckAll :: [Int]
 typeCheckAll = fmap fst $ filter (not . snd) $
   zipWith (\n prog -> (n, typeCheck preludeTypeContext prog)) [1..] allProgs
@@ -78,15 +80,16 @@ allProgs =
 -- > S x y z = x z (y z)
 -- > K x y = x
 prelude :: [Scomb]
-prelude = [s, k, k1, id']
+prelude = [s, k, k1, id', iff]
   where
     s   = scomb "S"   ["x", "y", "z"]  (ap2 "x" "z" (EAp "y" "z")) [arrow2 varA varB varC, arrowT varA varB,varA] varC
     k   = scomb "K"   ["x", "y"]       "x"  [varA, varB] varA
     k1  = scomb "K1"  ["x", "y"]       "y"  [varA, varB] varB
     id' = scomb "I"   ["x"]            "x"  [varA]       varA
+    iff = scomb "if" ["c", "t", "e"] (EIf "c" "t" "e") [boolT, varA, varA] varA
 
 prelude2 :: [Scomb]
-prelude2 = [s, k, k1, id', cons, nil]
+prelude2 = [s, k, k1, id', cons, nil, iff]
   where
     s   = scomb "S"   ["x", "y", "z"]  (ap2 "x" "z" (EAp "y" "z")) [arrow2 varA varB varC, arrowT varA varB,varA] varC
     k   = scomb "K"   ["x", "y"]       "x"  [varA, varB] varA
@@ -95,6 +98,21 @@ prelude2 = [s, k, k1, id', cons, nil]
     cons = scomb "cons" ["x", "y"] (ap2 (EConstr consTy 2 2) "x" "y") [varA, listT varA] (listT varA)
     nil  = scomb "nil" [] (EConstr (listT varA) 1 0) [] (listT varA)
     consTy = arrow2 varA (listT varA) (listT varA)
+    iff = scomb "if" ["c", "t", "e"] (EIf "c" "t" "e") [boolT, varA, varA] varA
+
+preludeInt :: [Scomb]
+preludeInt = [cons, nil]
+  where
+    cons = scomb "cons" ["x", "y"] (ap2 (EConstr consTy 2 2) "x" "y") [intT, listT intT] (listT intT)
+    nil  = scomb "nil" [] (EConstr (listT intT) 1 0) [] (listT intT)
+    consTy = arrow2 intT (listT intT) (listT intT)
+
+preludeBool :: [Scomb]
+preludeBool = [cons, nil]
+  where
+    cons = scomb "cons" ["x", "y"] (ap2 (EConstr consTy 2 2) "x" "y") [boolT, listT boolT] (listT boolT)
+    nil  = scomb "nil" [] (EConstr (listT boolT) 1 0) [] (listT boolT)
+    consTy = arrow2 boolT (listT boolT) (listT boolT)
 
 -- | Programm
 --
@@ -173,11 +191,11 @@ prog7 = [main]
     main = scomb "main" [] (ELet [(Typed "x" intT, 3 * (2 + 2))] ("x" * "x")) [] intT
 
 prog8 :: CoreProg
-prog8 = [main, inc, twice] ++ prelude
+prog8 = [main, inc, twice] ++ preludeInt
   where
     inc = scomb "inc" ["x"] ("x" + 1) [intT] intT
-    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x")) [arrowT varA varA, varA] varA
-    main = scomb "main" [] (ap3 "twice" "twice" "inc" 4) [] intT
+    twice = scomb "twice" ["f", "x"] (EAp "f" (EAp "f" "x")) [arrowT intT intT, intT] intT
+    main = scomb "main" [] (ap2 "twice" "inc" 4) [] intT
 
 -- | Test for arithmetic. Length of the list
 -- ill-typed program
@@ -201,7 +219,7 @@ prog9 = [main, length', length1, cons, nil] ++ prelude
 -- > main = fac 10
 prog10 = [main, fac]
   where
-    fac  = scomb "fac"  ["n"] (ap3 "if" (ap2 "==" "n" 0) 1 ("n" * (EAp "fac" ("n" - 1))) ) [intT] intT
+    fac  = scomb "fac"  ["n"] (EIf (ap2 "==" "n" 0) 1 ("n" * (EAp "fac" ("n" - 1))) ) [intT] intT
     main = scomb "main" [] (EAp "fac" 10) [] intT
 
 -- > gcd a b = if (a == b)
@@ -212,10 +230,10 @@ prog10 = [main, fac]
 -- > main = gcd 6 10
 prog11 = [main, gcd]
   where
-    gcd  = scomb "gcd"  ["a", "b"] (ap3 "if"
+    gcd  = scomb "gcd"  ["a", "b"] (EIf
                                           (ap2 "==" "a" "b")
                                           "a"
-                                          (ap3 "if"
+                                          (EIf
                                                 (ap2 "<" "a" "b")
                                                 (ap2 "gcd" "b" "a")
                                                 (ap2 "gcd" "b" (ap2 "-" "a" "b")) ))
@@ -229,7 +247,7 @@ prog11 = [main, gcd]
 -- > main = nfib 5
 prog12 = [main, nfib]
   where
-    nfib = scomb "nfib" ["n"] (ap3 "if"
+    nfib = scomb "nfib" ["n"] (EIf
                                    (ap2 "<=" "n" 0)
                                    1
                                    (1 +
@@ -262,11 +280,11 @@ badProg = [main, f]
 -- >
 -- > main = downfrom 5
 prog13 :: CoreProg
-prog13 = [main, downfrom] ++ prelude2
+prog13 = [main, downfrom] ++ preludeInt
   where
     main = scomb "main" [] (EAp "downfrom" 5) [] (listT intT)
     downfrom = scomb "downfrom" ["n"]
-        (ap3 "if"
+        (EIf
               (ap2 "==" "n" 0)
               "nil"
               (ap2 "cons" "n" (EAp "downfrom" (ap2 "-" "n" 1)))
@@ -287,20 +305,20 @@ prog13 = [main, downfrom] ++ prelude2
 -- >
 -- > from a = cons a (from (a + 1))
 prog14 :: CoreProg
-prog14 = [main, take', from] ++ prelude2
+prog14 = [main, take', from] ++ preludeInt
   where
     main = scomb "main" [] (ap2 "take" 5 (EAp "from" 0)) [] (listT intT)
     take' = scomb "take" ["n", "xs"]
-      (ap3 "if"
+      (EIf
            (ap2 "<=" "n" 0)
            "nil"
-           (ECase (Typed "xs" (listT varA))
+           (ECase (Typed "xs" (listT intT))
                        [ CaseAlt 1 [] "nil"
-                       , CaseAlt 2 [ Typed "p" varA
-                                   , Typed "ps" (listT varA)] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
+                       , CaseAlt 2 [ Typed "p" intT
+                                   , Typed "ps" (listT intT)] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
                         ])
            )
-          [intT, listT varA] (listT varA)
+          [intT, listT intT] (listT intT)
     from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" 1)))
               [intT] (listT intT)
 
@@ -330,7 +348,7 @@ prog14 = [main, take', from] ++ prelude2
 -- >                   <2> p ps -> cons p (take (n - 1) ps)
 -- >                )
 prog15 :: CoreProg
-prog15 = [main, take', from, sieve, filter', nonMultiple] ++ prelude2
+prog15 = [main, take', from, sieve, filter', nonMultiple] ++ preludeInt
   where
     main = scomb "main" [] (ap2 "take" 5 (EAp "sieve" (EAp "from" 2))) [] (listT intT)
 
@@ -338,33 +356,33 @@ prog15 = [main, take', from, sieve, filter', nonMultiple] ++ prelude2
                         [intT, intT] boolT
 
     take' = scomb "take" ["n", "xs"]
-      (ap3 "if"
+      (EIf
            (ap2 "<=" "n" 0)
            "nil"
-           (ECase (Typed "xs" (listT varA))
+           (ECase (Typed "xs" (listT intT))
                        [ CaseAlt 1 [] "nil"
-                       , CaseAlt 2 [ Typed "p" varA
-                                   , Typed "ps" (listT varA)] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
+                       , CaseAlt 2 [ Typed "p" intT
+                                   , Typed "ps" (listT intT)] (ap2 "cons" "p" (ap2 "take" (ap2 "-" "n" 1) "ps"))
                         ])
            )
-      [intT, listT varA] (listT varA)
+      [intT, listT intT] (listT intT)
 
     from = scomb "from" ["a"] (ap2 "cons" "a" (EAp "from" (ap2 "+" "a" 1)))
                 [intT] (listT intT)
 
     filter' = scomb "filter" ["predicate", "xs"]
-      (ECase (Typed "xs" (listT varA))
+      (ECase (Typed "xs" (listT intT))
                   [ CaseAlt 1 [] "nil"
-                  , CaseAlt 2 [ Typed "p" varA
-                              , Typed "ps" (listT varA)]
-                                        (ELet [(Typed "rest" (listT varA), (ap2 "filter" "predicate" "ps"))]
-                                           (ap3 "if"
+                  , CaseAlt 2 [ Typed "p" intT
+                              , Typed "ps" (listT intT)]
+                                        (ELet [(Typed "rest" (listT intT), (ap2 "filter" "predicate" "ps"))]
+                                           (EIf
                                                  (EAp "predicate" "p")
                                                  (ap2 "cons" "p" "rest")
                                                  "rest"
                                            ))
                   ])
-          [arrowT varA boolT, listT varA] (listT varA)
+          [arrowT intT boolT, listT intT] (listT intT)
     sieve = scomb "sieve" ["xs"]
       (ECase (Typed "xs" (listT intT))
                   [ CaseAlt 1 [] "nil"
@@ -383,7 +401,7 @@ prog15 = [main, take', from, sieve, filter', nonMultiple] ++ prelude2
 --
 -- > main = not (true && false)
 prog16 :: CoreProg
-prog16 = [main] ++ prelude2
+prog16 = [main] ++ preludeBool
   where
     main = scomb "main" [] (EAp "not" (ap2 "&&" "true" "false")) [] boolT
 
@@ -394,7 +412,7 @@ prog16 = [main] ++ prelude2
 --        , false && true
 --        , false && false ]
 prog17 :: CoreProg
-prog17 = [main] ++ prelude2
+prog17 = [main] ++ preludeBool
   where
     main = scomb "main" []
         (ap2 "cons"
@@ -419,7 +437,7 @@ prog17 = [main] ++ prelude2
 --        , false || true
 --        , false || false ]
 prog18 :: CoreProg
-prog18 = [main] ++ prelude2
+prog18 = [main] ++ preludeBool
   where
     main = scomb "main" []
         (ap2 "cons"

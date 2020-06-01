@@ -36,7 +36,7 @@ data Scomb = Scomb
   { scomb'name :: Name                 -- ^ name of supercombinator
   , scomb'args :: Vector (Typed Name)  -- ^ list of arguments
   , scomb'body :: Typed Expr           -- ^ body
-  }
+  } deriving (Show, Eq)
 
 -- | Expressions of the Core-language
 data Expr
@@ -48,6 +48,8 @@ data Expr
   -- ^ application
   | ELet [(Typed Name, Expr)] Expr
   -- ^ lent bindings
+  | EIf Expr Expr Expr
+  -- ^ if expressions
   | ECase !(Typed Expr) [CaseAlt]
   -- ^ case alternatives
   | EConstr Type !Int !Int
