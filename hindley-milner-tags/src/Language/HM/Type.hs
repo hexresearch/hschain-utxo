@@ -1,6 +1,8 @@
 -- | This module contains the abstract syntax of Hindley-Milner types.
 module Language.HM.Type (
     IsVar(..),
+    stringIntToVar,
+    stringPrettyLetters,
     HasLoc(..),
     -- * Monomorphic types.
     TypeF(..),
@@ -32,11 +34,14 @@ module Language.HM.Type (
 
 --------------------------------------------------------------------------------
 
+import Control.Monad
+
 import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Data.Fix
 import Data.Function (on)
 import Data.Map.Strict (Map)
+import Data.String
 import Data.Tuple (swap)
 
 import qualified Data.List as L
@@ -61,6 +66,13 @@ class (Show v, Ord v) => IsVar v where
 
   -- | Canonical leters for pretty output
   prettyLetters :: [v]
+
+
+stringIntToVar :: IsString a => Int -> a
+stringIntToVar n = fromString $ mappend "$$" (show n)
+
+stringPrettyLetters :: IsString a => [a]
+stringPrettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
 instance HasLoc (Type loc v) where
   type Loc (Type loc v) = loc

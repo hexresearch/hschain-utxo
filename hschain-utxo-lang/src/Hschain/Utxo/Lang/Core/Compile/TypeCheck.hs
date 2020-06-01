@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Type checker for core language.
 --
 -- Now it works only for monomorphic types.
@@ -31,11 +32,37 @@ import Data.Maybe
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 
+import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
+import Language.HM.Pretty (PrintCons(..), HasPrefix(..))
+
 import qualified Data.Map.Strict as M
 import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
+
+import Data.Text.Prettyprint.Doc
+
+{- for debug
+import Debug.Trace
+import Text.Show.Pretty hiding (Name)
+
+trace' :: Show a => a -> a
+trace' a = trace (ppShow a) a
+
+traceT :: Type -> Type
+traceT ty = trace (show $ pretty ty) ty
+-}
+
+instance IsVar Name where
+  intToVar = stringIntToVar
+  prettyLetters = stringPrettyLetters
+
+instance HasPrefix Name where
+  getFixity = const Nothing
+
+instance PrintCons Name where
+  printCons name args = hsep $ pretty name : args
 
 -- | Check the types for core programm.
 typeCheck :: TypeContext -> CoreProg -> Bool
@@ -57,7 +84,7 @@ getType name = do
   lift $ M.lookup name ctx
 
 getScombType :: Scomb -> Type
-getScombType Scomb{..} = L.foldl' (H.arrowT ()) res args
+getScombType Scomb{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type $ V.toList scomb'args
     res  = typed'type scomb'body
@@ -80,6 +107,7 @@ inferExpr = \case
     ELet es e      -> inferLet es e
     ECase e alts   -> inferCase e alts
     EConstr ty _ _ -> pure ty
+    EIf c t e      -> inferIf c t e
 
 inferVar :: Name -> Check Type
 inferVar = getType
@@ -136,6 +164,15 @@ inferAlt :: CaseAlt -> Check Type
 inferAlt CaseAlt{..} =
   local (loadArgs caseAlt'args) $
     inferExpr caseAlt'rhs
+
+inferIf :: Expr -> Expr -> Expr -> Check Type
+inferIf c t e = do
+  cT <- inferExpr c
+  tT <- inferExpr t
+  eT <- inferExpr e
+  guard $ cT == boolT
+  guard $ tT == eT
+  return tT
 
 -------------------------------------------------------
 -- type inference context

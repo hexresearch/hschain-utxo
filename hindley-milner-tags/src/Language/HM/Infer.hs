@@ -3,6 +3,7 @@ module Language.HM.Infer(
     Context(..)
   , inferType
   , subtypeOf
+  , unifyTypes
 ) where
 
 import Control.Arrow (second)
@@ -362,5 +363,11 @@ normaliseSubst x =
   Subst $ M.fromList $
     zipWith (\(nameA, loc) nameB -> (nameA, varT loc nameB)) (tyVarsInOrder x) prettyLetters
 
+------------------------------------------------
+--
+
+-- | Checks weather two types unify. If they do it returns substitution that unifies them.
+unifyTypes :: (Show loc, IsVar v) => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
+unifyTypes a b = fmap fromSubstOrigin $ unify mempty (mapLoc Proven a) (mapLoc UserCode b)
 
 
