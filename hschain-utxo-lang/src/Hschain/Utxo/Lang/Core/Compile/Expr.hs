@@ -11,8 +11,6 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
 
 import Data.Vector (Vector)
 
-import qualified Language.HM as H
-
 import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
@@ -21,13 +19,6 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 -- for the execution of the program.
 type CoreProg = [Scomb]
 
-type Type = H.Type () Name
-
--- | Type tags for values
-data Typed a = Typed
-  { typed'value :: a
-  , typed'type  :: Type
-  } deriving (Show, Eq)
 
 -- | Supercobinators do not contain free variables.
 --

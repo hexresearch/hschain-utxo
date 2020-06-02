@@ -1,6 +1,8 @@
 -- | Common primitive type definitions
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
+  , Type
+  , Typed(..)
   , Addr
   , Prim(..)
   , SigmaExpr(..)
@@ -11,6 +13,15 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
 ) where
 
 import Data.Text (Text)
+import qualified Language.HM as H
+
+type Type = H.Type () Name
+
+-- | Type tags for values
+data Typed a = Typed
+  { typed'value :: a
+  , typed'type  :: Type
+  } deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- | Name identifiers for variables or global functions
 type Name = Text
