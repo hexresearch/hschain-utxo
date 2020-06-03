@@ -1,3 +1,11 @@
+-- | Implements lambda-lifting
+--
+-- It is implemented by the algorithm in the book
+-- "Implementing Fun tional Languages: a tutorial" by Simon L Peyton Jones and David R Lester
+-- (see Chapter 6).
+--
+-- It does not implement step with full-laziness.
+-- Implemented up to mark 3 (complete lambda-lifting with optimizations).
 module Hschain.Utxo.Lang.Compile.LambdaLifting(
     lambdaLifting
   , fuseLams
