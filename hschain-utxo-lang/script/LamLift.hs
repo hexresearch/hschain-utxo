@@ -16,7 +16,7 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting.Rename
 import Text.Show.Pretty hiding (Name)
 
 main :: IO ()
-main = checkProg prog2
+main = checkProg prog3
 
 instance Num (Expr Name) where
   (+) = app2 "+"
@@ -35,6 +35,9 @@ app f a = Fix $ EAp f a
 app2 :: Expr Name -> Expr Name -> Expr Name -> Expr Name
 app2 f a b = Fix $ EAp (app f a) b
 
+lam :: [Name] -> Expr Name -> Expr Name
+lam args body = Fix $ ELam args body
+
 prog1 :: CoreProg
 prog1 =
   [ Def
@@ -47,7 +50,7 @@ prog1 =
       { def'name = "f"
       , def'args = ["x"]
       , def'body = Fix $ ELet
-                          [ ("g", Fix $ ELam ["y"]
+                          [ ("g", lam ["y"]
                                      (app2 "mul" "x" ("x" + "y")))]
                           (app "g" 3 + app "g" 4)
       }
@@ -64,13 +67,28 @@ prog2 =
   [ Def
       { def'name = "f"
       , def'args = []
-      , def'body = Fix $ ELam ["x"] $ Fix $ ELam ["y"] (("x" + 1) * "y")
+      , def'body = lam ["x"] $ lam ["y"] (("x" + 1) * "y")
       }
 
   , Def
       { def'name = "main"
       , def'args = []
       , def'body = app2 "f" 1 2
+      }
+  ]
+
+prog3 :: CoreProg
+prog3 =
+  [ Def
+      { def'name = "f"
+      , def'args = ["x"]
+      , def'body = Fix $ ELet [("g", lam ["y"] ("y" + 1))] (app "g" (app "g" "x"))
+      }
+
+  , Def
+      { def'name = "main"
+      , def'args = []
+      , def'body = app "f" 1
       }
   ]
 

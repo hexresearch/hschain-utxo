@@ -17,7 +17,7 @@ import qualified Data.Sequence   as Seq
 collect :: CoreProg -> CoreProg
 collect prog = scs <> prog'
   where
-    (prog', scs) = runCollectM $ mapM collectDef prog
+    (prog', scs) = runCollectM $ mapM collectDef $ fmap (fmap fuseSingleLet) prog
 
 type CollectM a = Writer (Seq (Comb Name)) a
 
@@ -65,5 +65,28 @@ partitionBy f xs = case xs of
       in  case f y of
             Just b  -> (b:bs, as)
             Nothing -> (bs, y:as)
+
+-- | Removes expressions like this
+--
+-- > let f = (let v = expr in v)
+-- > in ...
+--
+-- substitutes to
+--
+-- > let f = expr
+-- > in ...
+--
+-- It reduces the number of trivial let-bindings
+fuseSingleLet :: Expr Name -> Expr Name
+fuseSingleLet = cata $ \case
+  ELet binds body -> Fix $ ELet (fmap procBinds binds) body
+  other           -> Fix other
+  where
+    procBinds (var, expr) = case unFix expr of
+      ELet [(v2, expr2)] (Fix (EVar v3)) | v2 == v3 -> (var, expr2)
+      _                                             -> (var, expr)
+
+
+
 
 
