@@ -1,3 +1,5 @@
+-- | Defines function rename to give new fresh names to all local variables.
+-- It prepares for safe movement of local labda-expressions to top-level supercombinators.
 module Hschain.Utxo.Lang.Compile.LambdaLifting.Rename(
   rename
 ) where
@@ -103,6 +105,6 @@ allocNames oldNames = do
       where
         newName = toNewName freshId
 
-    toNewName freshId = mappend "v" (showt freshId)
+    toNewName freshId = mappend "$v" (showt freshId)
 
 

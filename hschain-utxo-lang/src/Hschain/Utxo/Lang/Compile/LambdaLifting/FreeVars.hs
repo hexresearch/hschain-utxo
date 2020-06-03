@@ -1,3 +1,6 @@
+-- | Annotates expression tree with information on free-variables
+-- for all sub-expressions. So that we know which variables are
+-- candidates for abstractions
 module Hschain.Utxo.Lang.Compile.LambdaLifting.FreeVars(
   annotateFreeVars
 ) where

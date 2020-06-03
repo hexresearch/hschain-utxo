@@ -13,6 +13,12 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.Sequence   as Seq
 
+-- | Collects all lambdas to top-level supercombinators.
+collect :: CoreProg -> CoreProg
+collect prog = scs <> prog'
+  where
+    (prog', scs) = runCollectM $ mapM collectDef prog
+
 type CollectM a = Writer (Seq (Comb Name)) a
 
 runCollectM :: CollectM a -> (a, CoreProg)
@@ -20,10 +26,16 @@ runCollectM a = (res, toList combs)
   where
     (res, combs) = runWriter a
 
-collect :: CoreProg -> CoreProg
-collect prog = scs <> prog'
-  where
-    (prog', scs) = runCollectM $ mapM (mapM collectExpr) prog
+collectDef :: Comb Name -> CollectM (Comb Name)
+collectDef def@Def{..} =
+  case unFix def'body of
+    ELam args body -> collectDef $ def
+                                { def'args = def'args ++ args
+                                , def'body = body
+                                }
+    ELet [(var1, body)] (Fix (EVar var2)) | var1 == var2
+                  -> collectDef $ def { def'body = body }
+    _ -> mapM collectExpr def
 
 collectExpr :: Expr Name -> CollectM (Expr Name)
 collectExpr = cataM $ \case

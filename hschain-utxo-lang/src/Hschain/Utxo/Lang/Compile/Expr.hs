@@ -28,7 +28,7 @@ data AnnDef ann bind = AnnDef
   { annDef'name :: Name
   , annDef'args :: [bind]
   , annDef'body :: AnnExpr ann bind
-  }
+  } deriving (Show, Eq)
 
 type AnnProg  ann bind = [AnnComb ann bind]
 type CoreProg = [Comb Name]
@@ -40,7 +40,7 @@ data Def bind rhs = Def
   { def'name :: Name
   , def'args :: [bind]
   , def'body :: rhs
-  } deriving (Functor, Foldable, Traversable)
+  } deriving (Functor, Foldable, Traversable, Show, Eq)
 
 -- | Expressions of the Extended Core-language
 data ExprF bind a
