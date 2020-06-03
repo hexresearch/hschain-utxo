@@ -1,6 +1,8 @@
 module Hschain.Utxo.Lang.Compile.Expr(
     Ann(..)
   , Def(..)
+  , Comb
+  , AnnComb
   , AnnDef(..)
   , CoreProg
   , AnnProg
