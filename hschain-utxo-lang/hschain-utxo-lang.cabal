@@ -23,6 +23,10 @@ library
       Hschain.Utxo.Lang.Build
       Hschain.Utxo.Lang.Compile.Expr
       Hschain.Utxo.Lang.Compile.LambdaLifting
+      Hschain.Utxo.Lang.Compile.LambdaLifting.Abstract
+      Hschain.Utxo.Lang.Compile.LambdaLifting.Collect
+      Hschain.Utxo.Lang.Compile.LambdaLifting.FreeVars
+      Hschain.Utxo.Lang.Compile.LambdaLifting.Rename
       Hschain.Utxo.Lang.Core.Compile
       Hschain.Utxo.Lang.Core.Compile.Env
       Hschain.Utxo.Lang.Core.Compile.Expr
