@@ -51,13 +51,17 @@ noLoc = Hask.noSrcSpan
 data UserTypeCtx = UserTypeCtx
   { userTypeCtx'types      :: Map VarName UserType           -- ^ User-defined types
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
+  , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
   } deriving (Show, Eq)
 
 instance Semigroup UserTypeCtx where
-  UserTypeCtx a1 b1 <> UserTypeCtx a2 b2 = UserTypeCtx (a1 <> a2) (b1 <> b2)
+  UserTypeCtx a1 b1 c1 <> UserTypeCtx a2 b2 c2 = UserTypeCtx (a1 <> a2) (b1 <> b2) (c1 <> c2)
 
 instance Monoid UserTypeCtx where
-  mempty = UserTypeCtx mempty mempty
+  mempty = UserTypeCtx mempty mempty mempty
+
+setupUserRecords :: UserTypeCtx -> UserTypeCtx
+setupUserRecords = setupRecFields . setupRecConstrs
 
 -- | Fills record field order from user defined types.
 setupRecConstrs :: UserTypeCtx -> UserTypeCtx
@@ -70,8 +74,16 @@ setupRecConstrs ctx = ctx { userTypeCtx'recConstrs = recConstrs }
       RecordCons fields -> Just $ (cons, RecordFieldOrder $
           fmap (varName'name . recordField'name) $ V.toList fields)
 
-
     types = M.elems $ userTypeCtx'types ctx
+
+-- | Fills record fields to complete set of fields map for all record fields.
+setupRecFields :: UserTypeCtx -> UserTypeCtx
+setupRecFields ctx = ctx { userTypeCtx'recFields = recFields }
+  where
+    getFieldMap cons fieldOrder@(RecordFieldOrder fields) = fmap (\field -> (field, (cons, fieldOrder))) fields
+
+    recFields = M.fromList $ uncurry getFieldMap =<< (M.toList $ userTypeCtx'recConstrs ctx)
+
 
 -- | User-defined type
 data UserType = UserType
