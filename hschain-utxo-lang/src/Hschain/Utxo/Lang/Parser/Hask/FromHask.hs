@@ -121,7 +121,7 @@ fromDecls loc ds = do
 
 toUserTypes :: [Decl] -> UserTypeCtx
 toUserTypes ds =
-  setupRecConstrs $ (\ts -> UserTypeCtx ts mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
+  setupUserRecords $ (\ts -> UserTypeCtx ts mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
   where
     getTypeDecl = \case
       DataDecl userType -> Just userType
