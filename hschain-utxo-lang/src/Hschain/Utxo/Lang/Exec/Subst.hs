@@ -30,6 +30,7 @@ subst (Fix body) varName sub = case body of
   Lam loc pat body1                        -> Fix $ Lam loc pat $ recBy (freeVarsPat pat) body1
   If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
   Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
+  PrimLet loc bg e                         -> Fix $ PrimLet loc (substPrimBindGeoup bg) (recBy (primBindVars bg) e)
   Pk loc a                                 -> Fix $ Pk loc $ rec a
   Tuple loc as                             -> Fix $ Tuple loc $ fmap rec as
   GetEnv loc idx                           -> Fix $ GetEnv loc $ fmap rec idx
@@ -56,6 +57,8 @@ subst (Fix body) varName sub = case body of
 
     substBindGroup = fmap substBind
 
+    substPrimBindGeoup = fmap (second rec)
+
     substBind x@Bind{..}
       | varName == bind'name = x
       | otherwise            = x { bind'alts = fmap substAlt bind'alts }
@@ -69,6 +72,8 @@ subst (Fix body) varName sub = case body of
         isBinded v ps = v `elem` (foldMap freeVarsPat ps)
 
     bindVars = S.fromList . fmap bind'name
+
+    primBindVars = S.fromList . fmap fst
 
     substCase x@CaseExpr{..} = fmap (recBy binds) x
       where

@@ -80,8 +80,8 @@ dispatch = \case
   ShowInt      -> showInt
   ShowBool     -> showBool
   -- sigma expressions
-  SAnd         -> binSigmaOp SigmaAnd
-  SOr          -> binSigmaOp SigmaOr
+  SAnd         -> binSigmaOp (\a b -> SigmaAnd [a, b])
+  SOr          -> binSigmaOp (\a b -> SigmaOr [a, b])
   Pk           -> pkOp
   SBool        -> boolToSigmaOp
   -- conditionals

@@ -16,6 +16,7 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack(
   , putVstack
 ) where
 
+import Data.Int
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Data.Node
@@ -48,10 +49,10 @@ getExpr = do
   node <- lookupHeap =<< popAddr
   maybe badType putVstack $ getNodePrim node
 
-popInt :: Exec Int
+popInt :: Exec Int64
 popInt = popVstackBy getPrimInt
 
-putInt :: Int -> Exec ()
+putInt :: Int64 -> Exec ()
 putInt = putVstackBy PrimInt
 
 popText :: Exec Text

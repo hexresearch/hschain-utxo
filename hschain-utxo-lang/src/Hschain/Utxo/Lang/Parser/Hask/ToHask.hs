@@ -59,12 +59,14 @@ toHaskExp (Fix expr) = case expr of
   Trace loc a b -> ap2 (VarName loc "trace") a b
   FailCase loc -> H.Var loc (H.UnQual loc $ H.Ident loc "undefined")
   Let loc binds e -> H.Let loc (toLetBinds loc binds) (rec e)
+  PrimLet loc binds e -> H.Let loc (toPrimLetBinds loc binds) (rec e)
   AltE _ _ _ -> error "Alt is for internal usage"
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
     ap2 f x y = H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
+    toPrimLetBinds loc bg = H.BDecls loc $ toPrimDecl bg
 
     toRecField (name, e) = H.FieldUpdate (HM.getLoc name) (toQName name) (rec e)
 
@@ -212,6 +214,13 @@ toDecl bs = toBind =<< bs
         (HM.getLoc guard'predicate)
         [H.Qualifier (HM.getLoc guard'predicate) $ toHaskExp guard'predicate]
         (toHaskExp guard'rhs)
+
+toPrimDecl :: [(VarName, Lang)] -> [H.Decl Loc]
+toPrimDecl = fmap toBind
+  where
+    toBind (name, expr) = H.FunBind (HM.getLoc name) $ [toMatch name expr]
+
+    toMatch name expr = H.Match (HM.getLoc name) (toIdentName name) [] (H.UnGuardedRhs (HM.getLoc expr) $ toHaskExp expr) Nothing
 
 toPat :: Pat -> H.Pat Loc
 toPat pat = case pat of

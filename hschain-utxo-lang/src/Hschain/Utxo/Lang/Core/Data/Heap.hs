@@ -50,14 +50,14 @@ insertGlobalScomb name addr gs = gs
 lookupGlobalConst :: Prim -> Globals -> Maybe Addr
 lookupGlobalConst prim gs =
   case prim of
-    PrimInt n -> IM.lookup n (globals'constInts gs)
+    PrimInt n -> IM.lookup (fromIntegral n) (globals'constInts gs)
     _         -> M.lookup prim (globals'constPrims gs)
 
 insertGlobalConst :: Prim -> Addr -> Globals -> Globals
 insertGlobalConst prim addr gs =
   case prim of
-    PrimInt n -> gs { globals'constInts  = IM.insert n    addr $ globals'constInts gs }
-    _         -> gs { globals'constPrims = M.insert  prim addr $ globals'constPrims gs }
+    PrimInt n -> gs { globals'constInts  = IM.insert (fromIntegral n)  addr $ globals'constInts gs }
+    _         -> gs { globals'constPrims = M.insert  prim              addr $ globals'constPrims gs }
 
 initGlobals :: [(GlobalName, Addr)] -> Globals
 initGlobals = (\combs -> Globals combs M.empty IM.empty) . M.fromList

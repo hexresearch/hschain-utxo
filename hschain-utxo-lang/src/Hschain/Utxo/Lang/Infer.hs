@@ -73,6 +73,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
                                     rec $ Fix $ Lam loc (PVar loc v) (Fix $ CaseOf loc (Fix $ Var loc v) [CaseExpr pat a])
   LamList loc vs a          -> rec $ unfoldLamList loc vs a
   Let loc binds a           -> fromLet loc binds =<< rec a
+  PrimLet loc binds a       -> fromPrimLet loc binds =<< rec a
   -- cases
   CaseOf loc e alts         -> rec =<< caseToLet selectorNameVar loc e alts
   Ascr loc a ty             -> fmap (\term -> fromAscr loc term $ stripSignature ty) (rec a)
@@ -122,6 +123,16 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
             { H.bind'loc = varName'loc  bind'name
             , H.bind'lhs = varName'name bind'name
             , H.bind'rhs = rhs
+            }
+
+    fromPrimLet loc primBinds e = fmap (\bs -> H.letE loc bs e) $ mapM toBind primBinds
+      where
+        toBind (name, rhs) = do
+          rhs' <- rec rhs
+          return $ H.Bind
+            { H.bind'loc = varName'loc  name
+            , H.bind'lhs = varName'name name
+            , H.bind'rhs = rhs'
             }
 
     fromAscr loc a ty = H.assertTypeE loc a ty

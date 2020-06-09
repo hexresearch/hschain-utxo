@@ -181,6 +181,7 @@ instance Pretty Error where
     ExecError err         -> pretty err
     TypeError err         -> pretty err
     PatternError err      -> pretty err
+    InternalError err     -> pretty err
 
 instance Pretty ExecError where
   pretty = \case
@@ -215,6 +216,10 @@ instance Pretty TypeError where
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
       inTicks x = hcat ["'", x, "'"]
+
+instance Pretty InternalError where
+  pretty = \case
+    FailedToEliminate txt -> hsep ["Failed to eliminate expression: ", pretty txt]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x
