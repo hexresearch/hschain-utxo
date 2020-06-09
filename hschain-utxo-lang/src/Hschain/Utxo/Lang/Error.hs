@@ -11,10 +11,11 @@ import qualified Language.Haskell.Exts.Parser as H
 
 -- | errors for our language
 data Error
-  = ParseError Loc Text       -- ^ parse errors
-  | ExecError ExecError       -- ^ errors of execution
-  | TypeError TypeError       -- ^ type-errors
-  | PatternError PatError     -- ^ pattern definition errors
+  = ParseError Loc Text         -- ^ parse errors
+  | ExecError ExecError         -- ^ errors of execution
+  | TypeError TypeError         -- ^ type-errors
+  | PatternError PatError       -- ^ pattern definition errors
+  | InternalError InternalError -- ^ errors of this type should not happen in production
   deriving (Show)
 
 -- | Execution errors
@@ -44,6 +45,9 @@ data PatError
   | EmptyArgument
   deriving (Show)
 
+data InternalError
+  = FailedToEliminate Text
+  deriving (Show)
 
 -- pretty message
 -- "There is no main expression defined in the module"

@@ -141,6 +141,7 @@ execLang (Fix topExpr) = case topExpr of
     Lam loc pat b -> fromLam loc pat b
     LamList loc vars a -> fromLamList loc vars a
     Let loc varName a -> fromLet loc varName a
+    PrimLet _ _ _ -> error "Undefined exec for PrimLet case"
     -- logic
     If loc a b c -> fromIf loc a b c
     Pk loc a -> fromPk loc a

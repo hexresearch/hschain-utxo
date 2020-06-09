@@ -311,6 +311,9 @@ data E a
   -- ^ lambda abstraction with list of arguments (@\pat1 pat2 pat3 -> expr@)
   | Let Loc (BindGroup a) a
   -- ^ local bindings or let-expression: (@let v = a in expr@)
+  | PrimLet Loc [(VarName, a)] a
+  -- ^ Simplified Let-expression. All binding right hand sides are rendered to a single expression
+  -- (functions are grouped, pattern-matches transformed to simple case-expressions)
   | Ascr Loc a Signature
   -- ^ Type specification in the body of expression (@a :: Type@)
   -- case
@@ -579,6 +582,7 @@ instance Show a => H.HasLoc (E a) where
     Lam loc _ _ -> loc
     LamList loc _ _ -> loc
     Let loc _ _ -> loc
+    PrimLet loc _ _ -> loc
     Ascr loc _ _ -> loc
     -- case-expr
     Cons loc _ _ -> loc
@@ -660,6 +664,7 @@ freeVars = cata $ \case
   Lam _ v a        -> a `Set.difference`  freeVarsPat v
   LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)
   Let _ bg a       -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
+  PrimLet _ bg a   -> (a `Set.difference` getPrimBgNames bg) <> freeVarsPrimBg bg
   Ascr _ a _       -> a
   Cons _ _ vs      -> mconcat $ V.toList vs
   CaseOf _ a alts  -> mappend a (foldMap freeCaseExpr alts)
@@ -683,10 +688,16 @@ freeVars = cata $ \case
     getBgNames :: BindGroup a -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
 
+    getPrimBgNames :: [(VarName, a)] -> Set VarName
+    getPrimBgNames bs = Set.fromList $ fmap fst bs
+
     freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+
     localFreeVarsAlt Alt{..} =
       (freeVarsRhs alt'expr <> foldMap getBgNames alt'where)
       `Set.difference` (foldMap freeVarsPat alt'pats)
+
+    freeVarsPrimBg = foldMap snd
 
     freeCaseExpr CaseExpr{..} = caseExpr'rhs `Set.difference` (freeVarsPat caseExpr'lhs)
 

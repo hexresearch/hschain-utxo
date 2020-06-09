@@ -12,6 +12,9 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
   , getPrimSigma
 ) where
 
+import Hschain.Utxo.Lang.Sigma (PublicKey)
+
+import Data.Int
 import Data.Text (Text)
 import qualified Language.HM as H
 
@@ -31,7 +34,7 @@ type Addr = Int
 
 -- | Primitive types
 data Prim
-  = PrimInt   !Int
+  = PrimInt   !Int64
   | PrimText  !Text
   | PrimBool  !Bool
   | PrimSigma !SigmaExpr
@@ -40,14 +43,14 @@ data Prim
 -- | Boolean expressions
 -- that include Sigma-expressions
 data SigmaExpr
-  = SigmaBool Bool                 -- ^ constant values
-  | SigmaAnd  SigmaExpr SigmaExpr  -- ^ boolean AND
-  | SigmaOr   SigmaExpr SigmaExpr  -- ^ boolean OR
-  | SigmaPk   Text                 -- ^ public key ownership
+  = SigmaBool Bool         -- ^ constant values
+  | SigmaAnd  [SigmaExpr]  -- ^ boolean AND
+  | SigmaOr   [SigmaExpr]  -- ^ boolean OR
+  | SigmaPk   PublicKey    -- ^ public key ownership
   deriving (Show, Eq, Ord)
 
 -- | Extract integer primitive
-getPrimInt :: Prim -> Maybe Int
+getPrimInt :: Prim -> Maybe Int64
 getPrimInt = \case
   PrimInt n -> Just n
   _         -> Nothing

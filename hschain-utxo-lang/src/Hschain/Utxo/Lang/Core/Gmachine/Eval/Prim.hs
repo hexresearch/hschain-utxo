@@ -20,8 +20,11 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim(
 
 import Hex.Common.Text
 
+import Data.Int
+import Data.Maybe
 import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Sigma (publicKeyFromText)
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 
@@ -43,7 +46,7 @@ primOp2 unboxA unboxB box f = do
 
 -- numbers
 
-binNumOp :: (Int -> Int -> Int) -> Exec ()
+binNumOp :: (Int64 -> Int64 -> Int64) -> Exec ()
 binNumOp = primOp2 popInt popInt putInt
 
 negOp :: Exec ()
@@ -51,7 +54,7 @@ negOp = primOp1 popInt putInt negate
 
 -- comparison
 
-compareOp :: (Int -> Int -> Bool) -> Exec ()
+compareOp :: (Int64 -> Int64 -> Bool) -> Exec ()
 compareOp = primOp2 popInt popInt putBool
 
 -- boolean operators
@@ -67,8 +70,11 @@ notOp = primOp1 popBool putBool not
 binSigmaOp :: (SigmaExpr -> SigmaExpr -> SigmaExpr) -> Exec ()
 binSigmaOp = primOp2 popSigma popSigma putSigma
 
+-- | TODO: we have to provide errors or bottoms for G-machine
 pkOp :: Exec ()
-pkOp = primOp1 popText putSigma SigmaPk
+pkOp = primOp1 (fmap (fromMaybe err . publicKeyFromText) popText) putSigma SigmaPk
+  where
+    err = error "Text is not valid public key"
 
 boolToSigmaOp :: Exec ()
 boolToSigmaOp = primOp1 popBool putSigma SigmaBool
@@ -79,7 +85,7 @@ binTextOp :: (Text -> Text -> Text) -> Exec ()
 binTextOp = primOp2 popText popText putText
 
 textLength :: Exec ()
-textLength = primOp1 popText putInt T.length
+textLength = primOp1 popText putInt (fromIntegral . T.length)
 
 hashBlake :: Exec ()
 hashBlake = primOp1 popText putText getBlakeHash
