@@ -1,6 +1,13 @@
 * add bottoms to G-machine or some mechanism of throwing errors
 
-* define core language
+* add elimination of polymorphic functions.
+   Do it on the level of extended LC.
+
+* add conversion form lambda-lifted form to G-machine language.
+   It should be fast because it operates during transaction verification.
+   
+* we need type tag allterms for termination check.
+   I'm not sure right now on what stage should it happen.
 
 * update hschain version many instance of CryptoHashable are already defined there
 
