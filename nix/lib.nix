@@ -1,4 +1,3 @@
-with builtins;
 let
   lib = (import <nixpkgs> {}).haskell.lib;
   callInternal = hsPkgs: name: path: args: (
@@ -42,7 +41,7 @@ let
       hschainUtxoPackages = {
         # inherit (pkgs.haskell.packages.ghc843);
       } // (
-        listToAttrs (map getPkg pkgNames)
+        builtins.listToAttrs (map getPkg pkgNames)
       );    
   };
 
@@ -56,7 +55,7 @@ let
         value = call name path;
       };
     in 
-      listToAttrs (map toPackage cabalProject);
+      builtins.listToAttrs (map toPackage cabalProject);
 
   projectOverrides = {cabalProject, noCheck ? []}: hsNew: hsOld: 
     let
@@ -66,7 +65,7 @@ let
       locals = localsToOverrides cabalProject hsNew;
       # Suppress tests
       stopCheck = x: { name = x; value = lib.dontCheck (hsOld // derivations).${x}; };
-      noCheckLibs = listToAttrs (map stopCheck noCheck);
+      noCheckLibs = builtins.listToAttrs (map stopCheck noCheck);
     in 
       derivations // locals // noCheckLibs // {
         mkDerivation = args: hsOld.mkDerivation (args // {
