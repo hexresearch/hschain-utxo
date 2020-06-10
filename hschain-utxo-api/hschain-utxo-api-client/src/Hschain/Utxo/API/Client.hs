@@ -26,14 +26,16 @@ import Hschain.Utxo.Lang
 import Hschain.Utxo.State.Types hiding (getEnv)
 
 -- | Errors in 'ClientM' monad
-data ClientError = InvalidBaseUrl !Text | ClientError !C.ServantError
+data ClientError
+  = InvalidBaseUrl !Text
+  | ClientError !C.ClientError
   deriving (Eq, Show, Generic)
 
 instance Exception ClientError
 
 -- | Tighten an error info into servant client common client error type
-fromClientError :: ClientError -> C.ServantError
-fromClientError e@(InvalidBaseUrl{}) = C.ConnectionError (T.pack . show $ e)
+fromClientError :: ClientError -> C.ClientError
+fromClientError e@(InvalidBaseUrl{}) = C.ConnectionError (toException e)
 fromClientError (ClientError e) = e
 
 -- | Client specification to connect with hschain-utxo node
