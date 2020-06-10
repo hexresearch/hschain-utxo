@@ -47,18 +47,6 @@ let
       };
     };
 
-  releaseSet = pkgs: cabalProject:
-    let pkgNames = (map (x: x.name) cabalProject);
-        getPkg   = name: { name = name; value = pkgs.haskell.packages.ghc843.${name}; };
-    in  rec {
-      inherit pkgs;
-      hschainUtxoPackages = {
-        # inherit (pkgs.haskell.packages.ghc843);
-      } // (
-        builtins.listToAttrs (map getPkg pkgNames)
-      );
-  };
-
   # Creates overrides for local submodules.
   # It expects a list of sets { name, path }
   localsToOverrides = cabalProject: hsPkgs:
@@ -141,4 +129,13 @@ let
         else builtins.map toProject subModules ++ next;
 
 in
-  releaseSet pkgs cabalProject
+let pkgNames = (map (x: x.name) cabalProject);
+    getPkg   = name: { name = name; value = pkgs.haskell.packages.ghc843.${name}; };
+in  rec {
+  inherit pkgs;
+    hschainUtxoPackages = {
+        # inherit (pkgs.haskell.packages.ghc843);
+    } // (
+      builtins.listToAttrs (map getPkg pkgNames)
+    );
+  }
