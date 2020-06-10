@@ -20,6 +20,7 @@ let
     , pkgConfig
     }: repo: name: cabal2NixOpts: args: callCabal2nixWithOptions "${name}" (fetchgitPrivate pkgConfig."${repo}") cabal2NixOpts args;
 
+  pkgConfig = readConfig <cfg> ./versions.json;
   configOverrides = haskOverrides:
     let 
       over    = pack: new: pack.override { overrides = new; };
@@ -34,8 +35,7 @@ let
             ghc843 = setHask ps.haskell.packages.ghc843;
           };
         };
-        inherit tryEval;
-        pkgConfig = readConfig <cfg> ./versions.json;
+        inherit tryEval pkgConfig;
       };
     };    
 
