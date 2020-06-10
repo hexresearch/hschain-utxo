@@ -117,11 +117,15 @@ fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
 fromDecls loc ds = do
   decls <- mapM toDecl ds
   bg <- toBindGroup decls
-  return $ Module loc (toUserTypes decls) bg
+  return $ Module
+    { module'loc       = loc
+    , module'userTypes = toUserTypes decls
+    , module'binds     = bg
+    }
 
 toUserTypes :: [Decl] -> UserTypeCtx
 toUserTypes ds =
-  setupUserRecords $ (\ts -> UserTypeCtx ts mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
+  setupUserTypeInfo $ (\ts -> UserTypeCtx ts mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
   where
     getTypeDecl = \case
       DataDecl userType -> Just userType

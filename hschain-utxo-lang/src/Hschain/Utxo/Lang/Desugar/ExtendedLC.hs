@@ -20,15 +20,18 @@ import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT)
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar.Records
 
+import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Core.Data.Prim as P
 
-toExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
-toExtendedLC ctx = toExtendedLC' <=< desugarSyntax ctx
+import qualified Language.HM as H
 
-toExtendedLC' :: MonadLang m => Lang -> m (Expr Text)
-toExtendedLC' = cataM $ \case
+toExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
+toExtendedLC ctx = toExtendedLC' ctx <=< desugarSyntax ctx
+
+toExtendedLC' :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
+toExtendedLC' typeCtx = cataM $ \case
   Var _ v               -> fromVar v
   Apply _ a b           -> fromApply a b
   LamList _ ps a        -> fromLamList ps a
@@ -68,7 +71,11 @@ toExtendedLC' = cataM $ \case
 
     fromLet binds body = pure $ Fix $ ELet (fmap (first varName'name) binds) body
 
-    fromCons = undefined
+    fromCons name args = fmap (\constr -> fun constr $ V.toList args) (fromConstrName name)
+
+    fromConstrName name = case M.lookup name $ userTypeCtx'constrs typeCtx of
+      Just ConsInfo{..} -> pure $ Fix $ EConstr (fromType consInfo'type) consInfo'tagId consInfo'arity
+      Nothing           -> throwError $ ExecError $ UnboundVariables [consToVarName name]
 
     fromCaseOf = undefined
 
@@ -171,6 +178,9 @@ toExtendedLC' = cataM $ \case
           BoxFieldArg key -> ap1 (var "getBoxArg") key
 
     fromTrace a b = pure $ ap2 (var "trace") a b
+
+fromType :: Type -> P.Type
+fromType = H.mapLoc (const ())
 
 failedToEliminate :: MonadError Error m => Text -> m a
 failedToEliminate msg = throwError $ InternalError $ FailedToEliminate msg
