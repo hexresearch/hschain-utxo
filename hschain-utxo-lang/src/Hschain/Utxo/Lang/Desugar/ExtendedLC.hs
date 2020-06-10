@@ -16,7 +16,7 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT)
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar.Records
 
@@ -73,11 +73,22 @@ toExtendedLC' typeCtx = cataM $ \case
 
     fromCons name args = fmap (\constr -> fun constr $ V.toList args) (fromConstrName name)
 
-    fromConstrName name = case M.lookup name $ userTypeCtx'constrs typeCtx of
-      Just ConsInfo{..} -> pure $ Fix $ EConstr (fromType consInfo'type) consInfo'tagId consInfo'arity
-      Nothing           -> throwError $ ExecError $ UnboundVariables [consToVarName name]
+    fromConstrName name = do
+      ConsInfo{..} <- getConsInfo typeCtx name
+      return $ Fix $ EConstr (fromType consInfo'type) consInfo'tagId consInfo'arity
 
-    fromCaseOf = undefined
+    fromCaseOf expr alts = fmap (Fix . ECase expr) $ mapM fromCaseAlt alts
+
+    fromCaseAlt CaseExpr{..} = case caseExpr'lhs of
+      PCons _ cons ps -> do
+        tagId <- fmap consInfo'tagId $ getConsInfo typeCtx cons
+        args  <- mapM fromPat ps
+        return $ CaseAlt
+                  { caseAlt'tag  = tagId
+                  , caseAlt'args = args
+                  , caseAlt'rhs  = caseExpr'rhs
+                  }
+      _               -> failedToEliminate "Non-constructor case in case alternative"
 
     fromAlt = undefined
 
@@ -150,7 +161,13 @@ toExtendedLC' typeCtx = cataM $ \case
       VecMap _          -> var "map"
       VecFold _         -> var "foldl"
       where
-        newVec = undefined
+        newVec args = V.foldr cons nil args
+
+        cons a as = ap2 (Fix $ EConstr consTy 1 2) a as
+        nil       = Fix $ EConstr nilTy 0 0
+
+        nilTy  = listT (varT "a")
+        consTy = arrowT (varT "a") (arrowT (listT (varT "a")) (listT (varT "a")))
 
     fromTextExpr expr = pure $ case expr of
       TextAppend _ a b    -> ap2 (var "<>") a b
@@ -178,6 +195,11 @@ toExtendedLC' typeCtx = cataM $ \case
           BoxFieldArg key -> ap1 (var "getBoxArg") key
 
     fromTrace a b = pure $ ap2 (var "trace") a b
+
+getConsInfo :: MonadLang m => UserTypeCtx -> ConsName -> m ConsInfo
+getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
+      Just info -> pure info
+      Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
 
 fromType :: Type -> P.Type
 fromType = H.mapLoc (const ())
