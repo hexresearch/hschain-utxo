@@ -49,16 +49,50 @@ noLoc = Hask.noSrcSpan
 
 -- | Context of user-defined types
 data UserTypeCtx = UserTypeCtx
-  { userTypeCtx'types      :: Map VarName UserType           -- ^ User-defined types
+  { userTypeCtx'types      :: Map VarName  UserType          -- ^ User-defined types
+  , userTypeCtx'constrs    :: Map ConsName ConsInfo          -- ^ Map from constructor names to it's low-level data, for further compilation
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
   } deriving (Show, Eq)
 
 instance Semigroup UserTypeCtx where
-  UserTypeCtx a1 b1 c1 <> UserTypeCtx a2 b2 c2 = UserTypeCtx (a1 <> a2) (b1 <> b2) (c1 <> c2)
+  UserTypeCtx a1 b1 c1 d1 <> UserTypeCtx a2 b2 c2 d2 = UserTypeCtx (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2)
 
 instance Monoid UserTypeCtx where
-  mempty = UserTypeCtx mempty mempty mempty
+  mempty = UserTypeCtx mempty mempty mempty mempty
+
+setupUserTypeInfo :: UserTypeCtx -> UserTypeCtx
+setupUserTypeInfo = setupConsInfo . setupUserRecords
+
+setupConsInfo :: UserTypeCtx -> UserTypeCtx
+setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'types ctx }
+  where
+    getConsInfoMap  :: Map VarName UserType -> Map ConsName ConsInfo
+    getConsInfoMap = foldMap getConsInfo . M.elems
+
+    getConsInfo :: UserType -> Map ConsName ConsInfo
+    getConsInfo UserType{..} = M.fromList $ fmap (toInfo userType'name userType'args) $ zip [0..] $ M.toList userType'cases
+
+    toInfo :: VarName -> [VarName] -> (Int, (ConsName, ConsDef)) -> (ConsName, ConsInfo)
+    toInfo ty tyArgs (tagId, (name, def)) = (name, info)
+      where
+        info = ConsInfo
+                { consInfo'tagId = tagId
+                , consInfo'arity = arity
+                , consInfo'type  = consTy
+                }
+
+        arity = V.length consArgs
+
+        consTy = getConsType (toResultType ty tyArgs) consArgs
+
+        consArgs = getConsTypes def
+
+    getConsType :: Type -> Vector Type -> Type
+    getConsType rhs args = V.foldr (\arg r -> H.arrowT noLoc arg r) rhs args
+
+    toResultType :: VarName -> [VarName] -> Type
+    toResultType name args = H.conT noLoc (varName'name name) (fmap (H.varT noLoc . varName'name) args)
 
 setupUserRecords :: UserTypeCtx -> UserTypeCtx
 setupUserRecords = setupRecFields . setupRecConstrs
@@ -107,6 +141,15 @@ data ConsDef
 data RecordField = RecordField
   { recordField'name :: VarName   -- ^ Name of the field
   , recordField'type :: Type      -- ^ Type of the field
+  } deriving (Show, Eq)
+
+-- | Data for low-level rendering of type constructor
+-- We need to know it's type, arity and integer tag that is unique within
+-- its group of constructor for a given type (global uniqueness is not needed)
+data ConsInfo = ConsInfo
+  { consInfo'type  :: Type  -- ^ type of the constructor as a function
+  , consInfo'tagId :: !Int  -- ^ unique integer identifier (within the type scope)
+  , consInfo'arity :: !Int  -- ^ arity of constructor
   } deriving (Show, Eq)
 
 -- | Order of names in the record constructor.
