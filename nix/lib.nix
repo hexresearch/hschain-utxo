@@ -14,12 +14,6 @@ let
      let inFile = tryEval overrideCfg cfgFile;
      in builtins.fromJSON (builtins.readFile inFile);
 
-  callFromVersions = {
-      callCabal2nixWithOptions
-    , fetchgitPrivate
-    , pkgConfig
-    }: repo: name: cabal2NixOpts: args: callCabal2nixWithOptions "${name}" (fetchgitPrivate pkgConfig."${repo}") cabal2NixOpts args;
-
   pkgConfig = readConfig <cfg> ./versions.json;
   configOverrides = haskOverrides:
     let 
@@ -80,6 +74,7 @@ let
           enableLibraryProfiling = false;
           doHaddock = false;
         });
+      } // {
       };      
 
   attrsToList = set: builtins.attrValues (
@@ -133,7 +128,6 @@ in
       configOverrides
       releaseSet
       tryEval
-      readConfig
-      callFromVersions;
+      readConfig;
   }
 

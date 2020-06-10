@@ -2,7 +2,6 @@ args@{
   isProd      ? false
 }:
 let release = import ./release.nix args;
-    lib = (import <nixpkgs> {}).lib;
     pkgs = release.pkgs;
 in release.pkgs.haskellPackages.shellFor {
     nativeBuildInputs = with pkgs.haskellPackages; [
