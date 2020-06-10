@@ -68,6 +68,11 @@ let
       # Suppress tests
       stopCheck = x: { name = x; value = lib.dontCheck (hsOld // derivations).${x}; };
       noCheckLibs = builtins.listToAttrs (map stopCheck noCheck);
+      # HSChain packages
+      callHSChain = name: hsNew.callCabal2nixWithOptions name
+        (pkgs.fetchgit pkgConfig.hschain)
+        ("--subpath " + name)
+        {};
     in
       derivations // locals // noCheckLibs // {
         mkDerivation = args: hsOld.mkDerivation (args // {
@@ -76,15 +81,14 @@ let
           doHaddock = false;
         });
       } // {
-        hschain-crypto = hsNew.callCabal2nixWithOptions "hschain-crypto"
-          (pkgs.fetchgit pkgConfig.hschain)
-          "--subpath hschain-crypto" {};
-        hschain-types = hsNew.callCabal2nixWithOptions "hschain-types"
-          (pkgs.fetchgit pkgConfig.hschain)
-          "--subpath hschain-types" {};
-        hschain = hsNew.callCabal2nixWithOptions "hschain"
-          (pkgs.fetchgit pkgConfig.hschain)
-          "--subpath hschain" {};
+        hschain-control = callHSChain "hschain-control";
+        hschain-config  = callHSChain "hschain-config";
+        hschain-merkle  = callHSChain "hschain-merkle";
+        hschain-logger  = callHSChain "hschain-logger";
+        hschain-crypto  = callHSChain "hschain-crypto";
+        hschain-types   = callHSChain "hschain-types";
+        hschain-net     = callHSChain "hschain-net";
+        hschain         = callHSChain "hschain";
       };
 
   attrsToList = set: builtins.attrValues (
@@ -130,7 +134,7 @@ let
 
 in
 let pkgNames = (map (x: x.name) cabalProject);
-    getPkg   = name: { name = name; value = pkgs.haskell.packages.ghc843.${name}; };
+    getPkg   = name: { name = name; value = pkgs.haskell.packages.ghc883.${name}; };
 in  rec {
   inherit pkgs;
     hschainUtxoPackages = {

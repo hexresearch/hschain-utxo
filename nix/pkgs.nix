@@ -1,6 +1,9 @@
-import ((import <nixpkgs> {}).fetchFromGitHub {
-  owner = "NixOS";
-  repo = "nixpkgs-channels";
-  rev = "f753852e11d72c05cb74d1058ea8b7f6d5dd4748";
-  sha256  = "0xvjrsi3j4hzq9cdzqpccxnl9gqc8f5y59lkgqs2s2dkng35zv74";
+let
+  rev     = "342eaba9ebbc68923c1028a56be1c94e74862832";
+  sha256  = "sha256:1wsyk2b73h2f9ljmygqsjqmxxcb1gvs3q6km50y551760na14rqq";
+in
+import (builtins.fetchTarball {
+  inherit sha256;
+  name   = "nixos-unstable";
+  url    = "https://github.com/nixos/nixpkgs/archive/${rev}.tar.gz";
 })
