@@ -12,7 +12,7 @@ let
   config           = configOverrides haskellOverrides;
   pkgs             = import ./pkgs.nix { inherit config; overlays = []; };
   # ---
-  lib = (import <nixpkgs> {}).haskell.lib;
+  lib = pkgs.haskell.lib;
   callInternal = hsPkgs: name: path: args: (
     lib.dontHaddock (hsPkgs.callCabal2nix name path args ));
 
