@@ -40,6 +40,7 @@ let
           packages = ps.haskell.packages // {
             ghc843 = setHask ps.haskell.packages.ghc843;
             ghc865 = setHask ps.haskell.packages.ghc865;
+            ghc883 = setHask ps.haskell.packages.ghc883;
           };
         };
         inherit tryEval pkgConfig;
