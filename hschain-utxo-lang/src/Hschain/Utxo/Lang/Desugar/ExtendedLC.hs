@@ -4,18 +4,23 @@ module Hschain.Utxo.Lang.Desugar.ExtendedLC(
   toExtendedLC
 ) where
 
+import Hex.Common.Text (showt)
+
 import Control.Arrow (first)
 
 import Data.Fix
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Expr hiding (Expr)
+import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT)
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar.Records
+
+import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Core.Data.Prim as P
 
@@ -85,7 +90,13 @@ toExtendedLC' = cataM $ \case
 
     fromPk a = pure $ ap1 (var "pk") a
 
-    fromTuple = undefined
+    fromTuple args = pure $ Fix $ EConstr ty tagId arity
+      where
+        arity = V.length args
+        ty    = foldr (\v rhs -> arrowT v rhs) tyRhs vs
+        tyRhs = tupleT vs
+        vs    = fmap (varT . mappend "a" . showt) [1 .. arity]
+        tagId = 0
 
     -- | TODO: how to handle tuple extractor and do we really need it
     -- if we have pattern-matching and case expressions?
