@@ -87,6 +87,15 @@ let
           doHaddock = false;
         });
       } // {
+        hschain-crypto = hsNew.callCabal2nixWithOptions "hschain-crypto"
+          (pkgs.fetchgit pkgConfig.hschain)
+          "--subpath hschain-crypto" {};
+        hschain-types = hsNew.callCabal2nixWithOptions "hschain-types"
+          (pkgs.fetchgit pkgConfig.hschain)
+          "--subpath hschain-types" {};
+        hschain = hsNew.callCabal2nixWithOptions "hschain"
+          (pkgs.fetchgit pkgConfig.hschain)
+          "--subpath hschain" {};
       };
 
   attrsToList = set: builtins.attrValues (
