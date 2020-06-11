@@ -18,7 +18,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant.Server (serve, hoistServer)
 
-import HSChain.Control
+import HSChain.Control.Class
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Blockchain
@@ -48,7 +48,7 @@ runValidator nspec genesis = flip runContT return $ do
 -- | Echo print to show that node started.
 greetNode :: NodeSpec -> IO ()
 greetNode NodeSpec{..} = T.putStrLn $ mconcat
-  [ "Starts ", logSpec'namespace nspec'logs , " on port ", T.pack nspec'port ]
+  [ "Starts ", logSpec'namespace nspec'logs , " on port ", T.pack (show nspec'port) ]
 
 -- | Create service application
 serverApp :: AppEnv -> Config -> Application

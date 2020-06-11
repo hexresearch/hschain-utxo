@@ -23,8 +23,8 @@ import Hschain.Utxo.Back.Env
 
 -- | Server monad that holds internal environment
 newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadBase IO, MonadReader AppEnv
-           , MonadError ServantErr, MonadThrow, MonadCatch)
+  deriving ( Functor, Applicative, Monad, MonadIO, MonadBase IO, MonadReader AppEnv
+           , MonadThrow, MonadCatch)
 
 newtype StMServerM a = StMServerM { unStMServerM :: StM (ReaderT AppEnv Handler) a }
 
