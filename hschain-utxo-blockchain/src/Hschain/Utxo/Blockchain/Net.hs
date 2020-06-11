@@ -6,6 +6,7 @@ module Hschain.Utxo.Blockchain.Net(
 
 import Hex.Common.Aeson
 
+import Data.Word
 import Data.Text (Text)
 
 import GHC.Generics
@@ -29,7 +30,7 @@ data NodeSpec = NodeSpec
     -- ^ Set of public keys of validator nodes
   , nspec'dbName         :: Maybe FilePath
     -- ^ Database name for the node
-  , nspec'port           :: String
+  , nspec'port           :: Word16
     -- ^ Port to listen on
   , nspec'seeds          :: [NetAddr]
     -- ^ Set of initial addresses

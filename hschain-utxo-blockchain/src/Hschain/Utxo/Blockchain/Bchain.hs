@@ -38,7 +38,7 @@ data Bchain m = Bchain {
 hoistBchain :: Functor n => (forall a. m a -> n a) -> Bchain m -> Bchain n
 hoistBchain f Bchain{..} = Bchain
   { bchain'mempool    = hoistMempool f bchain'mempool
-  , bchain'store      = hoistBChStore       f bchain'store
+  , bchain'store      = hoistDict    f bchain'store
   , bchain'waitForTx  = fmap f <$> f bchain'waitForTx
   , ..
   }
