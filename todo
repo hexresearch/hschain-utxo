@@ -1,3 +1,11 @@
+* consider compilation of arguments
+   It's desirable to keep a map from text keys to primitives.
+  But how can we implement it in the low-level language?
+  Should we create associative lists for each primitive values.
+  Then instead of polymorphic getArg we would have getIntArg, getTextArg, etc
+  Also we can simplify it by reducing text to value map to list of values.
+  It would be easier implement right now. And this is how it works in the Ergo.
+
 * add bottoms to G-machine or some mechanism of throwing errors
 
 * add elimination of polymorphic functions.
