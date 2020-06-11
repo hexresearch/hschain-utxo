@@ -403,8 +403,6 @@ data E a
   -- boxes
   | BoxE Loc (BoxExpr a)
   -- ^ Box-expression
-  | Undef Loc
-  -- ^ Special name for undefined values. It can be of any type (@undefined@)
   -- debug
   | Trace Loc a a
   -- ^ Trace print for debug of execution (@trace printMessage value@)
@@ -651,8 +649,6 @@ instance Show a => H.HasLoc (E a) where
     TextE loc _ -> loc
     -- boxes
     BoxE loc _ -> loc
-    -- undefined
-    Undef loc -> loc
     -- debug
     Trace loc _ _ -> loc
     AltE loc _ _ -> loc
@@ -723,7 +719,6 @@ freeVars = cata $ \case
   VecE _ vec       -> fold vec
   TextE _ txt      -> fold txt
   BoxE _ box       -> fold box
-  Undef _          -> Set.empty
   Trace _ a b      -> mconcat [a, b]
   AltE _ a b       -> mappend a b
   FailCase _       -> Set.empty

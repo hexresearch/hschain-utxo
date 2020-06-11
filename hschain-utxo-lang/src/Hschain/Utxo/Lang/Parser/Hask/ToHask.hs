@@ -53,8 +53,6 @@ toHaskExp (Fix expr) = case expr of
   TextE loc txt -> fromText loc txt
   -- boxes
   BoxE loc box -> fromBox loc box
-  -- undefined
-  Undef loc -> toVar loc (VarName loc "undefined")
   -- debug
   Trace loc a b -> ap2 (VarName loc "trace") a b
   FailCase loc -> H.Var loc (H.UnQual loc $ H.Ident loc "undefined")

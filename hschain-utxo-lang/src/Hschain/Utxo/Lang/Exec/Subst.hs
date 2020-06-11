@@ -45,7 +45,6 @@ subst (Fix body) varName sub = case body of
   Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
   RecConstr loc name vals                  -> Fix $ RecConstr loc name (fmap (second rec) vals)
   RecUpdate loc a upds                     -> Fix $ RecUpdate loc (rec a) (fmap (second rec) upds)
-  Undef loc                                -> Fix $ Undef loc
   where
     subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
 

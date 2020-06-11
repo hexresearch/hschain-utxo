@@ -52,6 +52,7 @@ renameExpr env (Fix expr) =
     ELet binds e   -> letExpr binds e
     EConstr ty m n -> constr ty m n
     ECase e alts   -> caseExpr e alts
+    EBottom        -> pure $ Fix $ EBottom
   where
     var v = return $ Fix $ EVar $ fromMaybe v $ M.lookup v env
 

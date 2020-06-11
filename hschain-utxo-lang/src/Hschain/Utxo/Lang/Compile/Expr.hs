@@ -61,6 +61,8 @@ data ExprF bind a
   | EConstr Type !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
+  | EBottom
+  -- ^ Value of any type that means failed programm.
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- | Case alternatives

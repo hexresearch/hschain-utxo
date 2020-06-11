@@ -34,6 +34,7 @@ getFreeVars localVars (Fix x) = case x of
   EConstr ty m n -> constr ty m n
   ECase e alts -> cases e alts
   ELet binds body -> letExpr binds body
+  EBottom -> bottom
   where
 
     prim p = Fix $ Ann S.empty (EPrim p)
@@ -78,6 +79,8 @@ getFreeVars localVars (Fix x) = case x of
         defnsFree = freeInValues
         ebody = getFreeVars bodyLocals body
         bodyFree = getLocals ebody S.\\ binderSet
+
+    bottom = Fix $ Ann mempty $ EBottom
 
 freeVarAlts :: Set Name -> CaseAlt (Expr Name) -> CaseAlt (AnnExpr (Set Name) Name)
 freeVarAlts localVars alt@CaseAlt{..} =
