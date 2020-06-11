@@ -32,6 +32,7 @@ library
                      , cryptonite
                      , data-fix
                      , deepseq
+                     , data-default-class
                      , directory
                      , exceptions
                      , filepath
@@ -39,6 +40,10 @@ library
                      , hschain
                      , hschain-types
                      , hschain-crypto
+                     , hschain-control
+                     , hschain-logger
+                     , hschain-merkle
+                     , hschain-net
                      , hschain-utxo-lang
                      , hschain-utxo-state
                      , mtl

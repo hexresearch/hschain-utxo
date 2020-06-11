@@ -21,6 +21,7 @@ import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Parallel.Strategies
+import Data.Default.Class
 import Data.Fix
 import Data.Fixed
 import Data.Function (fix)
@@ -45,22 +46,19 @@ import System.Directory
 
 import HSChain.Blockchain.Internal.Engine.Types
 import HSChain.Control
+import HSChain.Control.Class
 import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
-import HSChain.Debug.Trace
 import HSChain.Logger
 import HSChain.Monitoring
 import HSChain.Run
-import HSChain.P2P (generatePeerId)
-import HSChain.P2P.Network (newNetworkTcp)
+import HSChain.Network.TCP (newNetworkTcp)
 import HSChain.Store
 import HSChain.Store.STM
 import HSChain.Types
 import HSChain.Types.Merkle.Types
-
-import qualified HSChain.P2P.Types as P2PT
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.State.React
@@ -77,8 +75,8 @@ import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 ------------------------------------------
 
 interpretSpec
-   :: ( MonadDB m BData, MonadFork m, MonadMask m, MonadLogger m
-      , MonadTrace m, MonadTMMonitoring m)
+   :: ( MonadDB BData m, MonadFork m, MonadMask m, MonadLogger m
+      , MonadTMMonitoring m)
    => (Block BData -> m ())
    -> NodeSpec
    -> [Tx]
@@ -88,8 +86,8 @@ interpretSpec callBackOnCommit nodeSpec genesisTx = do
   conn     <- askConnectionRO
   store    <- newSTMBchStorage $ blockchainState genesis
   mempool  <- makeMempool store (ExceptT . return)
-  nodeDesc <- getNodeDesc nodeSpec mempool store genesis txWaitChan callBackOnCommit
-  acts <- runNode (defCfg :: Configuration BoxChainConfig) nodeDesc
+  acts <- runNode (def :: Configuration BoxChainConfig)
+        $ getNodeDesc nodeSpec mempool store genesis txWaitChan callBackOnCommit
   let bchain = Bchain
           { bchain'conn       = conn
           , bchain'mempool    = mempool
@@ -109,10 +107,9 @@ getNodeDesc :: (Monad m, MonadIO m)
   -> Genesis BData
   -> TChan [Hash UtxoAlg]
   -> (Block BData -> m ())
-  -> m (NodeDescription m BData)
-getNodeDesc spec@NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit = do
-  net <- getNetwork spec
-  return $ NodeDescription
+  -> NodeDescription m BData
+getNodeDesc spec@NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit =
+  NodeDescription
     { nodeValidationKey = nspec'privKey
     , nodeGenesis       = genesis
     , nodeCallbacks     = mempty { appCommitCallback = getCommitCallback txWaitChan callBackOnCommit }
@@ -120,17 +117,10 @@ getNodeDesc spec@NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit 
     , nodeStore         = AppStore { appBchState = store
                                    , appMempool  = mempool
                                    }
-    , nodeNetwork       = net
-    }
-
-getNetwork :: (Monad m, MonadIO m)
-  => NodeSpec -> m BlockchainNet
-getNetwork NodeSpec{..} = do
-  peerId <- generatePeerId
-  let peerInfo = P2PT.PeerInfo peerId (read nspec'port) 0
-  return $ BlockchainNet
-    { bchNetwork          = newNetworkTcp peerInfo
-    , bchInitialPeers     = nspec'seeds
+    , nodeNetwork       = BlockchainNet
+        { bchNetwork      = newNetworkTcp nspec'port
+        , bchInitialPeers = nspec'seeds
+        }
     }
 
 getTxWait :: (Monad m, MonadIO m)
@@ -184,8 +174,8 @@ makeGenesis
 makeGenesis dat stateHash valSet0 valSet1 = Block
   { blockHeight        = Height 0
   , blockPrevBlockID   = Nothing
-  , blockValidators    = merkled valSet0
-  , blockNewValidators = merkled valSet1
+  , blockValidators    = hashed valSet0
+  , blockNewValidators = hashed valSet1
   , blockData          = merkled dat
   , blockPrevCommit    = Nothing
   , blockEvidence      = merkled []
@@ -222,26 +212,29 @@ initBoxChain valSet txs = BChEval
 data BoxChainConfig
 
 -- Default settings
-instance DefaultConfig BoxChainConfig where
-  defCfg = Configuration
-    { cfgConsensus         = ConsensusCfg
-      { timeoutNewHeight   = 500
-      , timeoutProposal    = (500, 500)
-      , timeoutPrevote     = (500, 500)
-      , timeoutPrecommit   = (500, 500)
-      , timeoutEmptyBlock  = 100
-      , incomingQueueSize  = 10
-      }
-    , cfgNetwork               = NetworkCfg
-      { gossipDelayVotes       = 25
-      , gossipDelayBlocks      = 25
-      , gossipDelayMempool     = 25
-      , pexMinConnections      = 3
-      , pexMaxConnections      = 12
-      , pexMinKnownConnections = 3
-      , pexMaxKnownConnections = 20
-      , reconnectionRetries    = 100
-      , reconnectionDelay      = 100
-      }
+instance Default (ConsensusCfg BoxChainConfig) where
+  def = ConsensusCfg
+    { timeoutNewHeight   = 500
+    , timeoutProposal    = (500, 500)
+    , timeoutPrevote     = (500, 500)
+    , timeoutPrecommit   = (500, 500)
+    , timeoutEmptyBlock  = 100
+    , incomingQueueSize  = 10
     }
+
+instance Default (NetworkCfg BoxChainConfig) where
+  def = NetworkCfg
+    { gossipDelayVotes       = 25
+    , gossipDelayBlocks      = 25
+    , gossipDelayMempool     = 25
+    , pexMinConnections      = 3
+    , pexMaxConnections      = 12
+    , pexMinKnownConnections = 3
+    , pexMaxKnownConnections = 20
+    , reconnectionRetries    = 100
+    , reconnectionDelay      = 100
+    , pexConnectionDelay     = 3000
+    , pexAskPeersDelay       = 10000
+    }
+
 

@@ -21,7 +21,6 @@ import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
-import HSChain.Debug.Trace
 import HSChain.Logger
 import HSChain.Monitoring
 import HSChain.Run
@@ -70,7 +69,6 @@ instance BlockData BData where
    type Alg             BData = UtxoAlg
    bchLogic                         = utxoLogic
    proposerSelection                = ProposerSelection randomProposerSHA512
-   blockTransactions    (BData txs) = txs
    logBlockData         (BData txs) = HM.singleton "Ntx" $ JSON.toJSON $ length txs
 
 utxoLogic :: BChLogic (Either UtxoError) BData
@@ -79,7 +77,8 @@ utxoLogic = BChLogic{..}
     processTx BChEval{..} = void $ processTransaction bchValue (merkleValue blockchainState)
 
     processBlock BChEval{..} = do
-      st <- foldM (flip processTransaction) (merkleValue blockchainState) $ blockTransactions $ merkleValue $ blockData bchValue
+      st <- foldM (flip processTransaction) (merkleValue blockchainState)
+          $ unBData $ merkleValue $ blockData bchValue
       return BChEval { bchValue        = ()
                      , blockchainState = merkled st
                      , ..
@@ -102,9 +101,6 @@ utxoLogic = BChLogic{..}
 
 ------------------------------------------
 -- instance boilerplate
-
--- todo: update hschain version
--- many instance are already defined there
 
 instance CryptoHashable Tx where
   hashStep = genericHashStep hashDomain
@@ -156,15 +152,6 @@ instance CryptoHashable Ed.Point where
 
 instance CryptoHashable Ed.Scalar where
   hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
-
-instance CryptoHashable a => CryptoHashable (Seq a) where
-  hashStep = hashStep . toList
-
-instance CryptoHashable Text where
-  hashStep = hashStep . serialise
-
-instance CryptoHashable Bool where
-  hashStep = hashStep . serialise
 
 instance CryptoHashable Pico where
   hashStep = hashStep . serialise
