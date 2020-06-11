@@ -18,6 +18,7 @@ build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Blockchain
                        Hschain.Utxo.Blockchain.Bchain
                        Hschain.Utxo.Blockchain.Interpret
