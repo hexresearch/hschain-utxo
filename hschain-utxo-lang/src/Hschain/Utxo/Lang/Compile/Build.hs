@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Compile.Build(
     ap1, ap2, ap3
   , var
   , fun
+  , prim
 ) where
 
 import Data.Fix
@@ -32,5 +33,7 @@ fun f args = L.foldl' ap1 f args
 var :: Name -> Expr a
 var = Fix . EVar
 
-
+-- | Build a primitive value
+prim :: Prim -> Expr a
+prim = Fix . EPrim
 
