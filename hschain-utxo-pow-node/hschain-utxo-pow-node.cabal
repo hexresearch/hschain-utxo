@@ -1,0 +1,68 @@
+cabal-version:       >=1.10
+name:                hschain-utxo
+version:             0.1.0.0
+synopsis:            Useful utils for hschain-utxo (generation of genesis)
+-- description:
+-- bug-reports:
+-- license:
+license-file:        LICENSE
+author:              anton-k
+maintainer:          anton.kholomiov@gmail.com
+-- copyright:
+-- category:
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+library
+  exposed-modules:     Hschain.Utxo.App
+                       Hschain.Utxo.App.Options
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , hex-common
+                     , hschain-utxo-lang
+                     , hschain-utxo-service
+                     , optparse-applicative
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveGeneric
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    TypeFamilies
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TemplateHaskell
+
+
+executable hschain-utxo-pow-node-app
+  main-is:             Main.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , hschain-utxo
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+
+executable hschain-utxo-pow-generate-genesis
+  main-is:             Genesis.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , aeson
+                     , aeson-pretty
+                     , bytestring
+                     , containers
+                     , data-default
+                     , data-fix
+                     , hschain-utxo-lang
+                     , vector
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+  default-extensions:
+    OverloadedStrings
+
