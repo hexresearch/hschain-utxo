@@ -115,6 +115,9 @@ hashScript algo = hash . unScript
     hash :: Text -> Text
     hash txt = showt $ C.hashWith algo $ T.encodeUtf8 txt
 
+scriptToText :: Script -> Text
+scriptToText = unScript
+
 --------------------------------------------
 -- JSON instnaces
 

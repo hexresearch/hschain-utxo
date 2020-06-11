@@ -11,12 +11,13 @@ import Control.Arrow (first)
 import Data.Fix
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT)
+import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT, intT, boxT, textT)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Monad
+import Hschain.Utxo.Lang.Types (scriptToText)
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, intT, boxT, textT)
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar.Records
 
@@ -185,7 +186,7 @@ toExtendedLC' typeCtx = cataM $ \case
           Blake2b256   -> "blake2b256"
 
     fromBoxExpr expr = pure $ case expr of
-      PrimBox _ _       -> undefined -- TODO do we really need this case in the language?
+      PrimBox _ box     -> fromPrimBox box
       BoxAt _ a field   -> fromBoxField a field
       where
         fromBoxField a field = (\f -> ap1 f a) $ case field of
@@ -193,6 +194,20 @@ toExtendedLC' typeCtx = cataM $ \case
           BoxFieldValue   -> var "getBoxValue"
           BoxFieldScript  -> var "getBoxScript"
           BoxFieldArg key -> ap1 (var "getBoxArg") key
+
+        fromPrimBox Box{..} = fun boxCons [id', value, script, args]
+          where
+            boxCons = Fix $ EConstr boxConsTy 0 4
+
+            -- todo: args are not just integers
+            -- consider other primitive types
+            boxConsTy = foldr arrowT boxT [textT, intT, textT, listT intT]
+
+            id'    = prim $ P.PrimText $ unBoxId box'id
+            value  = prim $ P.PrimInt  $ box'value
+            script = prim $ P.PrimText $ scriptToText box'script
+            args   = Fix $ EConstr (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
+
 
     fromTrace a b = pure $ ap2 (var "trace") a b
 
