@@ -7,50 +7,17 @@ module Hschain.Utxo.Blockchain.Interpret(
 --  , interpretSpecWithCallback
 ) where
 
-import Data.Foldable
-
-import Codec.Serialise      (Serialise, serialise)
-import Control.Applicative
 import Control.Concurrent.STM
-import Control.DeepSeq      (NFData)
-import Control.Exception    (Exception)
-import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Catch
-import Control.Monad.Fail (MonadFail)
-import Control.Monad.Trans
 import Control.Monad.Trans.Except
-import Control.Parallel.Strategies
 import Data.Default.Class
-import Data.Fix
-import Data.Fixed
 import Data.Function (fix)
 import Data.Either
-import Data.Int
-import Data.ByteString (ByteString)
-import Data.Proxy
-import Data.Sequence (Seq)
-import Data.Text (Text)
-import qualified Data.Aeson          as JSON
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict     as Map
-import qualified Data.Vector         as V
-import qualified Crypto.ECC.Edwards25519  as Ed
-import qualified Network.Socket as Net
-
-import GHC.Generics (Generic)
-import Prometheus
-
-import System.FilePath
-import System.Directory
 
 import HSChain.Blockchain.Internal.Engine.Types
-import HSChain.Control
 import HSChain.Control.Class
 import HSChain.Crypto hiding (PublicKey)
-import HSChain.Crypto.Classes.Hash
-import HSChain.Crypto.Ed25519
-import HSChain.Crypto.SHA
 import HSChain.Logger
 import HSChain.Monitoring
 import HSChain.Run
@@ -61,16 +28,11 @@ import HSChain.Types
 import HSChain.Types.Merkle.Types
 
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.State.React
 import Hschain.Utxo.State.Types
 
 import Hschain.Utxo.Blockchain.Logic
 import Hschain.Utxo.Blockchain.Bchain
 import Hschain.Utxo.Blockchain.Net
-
-import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
 ------------------------------------------
 
@@ -92,13 +54,12 @@ interpretSpec callBackOnCommit nodeSpec genesisTx = do
           { bchain'conn       = conn
           , bchain'mempool    = mempool
           , bchain'store      = store
-          , bchain'waitForTx  = getTxWait txWaitChan conn mempool
+          , bchain'waitForTx  = getTxWait txWaitChan mempool
           }
   return (bchain, acts)
   where
     validatorSet = getValidatorSet nodeSpec
-    genesisBlock = bchValue genesis
-    genesis = initBoxChain validatorSet genesisTx
+    genesis      = initBoxChain validatorSet genesisTx
 
 getNodeDesc :: (Monad m, MonadIO m)
   => NodeSpec
@@ -108,7 +69,7 @@ getNodeDesc :: (Monad m, MonadIO m)
   -> TChan [Hash UtxoAlg]
   -> (Block BData -> m ())
   -> NodeDescription m BData
-getNodeDesc spec@NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit =
+getNodeDesc NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit =
   NodeDescription
     { nodeValidationKey = nspec'privKey
     , nodeGenesis       = genesis
@@ -125,10 +86,9 @@ getNodeDesc spec@NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit 
 
 getTxWait :: (Monad m, MonadIO m)
   => TChan [Hash UtxoAlg]
-  -> Connection 'RO BData
   -> Mempool m UtxoAlg Tx
   -> m (TxHash -> m Bool)
-getTxWait txWaitChan conn mempool = do
+getTxWait txWaitChan mempool = do
   ch <- liftIO $ atomically $ dupTChan txWaitChan
   pure $ \(TxHash h0) -> fix $ \loop -> do
     let h = Hashed (Hash h0)
@@ -155,12 +115,6 @@ getValidatorSet NodeSpec{..} =
   where
     err = error "Failed to get validator set"
 
-getGenesisBlock :: NodeSpec -> [Tx] -> Block BData
-getGenesisBlock nspec txs =
-  makeGenesis (BData txs) (Hashed $ hash emptyBoxChain) validatorSet validatorSet
-  where
-    validatorSet = getValidatorSet nspec
-
 
 -- | Genesis block has many field with predetermined content so this
 --   is convenience function to create genesis block.
@@ -183,8 +137,6 @@ makeGenesis dat stateHash valSet0 valSet1 = Block
   }
 
 -------------------------------------------
-
-data BoxChainSpec = BoxChainSpec
 
 initBoxChain :: ValidatorSet UtxoAlg -> [Tx] -> Genesis BData
 initBoxChain valSet txs = BChEval

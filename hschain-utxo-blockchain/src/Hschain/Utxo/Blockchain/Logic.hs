@@ -9,28 +9,19 @@ import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Fixed
-import Data.Foldable
-import Data.Sequence (Seq)
 import Data.Text (Text)
 
 import GHC.Generics (Generic)
 
 import HSChain.Blockchain.Internal.Engine.Types
-import HSChain.Control
 import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
-import HSChain.Logger
-import HSChain.Monitoring
-import HSChain.Run
-import HSChain.Store
-import HSChain.Store.STM
 import HSChain.Types
 import HSChain.Types.Merkle.Types
 
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.State
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.State.React
 
@@ -40,7 +31,6 @@ import qualified Crypto.ECC.Edwards25519  as Ed
 
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
 
 

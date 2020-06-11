@@ -1,29 +1,20 @@
 -- | Defines type for low-level connection with hschain internals
 module Hschain.Utxo.Blockchain.Bchain where
 
-import Codec.Serialise
-
-import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 
-import Data.Text (Text)
-
 import HSChain.Types.Blockchain
 import HSChain.Types.Merkle.Types
--- import HSChain.Blockchain.Interpretation
 import HSChain.Store
--- import HSChain.Run    (runDBT)
 import qualified HSChain.Crypto as Crypto
 
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.State
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Blockchain.Logic
 
-import qualified Data.Aeson as JSON
 
 -- | Connection to hschain internals.
 -- Low level API to post transactions.
