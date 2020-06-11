@@ -471,7 +471,7 @@ otherwise :: Bind Lang
 otherwise = bind "otherwise" (Fix $ PrimE noLoc $ PrimBool P.True)
 
 undefined :: Bind Lang
-undefined = bind "undefined" (Fix $ Undef noLoc)
+undefined = bind "undefined" (Fix $ FailCase noLoc)
 
 tupleFuns :: [Bind Lang]
 tupleFuns = P.fmap (P.uncurry toFun) tupleIndices

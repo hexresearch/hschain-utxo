@@ -58,7 +58,6 @@ toExtendedLC' typeCtx = cataM $ \case
   Lam _ _ _             -> failedToEliminate "Single argument Lam"
   RecConstr _ _ _       -> failedToEliminate "RecordConstr"
   RecUpdate _ _ _       -> failedToEliminate "RecUpdate"
-  Undef loc             -> throwError $ ExecError $ Undefined loc
   where
     fromVar VarName{..} = pure $ Fix $ EVar varName'name
 
@@ -91,9 +90,9 @@ toExtendedLC' typeCtx = cataM $ \case
                   }
       _               -> failedToEliminate "Non-constructor case in case alternative"
 
-    fromAlt = undefined
+    fromAlt _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
 
-    fromFailCase = undefined
+    fromFailCase = pure $ Fix $ EBottom
 
     fromPrim p = pure $ Fix $ EPrim $ case p of
       PrimInt n       -> P.PrimInt n

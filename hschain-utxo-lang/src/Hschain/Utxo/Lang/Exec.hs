@@ -153,7 +153,6 @@ execLang (Fix topExpr) = case topExpr of
     Trace loc str a -> fromTrace loc str a
     AltE loc a b -> rec a <|> rec b <|>  (throwError $ ExecError $ Undefined loc)
     FailCase loc -> throwError $ ExecError $ Undefined loc
-    Undef loc -> throwError $ ExecError $ Undefined loc
   where
     rec = execLang
 

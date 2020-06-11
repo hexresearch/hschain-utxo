@@ -90,8 +90,6 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   TextE loc txt             -> fmap (fromText loc) $ mapM rec txt
   -- boxes
   BoxE loc box              -> fmap (fromBox loc) $ mapM rec box
-  -- undefined
-  Undef loc                 -> pure $ varE loc undefVar
   -- debug
   Trace loc a b             -> liftA2 (fromTrace loc) (rec a) (rec b)
   -- environment
