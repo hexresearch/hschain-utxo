@@ -26,6 +26,8 @@ library
   build-depends:       base >=4.11 && <5
                      , hex-common
                      , hschain
+                     , hschain-logger
+                     , hschain-control
                      , hschain-utxo-api-rest
                      , hschain-utxo-blockchain
                      , hschain-utxo-lang
