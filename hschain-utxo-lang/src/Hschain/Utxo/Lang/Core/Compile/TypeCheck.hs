@@ -54,6 +54,17 @@ traceT :: Type -> Type
 traceT ty = trace (show $ pretty ty) ty
 -}
 
+data MonoType
+  = MonoType Type  -- ^ simple case when we know the type
+  | AnyType        -- ^ type that can be anything
+                   --    we use it for bottoms
+
+unifyMonoType :: MonoType -> MonoType -> Maybe MonoType
+unifyMonoType a b = case (a, b) of
+  (MonoType ta, MonoType tb) -> if (ta == tb) then Just a else Nothing
+  (AnyType, tb) -> Just tb
+  (ta, AnyType) -> Just ta
+
 instance IsVar Name where
   intToVar = stringIntToVar
   prettyLetters = stringPrettyLetters
@@ -98,43 +109,57 @@ typeCheckScomb Scomb{..} =
 
 typeCheckExpr :: Typed Expr -> Check Bool
 typeCheckExpr Typed{..} =
-  fmap (== typed'type) $ inferExpr typed'value
+  fmap (hasType (MonoType typed'type)) $ inferExpr typed'value
 
-inferExpr :: Expr -> Check Type
+hasType :: MonoType -> MonoType -> Bool
+hasType a b = maybe False isMonoType $ unifyMonoType a b
+
+fromMonoType :: MonoType -> Maybe Type
+fromMonoType = \case
+  MonoType a -> Just a
+  AnyType    -> Nothing
+
+isMonoType :: MonoType -> Bool
+isMonoType x = isJust $ fromMonoType x
+
+inferExpr :: Expr -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
     EPrim prim     -> inferPrim prim
     EAp  f a       -> inferAp f a
     ELet es e      -> inferLet es e
     ECase e alts   -> inferCase e alts
-    EConstr ty _ _ -> pure ty
+    EConstr ty _ _ -> pure $ MonoType ty
     EIf c t e      -> inferIf c t e
+    EBottom        -> pure AnyType
 
-inferVar :: Name -> Check Type
-inferVar = getType
+inferVar :: Name -> Check MonoType
+inferVar name = fmap MonoType $ getType name
 
-inferPrim :: Prim -> Check Type
-inferPrim p = return $ primToType p
+inferPrim :: Prim -> Check MonoType
+inferPrim p = return $ MonoType $ primToType p
 
-inferAp :: Expr -> Expr -> Check Type
+inferAp :: Expr -> Expr -> Check MonoType
 inferAp f a = do
   fT <- inferExpr f
   aT <- inferExpr a
   lift $ getApTy fT aT
   where
-    getApTy :: Type -> Type -> Maybe Type
+    getApTy :: MonoType -> MonoType -> Maybe MonoType
     getApTy fT aT = do
       (farg, fres) <- getArrowTypes fT
-      guard $ farg == aT
+      guard $ hasType farg aT
       return fres
 
-    getArrowTypes :: Type -> Maybe (Type, Type)
-    getArrowTypes (H.Type (Fix t)) =
-      case t of
-        H.ArrowT () arg res -> Just (H.Type arg, H.Type res)
-        _                   -> Nothing
+    getArrowTypes :: MonoType -> Maybe (MonoType, MonoType)
+    getArrowTypes ty = case ty of
+      AnyType -> Just (AnyType, AnyType)
+      MonoType (H.Type (Fix t)) ->
+        case t of
+          H.ArrowT () arg res -> Just (MonoType $ H.Type arg, MonoType $ H.Type res)
+          _                   -> Nothing
 
-inferLet :: [(Typed Name, Expr)] -> Expr -> Check Type
+inferLet :: [(Typed Name, Expr)] -> Expr -> Check MonoType
 inferLet binds body = local (loadArgs (fmap fst binds)) $ do
   mapM_ (uncurry checkBind) binds
   inferExpr body
@@ -142,9 +167,9 @@ inferLet binds body = local (loadArgs (fmap fst binds)) $ do
     checkBind :: Typed Name -> Expr -> Check ()
     checkBind Typed{..} expr = do
       ty <- inferExpr expr
-      lift $ guard $ ty == typed'type
+      guard $ hasType ty (MonoType typed'type)
 
-inferCase :: Typed Expr -> [CaseAlt] -> Check Type
+inferCase :: Typed Expr -> [CaseAlt] -> Check MonoType
 inferCase e alts = do
   checkTop e
   getResultType =<< mapM inferAlt alts
@@ -152,28 +177,26 @@ inferCase e alts = do
     checkTop :: Typed Expr -> Check ()
     checkTop Typed{..} = do
       ty <- inferExpr typed'value
-      guard $ ty == typed'type
+      guard $ hasType ty (MonoType typed'type)
 
-    getResultType :: [Type] -> Check Type
+    getResultType :: [MonoType] -> Check MonoType
     getResultType = \case
       []   -> lift Nothing
       t:ts -> do
-        guard $ all (== t) ts
-        return t
+        lift $ L.foldl' (\a b -> unifyMonoType b =<< a) (Just t) ts
 
-inferAlt :: CaseAlt -> Check Type
+inferAlt :: CaseAlt -> Check MonoType
 inferAlt CaseAlt{..} =
   local (loadArgs caseAlt'args) $
     inferExpr caseAlt'rhs
 
-inferIf :: Expr -> Expr -> Expr -> Check Type
+inferIf :: Expr -> Expr -> Expr -> Check MonoType
 inferIf c t e = do
   cT <- inferExpr c
   tT <- inferExpr t
   eT <- inferExpr e
-  guard $ cT == boolT
-  guard $ tT == eT
-  return tT
+  guard $ hasType cT (MonoType boolT)
+  lift $ unifyMonoType tT eT
 
 -------------------------------------------------------
 -- type inference context

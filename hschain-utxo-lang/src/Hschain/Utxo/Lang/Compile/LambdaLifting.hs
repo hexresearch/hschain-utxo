@@ -20,6 +20,11 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting.Collect
 import Hschain.Utxo.Lang.Compile.LambdaLifting.FreeVars
 import Hschain.Utxo.Lang.Compile.LambdaLifting.Rename
 
+-- | Lambda-lifting eliminates all lambda-expressions and substitutes
+-- them with global functions (they are called supercombinators).
+--
+-- It compiles program of extended lambda-calculus to the representation
+-- suitable for evaluation on G-machine.
 lambdaLifting :: CoreProg -> CoreProg
 lambdaLifting = collect . rename . abstract . annotateFreeVars . fuseLams
 
