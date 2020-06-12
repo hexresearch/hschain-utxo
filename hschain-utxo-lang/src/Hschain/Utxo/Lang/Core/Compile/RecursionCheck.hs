@@ -42,6 +42,7 @@ freeVars = \case
   EIf a b c     -> freeVars a <> freeVars b <> freeVars c
   ECase e alts  -> freeVars (typed'value e) <> foldMap freeAltVars alts
   EConstr _ _ _ -> S.empty
+  EBottom       -> S.empty
   where
     freeAltVars CaseAlt{..} =
       freeVars caseAlt'rhs S.\\ (S.fromList $ fmap typed'value caseAlt'args)
@@ -75,6 +76,7 @@ checkLetExpr = \case
   EConstr _ _ _ -> True
   EVar _        -> True
   EPrim _       -> True
+  EBottom       -> True
   where
     checkBinds binds e = checkLetExpr e && all (checkLetExpr . snd) binds && check binds
       where

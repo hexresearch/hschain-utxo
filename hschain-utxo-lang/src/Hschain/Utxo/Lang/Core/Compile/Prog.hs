@@ -171,6 +171,7 @@ compileC expr env = case expr of
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   ECase e alts        -> compileCase env (typed'value e) alts
   EIf a b c           -> compileIf a b c
+  EBottom             -> Code.singleton Bottom
   -- TODO: we need to substitute it with special case
   -- see discussion at the book on impl at p. 136 section: 3.8.7
   where

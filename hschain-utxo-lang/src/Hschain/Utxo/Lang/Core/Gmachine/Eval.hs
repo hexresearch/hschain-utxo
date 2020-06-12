@@ -93,6 +93,7 @@ dispatch = \case
   MkPrim       -> mkPrim
   Get          -> getExpr
   UpdatePrim p -> updatePrim p
+  Bottom       -> throwError BottomTerm
 
 pushGlobal :: GlobalName -> Exec ()
 pushGlobal = \case

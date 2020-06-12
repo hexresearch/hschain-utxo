@@ -46,6 +46,8 @@ data Expr
   | EConstr Type !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
+  | EBottom
+  -- ^ failed termination for the program
   deriving (Show, Eq)
 
 -- | Case alternatives

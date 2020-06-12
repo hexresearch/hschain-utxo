@@ -86,6 +86,8 @@ data Instr
   -- ^ sigma operators
   | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
   -- ^ text operators
+  | Bottom
+  -- ^ Failed termination
   deriving (Show, Eq)
 
 type CaseMap = IntMap Code

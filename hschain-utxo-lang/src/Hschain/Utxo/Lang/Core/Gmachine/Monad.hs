@@ -78,6 +78,7 @@ data Error
   | VstackIsEmpty   -- ^ Need to read element from Vstack but it is empty
   | DumpIsEmpty     -- ^ Attempt to read empty dump
   | MissingCase     -- ^ missing case-alternative
+  | BottomTerm      -- ^ Bottom termination
   deriving (Show, Eq)
 
 badType :: Exec a
