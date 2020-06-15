@@ -82,7 +82,7 @@ getFreeVars localVars (Fix x) = case x of
 
     bottom = Fix $ Ann mempty $ EBottom
 
-freeVarAlts :: Set Name -> CaseAlt (Expr Name) -> CaseAlt (AnnExpr (Set Name) Name)
+freeVarAlts :: Set Name -> CaseAlt Name (Expr Name) -> CaseAlt Name (AnnExpr (Set Name) Name)
 freeVarAlts localVars alt@CaseAlt{..} =
   alt { caseAlt'rhs = Fix $ Ann (getLocals ebody S.\\ argVars) (ann'value $ unFix ebody) }
   where

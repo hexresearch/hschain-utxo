@@ -1,7 +1,9 @@
 -- | Converts our language to extended lambda-calculus
 -- defined in the module @Hschain.Utxo.Compile.LambdaLifting.Expr@
 module Hschain.Utxo.Lang.Desugar.ExtendedLC(
-  toExtendedLC
+    toExtendedLC
+  , exprToExtendedLC
+  , fromType
 ) where
 
 import Hex.Common.Text (showt)
@@ -19,6 +21,7 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, intT, boxT, textT)
 import Hschain.Utxo.Lang.Desugar.Lambda
+import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Records
 
 import qualified Data.Map.Strict as M
@@ -28,11 +31,22 @@ import qualified Hschain.Utxo.Lang.Core.Data.Prim as P
 
 import qualified Language.HM as H
 
-toExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
-toExtendedLC ctx = toExtendedLC' ctx <=< desugarSyntax ctx
+toExtendedLC :: MonadLang m => Module -> m CoreProg
+toExtendedLC Module{..} = mapM toDef module'binds
+  where
+    toDef bind = do
+      body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
+      return $ Def
+        { def'name = varName'name $ bind'name bind
+        , def'args = []
+        , def'body = body
+        }
 
-toExtendedLC' :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
-toExtendedLC' typeCtx = cataM $ \case
+exprToExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
+exprToExtendedLC ctx = exprToExtendedLC' ctx <=< desugarSyntax ctx
+
+exprToExtendedLC' :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
+exprToExtendedLC' typeCtx = cataM $ \case
   Var _ v               -> fromVar v
   Apply _ a b           -> fromApply a b
   LamList _ ps a        -> fromLamList ps a
@@ -217,9 +231,6 @@ getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
 
 fromType :: Type -> P.Type
 fromType = H.mapLoc (const ())
-
-failedToEliminate :: MonadError Error m => Text -> m a
-failedToEliminate msg = throwError $ InternalError $ FailedToEliminate msg
 
 desugarSyntax :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugarSyntax ctx = removeRecords ctx <=< desugarLambdaCalculus

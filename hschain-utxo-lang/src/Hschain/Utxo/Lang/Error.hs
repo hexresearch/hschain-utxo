@@ -1,6 +1,8 @@
 -- | Errors for our language
 module Hschain.Utxo.Lang.Error where
 
+import Control.Monad.Except
+
 import Data.String
 import Data.Text (Text)
 
@@ -70,3 +72,5 @@ fromParseError = \case
   H.ParseOk a           -> Right a
   H.ParseFailed loc err -> Left $ ParseError (H.noInfoSpan $ H.mkSrcSpan loc loc) (fromString err)
 
+failedToEliminate :: MonadError Error m => Text -> m a
+failedToEliminate msg = throwError $ InternalError $ FailedToEliminate msg
