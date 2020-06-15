@@ -65,7 +65,7 @@ It’s very simple and minimalistic.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">addWorld</span> <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">&lt;&gt;</span> <span class="s2">&quot; World&quot;</span>
 </pre></div>
 </div>
-<p>Also we can define synonyms weith <code class="docutils literal notranslate"><span class="pre">let</span></code> construct:</p>
+<p>Also we can define synonyms with <code class="docutils literal notranslate"><span class="pre">let</span></code> construct:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">let</span> <span class="n">greet</span> <span class="o">=</span> <span class="s2">&quot;Hello&quot;</span>
 <span class="ow">in</span>  <span class="n">addWorld</span> <span class="n">greet</span>
 </pre></div>
@@ -117,15 +117,15 @@ of the transaction.</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">Bool</span></code></dt><dd><p>Boolean values (with constants <code class="docutils literal notranslate"><span class="pre">True</span></code> and <code class="docutils literal notranslate"><span class="pre">False</span></code>)</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">Int</span></code></dt><dd><p>integer values</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">Double</span></code></dt><dd><p>doubles</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">Money</span></code></dt><dd><p>numeric type with fixed precision for monetary values</p>
+<dt><code class="docutils literal notranslate"><span class="pre">Int</span></code></dt><dd><p>integer values (represented internaly as Int64). Moneys are represented with integers.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">Text</span></code></dt><dd><p>strings. Constants are enclosed in double-quotes: <code class="docutils literal notranslate"><span class="pre">&quot;Hello</span> <span class="pre">world!&quot;</span></code></p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">Script</span></code></dt><dd><p>script that protects the value.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Box</span></code></dt><dd><p>input or output boxes. We create boxes with scripts to hold values protected by the scripts.
+Box can be input or output boxes. We spend values from input boxes and create output boxes
+when script is true.</p>
 </dd>
 </dl>
 <div class="section" id="boolean-operators">
@@ -206,17 +206,122 @@ They work on all numeric types.</p>
 </pre></div>
 </div>
 <p>We have usual function combinators: <code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">const</span></code>. We can use partial application.</p>
+<p>Functions can have guards:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">signum</span> <span class="n">x</span>
+  <span class="o">|</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span>  <span class="o">=</span> <span class="mi">1</span>
+  <span class="o">|</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">=</span> <span class="mi">0</span>
+  <span class="o">|</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span>  <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+</pre></div>
+</div>
+<p>Functions can contain pattern-matching cases:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">xor</span> <span class="kc">True</span>  <span class="kc">False</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">xor</span> <span class="kc">False</span> <span class="kc">True</span>  <span class="o">=</span> <span class="kc">True</span>
+<span class="n">xor</span> <span class="n">_</span>     <span class="n">_</span>     <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>Also functions can contain local definitions that are defined with <code class="docutils literal notranslate"><span class="pre">where</span></code>-clause:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sumSquares</span> <span class="p">::</span> <span class="n">Int</span> <span class="o">-&gt;</span> <span class="n">Int</span> <span class="o">-&gt;</span> <span class="n">Int</span>
+<span class="n">sumSquares</span> <span class="n">x</span> <span class="n">y</span> <span class="o">=</span> <span class="n">square</span> <span class="n">x</span> <span class="o">+</span> <span class="n">square</span> <span class="n">y</span>
+  <span class="n">where</span>
+    <span class="n">square</span> <span class="n">a</span> <span class="o">=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">a</span>
+</pre></div>
+</div>
+<p>It’s equivalent to the following definition with let-expression:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sumSquares</span> <span class="n">x</span> <span class="n">y</span> <span class="o">=</span>
+  <span class="n">let</span> <span class="n">square</span> <span class="n">a</span> <span class="o">=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">a</span>
+  <span class="ow">in</span>  <span class="n">square</span> <span class="n">x</span> <span class="o">+</span> <span class="n">square</span> <span class="n">y</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="user-defined-types">
+<h3>User-defined types<a class="headerlink" href="#user-defined-types" title="Permalink to this headline">¶</a></h3>
+<p>User can define a type. the style is borrowed from Haskell:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">Color</span> <span class="o">=</span> <span class="n">Red</span> <span class="o">|</span> <span class="n">Blue</span> <span class="o">|</span> <span class="n">Green</span>
+</pre></div>
+</div>
+<p>We define a color with three alternative cases represented with type-constructors.
+Also type-constructors can hold values. Let’s define type for users with name and age:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">User</span> <span class="o">=</span> <span class="n">User</span> <span class="n">Text</span> <span class="n">Int</span>
+
+<span class="n">john</span> <span class="p">::</span> <span class="n">User</span>
+<span class="n">john</span> <span class="o">=</span> <span class="n">User</span> <span class="s2">&quot;John&quot;</span> <span class="mi">23</span>
+</pre></div>
+</div>
+<p>Types can have parameters. This way we can define Haskell type <code class="docutils literal notranslate"><span class="pre">Maybe</span></code> for optional values:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">Maybe</span> <span class="n">a</span> <span class="o">=</span> <span class="n">Nothing</span> <span class="o">|</span> <span class="n">Just</span> <span class="n">a</span>
+</pre></div>
+</div>
+<p>We can construct the values of our own type with constructors. To deconstruct them we use case-expressions.</p>
+<p>Note that recursive types are prohibited. We can not construct recursive types.
+It is deliberate restriction of our language since we do not support recursion.</p>
+</div>
+<div class="section" id="case-expressions">
+<h3>case-expressions<a class="headerlink" href="#case-expressions" title="Permalink to this headline">¶</a></h3>
+<p>Case-expression deconstruct values from our own types:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">getName</span> <span class="p">::</span> <span class="n">User</span> <span class="o">-&gt;</span> <span class="n">Text</span>
+<span class="n">getName</span> <span class="n">user</span> <span class="o">=</span> <span class="n">case</span> <span class="n">user</span> <span class="n">of</span>
+   <span class="n">User</span> <span class="n">name</span> <span class="n">_</span> <span class="o">-&gt;</span> <span class="n">name</span>
+
+<span class="n">colorIsRed</span> <span class="p">::</span> <span class="n">Color</span> <span class="o">-&gt;</span> <span class="n">Bool</span>
+<span class="n">colorIsRed</span> <span class="n">color</span> <span class="o">=</span> <span class="n">case</span> <span class="n">color</span> <span class="n">of</span>
+   <span class="n">Red</span> <span class="o">-&gt;</span> <span class="kc">True</span>
+   <span class="n">_</span>   <span class="o">-&gt;</span> <span class="kc">False</span>
+
+<span class="n">happyBirthday</span> <span class="p">::</span> <span class="n">User</span> <span class="o">-&gt;</span> <span class="n">User</span>
+<span class="n">happyBirthday</span> <span class="n">user</span> <span class="o">=</span> <span class="n">case</span> <span class="n">user</span> <span class="n">of</span>
+   <span class="n">User</span> <span class="n">name</span> <span class="n">age</span> <span class="o">-&gt;</span> <span class="n">User</span> <span class="n">name</span> <span class="p">(</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="pattern-matching-for-function-arguments">
+<h3>pattern-matching for function arguments<a class="headerlink" href="#pattern-matching-for-function-arguments" title="Permalink to this headline">¶</a></h3>
+<p>We can also deconstruct the value in the arguments of the functions with pattern-matching.
+Let’s rewrite the functions with pattern-matching:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">getName</span> <span class="p">(</span><span class="n">User</span> <span class="n">name</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">name</span>
+
+<span class="n">happyBirthday</span> <span class="p">(</span><span class="n">User</span> <span class="n">name</span> <span class="n">age</span><span class="p">)</span> <span class="o">=</span> <span class="n">User</span> <span class="n">name</span> <span class="p">(</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="n">colorIsRed</span> <span class="n">Red</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">colorIsRed</span> <span class="n">_</span>   <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="records">
+<h3>Records<a class="headerlink" href="#records" title="Permalink to this headline">¶</a></h3>
+<p>Sometimes it’s useful to have named fields in the type-constructors.
+This part of the language is also inspired by Haskell and we can create named-fields
+and update them just like in Haskell:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">User</span> <span class="o">=</span> <span class="n">User</span>
+   <span class="p">{</span> <span class="n">user</span><span class="s1">&#39;name :: Text</span>
+   <span class="p">,</span> <span class="n">user</span><span class="s1">&#39;age  :: Int</span>
+   <span class="p">}</span>
+</pre></div>
+</div>
+<p>Note that just like in Haskell names of the fields have to be unique across the whole global
+scope of the program.</p>
+<p>Now we can create users and supply information about the fields:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">john</span> <span class="o">=</span> <span class="n">User</span>
+   <span class="p">{</span> <span class="n">user</span><span class="s1">&#39;name = &quot;John&quot;</span>
+   <span class="p">,</span> <span class="n">user</span><span class="s1">&#39;age  = 23</span>
+   <span class="p">}</span>
+</pre></div>
+</div>
+<p>We can update the fields:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">happyBirthday</span> <span class="n">user</span> <span class="o">=</span> <span class="n">user</span> <span class="p">{</span> <span class="n">user</span><span class="s1">&#39;age = 1 + user&#39;</span><span class="n">age</span> <span class="n">user</span> <span class="p">}</span>
+</pre></div>
+</div>
 </div>
 <div class="section" id="tuples">
 <h3>Tuples<a class="headerlink" href="#tuples" title="Permalink to this headline">¶</a></h3>
 <p>Tuples represent sets of heterogeneous values. We use parenthesis to denote them <cite>(True, 1)</cite>
-We construct tuples with parens and destruct them with <code class="docutils literal notranslate"><span class="pre">!!</span> <span class="pre">Int</span></code> operator.
-Notice that the <code class="docutils literal notranslate"><span class="pre">Int</span></code> in the expression should be constant integer literal not an expression:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>&gt; x = (1, True)
-&gt; x !! 0
-  1
-&gt; x !! 1
-  True
+We construct tuples with parens and destruct them pattern-matching or case-expressions or pattern-matching:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+<span class="n">y</span> <span class="o">=</span> <span class="n">case</span> <span class="n">x</span> <span class="n">of</span>
+ <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">a</span>
+
+<span class="n">fst</span> <span class="p">::</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">a</span>
+<span class="n">fst</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">a</span>
 </pre></div>
 </div>
 </div>
@@ -265,13 +370,13 @@ To get vector values we use operator <code class="docutils literal notranslate">
 
 <dl class="function">
 <dt>
-<code class="sig-name descname">sum :: Vector a -&gt; a</code></dt>
+<code class="sig-name descname">sum :: Vector Int -&gt; Int</code></dt>
 <dd><p>Sum of numeric values</p>
 </dd></dl>
 
 <dl class="function">
 <dt>
-<code class="sig-name descname">product :: Vector a -&gt; a</code></dt>
+<code class="sig-name descname">product :: Vector Int -&gt; Int</code></dt>
 <dd><p>Product of numeric values</p>
 </dd></dl>
 
@@ -414,17 +519,18 @@ We can use the function <code class="docutils literal notranslate"><span class="
 <dd><p>Adds text to debug output when second argument is executed.</p>
 </dd></dl>
 
-<p>We can read the debug information in REPL-console. Also the debug is return with
+<p>We can read the debug information in REPL-console. Also the debug is returned with
 API call that posts transaction.</p>
 </div>
 <div class="section" id="compilation">
 <h2>Compilation<a class="headerlink" href="#compilation" title="Permalink to this headline">¶</a></h2>
 <p>To use script in transaction JSON-object we have to compile it. To do it we invoke
 compailer <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="o">-</span><span class="n">i</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">-</span><span class="n">o</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="nb">compile</span> <span class="o">--</span><span class="nb">input</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">--</span><span class="n">output</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
 </pre></div>
 </div>
-<p>If flag <code class="docutils literal notranslate"><span class="pre">-o</span></code> is omitted the result is dumped to stdout.</p>
+<p>If flag <code class="docutils literal notranslate"><span class="pre">output</span></code> (<code class="docutils literal notranslate"><span class="pre">-o</span></code> for short) is omitted the result is dumped to stdout.
+See flag <code class="docutils literal notranslate"><span class="pre">--help</span></code> for all options of the compiler.</p>
 </div>
 </div>
 
@@ -496,7 +602,7 @@ compailer <code class="docutils literal notranslate"><span class="pre">hschain-u
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2019, HXR.
+      &copy;1970, HXR.
       
       |
       Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>

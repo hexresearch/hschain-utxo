@@ -43,8 +43,14 @@ or slash-lambda. Like in haskell we have <code class="docutils literal notransla
  <span class="mi">4</span>
 </pre></div>
 </div>
-<p>Like in Haskell we have tuples. They are accessed with operator <code class="docutils literal notranslate"><span class="pre">tuple</span> <span class="pre">!!</span> <span class="pre">int</span></code>.
-Also we have vectors with usual operators <code class="docutils literal notranslate"><span class="pre">map</span></code> (map over), <code class="docutils literal notranslate"><span class="pre">fold</span></code> (left fold), <code class="docutils literal notranslate"><span class="pre">length</span></code> (size of the vector),
+<p>Like in Haskell we have tuples. They are accessed with case-expressions:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">getThird</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">third</span><span class="p">)</span> <span class="o">=</span> <span class="n">third</span>
+
+<span class="n">case</span> <span class="n">pair</span> <span class="n">of</span>
+   <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</pre></div>
+</div>
+<p>Also we have vectors with usual operators <code class="docutils literal notranslate"><span class="pre">map</span></code> (map over), <code class="docutils literal notranslate"><span class="pre">fold</span></code> (left fold), <code class="docutils literal notranslate"><span class="pre">length</span></code> (size of the vector),
 <code class="docutils literal notranslate"><span class="pre">++</span></code> (concatenation).</p>
 <p>the script is a list of defenitions. It should contain
 the function with name <code class="docutils literal notranslate"><span class="pre">main</span></code> which has type <code class="docutils literal notranslate"><span class="pre">Bool</span></code>. It is the result of the script.:</p>
@@ -77,7 +83,7 @@ that lists all rproofs for ownership of the keys.</p>
 </pre></div>
 </div>
 <p>In this line <code class="docutils literal notranslate"><span class="pre">bob-key</span></code> is a public key of the user. It protects the funds
-from spending by other parties. Bu where do we get our keys?
+from spending by other parties. But where do we get our keys?
 We get public key from secret key.</p>
 </div>
 <div class="section" id="secret-and-public-keys">
@@ -131,7 +137,7 @@ The input boxes are destroyed.</p>
 <dt><strong>Args</strong></dt><dd><p>Key-value pairs of primitive values.</p>
 </dd>
 </dl>
-<p>User post transaction in three steps.</p>
+<p>User posts transaction in three steps.</p>
 <ul class="simple">
 <li><p>User creates transaction with empty proof and calls API method <code class="docutils literal notranslate"><span class="pre">api/tx-sigma/get</span></code>. This
 method produces sigma-expression that is the result of evaluation of transaction in
@@ -145,10 +151,14 @@ script for transaction by and-concatination of all scripts in inputs.
 If all input scripts are valid in the current context of transaction and blockchain
 then transaction is valid and we destroy input UTXOs and add output UTXOs to the
 blockchain.</p>
-<p>Beside check of proof there are other conditions:</p>
+<p>Beside the check of proof there are other conditions:</p>
 <ul class="simple">
-<li><p>Sum of inputs should equal to sum of outputs.</p></li>
-<li><p>Outputs should contain valid scripts, that are evaluated to Bool.</p></li>
+<li><p>The sum of inputs should equal to the sum of outputs.</p></li>
+<li><dl class="simple">
+<dt>Outputs should contain valid scripts, that are evaluated to <code class="docutils literal notranslate"><span class="pre">Bool</span></code>.</dt><dd><p>They have function main with no arguments that is produces <code class="docutils literal notranslate"><span class="pre">Bool</span></code>.</p>
+</dd>
+</dl>
+</li>
 </ul>
 <p>In the following sections we are going to look at several examples.</p>
 </div>
@@ -490,7 +500,7 @@ We need method <code class="docutils literal notranslate"><span class="pre">post
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2019, HXR.
+      &copy;1970, HXR.
       
       |
       Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>

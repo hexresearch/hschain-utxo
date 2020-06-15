@@ -38,7 +38,7 @@ And we can define functions::
 
   addWorld x = x <> " World"
 
-Also we can define synonyms weith ``let`` construct::
+Also we can define synonyms with ``let`` construct::
 
   let greet = "Hello"   
   in  addWorld greet
@@ -92,19 +92,18 @@ Language has following primitives:
    Boolean values (with constants ``True`` and ``False``)
 
 ``Int``
-   integer values
-
-``Double``
-   doubles
-
-``Money``
-   numeric type with fixed precision for monetary values
+   integer values (represented internaly as Int64). Moneys are represented with integers.
 
 ``Text``
    strings. Constants are enclosed in double-quotes: ``"Hello world!"``
 
 ``Script``
    script that protects the value.
+
+``Box``
+   input or output boxes. We create boxes with scripts to hold values protected by the scripts.
+   Box can be input or output boxes. We spend values from input boxes and create output boxes
+   when script is true.
 
 
 Boolean operators
@@ -184,18 +183,128 @@ Also we can define them in this way::
 
 We have usual function combinators: ``id``, ``const``. We can use partial application.
 
+Functions can have guards::
+
+   signum x
+     | x > 0  = 1
+     | x == 0 = 0
+     | x < 0  = -1
+
+Functions can contain pattern-matching cases::
+
+   xor True  False = True
+   xor False True  = True
+   xor _     _     = False
+
+Also functions can contain local definitions that are defined with ``where``-clause::
+
+   sumSquares :: Int -> Int -> Int
+   sumSquares x y = square x + square y
+     where
+       square a = a * a
+
+It's equivalent to the following definition with let-expression::
+   
+   sumSquares x y = 
+     let square a = a * a
+     in  square x + square y
+   
+User-defined types
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+User can define a type. the style is borrowed from Haskell::
+
+   data Color = Red | Blue | Green
+
+We define a color with three alternative cases represented with type-constructors.
+Also type-constructors can hold values. Let's define type for users with name and age::
+
+   data User = User Text Int
+
+   john :: User
+   john = User "John" 23
+
+Types can have parameters. This way we can define Haskell type ``Maybe`` for optional values::
+
+   data Maybe a = Nothing | Just a
+
+We can construct the values of our own type with constructors. To deconstruct them we use case-expressions.
+
+Note that recursive types are prohibited. We can not construct recursive types.
+It is deliberate restriction of our language since we do not support recursion.
+
+case-expressions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Case-expression deconstruct values from our own types::
+
+   getName :: User -> Text
+   getName user = case user of
+      User name _ -> name
+
+   colorIsRed :: Color -> Bool
+   colorIsRed color = case color of
+      Red -> True
+      _   -> False
+
+   happyBirthday :: User -> User 
+   happyBirthday user = case user of
+      User name age -> User name (age + 1)
+      
+
+pattern-matching for function arguments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We can also deconstruct the value in the arguments of the functions with pattern-matching.
+Let's rewrite the functions with pattern-matching::
+
+   getName (User name _) = name
+   
+   happyBirthday (User name age) = User name (age + 1)
+
+   colorIsRed Red = True
+   colorIsRed _   = False
+
+Records
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Sometimes it's useful to have named fields in the type-constructors. 
+This part of the language is also inspired by Haskell and we can create named-fields
+and update them just like in Haskell::
+
+   data User = User
+      { user'name :: Text
+      , user'age  :: Int
+      }
+
+Note that just like in Haskell names of the fields have to be unique across the whole global 
+scope of the program. 
+
+Now we can create users and supply information about the fields::
+
+   john = User
+      { user'name = "John"
+      , user'age  = 23
+      }
+
+We can update the fields::
+
+   happyBirthday user = user { user'age = 1 + user'age user }
+
 Tuples
 ^^^^^^^^^^^^^^^^^
 
 Tuples represent sets of heterogeneous values. We use parenthesis to denote them `(True, 1)`
-We construct tuples with parens and destruct them with ``!! Int`` operator.
-Notice that the ``Int`` in the expression should be constant integer literal not an expression::
+We construct tuples with parens and destruct them pattern-matching or case-expressions or pattern-matching::
 
-  > x = (1, True)
-  > x !! 0
-    1
-  > x !! 1
-    True
+  x = (1, True)
+
+  y = case x of
+   (a, _) -> a
+
+  fst :: (a, b) -> a
+  fst (a, _) = a
+
 
 Vectors
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -232,11 +341,11 @@ We have operations for vectors
 
    Left fold for the vector
 
-.. function:: sum :: Vector a -> a
+.. function:: sum :: Vector Int -> Int
 
    Sum of numeric values
 
-.. function:: product :: Vector a -> a
+.. function:: product :: Vector Int -> Int
 
    Product of numeric values
 
@@ -325,6 +434,7 @@ Or we can check that all inputs have value greater than 100::
 
    all (map (\x -> getBoxValue x > 100) getInputs)
 
+
 Environment 
 -----------------------------------
 
@@ -352,7 +462,7 @@ We can use the function ``trace``
    
    Adds text to debug output when second argument is executed.
 
-We can read the debug information in REPL-console. Also the debug is return with
+We can read the debug information in REPL-console. Also the debug is returned with
 API call that posts transaction.
 
 
@@ -362,9 +472,11 @@ Compilation
 To use script in transaction JSON-object we have to compile it. To do it we invoke
 compailer ``hschain-utxo-compiler``::
 
-   cabal new-run hschain-utxo-compiler -- -i script.hs -o out.txt
+   cabal new-run hschain-utxo-compiler -- compile --input script.hs --output out.txt
 
-If flag ``-o`` is omitted the result is dumped to stdout.
+If flag ``output`` (``-o`` for short) is omitted the result is dumped to stdout.
+See flag ``--help`` for all options of the compiler.
+
 
 
 
