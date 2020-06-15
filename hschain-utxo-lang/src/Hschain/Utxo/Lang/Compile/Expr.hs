@@ -56,7 +56,7 @@ data ExprF bind a
   -- ^ lambda abstraction
   | EIf a a a
   -- ^ if expressions
-  | ECase !a [CaseAlt a]
+  | ECase !a [CaseAlt bind a]
   -- ^ case alternatives
   | EConstr Type !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
@@ -66,11 +66,11 @@ data ExprF bind a
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- | Case alternatives
-data CaseAlt a = CaseAlt
+data CaseAlt bind a = CaseAlt
   { caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [Name]
+  , caseAlt'args  :: [bind]
   -- ^ arguments of the pattern matching
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative

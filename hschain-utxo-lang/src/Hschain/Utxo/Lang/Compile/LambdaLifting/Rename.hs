@@ -88,7 +88,7 @@ renameExpr env (Fix expr) =
       alts' <- mapM (renameCaseAlts env) alts
       return $ Fix $ ECase e' alts'
 
-renameCaseAlts :: Map Name Name -> CaseAlt (Expr Name) -> RenameM (CaseAlt (Expr Name))
+renameCaseAlts :: Map Name Name -> CaseAlt Name (Expr Name) -> RenameM (CaseAlt Name (Expr Name))
 renameCaseAlts env CaseAlt{..} = do
   (args', env') <- allocNames caseAlt'args
   rhs' <- renameExpr (env' <> env) caseAlt'rhs

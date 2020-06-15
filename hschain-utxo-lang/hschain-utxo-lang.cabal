@@ -21,6 +21,7 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
+      Hschain.Utxo.Lang.Compile
       Hschain.Utxo.Lang.Compile.Expr
       Hschain.Utxo.Lang.Compile.Build
       Hschain.Utxo.Lang.Compile.LambdaLifting
