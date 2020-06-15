@@ -31,6 +31,8 @@ import qualified Hschain.Utxo.Lang.Core.Data.Prim as P
 
 import qualified Language.HM as H
 
+-- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.
+-- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
 toExtendedLC :: MonadLang m => Module -> m CoreProg
 toExtendedLC Module{..} = mapM toDef module'binds
   where
@@ -42,6 +44,8 @@ toExtendedLC Module{..} = mapM toDef module'binds
         , def'body = body
         }
 
+-- | Transforms expression of the script-language to limited lambda-calculus.
+-- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
 exprToExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
 exprToExtendedLC ctx = exprToExtendedLC' ctx <=< desugarSyntax ctx
 

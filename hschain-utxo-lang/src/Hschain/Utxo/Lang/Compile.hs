@@ -21,15 +21,20 @@ import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
 type TypedProg = AnnProg Type (Typed Name)
 
+-- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m Core.CoreProg
 compile = toCoreProg <=< makeMonomorphic . annotateTypes . lambdaLifting <=< toExtendedLC
 
+-- | Infers types for all subexpressions
 annotateTypes :: CoreProg -> TypedProg
 annotateTypes = undefined
 
+-- | Makes types monomorphic.
 makeMonomorphic :: MonadLang m => TypedProg -> m TypedProg
 makeMonomorphic = undefined
 
+-- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
+-- to Core program.
 toCoreProg :: forall m . MonadLang m => TypedProg -> m Core.CoreProg
 toCoreProg = mapM toScomb
   where
