@@ -81,14 +81,16 @@ let
           doHaddock = false;
         });
       } // {
-        hschain-control = callHSChain "hschain-control";
-        hschain-config  = callHSChain "hschain-config";
-        hschain-merkle  = callHSChain "hschain-merkle";
-        hschain-logger  = callHSChain "hschain-logger";
-        hschain-crypto  = callHSChain "hschain-crypto";
-        hschain-types   = callHSChain "hschain-types";
-        hschain-net     = callHSChain "hschain-net";
-        hschain         = callHSChain "hschain";
+        hschain-control  = callHSChain "hschain-control";
+        hschain-config   = callHSChain "hschain-config";
+        hschain-merkle   = callHSChain "hschain-merkle";
+        hschain-logger   = callHSChain "hschain-logger";
+        hschain-crypto   = callHSChain "hschain-crypto";
+        hschain-types    = callHSChain "hschain-types";
+        hschain-net      = callHSChain "hschain-net";
+        hschain-pow-func = callHSChain "proof-of-work";
+        hschain-PoW      = callHSChain "hschain-PoW";
+        hschain          = callHSChain "hschain";
       };
 
   attrsToList = set: builtins.attrValues (
