@@ -12,7 +12,13 @@ or slash-lambda. Like in haskell we have ``if-then-else`` and ``let-in`` express
   > addTwo 2
    4
 
-Like in Haskell we have tuples. They are accessed with operator ``tuple !! int``.
+Like in Haskell we have tuples. They are accessed with case-expressions::
+
+   getThird (_, _, third) = third
+
+   case pair of
+      (a, b) -> a + b
+
 Also we have vectors with usual operators ``map`` (map over), ``fold`` (left fold), ``length`` (size of the vector), 
 ``++`` (concatenation). 
 
@@ -49,7 +55,7 @@ Here is the simple script to protect Bob's values::
   pk "bob-key"
 
 In this line ``bob-key`` is a public key of the user. It protects the funds
-from spending by other parties. Bu where do we get our keys?
+from spending by other parties. But where do we get our keys?
 We get public key from secret key. 
 
 Secret and public keys
@@ -109,7 +115,7 @@ Let's look at how transaction is executed. Transaction has several components:
 **Args**
    Key-value pairs of primitive values. 
 
-User post transaction in three steps. 
+User posts transaction in three steps. 
 
 * User creates transaction with empty proof and calls API method ``api/tx-sigma/get``. This
   method produces sigma-expression that is the result of evaluation of transaction in 
@@ -126,11 +132,12 @@ If all input scripts are valid in the current context of transaction and blockch
 then transaction is valid and we destroy input UTXOs and add output UTXOs to the
 blockchain.
 
-Beside check of proof there are other conditions:
+Beside the check of proof there are other conditions:
 
-* Sum of inputs should equal to sum of outputs.
+* The sum of inputs should equal to the sum of outputs.
 
-* Outputs should contain valid scripts, that are evaluated to Bool.
+* Outputs should contain valid scripts, that are evaluated to ``Bool``.
+   They have function main with no arguments that is produces ``Bool``. 
 
 In the following sections we are going to look at several examples. 
 
