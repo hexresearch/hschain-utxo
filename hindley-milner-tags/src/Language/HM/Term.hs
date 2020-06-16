@@ -121,4 +121,3 @@ freeVars = cata go . unTerm
     freeBinds = foldMap bind'rhs
 
 
-

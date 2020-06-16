@@ -60,7 +60,8 @@ library
     Language.HM.Subst,
     Language.HM.Term,
     Language.HM.Type,
-    Language.HM.TypeError
+    Language.HM.TypeError,
+    Language.HM.TyTerm
 
   other-modules:
 
