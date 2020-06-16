@@ -20,6 +20,7 @@ library
   -- other-extensions:
   build-depends:       base >=4.11 && <5
                      , hex-common
+                     , hschain-crypto
                      , hschain-utxo-lang
                      , hschain-utxo-api-rest
                      , hschain-utxo-state

@@ -20,6 +20,9 @@ import Data.Text (Text)
 
 import Servant.Server
 
+import HSChain.Crypto.Classes
+import qualified HSChain.Crypto.Classes.Hash as Crypto
+
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import qualified Hschain.Utxo.State.Query as S
@@ -81,27 +84,71 @@ runServerMIO env m = do
 readBoxChain :: ServerM BoxChain
 readBoxChain = readBoxChainState
 
-{-
 
-import Hschain.Utxo.Lang
-import Hschain.Utxo.Back.App
-import Hschain.Utxo.App.Options
+-- | Connection to hschain internals.
+-- Low level API to post transactions.
+data Bchain m = Bchain {
+    bchain'conn       :: Connection 'RO BData
+  , bchain'mempool    :: Mempool m (Alg BData) Tx
+  , bchain'store      :: BChStore m BData
+  , bchain'waitForTx  :: m (TxHash -> m Bool)
+  }
 
-runApp :: IO ()
-runApp = app =<< readOptions
+-- | Transform underlying monad for @Bchain@.
+hoistBchain :: Functor n => (forall a. m a -> n a) -> Bchain m -> Bchain n
+hoistBchain f Bchain{..} = Bchain
+  { bchain'mempool    = hoistMempool f bchain'mempool
+  , bchain'store      = hoistDict    f bchain'store
+  , bchain'waitForTx  = fmap f <$> f bchain'waitForTx
+  , ..
+  }
 
-app :: Options -> IO ()
-app = \case
-  RunWebNode{..}    -> runBy runWebNode   runWebNode'config   runWebNode'genesis
-  RunValidator{..}  -> runBy runValidator runValidator'config runValidator'genesis
-  where
-    runBy :: (FromJSON a, Show a) => (a -> [Tx] -> IO ()) -> FilePath -> FilePath -> IO ()
-    runBy cmd configPath genesisPath =
-      join $ cmd <$> readYaml configPath <*> readGenesis genesisPath
 
-    readGenesis :: FilePath -> IO [Tx]
-    readGenesis = fmap (fromMaybe err) . readJson
-      where
-        err = error "Error: failed to read genesis"
+class MonadIO m => MonadBChain m where
+  askBchain :: m (Bchain IO)
 
--}
+--------------------------------------------------
+------ bchain store operations
+
+writeTx :: (MonadBChain m) => Tx -> m (Maybe TxHash)
+writeTx tx = do
+  Bchain{..} <- askBchain
+  liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
+    ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
+
+readBlock :: (MonadIO m, MonadBChain m) => Int -> m (Maybe [Tx])
+readBlock height = do
+  Bchain{..} <- askBchain
+  liftIO $ do
+    mb <- runDBT bchain'conn $ queryRO $ retrieveBlock (Height $ fromIntegral height)
+    pure $ unBData . merkleValue . blockData <$> mb
+
+blockchainSize :: (MonadIO m, MonadBChain m) => m Int
+blockchainSize = do
+  Bchain{..} <- askBchain
+  liftIO $ do
+    Height h <- runDBT bchain'conn $ queryRO blockchainHeight
+    pure $! fromIntegral h
+
+readBoxChainState :: (MonadBChain m) => m BoxChain
+readBoxChainState = do
+  Bchain{..} <- askBchain
+  liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
+
+waitForTx :: (MonadBChain m) => m (TxHash -> m Bool)
+waitForTx = do
+  Bchain{..} <- askBchain
+  fmap liftIO <$> liftIO bchain'waitForTx
+
+postTxWait :: (MonadBChain m) => Tx -> m (Maybe TxHash)
+postTxWait tx = do
+  -- We start listening before sending transaction to mempool to avoid
+  -- race when tx is commited before we start listening
+  listener <- waitForTx
+  runMaybeT $ do
+    h <- MaybeT $ writeTx tx
+    guard =<< lift (listener h)
+    -- lift $ incMetricSurelyPostedTx tx
+    return h
+
+
