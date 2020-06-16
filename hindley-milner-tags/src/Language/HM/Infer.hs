@@ -2,6 +2,7 @@
 module Language.HM.Infer(
     Context(..)
   , inferType
+  , inferTerm
   , subtypeOf
   , unifyTypes
 ) where
@@ -19,6 +20,7 @@ import Language.HM.Term
 import Language.HM.Subst
 import Language.HM.Type
 import Language.HM.TypeError
+import Language.HM.TyTerm
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -32,6 +34,7 @@ import Text.Show.Pretty
 type Context' loc v = Context (Origin loc) v
 type Type' loc v = Type (Origin loc) v
 type Term' loc v = Term (Origin loc) v
+type TyTerm' loc v = TyTerm (Origin loc) v
 type Signature' loc v = Signature (Origin loc) v
 type Subst' loc v = Subst (Origin loc) v
 type Bind' loc v a = Bind (Origin loc) v a
@@ -106,10 +109,21 @@ runInferM (InferM m) = runExcept $ evalStateT m 0
 inferType :: (IsVar var, Show loc, Eq loc)
   => Context loc var -> Term loc var -> Either (TypeError loc var) (Type loc var)
 inferType ctx term =
-  fmap (normaliseType . mapLoc fromOrigin . snd) $
+  fmap (normaliseType . mapLoc fromOrigin . (\(_, ty, _) -> ty)) $
     runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
 
-type Out loc var = (Subst (Origin loc) var, Type (Origin loc) var)
+-- | Infers types for all subexpressions of the given term.
+-- We provide a context of already proven type-signatures and term to infer the type.
+inferTerm :: (IsVar var, Show loc, Eq loc)
+  => Context loc var -> Term loc var -> Either (TypeError loc var) (Type loc var, TyTerm loc var)
+inferTerm ctx term =
+  fmap ((\(_, ty, tyTerm) -> (toType ty, toTyTerm tyTerm))) $
+    runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
+  where
+    toType   = normaliseType . mapLoc fromOrigin
+    toTyTerm = mapType normaliseType . mapLoc fromOrigin
+
+type Out loc var = (Subst (Origin loc) var, Type (Origin loc) var, TyTerm (Origin loc) var)
 type InferOut loc var = InferM loc var (Out loc var)
 
 infer :: (IsVar var, Show loc) => Context' loc var -> Term' loc var -> InferOut loc var
@@ -124,7 +138,7 @@ infer ctx (Term (Fix x)) = case x of
 inferVar :: (Show loc, IsVar v)
   => Context (Origin loc) v -> Origin loc -> v -> InferOut loc v
 inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
-  fmap (mempty, ) $ maybe err (newInstance . setLoc loc) $ M.lookup v (unContext ctx)
+  fmap (\ty -> (mempty, ty, tyVarE ty loc v)) $ maybe err (newInstance . setLoc loc) $ M.lookup v (unContext ctx)
   where
     err = throwError $ NotInScopeErr (fromOrigin loc) v
 
@@ -134,15 +148,19 @@ inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]
   tvn <- fmap (varT loc) $ freshVar
   res <- inferTerms ctx [f, a]
   case res of
-    (phi, [tf, ta]) -> liftEither $ fmap (\subst -> (subst, apply subst tvn)) $ unify phi tf (arrowT loc ta tvn)
+    (phi, [(tf, f'), (ta, a')]) -> liftEither $ fmap (\subst ->
+                                                    let ty   = apply subst tvn
+                                                        term = tyAppE ty loc f' a'
+                                                    in  (subst, ty, term)) $ unify phi tf (arrowT loc ta tvn)
     _               -> error "Impossible has happened!"
 
 inferLam :: (IsVar v, Show loc)
   => Context' loc v -> Origin loc -> v -> Term' loc v -> InferOut loc v
 inferLam ctx loc x body = do
   tvn <- freshVar
-  (phi, tbody) <- infer (ctx1 tvn) body
-  return (phi, arrowT loc (apply phi (varT loc tvn)) tbody)
+  (phi, tbody, bodyTyTerm) <- infer (ctx1 tvn) body
+  let ty = arrowT loc (apply phi (varT loc tvn)) tbody
+  return (phi, ty, tyLamE ty loc x bodyTyTerm)
   where
     ctx1 tvn = Context . M.insert x (newVar loc tvn) . unContext $ ctx
 
@@ -152,11 +170,13 @@ inferLet :: (IsVar v, Show loc)
   -> [Bind' loc v (Term' loc v)]
   -> Term' loc v
   -> InferOut loc v
-inferLet ctx _ vs body = do
-  (phi, tTerms) <- inferTerms ctx $ fmap bind'rhs vs
-  ctx1 <- addDecls (zipWith (\a t -> fmap (const t) a) vs tTerms) (apply phi ctx)
-  (subst, tbody) <- infer ctx1 body
-  return (subst <> phi, tbody)
+inferLet ctx loc vs body = do
+  (phi, rhsTyTerms) <- inferTerms ctx $ fmap bind'rhs vs
+  let (tBinds, termBinds) = unzip rhsTyTerms
+  ctx1 <- addDecls (zipWith (\a t -> fmap (const t) a) vs tBinds) (apply phi ctx)
+  (subst, tbody, bodyTerm) <- infer ctx1 body
+  let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
+  return (subst <> phi, tbody, tyLetE tbody loc tyBinds bodyTerm)
 
 inferLetRec :: forall loc v . (IsVar v, Show loc)
   => Context' loc v
@@ -164,11 +184,12 @@ inferLetRec :: forall loc v . (IsVar v, Show loc)
   -> [Bind' loc v (Term' loc v)]
   -> Term' loc v
   -> InferOut loc v
-inferLetRec ctx _ vs body = do
+inferLetRec ctx topLoc vs body = do
   lhsCtx <- getTypesLhs vs
-  (phi, tBinds) <- inferTerms (ctx <> Context (M.fromList lhsCtx)) exprBinds
+  (phi, rhsTyTerms) <- inferTerms (ctx <> Context (M.fromList lhsCtx)) exprBinds
+  let (tBinds, bindsTyTerms) = unzip rhsTyTerms
   (ctx1, lhsCtx1, subst) <- liftEither $ unifyRhs ctx lhsCtx phi tBinds
-  inferBody ctx1 lhsCtx1 subst body
+  inferBody bindsTyTerms ctx1 lhsCtx1 subst body
   where
     exprBinds = fmap bind'rhs vs
     locBinds  = fmap bind'loc vs
@@ -189,10 +210,11 @@ inferLetRec ctx _ vs body = do
           MonoT t       -> t
           ForAllT _ _ t -> t
 
-    inferBody context lhsCtx subst expr = do
+    inferBody termBinds context lhsCtx subst expr = do
       ctx1 <- addDecls (zipWith (\loc (v, ty) -> Bind loc v ty) locBinds $ fmap (second $ oldBvar . apply subst) lhsCtx) $ apply subst context
-      (phi, ty) <- infer ctx1 expr
-      return (phi <> subst, ty)
+      (phi, ty, bodyTerm) <- infer ctx1 expr
+      let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
+      return (phi <> subst, ty, tyLetRecE ty topLoc tyBinds bodyTerm)
 
 inferAssertType :: (IsVar v, Show loc)
   => Context' loc v
@@ -200,10 +222,10 @@ inferAssertType :: (IsVar v, Show loc)
   -> Term' loc v
   -> Type' loc v
   -> InferOut loc v
-inferAssertType ctx _ a ty = do
-  (phi, tA) <- infer ctx a
+inferAssertType ctx loc a ty = do
+  (phi, tA, aTyTerm) <- infer ctx a
   subst <- liftEither $ genSubtypeOf phi ty tA
-  return (subst <> phi, ty)
+  return (subst <> phi, ty, tyAssertTypeE loc aTyTerm ty)
 
 newInstance :: IsVar v => Signature' loc v -> InferM loc v (Type' loc v)
 newInstance = fmap (uncurry apply) . cataM go . unSignature
@@ -224,13 +246,13 @@ freshVar = do
 inferTerms :: (IsVar v, Show loc)
   => Context' loc v
   -> [Term' loc v]
-  -> InferM loc v (Subst' loc v, [Type' loc v])
+  -> InferM loc v (Subst' loc v, [(Type' loc v, TyTerm' loc v)])
 inferTerms ctx ts = case ts of
   []   -> return $ (mempty, [])
   a:as -> do
-    (phi, ta)  <- infer ctx a
+    (phi, ta, termA)  <- infer ctx a
     (psi, tas) <- inferTerms (apply phi ctx) as
-    return (psi <> phi, apply psi ta : tas)
+    return (psi <> phi, (apply psi ta, apply psi termA) : tas)
 
 -- | Unification function. Checks weather two types unify.
 -- First argument is current substitution.
