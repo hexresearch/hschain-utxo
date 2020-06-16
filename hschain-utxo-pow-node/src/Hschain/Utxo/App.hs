@@ -20,7 +20,9 @@ import Data.Text (Text)
 
 import Servant.Server
 
+import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
+import qualified Hschain.Utxo.State.Query as S
 import Hschain.Utxo.State.Types
 
 import Hschain.Utxo.API.Rest
