@@ -5,10 +5,9 @@ module Hschain.Utxo.App(
 import Hex.Common.Aeson
 import Hex.Common.Yaml
 
+import Codec.Serialise
+
 import Control.Monad
-
-import Data.Maybe
-
 import Control.Concurrent.STM
 import Control.Monad.Base
 import Control.Monad.Catch hiding (Handler)
@@ -16,12 +15,28 @@ import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Maybe
+
+import Data.ByteString (ByteString)
+
+import Data.Functor.Classes (Show1)
+
+import qualified Data.Map.Strict as Map
+
+import Data.Maybe
+
 import Data.Text (Text)
 
+import GHC.Generics
+
+import Servant.API
 import Servant.Server
 
 import HSChain.Crypto.Classes
+import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
+import HSChain.PoW.Types
+import HSChain.Types.Merkle.Types
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
@@ -29,6 +44,60 @@ import qualified Hschain.Utxo.State.Query as S
 import Hschain.Utxo.State.Types
 
 import Hschain.Utxo.API.Rest
+
+-- ^A block proper. It does not contain nonce to solve PoW puzzle
+-- but it contains all information about block.
+data UTXOBlockProper f = UTXOBlockProper
+  { ubpPrevios    :: !(Crypto.Hash SHA256)
+  -- ^Previous block.
+  , ubpData       :: !(MerkleNode f SHA256 [Tx])
+  -- ^ List of key-value pairs
+  , ubpTarget     :: !Target
+  -- ^ Current difficulty of mining. It means a complicated thing
+  -- right now.
+  }
+  deriving stock (Generic)
+deriving stock instance (Show1 f)    => Show (UTXOBlockProper f)
+deriving stock instance (IsMerkle f) => Eq   (UTXOBlockProper f)
+instance Serialise (UTXOBlockProper Identity)
+instance Serialise (UTXOBlockProper Proxy)
+
+instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlockProper f) where
+  hashStep = Crypto.genericHashStep "block proper"
+
+-- ^The block. Nonce (puzzle answer) is prepended to the header
+-- as it is more secure - prevents selfish pool mining utilization.
+-- When nonce is before block and answer is computed as a hash of nonce
+-- and header, then each (pool) miner sees what is previous block
+-- and can detect selfish mining and mining pool utilization for
+-- currencies it does not support.
+data UTXOBlock f = UTXOBlock
+  { ubNonce       :: !ByteString
+  , ubProper      :: !(UTXOBlockProper f)
+  }
+  deriving stock (Generic)
+deriving stock instance (Show1 f)    => Show (UTXOBlock f)
+deriving stock instance (IsMerkle f) => Eq   (UTXOBlock f)
+instance Serialise (UTXOBlock Identity)
+instance Serialise (UTXOBlock Proxy)
+
+instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
+  hashStep = Crypto.genericHashStep "block proper"
+
+
+-- |Run the PoW node.
+runNode :: String -> IO ()
+runNode cfgConfigPath =
+  runNode cmdConfigPath optMine genesisBlock utxoViewStep Map.empty (getBlockToMine optNodeName)
+  where
+    optMine = True
+    genesisBlock = undefined
+    utxoViewStep :: Block UTXOBlock -> Map.Map Int String -> Maybe (Map.Map Int String)
+    utxoViewStep b m
+      | or [ k `Map.member` m | (k, _) <- txs ] = Nothing
+      | otherwise                               = Just $ Map.fromList txs <> m
+      where
+        txs = merkleValue $ kvData $ blockData b
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM
@@ -44,19 +113,24 @@ postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
 
 getBoxBalanceEndpoint :: BoxId -> ServerM (Maybe Money)
 getBoxBalanceEndpoint boxId =
-  fmap (\bch -> S.getBoxBalance bch boxId) readBoxChain
+  --fmap (\bch -> S.getBoxBalance bch boxId) readBoxChain
+  pure Nothing
 
 getTxSigmaEndpoint :: Tx -> ServerM SigmaTxResponse
 getTxSigmaEndpoint tx =
-  fmap (\bch -> uncurry SigmaTxResponse $ execInBoxChain tx bch) readBoxChain
+  --fmap (\bch -> uncurry SigmaTxResponse $ execInBoxChain tx bch) readBoxChain
+  pure Nothing
 
 getEnvEndpoint :: ServerM GetEnvResponse
 getEnvEndpoint = do
-  bch <- readBoxChain
-  return $ GetEnvResponse $ getEnv bch
+  --bch <- readBoxChain
+  --GetEnvResponse <$> getEnv bch
+  return undefined
 
 getStateEndpoint :: ServerM BoxChain
-getStateEndpoint = readBoxChain
+getStateEndpoint =
+  --readBoxChain
+  return undefined
 
 -- |Application environment.
 data AppEnv
@@ -82,27 +156,14 @@ runServerMIO env m = do
 
 -- | Reads current state of the block chain
 readBoxChain :: ServerM BoxChain
-readBoxChain = readBoxChainState
+readBoxChain =
+  --readBoxChainState
+  return undefined
 
 
 -- | Connection to hschain internals.
 -- Low level API to post transactions.
-data Bchain m = Bchain {
-    bchain'conn       :: Connection 'RO BData
-  , bchain'mempool    :: Mempool m (Alg BData) Tx
-  , bchain'store      :: BChStore m BData
-  , bchain'waitForTx  :: m (TxHash -> m Bool)
-  }
-
--- | Transform underlying monad for @Bchain@.
-hoistBchain :: Functor n => (forall a. m a -> n a) -> Bchain m -> Bchain n
-hoistBchain f Bchain{..} = Bchain
-  { bchain'mempool    = hoistMempool f bchain'mempool
-  , bchain'store      = hoistDict    f bchain'store
-  , bchain'waitForTx  = fmap f <$> f bchain'waitForTx
-  , ..
-  }
-
+data Bchain (m :: * -> *)
 
 class MonadIO m => MonadBChain m where
   askBchain :: m (Bchain IO)
@@ -112,33 +173,38 @@ class MonadIO m => MonadBChain m where
 
 writeTx :: (MonadBChain m) => Tx -> m (Maybe TxHash)
 writeTx tx = do
-  Bchain{..} <- askBchain
-  liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
-    ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
+  --Bchain{..} <- askBchain
+  --liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
+  --  ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
+  pure Nothing
 
 readBlock :: (MonadIO m, MonadBChain m) => Int -> m (Maybe [Tx])
 readBlock height = do
-  Bchain{..} <- askBchain
-  liftIO $ do
-    mb <- runDBT bchain'conn $ queryRO $ retrieveBlock (Height $ fromIntegral height)
-    pure $ unBData . merkleValue . blockData <$> mb
+  --Bchain{..} <- askBchain
+  --liftIO $ do
+  --  mb <- runDBT bchain'conn $ queryRO $ retrieveBlock (Height $ fromIntegral height)
+  --  pure $ unBData . merkleValue . blockData <$> mb
+  pure Nothing
 
 blockchainSize :: (MonadIO m, MonadBChain m) => m Int
 blockchainSize = do
-  Bchain{..} <- askBchain
-  liftIO $ do
-    Height h <- runDBT bchain'conn $ queryRO blockchainHeight
-    pure $! fromIntegral h
+  --Bchain{..} <- askBchain
+  --liftIO $ do
+  --  Height h <- runDBT bchain'conn $ queryRO blockchainHeight
+  --  pure $! fromIntegral h
+  return 0
 
 readBoxChainState :: (MonadBChain m) => m BoxChain
 readBoxChainState = do
-  Bchain{..} <- askBchain
-  liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
+  --Bchain{..} <- askBchain
+  --liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
+  return undefined
 
 waitForTx :: (MonadBChain m) => m (TxHash -> m Bool)
 waitForTx = do
-  Bchain{..} <- askBchain
-  fmap liftIO <$> liftIO bchain'waitForTx
+  --Bchain{..} <- askBchain
+  --fmap liftIO <$> liftIO bchain'waitForTx
+  return (const $ return False)
 
 postTxWait :: (MonadBChain m) => Tx -> m (Maybe TxHash)
 postTxWait tx = do
