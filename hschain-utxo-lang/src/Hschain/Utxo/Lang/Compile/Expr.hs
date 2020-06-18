@@ -14,6 +14,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
 
 import Data.Fix
 import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Expr (Loc)
 
 data Ann ann f a = Ann
   { ann'note  :: ann
@@ -44,30 +45,31 @@ data Def bind rhs = Def
 
 -- | Expressions of the Extended Core-language
 data ExprF bind a
-  = EVar Name
+  = EVar Loc Name
   -- ^ variables
-  | EPrim !Prim
+  | EPrim Loc !Prim
   -- ^ constant primitive
-  | EAp  a a
+  | EAp Loc a a
   -- ^ application
-  | ELet [(bind, a)] a
+  | ELet Loc [(bind, a)] a
   -- ^ lent bindings
-  | ELam [bind] a
+  | ELam Loc [bind] a
   -- ^ lambda abstraction
-  | EIf a a a
+  | EIf Loc a a a
   -- ^ if expressions
-  | ECase !a [CaseAlt bind a]
+  | ECase Loc !a [CaseAlt bind a]
   -- ^ case alternatives
-  | EConstr Type !Int !Int
+  | EConstr Loc Type !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
-  | EBottom
+  | EBottom Loc
   -- ^ Value of any type that means failed programm.
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- | Case alternatives
 data CaseAlt bind a = CaseAlt
-  { caseAlt'tag   :: !Int
+  { caseAlt'loc   :: !Loc
+  , caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
   , caseAlt'args  :: [bind]

@@ -184,7 +184,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
 
     fromText _ = \case
       TextAppend loc a b            -> app2 loc appendTextVar a b
-      ConvertToText textTypeTag loc -> varE loc (convertToTextVar textTypeTag)
+      ConvertToText loc textTypeTag -> varE loc (convertToTextVar textTypeTag)
       TextLength loc                -> varE loc lengthTextVar
       TextHash loc hashAlgo         -> varE loc (textHashVar hashAlgo)
 

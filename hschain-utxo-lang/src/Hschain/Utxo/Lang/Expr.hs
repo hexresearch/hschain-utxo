@@ -487,7 +487,7 @@ data TextTypeTag
 data TextExpr a
   = TextAppend Loc a a
   -- ^ Append text values (@a <> b@)
-  | ConvertToText TextTypeTag Loc
+  | ConvertToText Loc TextTypeTag
   -- ^ Convert some value to text (@showType a@)
   | TextLength Loc
   -- ^ Get textlength (@lengthText a@)

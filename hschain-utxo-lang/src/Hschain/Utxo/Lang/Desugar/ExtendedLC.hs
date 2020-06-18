@@ -51,68 +51,69 @@ exprToExtendedLC ctx = exprToExtendedLC' ctx <=< desugarSyntax ctx
 
 exprToExtendedLC' :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
 exprToExtendedLC' typeCtx = cataM $ \case
-  Var _ v               -> fromVar v
-  Apply _ a b           -> fromApply a b
-  LamList _ ps a        -> fromLamList ps a
-  PrimLet _ bs a        -> fromLet bs a
-  Cons _ cons args      -> fromCons cons args
-  CaseOf _ expr alts    -> fromCaseOf expr alts
-  AltE _ a b            -> fromAlt a b
-  FailCase _            -> fromFailCase
-  PrimE _ p             -> fromPrim p
-  If _ a b c            -> fromIf a b c
-  Pk _ a                -> fromPk a
-  Tuple _ args          -> fromTuple args
-  UnOpE _ op a          -> fromUnOp op a
-  BinOpE _ op a b       -> fromBinOp op a b
-  GetEnv _ envId        -> fromGetEnv envId
-  VecE _ e              -> fromVecExpr e
-  TextE _ e             -> fromTextExpr e
-  BoxE _ e              -> fromBoxExpr e
-  Trace _ a b           -> fromTrace a b
-  Let _ _ _             -> failedToEliminate "Complex let-expression"
-  Ascr _ _ _            -> failedToEliminate "Type ascertion (Ascr)"
-  InfixApply _ _ _ _    -> failedToEliminate "InfixApply"
-  Lam _ _ _             -> failedToEliminate "Single argument Lam"
-  RecConstr _ _ _       -> failedToEliminate "RecordConstr"
-  RecUpdate _ _ _       -> failedToEliminate "RecUpdate"
+  Var loc v               -> fromVar loc v
+  Apply loc a b           -> fromApply loc a b
+  LamList loc ps a        -> fromLamList loc ps a
+  PrimLet loc bs a        -> fromLet loc bs a
+  Cons loc cons args      -> fromCons loc cons args
+  CaseOf loc expr alts    -> fromCaseOf loc expr alts
+  AltE loc a b            -> fromAlt loc a b
+  FailCase loc            -> fromFailCase loc
+  PrimE loc p             -> fromPrim loc p
+  If loc a b c            -> fromIf loc a b c
+  Pk loc a                -> fromPk loc a
+  Tuple loc args          -> fromTuple loc args
+  UnOpE loc op a          -> fromUnOp loc op a
+  BinOpE loc op a b       -> fromBinOp loc op a b
+  GetEnv loc envId        -> fromGetEnv loc envId
+  VecE loc e              -> fromVecExpr loc e
+  TextE loc e             -> fromTextExpr loc e
+  BoxE loc e              -> fromBoxExpr loc e
+  Trace loc a b           -> fromTrace loc a b
+  Let _ _ _               -> failedToEliminate "Complex let-expression"
+  Ascr _ _ _              -> failedToEliminate "Type ascertion (Ascr)"
+  InfixApply _ _ _ _      -> failedToEliminate "InfixApply"
+  Lam _ _ _               -> failedToEliminate "Single argument Lam"
+  RecConstr _ _ _         -> failedToEliminate "RecordConstr"
+  RecUpdate _ _ _         -> failedToEliminate "RecUpdate"
   where
-    fromVar VarName{..} = pure $ Fix $ EVar varName'name
+    fromVar loc VarName{..} = pure $ Fix $ EVar loc varName'name
 
-    fromApply a b = pure $ Fix $ EAp a b
+    fromApply loc a b = pure $ Fix $ EAp loc a b
 
-    fromLamList pats body =fmap (\args -> Fix $ ELam args body) $ mapM fromPat pats
+    fromLamList loc pats body =fmap (\args -> Fix $ ELam loc args body) $ mapM fromPat pats
 
     fromPat = \case
       PVar _ name -> pure $ varName'name name
       _           -> failedToEliminate "Non-variable pattern-cases"
 
-    fromLet binds body = pure $ Fix $ ELet (fmap (first varName'name) binds) body
+    fromLet loc binds body = pure $ Fix $ ELet loc (fmap (first varName'name) binds) body
 
-    fromCons name args = fmap (\constr -> fun constr $ V.toList args) (fromConstrName name)
+    fromCons loc name args = fmap (\constr -> fun loc constr $ V.toList args) (fromConstrName loc name)
 
-    fromConstrName name = do
+    fromConstrName loc name = do
       ConsInfo{..} <- getConsInfo typeCtx name
-      return $ Fix $ EConstr (fromType consInfo'type) consInfo'tagId consInfo'arity
+      return $ Fix $ EConstr loc (fromType consInfo'type) consInfo'tagId consInfo'arity
 
-    fromCaseOf expr alts = fmap (Fix . ECase expr) $ mapM fromCaseAlt alts
+    fromCaseOf loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
 
     fromCaseAlt CaseExpr{..} = case caseExpr'lhs of
-      PCons _ cons ps -> do
+      PCons loc cons ps -> do
         tagId <- fmap consInfo'tagId $ getConsInfo typeCtx cons
         args  <- mapM fromPat ps
         return $ CaseAlt
-                  { caseAlt'tag  = tagId
+                  { caseAlt'loc  = loc
+                  , caseAlt'tag  = tagId
                   , caseAlt'args = args
                   , caseAlt'rhs  = caseExpr'rhs
                   }
       _               -> failedToEliminate "Non-constructor case in case alternative"
 
-    fromAlt _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
+    fromAlt _ _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
 
-    fromFailCase = pure $ Fix $ EBottom
+    fromFailCase loc = pure $ Fix $ EBottom loc
 
-    fromPrim p = pure $ Fix $ EPrim $ case p of
+    fromPrim loc p = pure $ Fix $ EPrim loc $ case p of
       PrimInt n       -> P.PrimInt n
       PrimString txt  -> P.PrimText txt
       PrimBool b      -> P.PrimBool b
@@ -122,11 +123,11 @@ exprToExtendedLC' typeCtx = cataM $ \case
                             SigmaOr as   -> P.SigmaOr as
 
 
-    fromIf c t e = pure $ Fix $ EIf c t e
+    fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
-    fromPk a = pure $ ap1 (var "pk") a
+    fromPk loc a = pure $ ap1 loc (var loc "pk") a
 
-    fromTuple args = pure $ Fix $ EConstr ty tagId arity
+    fromTuple loc args = pure $ Fix $ EConstr loc ty tagId arity
       where
         arity = V.length args
         ty    = foldr (\v rhs -> arrowT v rhs) tyRhs vs
@@ -136,7 +137,7 @@ exprToExtendedLC' typeCtx = cataM $ \case
 
     -- | TODO: how to handle tuple extractor and do we really need it
     -- if we have pattern-matching and case expressions?
-    fromUnOp op a = pure $ ap1 (var $ fromOp op) a
+    fromUnOp loc op a = pure $ ap1 loc (var loc $ fromOp op) a
       where
         fromOp = \case
           Not -> "not"
@@ -145,7 +146,7 @@ exprToExtendedLC' typeCtx = cataM $ \case
 
     -- | TODO: Maybe we should consider to use special type for primary operators
     -- instead of relying on string names
-    fromBinOp op a b = pure $ ap2 (var $ fromOp op) a b
+    fromBinOp loc op a b = pure $ ap2 loc (var loc $ fromOp op) a b
       where
         fromOp = \case
           And                  -> "&&"
@@ -161,37 +162,37 @@ exprToExtendedLC' typeCtx = cataM $ \case
           LessThanEquals       -> "<="
           GreaterThanEquals    -> ">="
 
-    fromGetEnv envId = pure $ case envId of
-      Height _    -> var "getHeight"
-      Input _ a   -> ap2 (var "listAt") (var "getInputs") a
-      Output _ a  -> ap2 (var "listAt") (var "getOutputs") a
-      Self _      -> var "getSelf"
-      Inputs _    -> var "getInputs"
-      Outputs _   -> var "getOutputs"
-      GetVar _ a  -> ap1 (var "getVar") a  -- todo: consider typing (now it's polymorphic but we need to be more specific)
-                                           -- we should introudce getVarInt, getVarString etc.
+    fromGetEnv _ envId = pure $ case envId of
+      Height loc    -> var loc "getHeight"
+      Input loc a   -> ap2 loc (var loc "listAt") (var loc "getInputs") a
+      Output loc a  -> ap2 loc (var loc "listAt") (var loc "getOutputs") a
+      Self loc      -> var loc "getSelf"
+      Inputs loc    -> var loc "getInputs"
+      Outputs loc   -> var loc "getOutputs"
+      GetVar loc a  -> ap1 loc (var loc "getVar") a  -- todo: consider typing (now it's polymorphic but we need to be more specific)
+                                                   -- we should introudce getVarInt, getVarString etc.
 
-    fromVecExpr expr = pure $ case expr of
-      NewVec _ args     -> newVec args
-      VecAppend _ a b   -> ap2 (var "++") a b
-      VecAt _ a b       -> ap2 (var "listAt") a b
-      VecLength _       -> var "length"
-      VecMap _          -> var "map"
-      VecFold _         -> var "foldl"
+    fromVecExpr _ expr = pure $ case expr of
+      NewVec loc args     -> newVec loc args
+      VecAppend loc a b   -> ap2 loc (var loc "++") a b
+      VecAt loc a b       -> ap2 loc (var loc "listAt") a b
+      VecLength loc       -> var loc "length"
+      VecMap loc          -> var loc "map"
+      VecFold loc         -> var loc "foldl"
       where
-        newVec args = V.foldr cons nil args
+        newVec loc args = V.foldr (cons loc) (nil loc) args
 
-        cons a as = ap2 (Fix $ EConstr consTy 1 2) a as
-        nil       = Fix $ EConstr nilTy 0 0
+        cons loc a as = ap2 loc (Fix $ EConstr loc consTy 1 2) a as
+        nil loc   = Fix $ EConstr loc nilTy 0 0
 
         nilTy  = listT (varT "a")
         consTy = arrowT (varT "a") (arrowT (listT (varT "a")) (listT (varT "a")))
 
-    fromTextExpr expr = pure $ case expr of
-      TextAppend _ a b    -> ap2 (var "<>") a b
-      ConvertToText tag _ -> var (mappend "show" $ fromTextTag tag)
-      TextLength _        -> var "lengthText"
-      TextHash _ algo     -> var (fromHashAlgo algo)
+    fromTextExpr _ expr = pure $ case expr of
+      TextAppend loc a b    -> ap2 loc (var loc "<>") a b
+      ConvertToText loc tag -> var loc (mappend "show" $ fromTextTag tag)
+      TextLength loc        -> var loc "lengthText"
+      TextHash loc algo     -> var loc (fromHashAlgo algo)
       where
         fromTextTag = \case
           IntToText    -> "Int"
@@ -202,31 +203,31 @@ exprToExtendedLC' typeCtx = cataM $ \case
           Sha256       -> "sha256"
           Blake2b256   -> "blake2b256"
 
-    fromBoxExpr expr = pure $ case expr of
-      PrimBox _ box     -> fromPrimBox box
-      BoxAt _ a field   -> fromBoxField a field
+    fromBoxExpr _ expr = pure $ case expr of
+      PrimBox loc box     -> fromPrimBox loc box
+      BoxAt loc a field   -> fromBoxField loc a field
       where
-        fromBoxField a field = (\f -> ap1 f a) $ case field of
-          BoxFieldId      -> var "getBoxId"
-          BoxFieldValue   -> var "getBoxValue"
-          BoxFieldScript  -> var "getBoxScript"
-          BoxFieldArg key -> ap1 (var "getBoxArg") key
+        fromBoxField loc a field = (\f -> ap1 loc f a) $ case field of
+          BoxFieldId      -> var loc "getBoxId"
+          BoxFieldValue   -> var loc "getBoxValue"
+          BoxFieldScript  -> var loc "getBoxScript"
+          BoxFieldArg key -> ap1 loc (var loc "getBoxArg") key
 
-        fromPrimBox Box{..} = fun boxCons [id', value, script, args]
+        fromPrimBox loc Box{..} = fun loc boxCons [id', value, script, args]
           where
-            boxCons = Fix $ EConstr boxConsTy 0 4
+            boxCons = Fix $ EConstr loc boxConsTy 0 4
 
             -- todo: args are not just integers
             -- consider other primitive types
             boxConsTy = foldr arrowT boxT [textT, intT, textT, listT intT]
 
-            id'    = prim $ P.PrimText $ unBoxId box'id
-            value  = prim $ P.PrimInt  $ box'value
-            script = prim $ P.PrimText $ scriptToText box'script
-            args   = Fix $ EConstr (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
+            id'    = prim loc $ P.PrimText $ unBoxId box'id
+            value  = prim loc $ P.PrimInt  $ box'value
+            script = prim loc $ P.PrimText $ scriptToText box'script
+            args   = Fix $ EConstr loc (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
 
 
-    fromTrace a b = pure $ ap2 (var "trace") a b
+    fromTrace loc a b = pure $ ap2 loc (var loc "trace") a b
 
 getConsInfo :: MonadLang m => UserTypeCtx -> ConsName -> m ConsInfo
 getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
