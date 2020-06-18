@@ -8,6 +8,9 @@ module Language.HM.TyTerm(
   , tyLetE
   , tyLetRecE
   , tyAssertTypeE
+  , tyCaseE
+  , tyConstrE
+  , tyBottomE
   , mapType
 ) where
 
@@ -57,17 +60,40 @@ tyLetRecE ty loc binds (TyTerm e) = tyTerm ty $ LetRec loc (fmap (fmap unTyTerm)
 tyAssertTypeE :: loc -> TyTerm loc v -> Type loc v -> TyTerm loc v
 tyAssertTypeE loc (TyTerm a) ty = tyTerm ty $ AssertType loc a ty
 
+-- | 'caseE' @loc expr alts@ constructs case alternatives expression.
+tyCaseE :: Type loc v -> loc -> TyTerm loc v -> [CaseAlt loc v (TyTerm loc v)] -> TyTerm loc v
+tyCaseE ty loc (TyTerm e) alts = tyTerm ty $ Case loc e $ fmap (fmap unTyTerm) alts
+
+-- | 'constrE' @loc ty tag arity@ constructs constructor tag expression.
+tyConstrE :: loc -> Type loc v -> v -> Int -> TyTerm loc v
+tyConstrE loc ty tag arity = tyTerm ty $ Constr loc ty tag arity
+
+-- | 'bottomE' @loc@ constructs bottom value.
+tyBottomE :: Type loc v -> loc -> TyTerm loc v
+tyBottomE ty loc = tyTerm ty $ Bottom loc
 
 instance LocFunctor TyTerm where
   mapLoc f (TyTerm x) = TyTerm $ cata go x
     where
-      go (Ann ty term) = Fix $ Ann (mapLoc f ty) $ case term of
+      go (Ann annTy term) = Fix $ Ann (mapLoc f annTy) $ case term of
         Var loc v    -> Var (f loc) v
         App loc a b  -> App (f loc) a b
         Lam loc v a  -> Lam (f loc) v a
         Let loc vs a -> Let (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         LetRec loc vs a -> LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> AssertType (f loc) r (mapLoc f sig)
+        Constr loc ty v arity -> Constr (f loc) (mapLoc f ty) v arity
+        Case loc e alts -> Case (f loc) e (fmap (mapAlt f) alts)
+        Bottom loc -> Bottom (f loc)
+
+      mapAlt g alt@CaseAlt{..} = alt
+        { caseAlt'loc  = g caseAlt'loc
+        , caseAlt'args = fmap (mapTyped g) caseAlt'args
+        , caseAlt'constrType = mapLoc g caseAlt'constrType
+        }
+
+      mapTyped g (Typed ty val) = Typed (mapLoc g ty) val
+
 
 
 instance CanApply TyTerm where
@@ -77,7 +103,4 @@ mapType :: (Type loc var -> Type loc var) -> TyTerm loc var -> TyTerm loc var
 mapType f (TyTerm x) = TyTerm $ cata go x
     where
       go (Ann ty term) = Fix $ Ann (f ty) term
-
-
-
 
