@@ -22,8 +22,10 @@ library
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
       Hschain.Utxo.Lang.Compile
-      Hschain.Utxo.Lang.Compile.Expr
       Hschain.Utxo.Lang.Compile.Build
+      Hschain.Utxo.Lang.Compile.Dependencies
+      Hschain.Utxo.Lang.Compile.Expr
+      Hschain.Utxo.Lang.Compile.Infer
       Hschain.Utxo.Lang.Compile.LambdaLifting
       Hschain.Utxo.Lang.Compile.LambdaLifting.Abstract
       Hschain.Utxo.Lang.Compile.LambdaLifting.Collect

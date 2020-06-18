@@ -12,6 +12,7 @@ import Hschain.Utxo.Lang.Expr hiding (Type)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
 import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
+import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
 import Hschain.Utxo.Lang.Monad
 
@@ -19,19 +20,10 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
-type TypedProg = AnnProg Type (Typed Name)
 
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m Core.CoreProg
-compile = toCoreProg <=< makeMonomorphic . annotateTypes . lambdaLifting <=< toExtendedLC
-
--- | Infers types for all subexpressions
-annotateTypes :: CoreProg -> TypedProg
-annotateTypes = undefined
-
--- | Makes types monomorphic.
-makeMonomorphic :: MonadLang m => TypedProg -> m TypedProg
-makeMonomorphic = undefined
+compile = toCoreProg <=< makeMonomorphic <=< annotateTypes . lambdaLifting <=< toExtendedLC
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
