@@ -24,6 +24,7 @@ import Language.HM.TyTerm
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+import qualified Data.List as L
 
 {-
 import Debug.Trace
@@ -39,6 +40,7 @@ type Signature' loc v = Signature (Origin loc) v
 type Subst' loc v = Subst (Origin loc) v
 type Bind' loc v a = Bind (Origin loc) v a
 type VarSet' loc v = VarSet (Origin loc) v
+type CaseAlt' loc v = CaseAlt (Origin loc) v
 
 -- | Context holds map of proven signatures for free variables in the expression.
 newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
@@ -46,6 +48,9 @@ newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
 
 instance CanApply Context where
   apply subst = Context . fmap (apply subst) . unContext
+
+insertCtx :: Ord v => v -> Signature' loc v ->  Context' loc v -> Context' loc v
+insertCtx v sign (Context ctx) = Context $ M.insert v sign ctx
 
 
 -- | We leave in the context only terms that are truly needed.
@@ -134,6 +139,9 @@ infer ctx (Term (Fix x)) = case x of
   Let loc vs a        -> inferLet ctx loc (fmap (fmap Term) vs) (Term a)
   LetRec loc vs a     -> inferLetRec ctx loc (fmap (fmap Term) vs) (Term a)
   AssertType loc a ty -> inferAssertType ctx loc (Term a) ty
+  Constr loc ty tag n -> inferConstr loc ty tag n
+  Case loc e alts     -> inferCase ctx loc (Term e) (fmap (fmap Term) alts)
+  Bottom loc          -> inferBottom loc
 
 inferVar :: (Show loc, IsVar v)
   => Context (Origin loc) v -> Origin loc -> v -> InferOut loc v
@@ -162,7 +170,7 @@ inferLam ctx loc x body = do
   let ty = arrowT loc (apply phi (varT loc tvn)) tbody
   return (phi, ty, tyLamE ty loc x bodyTyTerm)
   where
-    ctx1 tvn = Context . M.insert x (newVar loc tvn) . unContext $ ctx
+    ctx1 tvn = insertCtx x (newVar loc tvn) ctx
 
 inferLet :: (IsVar v, Show loc)
   => Context' loc v
@@ -226,6 +234,56 @@ inferAssertType ctx loc a ty = do
   (phi, tA, aTyTerm) <- infer ctx a
   subst <- liftEither $ genSubtypeOf phi ty tA
   return (subst <> phi, ty, tyAssertTypeE loc aTyTerm ty)
+
+inferConstr :: Ord v => Origin loc -> Type' loc v -> v -> Int -> InferOut loc v
+inferConstr loc ty tag arity =return $  (mempty, ty, tyConstrE loc ty tag arity)
+
+inferCase :: forall loc v .
+     (IsVar v, Show loc)
+  => Context' loc v
+  -> Origin loc -> Term' loc v -> [CaseAlt' loc v (Term' loc v)]
+  -> InferOut loc v
+inferCase ctx loc e caseAlts = do
+  (phi, tE, tyTermE) <- infer ctx e
+  (psi, tRes, tyAlts) <- inferAlts phi tE caseAlts
+  return (psi, tRes, tyCaseE tRes loc tyTermE tyAlts)
+  where
+    inferAlts :: Subst' loc v -> Type' loc v -> [CaseAlt' loc v (Term' loc v)] -> InferM loc v (Subst' loc v, Type' loc v, [CaseAlt' loc v (TyTerm' loc v)])
+    inferAlts substE tE alts = case alts of
+      []   -> throwError $ EmptyCaseExpr $ fromOrigin loc
+      a:as -> do
+        (tRes, a') <- inferAlt substE tE a
+        alts' <- fmap snd $ foldM go (tRes, [a']) as
+        return (substE, tRes, L.reverse alts')
+      where
+        go (tRes, resAlts) alt = do
+          (tRes', alt') <- inferAlt substE tE alt
+          checkSameType substE tRes tRes'
+          return (tRes, alt' : resAlts)
+
+    inferAlt :: Subst' loc v -> Type' loc v -> CaseAlt' loc v (Term' loc v) -> InferM loc v (Type' loc v, CaseAlt' loc v (TyTerm' loc v))
+    inferAlt substE tE alt@CaseAlt{..} = do
+      subst2 <- liftEither $ unify substE tE caseAlt'constrType
+      tvs <- freshArgs alt
+      (subst3, tRes, tyTermRes) <- infer (ctx1 tvs) caseAlt'rhs
+      zipWithM_ (\arg tv -> checkSameType subst2 (typed'type arg) (apply subst3 tv)) caseAlt'args tvs
+      return (tRes, alt { caseAlt'rhs = tyTermRes })
+      where
+        ctx1 tvs = L.foldl' (\context (name, v) -> insertCtx name (monoT v) context) ctx $ zip (fmap typed'value caseAlt'args) tvs
+
+    freshArgs :: CaseAlt' loc v (Term' loc v) -> InferM loc v [Type' loc v]
+    freshArgs CaseAlt{..} = mapM (\arg -> fmap (varT (getLoc $ typed'type arg)) freshVar) caseAlt'args
+
+checkSameType :: (IsVar v, Show loc) => Subst' loc v -> Type' loc v -> Type' loc v -> InferM loc v ()
+checkSameType subst tA tB = case unify subst tA tB of
+  Right _  -> return ()
+  Left err -> throwError err
+
+
+inferBottom :: IsVar v => Origin loc -> InferOut loc v
+inferBottom loc = do
+  ty <- fmap (varT loc) freshVar
+  return (mempty, ty, tyBottomE ty loc)
 
 newInstance :: IsVar v => Signature' loc v -> InferM loc v (Type' loc v)
 newInstance = fmap (uncurry apply) . cataM go . unSignature

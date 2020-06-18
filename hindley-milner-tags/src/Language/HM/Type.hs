@@ -12,6 +12,8 @@ module Language.HM.Type (
     arrowT,
     tupleT,
     listT,
+    -- * Typed values
+    Typed(..),
 
     -- * Polymorphic types.
     SignatureF(..),
@@ -66,6 +68,12 @@ class (Show v, Ord v) => IsVar v where
 
   -- | Canonical leters for pretty output
   prettyLetters :: [v]
+
+-- | Values that are tagged explicitly with their type.
+data Typed loc v a = Typed
+  { typed'type  :: Type loc v
+  , typed'value :: a
+  } deriving (Show, Eq, Functor, Foldable, Traversable)
 
 
 stringIntToVar :: IsString a => Int -> a
