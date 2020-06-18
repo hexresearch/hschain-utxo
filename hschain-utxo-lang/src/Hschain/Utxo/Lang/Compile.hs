@@ -51,15 +51,15 @@ toCoreProg = mapM toScomb
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
       where
         convert (Ann exprTy val) = case val of
-          EVar name          -> pure $ Core.EVar name
-          EPrim prim         -> pure $ Core.EPrim prim
-          EAp  f a           -> pure $ Core.EAp f a
-          ELet binds e       -> pure $ Core.ELet binds e
-          ELam _ _           -> eliminateLamError
-          EIf c t e          -> pure $ Core.EIf c t e
-          ECase e alts       -> pure $ Core.ECase (Typed e exprTy) (fmap convertAlt alts)
-          EConstr consTy m n -> pure $ Core.EConstr consTy m n
-          EBottom            -> pure $ Core.EBottom
+          EVar _ name          -> pure $ Core.EVar name
+          EPrim _ prim         -> pure $ Core.EPrim prim
+          EAp _  f a           -> pure $ Core.EAp f a
+          ELet _ binds e       -> pure $ Core.ELet binds e
+          ELam _ _ _           -> eliminateLamError
+          EIf _ c t e          -> pure $ Core.EIf c t e
+          ECase _ e alts       -> pure $ Core.ECase (Typed e exprTy) (fmap convertAlt alts)
+          EConstr _ consTy m n -> pure $ Core.EConstr consTy m n
+          EBottom _            -> pure $ Core.EBottom
 
         convertAlt CaseAlt{..} = Core.CaseAlt caseAlt'tag caseAlt'args caseAlt'rhs
 

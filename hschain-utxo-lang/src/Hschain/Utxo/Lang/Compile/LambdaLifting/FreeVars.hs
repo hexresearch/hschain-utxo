@@ -26,48 +26,48 @@ getLocals = ann'note . unFix
 
 getFreeVars :: Set Name -> Expr Name -> AnnExpr (Set Name) Name
 getFreeVars localVars (Fix x) = case x of
-  EPrim p -> prim p
-  EVar v  -> var v
-  EAp a b -> app a b
-  ELam as e -> lam as e
-  EIf a b c -> iff a b c
-  EConstr ty m n -> constr ty m n
-  ECase e alts -> cases e alts
-  ELet binds body -> letExpr binds body
-  EBottom -> bottom
+  EPrim loc p -> prim loc p
+  EVar loc v  -> var loc v
+  EAp loc a b -> app loc a b
+  ELam loc as e -> lam loc as e
+  EIf loc a b c -> iff loc a b c
+  EConstr loc ty m n -> constr loc ty m n
+  ECase loc e alts -> cases loc e alts
+  ELet loc binds body -> letExpr loc binds body
+  EBottom loc -> bottom loc
   where
 
-    prim p = Fix $ Ann S.empty (EPrim p)
+    prim loc p = Fix $ Ann S.empty (EPrim loc p)
 
-    var v = Fix $
+    var loc v = Fix $
       if (S.member v localVars)
-        then Ann (S.singleton v) (EVar v)
-        else Ann S.empty (EVar v)
+        then Ann (S.singleton v) (EVar loc v)
+        else Ann S.empty (EVar loc v)
 
-    app a b = Fix $ Ann (getLocals ea <> getLocals eb) (EAp ea eb)
+    app loc a b = Fix $ Ann (getLocals ea <> getLocals eb) (EAp loc ea eb)
       where
         ea = getFreeVars localVars a
         eb = getFreeVars localVars b
 
-    lam args e = Fix $ Ann (getLocals ebody S.\\ argVars) (ELam args ebody)
+    lam loc args e = Fix $ Ann (getLocals ebody S.\\ argVars) (ELam loc args ebody)
       where
         ebody   = getFreeVars newVars e
         newVars = localVars <> argVars
         argVars = S.fromList args
 
-    iff a b c = Fix $ Ann (getLocals ea <> getLocals eb <> getLocals ec) (EIf ea eb ec)
+    iff loc a b c = Fix $ Ann (getLocals ea <> getLocals eb <> getLocals ec) (EIf loc ea eb ec)
       where
         ea = getFreeVars localVars a
         eb = getFreeVars localVars b
         ec = getFreeVars localVars c
 
-    constr ty m n = Fix $ Ann S.empty (EConstr ty m n)
+    constr loc ty m n = Fix $ Ann S.empty (EConstr loc ty m n)
 
-    cases expr alts = Fix $ Ann (getLocals expr') $ ECase expr' $ fmap (freeVarAlts localVars) alts
+    cases loc expr alts = Fix $ Ann (getLocals expr') $ ECase loc expr' $ fmap (freeVarAlts localVars) alts
       where
         expr' = getFreeVars localVars expr
 
-    letExpr binds body = Fix $ Ann (defnsFree <> bodyFree) (ELet ebinds ebody)
+    letExpr loc binds body = Fix $ Ann (defnsFree <> bodyFree) (ELet loc ebinds ebody)
       where
         rhss = fmap (getFreeVars localVars) $ fmap snd binds
         binders = fmap fst binds
@@ -80,7 +80,7 @@ getFreeVars localVars (Fix x) = case x of
         ebody = getFreeVars bodyLocals body
         bodyFree = getLocals ebody S.\\ binderSet
 
-    bottom = Fix $ Ann mempty $ EBottom
+    bottom loc = Fix $ Ann mempty $ EBottom loc
 
 freeVarAlts :: Set Name -> CaseAlt Name (Expr Name) -> CaseAlt Name (AnnExpr (Set Name) Name)
 freeVarAlts localVars alt@CaseAlt{..} =

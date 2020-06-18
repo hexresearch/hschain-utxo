@@ -8,32 +8,33 @@ module Hschain.Utxo.Lang.Compile.Build(
 
 import Data.Fix
 
+import Hschain.Utxo.Lang.Expr (Loc)
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.List as L
 
 -- | Apply unary function to its argument
-ap1 :: Expr a -> Expr a -> Expr a
-ap1 a b = Fix $ EAp a b
+ap1 :: Loc -> Expr a -> Expr a -> Expr a
+ap1 loc a b = Fix $ EAp loc a b
 
 -- | Apply binary function to its arguments
-ap2 :: Expr a -> Expr a -> Expr a -> Expr a
-ap2 f a b = Fix $ EAp (ap1 f a) b
+ap2 :: Loc -> Expr a -> Expr a -> Expr a -> Expr a
+ap2 loc f a b = Fix $ EAp loc (ap1 loc f a) b
 
 -- | Apply ternary function to its arguments
-ap3:: Expr a -> Expr a -> Expr a -> Expr a -> Expr a
-ap3 f a b c = Fix $ EAp (ap2 f a b) c
+ap3:: Loc -> Expr a -> Expr a -> Expr a -> Expr a -> Expr a
+ap3 loc f a b c = Fix $ EAp loc (ap2 loc f a b) c
 
 -- | Apply function to the list of arguments
-fun :: Expr a -> [Expr a] -> Expr a
-fun f args = L.foldl' ap1 f args
+fun :: Loc -> Expr a -> [Expr a] -> Expr a
+fun loc f args = L.foldl' (ap1 loc) f args
 
 -- | Build a variable
-var :: Name -> Expr a
-var = Fix . EVar
+var :: Loc -> Name -> Expr a
+var loc = Fix . EVar loc
 
 -- | Build a primitive value
-prim :: Prim -> Expr a
-prim = Fix . EPrim
+prim :: Loc -> Prim -> Expr a
+prim loc = Fix . EPrim loc
 

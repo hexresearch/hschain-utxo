@@ -113,10 +113,10 @@ toHaskExp (Fix expr) = case expr of
       VecFold loc       -> toVar loc (VarName loc "fold")
 
     fromText _ = \case
-      TextAppend loc a b  -> op2 loc "<>" (rec a) (rec b)
-      ConvertToText tag loc   -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
-      TextLength loc      -> toVar loc (VarName loc "lengthText")
-      TextHash loc algo   -> case algo of
+      TextAppend loc a b    -> op2 loc "<>" (rec a) (rec b)
+      ConvertToText loc tag -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
+      TextLength loc        -> toVar loc (VarName loc "lengthText")
+      TextHash loc algo     -> case algo of
         Sha256     -> toVar loc (VarName loc "sha256")
         Blake2b256 -> toVar loc (VarName loc "blake2b256")
       where

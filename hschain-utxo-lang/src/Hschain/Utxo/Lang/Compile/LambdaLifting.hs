@@ -43,14 +43,14 @@ fuseLams = fmap (fuseLamCombArgs . fmap fuseLamExpr)
 fuseLamCombArgs :: Comb Name -> Comb Name
 fuseLamCombArgs def@Def{..} =
   case unFix def'body of
-    ELam args body -> fuseLamCombArgs $ def
-                        { def'args = def'args ++ args
-                        , def'body = body
-                        }
+    ELam _ args body -> fuseLamCombArgs $ def
+                         { def'args = def'args ++ args
+                         , def'body = body
+                         }
     _              -> def
 
 fuseLamExpr :: Expr Name -> Expr Name
 fuseLamExpr = cata $ \case
-  ELam args1 (Fix (ELam args2 body)) -> Fix $ ELam (args1 ++ args2) body
-  other                              -> Fix other
+  ELam loc args1 (Fix (ELam _ args2 body)) -> Fix $ ELam loc (args1 ++ args2) body
+  other                                    -> Fix other
 
