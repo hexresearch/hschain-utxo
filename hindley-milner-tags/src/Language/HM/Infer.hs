@@ -1,6 +1,7 @@
 -- | Defines type-inference algorithm.
 module Language.HM.Infer(
     Context(..)
+  , insertContext
   , inferType
   , inferTerm
   , subtypeOf
@@ -45,6 +46,9 @@ type CaseAlt' loc v = CaseAlt (Origin loc) v
 -- | Context holds map of proven signatures for free variables in the expression.
 newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
   deriving (Show, Eq, Semigroup, Monoid)
+
+insertContext :: Ord v => v -> Type loc v -> Context loc v -> Context loc v
+insertContext v ty (Context m) = Context $ M.insert v (monoT ty) m
 
 instance CanApply Context where
   apply subst = Context . fmap (apply subst) . unContext

@@ -79,4 +79,3 @@ data CaseAlt bind a = CaseAlt
   }
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-
