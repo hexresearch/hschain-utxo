@@ -10,7 +10,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
-import Hschain.Utxo.Lang.Expr (Loc, noLoc)
+import Hschain.Utxo.Lang.Expr (Loc)
 
 import qualified Language.HM as H
 
@@ -23,14 +23,19 @@ annotateTypes = fmap (reverse . snd) . foldM go (mempty, []) . orderDependencies
   where
     go (ctx, prog) comb = do
       (combT, combTyped) <- typeDef ctx comb
-      return (H.insertContext (def'name comb) (noLocType combT) ctx, combTyped : prog)
+      return (H.insertContext (def'name comb) combT ctx, combTyped : prog)
 
-    typeDef :: Context -> Comb Name -> m (Type, AnnComb Type (Typed Name))
-    typeDef = undefined
+    typeDef :: Context -> Comb Name -> m (H.Type Loc Name, AnnComb Type (Typed Name))
+    typeDef ctx comb = do
+      (combT, term) <- liftEither $ either (Left . TypeError) Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
+      return $ (combT, comb
+        { def'args = []
+        , def'body = fromInferExpr term
+        })
 
-    noLocType :: Type -> H.Type Loc Name
-    noLocType = H.mapLoc (const noLoc)
-
+    getCombExpr = undefined
+    toInferExpr = undefined
+    fromInferExpr = undefined
 
 
 -- | Makes types monomorphic.
