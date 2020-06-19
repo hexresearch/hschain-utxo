@@ -145,11 +145,12 @@ fixity op = maybe FixNone opFix'fixity $ getFixityEnv op
 
 ---------------------------------------
 
-instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Term loc v) where
+instance (HasPrefix v, PrintCons v, Pretty v, Pretty prim) => Pretty (Term prim loc v) where
   pretty (Term x) = cata prettyTermF x
     where
       prettyTermF = \case
         Var _ v            -> pretty v
+        Prim _ p           -> pretty p
         App _ a b          -> parens $ hsep [a, b]
         Lam _ v a          -> parens $ hsep [hcat ["\\", pretty v], "->", a]
         Let _ vs a         -> onLet vs a

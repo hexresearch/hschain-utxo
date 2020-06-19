@@ -3,6 +3,7 @@ module Language.HM.TyTerm(
     Ann(..)
   , TyTerm(..)
   , tyVarE
+  , tyPrimE
   , tyAppE
   , tyLamE
   , tyLetE
@@ -28,55 +29,60 @@ data Ann note f a = Ann
   } deriving (Show, Eq, Functor, Foldable, Traversable)
 
 -- | Terms with type annotations for all subexpressions.
-newtype TyTerm loc v = TyTerm { unTyTerm :: Fix (Ann (Type loc v) (TermF loc v)) }
+newtype TyTerm prim loc v = TyTerm { unTyTerm :: Fix (Ann (Type loc v) (TermF prim loc v)) }
   deriving (Show, Eq)
 
 -- tyTerm :: Type loc v -> TermF loc var (Ann () ) -> TyTerm loc var
-tyTerm :: Type loc v -> TermF loc v (Fix (Ann (Type loc v) (TermF loc v))) -> TyTerm loc v
+tyTerm :: Type loc v -> TermF prim loc v (Fix (Ann (Type loc v) (TermF prim loc v))) -> TyTerm prim loc v
 tyTerm ty x = TyTerm $ Fix $ Ann ty x
 
 -- | 'varE' @loc x@ constructs a variable whose name is @x@ with source code at @loc@.
-tyVarE :: Type loc var -> loc -> var -> TyTerm loc var
+tyVarE :: Type loc var -> loc -> var -> TyTerm prim loc var
 tyVarE ty loc var =  tyTerm ty $ Var loc var
 
+-- | 'varE' @loc x@ constructs a variable whose name is @x@ with source code at @loc@.
+tyPrimE :: Type loc var -> loc -> prim -> TyTerm prim loc var
+tyPrimE ty loc prim =  tyTerm ty $ Prim loc prim
+
 -- | 'appE' @loc a b@ constructs an application of @a@ to @b@ with source code at @loc@.
-tyAppE :: Type loc v -> loc -> TyTerm loc v -> TyTerm loc v -> TyTerm loc v
+tyAppE :: Type loc v -> loc -> TyTerm prim loc v -> TyTerm prim loc v -> TyTerm prim loc v
 tyAppE ty loc (TyTerm l) (TyTerm r) = tyTerm ty $ App loc l r
 
 -- | 'lamE' @loc x e@ constructs an abstraction of @x@ over @e@ with source code at @loc@.
-tyLamE :: Type loc v -> loc -> v -> TyTerm loc v -> TyTerm loc v
+tyLamE :: Type loc v -> loc -> v -> TyTerm prim loc v -> TyTerm prim loc v
 tyLamE ty loc x (TyTerm e) = tyTerm ty $ Lam loc x e
 
 -- | 'letE' @loc binds e@ constructs a binding of @binds@ in @e@ with source code at @loc@.
 -- No recursive bindings.
-tyLetE :: Type loc v -> loc -> [Bind loc v (TyTerm loc v)] -> TyTerm loc v -> TyTerm loc v
+tyLetE :: Type loc v -> loc -> [Bind loc v (TyTerm prim loc v)] -> TyTerm prim loc v -> TyTerm prim loc v
 tyLetE ty loc binds (TyTerm e) = tyTerm ty $ Let loc (fmap (fmap unTyTerm) binds) e
 
 -- | 'letRecE' @loc binds e@ constructs a recursive binding of @binds@ in @e@ with source code at @loc@.
-tyLetRecE :: Type loc v -> loc -> [Bind loc v (TyTerm loc v)] -> TyTerm loc v -> TyTerm loc v
+tyLetRecE :: Type loc v -> loc -> [Bind loc v (TyTerm prim loc v)] -> TyTerm prim loc v -> TyTerm prim loc v
 tyLetRecE ty loc binds (TyTerm e) = tyTerm ty $ LetRec loc (fmap (fmap unTyTerm) binds) e
 
 -- | 'assertTypeE' @loc term ty@ constructs assertion of the type @ty@ to @term@.
-tyAssertTypeE :: loc -> TyTerm loc v -> Type loc v -> TyTerm loc v
+tyAssertTypeE :: loc -> TyTerm prim loc v -> Type loc v -> TyTerm prim loc v
 tyAssertTypeE loc (TyTerm a) ty = tyTerm ty $ AssertType loc a ty
 
 -- | 'caseE' @loc expr alts@ constructs case alternatives expression.
-tyCaseE :: Type loc v -> loc -> TyTerm loc v -> [CaseAlt loc v (TyTerm loc v)] -> TyTerm loc v
+tyCaseE :: Type loc v -> loc -> TyTerm prim loc v -> [CaseAlt loc v (TyTerm prim loc v)] -> TyTerm prim loc v
 tyCaseE ty loc (TyTerm e) alts = tyTerm ty $ Case loc e $ fmap (fmap unTyTerm) alts
 
 -- | 'constrE' @loc ty tag arity@ constructs constructor tag expression.
-tyConstrE :: loc -> Type loc v -> v -> Int -> TyTerm loc v
+tyConstrE :: loc -> Type loc v -> v -> Int -> TyTerm prim loc v
 tyConstrE loc ty tag arity = tyTerm ty $ Constr loc ty tag arity
 
 -- | 'bottomE' @loc@ constructs bottom value.
-tyBottomE :: Type loc v -> loc -> TyTerm loc v
+tyBottomE :: Type loc v -> loc -> TyTerm prim loc v
 tyBottomE ty loc = tyTerm ty $ Bottom loc
 
-instance LocFunctor TyTerm where
+instance LocFunctor (TyTerm prim) where
   mapLoc f (TyTerm x) = TyTerm $ cata go x
     where
       go (Ann annTy term) = Fix $ Ann (mapLoc f annTy) $ case term of
         Var loc v    -> Var (f loc) v
+        Prim loc p   -> Prim (f loc) p
         App loc a b  -> App (f loc) a b
         Lam loc v a  -> Lam (f loc) v a
         Let loc vs a -> Let (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
@@ -95,11 +101,10 @@ instance LocFunctor TyTerm where
       mapTyped g (Typed ty val) = Typed (mapLoc g ty) val
 
 
-
-instance CanApply TyTerm where
+instance CanApply (TyTerm prim) where
   apply subst term = mapType (apply subst) term
 
-mapType :: (Type loc var -> Type loc var) -> TyTerm loc var -> TyTerm loc var
+mapType :: (Type loc var -> Type loc var) -> TyTerm prim loc var -> TyTerm prim loc var
 mapType f (TyTerm x) = TyTerm $ cata go x
     where
       go (Ann ty term) = Fix $ Ann (f ty) term
