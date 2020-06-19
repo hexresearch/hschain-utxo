@@ -147,7 +147,11 @@ Simple money exchange script
 Let's look at the very simple scenario. Alice gives 2 coins to Bob.
 And Bob gives 5 to Alice. Let's see how it can be implemented.
 
-Suppose that Alice has UTXO with 10 coins that is protected by the script::
+.. image:: ../images/lang-quick-start/alice-tx.png
+   :width: 700
+   :alt: Alice Tx
+
+Suppose that Alice has UTXO with 10 coins named ``alice-utxo-1`` that is protected by the script::
 
   pk alice
 
@@ -172,7 +176,7 @@ after TX confirmation. So we have TX such as::
            , "script": "pk bob",
            , "args": {} 
            }
-         , { "id": "alice-utxo-1",
+         , { "id": "alice-utxo-2",
            , "value": 8,
            , "script": "pk alice",
            , "args": {}
@@ -187,11 +191,17 @@ TX is a json-object that contains the fields: "inputs", "outputs", "proof" and "
 The outputs is a list of UTXOs, each of them has fields "id", "value", "script" and "args".
 
 To make real transaction we also need to compile the script. But here for simplicity of
-explanation it's written in stright form 
+explanation it's written in stright form.
 
 Now suppose that Bob has UTXO with 4 coins. And he wants to give 5 coins back to Alice.
 But also alice just gave him 2 coins, so he can use two UTXOs as inputs and create
-2 UTXOs as outputs for Alice and cashback for himself::
+2 UTXOs as outputs for Alice and cashback for himself:
+
+.. image:: ../images/lang-quick-start/bob-tx.png
+   :width: 700
+   :alt: Bob Tx
+
+Let's look at the code for transaction::
 
    {
       "inputs": ["bob-utxo-0", "bob-utxo-1"],
@@ -201,7 +211,7 @@ But also alice just gave him 2 coins, so he can use two UTXOs as inputs and crea
            , "script": "pk bob",
            , "args": {} 
            }
-         , { "id": "alice-utxo-2",
+         , { "id": "alice-utxo-3",
            , "value": 5,
            , "script": "pk alice",
            , "args": {}
@@ -231,8 +241,7 @@ This command expects three inputs:
 
 * ``--sigma-expr.txt`` the file that contains the ouptut of the API call to tx-sigma method.
 
-* ``--signed-sigma.txt`` the file to dump the output, i.e. signed sigma expression 
-     or proof of the ownership.
+* ``--signed-sigma.txt`` the file to dump the output, i.e. signed sigma expression or proof of the ownership.
 
 
 
