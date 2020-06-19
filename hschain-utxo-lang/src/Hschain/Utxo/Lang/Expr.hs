@@ -2,11 +2,8 @@
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
-import Hex.Common.Text
-
 import Control.Applicative
 import Control.DeepSeq (NFData)
-import Control.Monad
 
 import Codec.Serialise
 
@@ -31,7 +28,6 @@ import Text.Show.Deriving
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Language.HM as H
-import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Data.Map.Strict as M
@@ -182,12 +178,14 @@ data VarName = VarName
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
+{-
 instance H.IsVar Text where
   intToVar n = mappend "$$" (showt n)
   prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
 instance H.HasPrefix Text where
   getFixity = const Nothing
+-}
 
 -- | Name of the constructor
 data ConsName = ConsName
