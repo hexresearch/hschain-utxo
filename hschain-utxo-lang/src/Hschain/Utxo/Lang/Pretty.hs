@@ -14,6 +14,7 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
@@ -26,9 +27,13 @@ import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
 import qualified Language.HM as H
+import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
+
+instance H.HasPrefix Text where
+  getFixity = const Nothing
 
 -- | Convenience function to render pretty-printable value to text.
 renderText :: Pretty a => a -> Text

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines type-inference utilities.
 module Hschain.Utxo.Lang.Infer(
     InferM(..)
@@ -18,6 +19,7 @@ import Control.Monad.State.Strict
 
 import Data.Fix hiding ((~>))
 
+import Data.String
 import Data.Text (Text)
 
 import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, arrowT, stripSignature)
@@ -32,7 +34,18 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
-type Term = H.Term Loc Text
+instance H.IsVar Text where
+  intToVar n = mappend "$$" (showt n)
+  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+
+type Term = H.Term EmptyPrim Loc Text
+
+data EmptyPrim = EmptyPrim
+
+instance H.IsPrim EmptyPrim where
+  type PrimLoc EmptyPrim = Loc
+  type PrimVar EmptyPrim = Text
+  getPrimType EmptyPrim = H.conT noLoc "Unit" []
 
 -- | Monad for type-inference.
 newtype InferM a = InferM (FreshVar (Either Error) a)

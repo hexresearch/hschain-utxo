@@ -10,5 +10,5 @@ data TypeError loc var
   | SubtypeErr loc (Type loc var) (Type loc var)  -- ^ Subtype error (happens on explicit type assertions)
   | NotInScopeErr loc var                         -- ^ Missing signature in context for free-variable.
   | EmptyCaseExpr loc                             -- ^ no case alternatives in the case expression
-  deriving (Show, Eq)
+  deriving (Show, Eq, Functor)
 
