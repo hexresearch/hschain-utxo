@@ -5,12 +5,13 @@ module Hschain.Utxo.Lang.Compile.Infer(
   , makeMonomorphic
 ) where
 
+import Data.Fix
 
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
-import Hschain.Utxo.Lang.Expr (Loc)
+import Hschain.Utxo.Lang.Expr (Loc, noLoc)
 
 import qualified Language.HM as H
 
@@ -33,8 +34,33 @@ annotateTypes = fmap (reverse . snd) . foldM go (mempty, []) . orderDependencies
         , def'body = fromInferExpr term
         })
 
-    getCombExpr = undefined
-    toInferExpr = undefined
+    getCombExpr Def{..}
+      | null def'args = def'body
+      | otherwise     = Fix $ ELam noLoc def'args def'body
+                         -- todo consider to add locations to definitions }{
+                         --
+    toInferExpr = cata $ \case
+      EVar loc name -> H.varE loc name
+     {-
+      -- ^ variables
+      | EPrim Loc !Prim
+      -- ^ constant primitive
+      | EAp Loc a a
+      -- ^ application
+      | ELet Loc [(bind, a)] a
+      -- ^ lent bindings
+      | ELam Loc [bind] a
+      -- ^ lambda abstraction
+      | EIf Loc a a a
+      -- ^ if expressions
+      | ECase Loc !a [CaseAlt bind a]
+      -- ^ case alternatives
+      | EConstr Loc Type !Int !Int
+      -- ^ constructor with tag and arity, also we should provide the type
+      -- of constructor as afunction for a type-checker
+      | EBottom Loc
+ -}
+
     fromInferExpr = undefined
 
 
