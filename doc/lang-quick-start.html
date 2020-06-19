@@ -166,7 +166,8 @@ blockchain.</p>
 <h2>Simple money exchange script<a class="headerlink" href="#simple-money-exchange-script" title="Permalink to this headline">¶</a></h2>
 <p>Let’s look at the very simple scenario. Alice gives 2 coins to Bob.
 And Bob gives 5 to Alice. Let’s see how it can be implemented.</p>
-<p>Suppose that Alice has UTXO with 10 coins that is protected by the script:</p>
+<a class="reference internal image-reference" href="../_images/alice-tx.png"><img alt="Alice Tx" src="../_images/alice-tx.png" style="width: 700px;" /></a>
+<p>Suppose that Alice has UTXO with 10 coins named <code class="docutils literal notranslate"><span class="pre">alice-utxo-1</span></code> that is protected by the script:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span>
 </pre></div>
 </div>
@@ -190,7 +191,7 @@ after TX confirmation. So we have TX such as:</p>
         <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk bob&quot;</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
         <span class="p">}</span>
-      <span class="p">,</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;alice-utxo-1&quot;</span><span class="p">,</span>
+      <span class="p">,</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;alice-utxo-2&quot;</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk alice&quot;</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
@@ -205,10 +206,12 @@ after TX confirmation. So we have TX such as:</p>
 TX is a json-object that contains the fields: “inputs”, “outputs”, “proof” and “args”.
 The outputs is a list of UTXOs, each of them has fields “id”, “value”, “script” and “args”.</p>
 <p>To make real transaction we also need to compile the script. But here for simplicity of
-explanation it’s written in stright form</p>
+explanation it’s written in stright form.</p>
 <p>Now suppose that Bob has UTXO with 4 coins. And he wants to give 5 coins back to Alice.
 But also alice just gave him 2 coins, so he can use two UTXOs as inputs and create
 2 UTXOs as outputs for Alice and cashback for himself:</p>
+<a class="reference internal image-reference" href="../_images/bob-tx.png"><img alt="Bob Tx" src="../_images/bob-tx.png" style="width: 700px;" /></a>
+<p>Let’s look at the code for transaction:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
    <span class="s2">&quot;inputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;bob-utxo-0&quot;</span><span class="p">,</span> <span class="s2">&quot;bob-utxo-1&quot;</span><span class="p">],</span>
    <span class="s2">&quot;outputs&quot;</span><span class="p">:</span>
@@ -217,7 +220,7 @@ But also alice just gave him 2 coins, so he can use two UTXOs as inputs and crea
         <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk bob&quot;</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
         <span class="p">}</span>
-      <span class="p">,</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;alice-utxo-2&quot;</span><span class="p">,</span>
+      <span class="p">,</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;alice-utxo-3&quot;</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk alice&quot;</span><span class="p">,</span>
         <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
@@ -244,11 +247,7 @@ call the API method <code class="docutils literal notranslate"><span class="pre"
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--secret</span></code> the file that contains secret key of the user</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--sigma-expr.txt</span></code> the file that contains the ouptut of the API call to tx-sigma method.</p></li>
-<li><dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">--signed-sigma.txt</span></code> the file to dump the output, i.e. signed sigma expression</dt><dd><p>or proof of the ownership.</p>
-</dd>
-</dl>
-</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--signed-sigma.txt</span></code> the file to dump the output, i.e. signed sigma expression or proof of the ownership.</p></li>
 </ul>
 </div>
 <div class="section" id="pay-for-cofee-delayed-exchange">

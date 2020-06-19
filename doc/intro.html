@@ -108,6 +108,28 @@ If Alice wants to send 10 coins to Bob she can use her UTXO as input and
 create another UTXO for Bob that will contain 10 coins. The UTXO is often protected
 by the user signature. So in order to spend the transaction we need to prove that
 we hold the value for this output.</p>
+<p>Here is the state of the Blockchain prior to transaction:</p>
+<a class="reference internal image-reference" href="../_images/intro-before-tx.png"><img alt="Blockchain state prior to transaction" src="../_images/intro-before-tx.png" style="width: 700px;" /></a>
+<p>We can see that Alice has two boxes with values and Bob has only one.
+Each box has unique identifier, value and script that protects the value
+The ownership by the user is encoded with the script. In the system we have
+no users such as Alice or Bob. We have only keys and prooves of ownership.</p>
+<p>Let’s suppose that Alice wants to send 10 coins to Bob. Bob sends his public key to Alice.
+She creates a transaction with her <code class="docutils literal notranslate"><span class="pre">Y</span></code> box as input and creates two boxes as output.
+One box for Bob wich holds 10 coins and protects them with Bob’s public key.
+The second box is for Alice to send back the remainder of the value from the original Box.
+By the rule sum of the inputs should be equal to the some of the outputs,
+otherwise transaction is considered to be invalid. Let’s look at the Alice’s transaction:</p>
+<a class="reference internal image-reference" href="../_images/intro-alice-tx.png"><img alt="Alice sends 10 to Bob and 5 to herself." src="../_images/intro-alice-tx.png" style="width: 700px;" /></a>
+<p>After that Alice prooves with her key that she holds the Box <code class="docutils literal notranslate"><span class="pre">Y</span></code>. The TX is
+validated and commited and as a result it destroys the Box <code class="docutils literal notranslate"><span class="pre">Y</span></code> and creates
+two new Boxes <code class="docutils literal notranslate"><span class="pre">F</span></code> and <code class="docutils literal notranslate"><span class="pre">G</span></code> that now can be used as inputs to other transactions.
+Alice sends the identifier of the box <code class="docutils literal notranslate"><span class="pre">F</span></code> to Bob so that he can use it.
+Also Bob prior to transaction can send this identifier to Alice, so that she nows
+how to name the Bob’s box. In this example scripts are very simple but they
+can be programs on their own to encode more complex scenarios.
+Let’s look at the state of blockchain after TX was approved:</p>
+<a class="reference internal image-reference" href="../_images/intro-after-tx.png"><img alt="Blockchain state after transaction" src="../_images/intro-after-tx.png" style="width: 700px;" /></a>
 <p>Once UTXO is spent it is destroyed and in place of it we have new UTXOs.
 That’s how smartcontracts work. We use UTXOs in the blockchain as inputs
 check conditions in the smartcontract and if it holds true we destroy
@@ -125,8 +147,8 @@ and it is protected by the script (smartcontract). It can define rules
 for smartcontracts that try to spend the value.</p>
 </dd>
 <dt><strong>Block</strong></dt><dd><p>Contains a list of transactions. It can be though of as execution of transaction in batch mode.
-If all transactions in the block are valid it is executed on the blockchain and it
-sayed to be <em>commited</em>.</p>
+If all transactions in the block are valid it is executed on the blockchain and it is
+said to be <em>commited</em>.</p>
 </dd>
 <dt><strong>Blockchain</strong></dt><dd><p>For UTXO-model blockchain is a set of UTXOs that can be spent and global time
 of execution which corresponds to the number of commited blocks.</p>
@@ -146,6 +168,13 @@ of execution which corresponds to the number of commited blocks.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo-test</span></code> test scripts to verify that everything works fine.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo</span></code> main application and utility tools (to generate genesis for instance)</p></li>
 </ul>
+<p>Let’s look at the scheme of project structure</p>
+<a class="reference internal image-reference" href="../_images/intro-project-structure.png"><img alt="Project structure." src="../_images/intro-project-structure.png" style="width: 1200px;" /></a>
+<p>User creates TXs with hschain-utxo-compiler. User compiles script language that is defined
+in the package hschain-utxo-lang. He can use repl (hschain-utxo-repl) to try out ideas.
+User sends transactions to web-service (hschain-utxo-service) over API (hschain-utxo-api).
+The service runs on top of hschain which handles transactions and manages state transactions.
+State itself and the way to react to TXs is described in the package hschain-utxo-state.</p>
 </div>
 <div class="section" id="blockchain-node">
 <h2>Blockchain node<a class="headerlink" href="#blockchain-node" title="Permalink to this headline">¶</a></h2>

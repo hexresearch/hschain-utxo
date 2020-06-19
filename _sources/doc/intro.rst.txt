@@ -91,6 +91,42 @@ create another UTXO for Bob that will contain 10 coins. The UTXO is often protec
 by the user signature. So in order to spend the transaction we need to prove that
 we hold the value for this output. 
 
+Here is the state of the Blockchain prior to transaction:
+
+.. image:: ../images/intro/intro-before-tx.png
+   :width: 700
+   :alt: Blockchain state prior to transaction
+
+We can see that Alice has two boxes with values and Bob has only one. 
+Each box has unique identifier, value and script that protects the value
+The ownership by the user is encoded with the script. In the system we have 
+no users such as Alice or Bob. We have only keys and prooves of ownership.
+
+Let's suppose that Alice wants to send 10 coins to Bob. Bob sends his public key to Alice.
+She creates a transaction with her ``Y`` box as input and creates two boxes as output. 
+One box for Bob wich holds 10 coins and protects them with Bob's public key. 
+The second box is for Alice to send back the remainder of the value from the original Box.
+By the rule sum of the inputs should be equal to the some of the outputs,
+otherwise transaction is considered to be invalid. Let's look at the Alice's transaction:
+
+.. image:: ../images/intro/intro-alice-tx.png
+   :width: 700
+   :alt: Alice sends 10 to Bob and 5 to herself.
+
+After that Alice prooves with her key that she holds the Box ``Y``. The TX is 
+validated and commited and as a result it destroys the Box ``Y`` and creates
+two new Boxes ``F`` and ``G`` that now can be used as inputs to other transactions.
+Alice sends the identifier of the box ``F`` to Bob so that he can use it.
+Also Bob prior to transaction can send this identifier to Alice, so that she nows
+how to name the Bob's box. In this example scripts are very simple but they 
+can be programs on their own to encode more complex scenarios. 
+Let's look at the state of blockchain after TX was approved:
+
+.. image:: ../images/intro/intro-after-tx.png
+   :width: 700
+   :alt: Blockchain state after transaction
+
+
 Once UTXO is spent it is destroyed and in place of it we have new UTXOs.
 That's how smartcontracts work. We use UTXOs in the blockchain as inputs
 check conditions in the smartcontract and if it holds true we destroy
@@ -112,8 +148,8 @@ inputs and substitute them with outputs.
 
 **Block**
    Contains a list of transactions. It can be though of as execution of transaction in batch mode.
-   If all transactions in the block are valid it is executed on the blockchain and it
-   sayed to be *commited*.
+   If all transactions in the block are valid it is executed on the blockchain and it is
+   said to be *commited*.
 
 **Blockchain**
    For UTXO-model blockchain is a set of UTXOs that can be spent and global time
@@ -133,6 +169,19 @@ The modules are separated for the parts:
 * ``hschain-utxo-repl`` interpreter for the language 
 * ``hschain-utxo-test`` test scripts to verify that everything works fine. 
 * ``hschain-utxo`` main application and utility tools (to generate genesis for instance)
+
+Let's look at the scheme of project structure
+
+.. image:: ../images/intro/intro-project-structure.png
+   :width: 1200
+   :alt: Project structure.
+
+User creates TXs with hschain-utxo-compiler. User compiles script language that is defined
+in the package hschain-utxo-lang. He can use repl (hschain-utxo-repl) to try out ideas. 
+User sends transactions to web-service (hschain-utxo-service) over API (hschain-utxo-api).
+The service runs on top of hschain which handles transactions and manages state transactions.
+State itself and the way to react to TXs is described in the package hschain-utxo-state.
+
 
 
 Blockchain node
