@@ -45,6 +45,56 @@ The framework consists of several parts:</p>
 <li><p>service to run blockchain</p></li>
 <li><p>client to post transactions and query useful information with API</p></li>
 </ul>
+<div class="section" id="language-of-smart-contracts">
+<h2>Language of smart contracts<a class="headerlink" href="#language-of-smart-contracts" title="Permalink to this headline">¶</a></h2>
+<p>Language of smartcontracts is staticly typed higher-order functional programming language
+with predictable time of exectuion and zero-knowledge prooves of the ownership
+of the values. It adapts powerful functional programming paradigm to the reuirements of the safe, fast and predictable
+execution of the scripts on the blockchain.</p>
+<p>Main features of the language:</p>
+<ul class="simple">
+<li><p>Language operates on the flexible UTXO-model which excludes double spending.
+The scripts protect values from being spent and execution of transaction
+that proves ownership of the values creates new protected inputs.</p></li>
+<li><p>Ownership of the values is bases on Sigma-protocols. Sigma-protocols allow the
+user to create intricate conditional rules for proving the ownership. Instead
+of fixed model of ownership we can devise our own rules. Rules are arbitrary boolean expresisons.
+It makes system flexible and provides the user with tools to create rules suitable
+for a specific task.</p></li>
+<li><p>Rules of the ownership are zero-knowledge prooves of the private-key ownership.
+The proove validation does not compromise the owner of the key and the key itself.</p></li>
+<li><p>Ownership prooves can depend on the current state of the blockchain. It provides the
+user with means to create rules that dpeend on time of execution and create time-bounded contracts.</p></li>
+<li><p>To make termination predictable we prohibit usage of recursion.
+User can not create recursive functions and recursive types.
+It restricts the language but nonetheless intricate behaviours can be achieved with
+sequence of transactions. It solves the problem of termination without the need
+to follow more intricate models like GAS-usage or artificial restriction on
+the number of executed instructions which are not obvious for the user.</p></li>
+<li><p>Scriping language is a high level functional programming language.
+For fast execution it is compiled to low-level language.</p></li>
+<li><p>Language is staticly typed with automatic type-inference and type-checking. It protects user from
+many posible errors and increases the safety level.</p></li>
+</ul>
+<p>Smart contracts are used to protect UTXOs from illegal spending.
+To define what is legal we have a language. It encodes conditions for protection of the values in UTXOs.
+Our language is based on ErgoScript. For now it’s typed lambda-calculus with
+support for sigma-protocols. Sigma-protocols define a way to protect the values
+with cryptographic algorithms. Sigma-protocols let us prove that user owns private key
+without exposure of the private key itself.</p>
+<p>Let’s look at example of the simplest script:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">pk</span></code> is a function that evaluates to true only if user can prove that he or she
+is owner of the alice secret key.</p>
+<p>Also we can use conditions and boolean operators:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span> <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In this transaction Alice can grab the value or Bob can have it if
+the height of the blockchain is greater than 100.</p>
+</div>
 <div class="section" id="the-structure-of-the-project">
 <h2>The structure of the project<a class="headerlink" href="#the-structure-of-the-project" title="Permalink to this headline">¶</a></h2>
 <p>The modules are separated for the parts:</p>
@@ -97,47 +147,6 @@ of execution which corresponds to the number of commited blocks.</p>
 </dd>
 </dl>
 </div>
-<div class="section" id="language-of-smart-contracts">
-<h2>Language of smart contracts<a class="headerlink" href="#language-of-smart-contracts" title="Permalink to this headline">¶</a></h2>
-<p>Language of smartcantracts is heavily insired by ErgoScript and Haskell
-and adapts functional programming pradigm to the reuirements of the safe, fast and predictable
-execution of the scripts on the blockchain.</p>
-<p>Main features of the language:</p>
-<ul class="simple">
-<li><p>It is a high level functional programming language. Syntax is inspired by Haskell.
-For fast execution it is compiled to low-level language.</p></li>
-<li><p>To make termination predictable we prohibit usage of recursion.
-User can not create recursive functions and recursive types.</p></li>
-<li><p>Language operates on the flexible UTXO-model which excludes double spending.
-Scripts protect values from being spent and execution of transaction
-that proves ownership of the values creates new protected inputs.</p></li>
-<li><p>Ownership of the values is bases on Sigma-protocols. Sigma-protocols allow the
-user to create intricate conditional rules for proving the ownership. Instead
-of fixed model of ownership we can devise our own rules. Rules are boolean expresisons
-that contain prooves of the private-key ownership, which does not compromise the owner of the key and the key itself.
-It makes system flexible and provides the user with tools to create rules suitable for a specific task.</p></li>
-<li><p>Language is staticly typed with automatic type-inference and type-checking. It protects user from many bugs
-and increases the safety level.</p></li>
-</ul>
-<p>Smart contracts are used to protect UTXOs from illegal spending.
-To define what is legal we have a language. It encodes conditions for protection of the values in UTXOs.
-Our language is based on ErgoScript. For now it’s typed lambda-calculus with
-support for sigma-protocols. Sigma-protocols define a way to protect the values
-with cryptographic algorithms. Sigma-protocols let us prove that user owns private key
-without exposure of the private key itself.</p>
-<p>Let’s look at example of the simplest script:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">pk</span></code> is a function that evaluates to true only if user can prove that he or she
-is owner of the alice secret key.</p>
-<p>Also we can use conditions and boolean operators:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span> <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>In this transaction Alice can grab the value or Bob can have it if
-the height of the blockchain is greater than 100.</p>
-</div>
 <div class="section" id="blockchain-node">
 <h2>Blockchain node<a class="headerlink" href="#blockchain-node" title="Permalink to this headline">¶</a></h2>
 <p>Blockchain node runs a service that accepts postage of blocks by REST API.
@@ -176,9 +185,9 @@ for details.</p>
 <p class="caption"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#language-of-smart-contracts">Language of smart contracts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#the-structure-of-the-project">The structure of the project</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utxo-model-and-smartcontracts">UTXO-model and smartcontracts</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#language-of-smart-contracts">Language of smart contracts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#blockchain-node">Blockchain node</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#api">API</a></li>
 </ul>
