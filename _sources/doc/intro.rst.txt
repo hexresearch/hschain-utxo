@@ -77,6 +77,32 @@ inputs and substitute them with outputs.
 Language of smart contracts
 ----------------------------------------------
 
+Language of smartcantracts is heavily insired by ErgoScript and Haskell
+and adapts functional programming pradigm to the reuirements of the safe, fast and predictable
+execution of the scripts on the blockchain. 
+
+Main features of the language:
+
+* It is a high level functional programming language. Syntax is inspired by Haskell.
+  For fast execution it is compiled to low-level language.
+
+* To make termination predictable we prohibit usage of recursion. 
+  User can not create recursive functions and recursive types.
+
+* Language operates on the flexible UTXO-model which excludes double spending. 
+  Scripts protect values from being spent and execution of transaction 
+  that proves ownership of the values creates new protected inputs.
+
+* Ownership of the values is bases on Sigma-protocols. Sigma-protocols allow the
+  user to create intricate conditional rules for proving the ownership. Instead
+  of fixed model of ownership we can devise our own rules. Rules are boolean expresisons
+  that contain prooves of the private-key ownership, which does not compromise the owner of the key and the key itself. 
+  It makes system flexible and provides the user with tools to create rules suitable for a specific task.
+   
+* Language is staticly typed with automatic type-inference and type-checking. It protects user from many bugs
+  and increases the safety level. 
+
+
 Smart contracts are used to protect UTXOs from illegal spending. 
 To define what is legal we have a language. It encodes conditions for protection of the values in UTXOs.
 Our language is based on ErgoScript. For now it's typed lambda-calculus with 
