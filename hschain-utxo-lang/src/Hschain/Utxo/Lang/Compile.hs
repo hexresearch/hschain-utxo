@@ -13,6 +13,7 @@ import Hschain.Utxo.Lang.Desugar.ExtendedLC
 import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
+import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
 import Hschain.Utxo.Lang.Monad
 

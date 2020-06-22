@@ -18,6 +18,7 @@ data Error
   | TypeError TypeError         -- ^ type-errors
   | PatternError PatError       -- ^ pattern definition errors
   | InternalError InternalError -- ^ errors of this type should not happen in production
+  | MonoError MonoError         -- ^ errors during monomorphizing
   deriving (Show)
 
 -- | Execution errors
@@ -49,6 +50,10 @@ data PatError
 
 data InternalError
   = FailedToEliminate Text
+  deriving (Show)
+
+data MonoError
+  = FailedToFindMonoType Text
   deriving (Show)
 
 -- pretty message
