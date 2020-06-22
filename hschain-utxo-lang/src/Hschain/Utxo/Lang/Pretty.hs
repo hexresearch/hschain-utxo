@@ -187,6 +187,7 @@ instance Pretty Error where
     TypeError err         -> pretty err
     PatternError err      -> pretty err
     InternalError err     -> pretty err
+    MonoError err         -> pretty err
 
 instance Pretty ExecError where
   pretty = \case
@@ -225,7 +226,11 @@ instance Pretty TypeError where
 
 instance Pretty InternalError where
   pretty = \case
-    FailedToEliminate txt -> hsep ["Failed to eliminate expression: ", pretty txt]
+    FailedToEliminate txt -> hsep ["Failed to eliminate expression:", pretty txt]
+
+instance Pretty MonoError where
+  pretty = \case
+    FailedToFindMonoType name -> hsep ["Failed to find monomorphic type for", pretty name]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x
