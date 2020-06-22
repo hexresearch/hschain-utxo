@@ -49,6 +49,9 @@ instance H.IsPrim Prim where
 
   getPrimType = H.mapLoc (const noLoc) . fmap VarTag . primToType
 
+eraseLoc :: Type -> H.Type Loc Tag
+eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
+
 -- | Infers types for all subexpressions
 annotateTypes :: forall m . MonadLang m => CoreProg -> m TypedProg
 annotateTypes = fmap (reverse . snd) . foldM go (mempty, []) . orderDependencies
@@ -91,48 +94,17 @@ annotateTypes = fmap (reverse . snd) . foldM go (mempty, []) . orderDependencies
       , H.bind'lhs = VarTag bind
       , H.bind'rhs = e
       }
-{-
--- | Case alternatives
-data CaseAlt loc v a = CaseAlt
-  { caseAlt'loc   :: loc
-  -- ^ source code location
-  , caseAlt'tag   :: v
-  -- ^ tag of the constructor
-  , caseAlt'args  :: [Typed loc v v]
-  -- ^ arguments of the pattern matching
-  , caseAlt'constrType :: Type loc v
-  -- ^ type of the matched expression, they should be the same for all cases
-  , caseAlt'rhs   :: a
-  -- ^ right-hand side of the case-alternative
-  }
-  deriving (Show, Eq, Functor, Foldable, Traversable)
--}
+
     fromAlt CaseAlt{..} = H.CaseAlt
-      { H.caseAlt'loc  = caseAlt'loc
-      , H.caseAlt'tag  = ConstrTag caseAlt'tag
-      , H.caseAlt'args = fmap toArg caseAlt'args
-      , H.caseAlt'constrType = ty
-      , H.caseAlt'rhs = caseAlt'rhs
+      { H.caseAlt'loc        = caseAlt'loc
+      , H.caseAlt'tag        = ConstrTag caseAlt'tag
+      , H.caseAlt'args       = fmap toArg caseAlt'args
+      , H.caseAlt'constrType = eraseLoc caseAlt'constrType
+      , H.caseAlt'rhs        = caseAlt'rhs
       }
       where
         -- we need to know the types of the constructors on this stage:
-        ty = undefined
-        toArg = undefined
-{-
-data CaseAlt bind a = CaseAlt
-  { caseAlt'loc   :: !Loc
-  , caseAlt'tag   :: !Int
-  -- ^ integer tag of the constructor
-  -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [bind]
-  -- ^ arguments of the pattern matching
-  , caseAlt'rhs   :: a
-  -- ^ right-hand side of the case-alternative
-  }
-  deriving (Show, Eq, Functor, Foldable, Traversable)
--}
-    fromInferExpr = undefined
-
+        toArg (Typed val ty) = H.Typed (eraseLoc ty) (VarTag val)
 
 -- | Makes types monomorphic.
 makeMonomorphic :: MonadLang m => TypedProg -> m TypedProg

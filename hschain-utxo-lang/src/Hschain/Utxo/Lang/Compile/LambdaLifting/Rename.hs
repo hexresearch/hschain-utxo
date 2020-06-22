@@ -90,9 +90,9 @@ renameExpr env (Fix expr) =
 
 renameCaseAlts :: Map Name Name -> CaseAlt Name (Expr Name) -> RenameM (CaseAlt Name (Expr Name))
 renameCaseAlts env CaseAlt{..} = do
-  (args', env') <- allocNames caseAlt'args
+  (args', env') <- allocTypedNames caseAlt'args
   rhs' <- renameExpr (env' <> env) caseAlt'rhs
-  return $ CaseAlt caseAlt'loc caseAlt'tag args' rhs'
+  return $ CaseAlt caseAlt'loc caseAlt'tag args' caseAlt'constrType rhs'
 
 allocNames :: [Name] -> RenameM ([Name], Map Name Name)
 allocNames oldNames = do
@@ -108,4 +108,11 @@ allocNames oldNames = do
 
     toNewName freshId = mappend "$v" (showt freshId)
 
+allocTypedNames :: [Typed Name] -> RenameM ([Typed Name], Map Name Name)
+allocTypedNames tyNames = do
+  (newNames, env) <- allocNames names
+  return (zipWith Typed newNames tys, env)
+  where
+    tys   = fmap typed'type  tyNames
+    names = fmap typed'value tyNames
 

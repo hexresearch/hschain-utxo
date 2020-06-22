@@ -10,7 +10,7 @@ import Data.Graph
 import Data.Set (Set)
 
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
 
 import qualified Data.List as L
 import qualified Data.Set  as S
@@ -35,7 +35,7 @@ freeVars = cata $ \case
 
         go (freeSet, bindSet) (v, rhs) = (freeSet <> (rhs `S.difference` bindSet), bindSet <> S.singleton v)
 
-    freeAlts CaseAlt{..} = caseAlt'rhs `S.difference` (S.fromList caseAlt'args)
+    freeAlts CaseAlt{..} = caseAlt'rhs `S.difference` (S.fromList $ fmap typed'value caseAlt'args)
 
 defFreeVars :: Comb Name -> Set Name
 defFreeVars Def{..} = freeVars def'body `S.difference` (S.fromList def'args)
