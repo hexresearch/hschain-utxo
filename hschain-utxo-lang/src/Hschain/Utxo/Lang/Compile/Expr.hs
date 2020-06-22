@@ -72,8 +72,10 @@ data CaseAlt bind a = CaseAlt
   , caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [bind]
+  , caseAlt'args  :: [Typed Name]
   -- ^ arguments of the pattern matching
+  , caseAlt'constrType :: Type
+  -- ^ Type of right hand side, it's the type that constructor belongs to
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative
   }

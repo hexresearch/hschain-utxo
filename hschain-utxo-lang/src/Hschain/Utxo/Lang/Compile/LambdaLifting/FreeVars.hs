@@ -88,7 +88,7 @@ freeVarAlts localVars alt@CaseAlt{..} =
   where
     ebody   = getFreeVars newVars caseAlt'rhs
     newVars = localVars <> argVars
-    argVars = S.fromList caseAlt'args
+    argVars = S.fromList $ fmap typed'value caseAlt'args
 
 
 
