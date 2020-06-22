@@ -106,7 +106,33 @@ annotateTypes = fmap (reverse . snd) . foldM go (mempty, []) . orderDependencies
         -- we need to know the types of the constructors on this stage:
         toArg (Typed val ty) = H.Typed (eraseLoc ty) (VarTag val)
 
+    fromInferExpr = undefined
+
 -- | Makes types monomorphic.
 makeMonomorphic :: MonadLang m => TypedProg -> m TypedProg
-makeMonomorphic = undefined
+makeMonomorphic prog = monoLets $ monoLams $ substPolys polys prog
+  where
+    polys = findPolys prog
+
+    findPolys defs = filter isPolyDef defs
+
+    substPolys = undefined
+
+    monoLams = undefined
+
+    monoLets = undefined
+
+    isPolyDef Def{..} = (any isPolyT $ fmap typed'type def'args) || (isPolyT $ ann'note $ unFix $ def'body)
+
+    isPolyT (H.Type x) = cata go x
+      where
+        go = \case
+          H.VarT _ _ -> True
+          H.ArrowT _ a b -> a || b
+          H.ConT _ _ as -> or as
+          H.ListT _ a -> a
+          H.TupleT _ as -> or as
+
+
+
 
