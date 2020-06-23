@@ -21,6 +21,7 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , listT
   , tupleT
   , arrowT
+  , funT
 ) where
 
 import Control.Monad.Reader
@@ -263,3 +264,5 @@ tupleT ts = H.tupleT () ts
 arrowT :: Type -> Type -> Type
 arrowT a b = H.arrowT () a b
 
+funT :: [Type] -> Type -> Type
+funT args resT = foldr arrowT resT args

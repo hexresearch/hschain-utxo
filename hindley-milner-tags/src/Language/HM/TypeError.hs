@@ -12,3 +12,11 @@ data TypeError loc var
   | EmptyCaseExpr loc                             -- ^ no case alternatives in the case expression
   deriving (Show, Eq, Functor)
 
+instance LocFunctor TypeError where
+  mapLoc f = \case
+    OccursErr loc ty     -> OccursErr (f loc) (mapLoc f ty)
+    UnifyErr loc tA tB   -> UnifyErr (f loc) (mapLoc f tA) (mapLoc f tB)
+    SubtypeErr loc tA tB -> SubtypeErr (f loc) (mapLoc f tA) (mapLoc f tB)
+    NotInScopeErr loc v  -> NotInScopeErr (f loc) v
+    EmptyCaseExpr loc    -> EmptyCaseExpr (f loc)
+

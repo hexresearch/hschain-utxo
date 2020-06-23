@@ -93,9 +93,6 @@ constant name val = Scomb
   , scomb'body = Typed (EPrim val) (primToType val)
   }
 
-funT :: [Type] -> Type -> Type
-funT args resT = foldr arrowT resT args
-
 op1 :: Name -> Type -> Type -> Scomb
 op1 name argT resT = Scomb
   { scomb'name = name
