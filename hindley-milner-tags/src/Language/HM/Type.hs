@@ -31,7 +31,10 @@ module Language.HM.Type (
 
     HasTypeVars(..),
     LocFunctor(..),
-    setLoc
+    setLoc,
+
+    extractFunType,
+    extractArrow
 ) where
 
 --------------------------------------------------------------------------------
@@ -295,6 +298,18 @@ stripSignature = cata go . unSignature
     go = \case
       ForAllT _ _ r -> r
       MonoT ty -> ty
+
+extractFunType :: Type loc var -> ([Type loc var], Type loc var)
+extractFunType ty = case extractArrow ty of
+  Just (lhs, rhs) ->
+    let (args, rhs') = extractFunType rhs
+    in  (lhs : args, rhs')
+  Nothing         -> ([], ty)
+
+extractArrow :: Type loc var -> Maybe (Type loc var, Type loc var)
+extractArrow (Type (Fix x)) = case x of
+  ArrowT _ a b -> Just (Type a, Type b)
+  _            -> Nothing
 
 $(deriveShow1 ''TypeF)
 $(deriveShow1 ''SignatureF)

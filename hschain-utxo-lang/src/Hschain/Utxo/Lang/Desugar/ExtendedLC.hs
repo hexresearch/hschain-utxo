@@ -101,7 +101,7 @@ exprToExtendedLC' typeCtx = cataM $ \case
       PCons loc cons ps -> do
         info <- getConsInfo typeCtx cons
         let tagId = consInfo'tagId info
-            (argsT, rhsT) = parseConsType $ consInfo'type info
+            (argsT, rhsT) = H.extractFunType $ consInfo'type info
         args  <- mapM fromPat ps
         return $ CaseAlt
                   { caseAlt'loc        = loc
@@ -112,18 +112,6 @@ exprToExtendedLC' typeCtx = cataM $ \case
                   }
       _               -> failedToEliminate "Non-constructor case in case alternative"
 
-    parseConsType :: Type -> ([Type], Type)
-    parseConsType ty = case extractArrow ty of
-      Just (lhs, rhs) ->
-        let (args, rhs') = parseConsType rhs
-        in  (lhs : args, rhs')
-      Nothing         -> ([], ty)
-
-
-    extractArrow :: Type -> Maybe (Type, Type)
-    extractArrow (H.Type (Fix x)) = case x of
-      H.ArrowT _ a b -> Just (H.Type a, H.Type b)
-      _              -> Nothing
 
     fromAlt _ _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
 
