@@ -35,7 +35,8 @@ import Servant.Server
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
-import HSChain.PoW.Types
+import qualified HSChain.PoW.Types as POWTypes
+import qualified HSChain.PoW.Node as POWNode
 import HSChain.Types.Merkle.Types
 
 import Hschain.Utxo.Lang.Expr
@@ -52,9 +53,11 @@ data UTXOBlockProper f = UTXOBlockProper
   -- ^Previous block.
   , ubpData       :: !(MerkleNode f SHA256 [Tx])
   -- ^ List of key-value pairs
-  , ubpTarget     :: !Target
+  , ubpTarget     :: !POWTypes.Target
   -- ^ Current difficulty of mining. It means a complicated thing
   -- right now.
+  , ubpTime       :: !POWTypes.Time
+  -- ^ Block creation time.
   }
   deriving stock (Generic)
 deriving stock instance (Show1 f)    => Show (UTXOBlockProper f)
@@ -88,18 +91,17 @@ instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
 -- |Run the PoW node.
 runNode :: String -> IO ()
 runNode cfgConfigPath =
-  runNode cfgConfigPath optMine genesisBlock utxoViewStep Map.empty (getBlockToMine optNodeName)
+  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep Map.empty (getBlockToMine optNodeName)
   where
     getBlockToMine = error "getBlockToMine"
     optNodeName = error "optnodename"
     optMine = True
     genesisBlock = undefined
-    utxoViewStep :: Block UTXOBlock -> Map.Map Int String -> Maybe (Map.Map Int String)
+    utxoViewStep :: POWTypes.Block UTXOBlock -> Map.Map Int String -> Maybe (Map.Map Int String)
     utxoViewStep b m
-      | or [ k `Map.member` m | (k, _) <- txs ] = Nothing
-      | otherwise                               = Just $ Map.fromList txs <> m
+      | otherwise                               = error "utxo view step is not done"
       where
-        txs = merkleValue $ ubpData $ blockData b
+        txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM
@@ -121,7 +123,7 @@ getBoxBalanceEndpoint boxId =
 getTxSigmaEndpoint :: Tx -> ServerM SigmaTxResponse
 getTxSigmaEndpoint tx =
   --fmap (\bch -> uncurry SigmaTxResponse $ execInBoxChain tx bch) readBoxChain
-  pure Nothing
+  pure $ SigmaTxResponse (Left "I can't") ("Yes, you heard right - I can't")
 
 getEnvEndpoint :: ServerM GetEnvResponse
 getEnvEndpoint = do
