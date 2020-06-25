@@ -48,7 +48,7 @@ import Hschain.Utxo.API.Rest
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
 data UTXOBlockProper f = UTXOBlockProper
-  { ubpPrevios    :: !(Crypto.Hash SHA256)
+  { ubpPrevious   :: !(Crypto.Hash SHA256)
   -- ^Previous block.
   , ubpData       :: !(MerkleNode f SHA256 [Tx])
   -- ^ List of key-value pairs
@@ -88,8 +88,10 @@ instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
 -- |Run the PoW node.
 runNode :: String -> IO ()
 runNode cfgConfigPath =
-  runNode cmdConfigPath optMine genesisBlock utxoViewStep Map.empty (getBlockToMine optNodeName)
+  runNode cfgConfigPath optMine genesisBlock utxoViewStep Map.empty (getBlockToMine optNodeName)
   where
+    getBlockToMine = error "getBlockToMine"
+    optNodeName = error "optnodename"
     optMine = True
     genesisBlock = undefined
     utxoViewStep :: Block UTXOBlock -> Map.Map Int String -> Maybe (Map.Map Int String)
@@ -97,7 +99,7 @@ runNode cfgConfigPath =
       | or [ k `Map.member` m | (k, _) <- txs ] = Nothing
       | otherwise                               = Just $ Map.fromList txs <> m
       where
-        txs = merkleValue $ kvData $ blockData b
+        txs = merkleValue $ ubpData $ blockData b
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM
