@@ -16,6 +16,8 @@ import Data.Fix
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Expr (Loc)
 
+import qualified Language.HM as H
+
 data Ann ann f a = Ann
   { ann'note  :: ann
   , ann'value :: f a
@@ -80,4 +82,22 @@ data CaseAlt bind a = CaseAlt
   -- ^ right-hand side of the case-alternative
   }
   deriving (Show, Eq, Functor, Foldable, Traversable)
+
+instance H.HasLoc (Expr bind) where
+  type Loc (Expr bind) = Loc
+  getLoc (Fix expr) = H.getLoc expr
+
+instance H.HasLoc (ExprF bind a) where
+  type Loc (ExprF bind a) = Loc
+  getLoc = \case
+    EVar loc _         -> loc
+    EPrim loc _        -> loc
+    EAp loc _ _        -> loc
+    ELet loc _ _       -> loc
+    ELam loc _ _       -> loc
+    EIf loc _ _ _      -> loc
+    ECase loc _ _      -> loc
+    EConstr loc _ _ _  -> loc
+    EBottom loc        -> loc
+
 

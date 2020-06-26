@@ -9,6 +9,8 @@ import Control.Arrow (first)
 import Control.Monad.State.Strict
 
 import Data.Fix
+import Data.Foldable (toList)
+import Data.Function (on)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Sequence (Seq)
@@ -209,19 +211,58 @@ substExpr env (Fix (Ann ty expr)) =
 
     onLet loc binds body = do
       ty' <- unify ty (getAnnType body)
-      SubstResult bodyF localSubst bodyE <- substExpr (SubstCtx locals' bindNames types') $ setAnn ty' body
-      (binds', bindSeeds) <- substLocalLetBinds localSubst binds
+      SubstResult bodyF localSubst bodyE <- substExpr ctx' $ setAnn ty' body
+      (binds', bindSeeds) <- substLocalLetBinds ctx' bindMap bindNames S.empty localSubst
       let localSubst' = removeLetSubsts (fmap (typed'value . fst) binds') localSubst
       return $ SubstResult (bodyF <> bindSeeds) localSubst' (Fix $ Ann ty' $ ELet loc binds' bodyE)
       where
         bindNames   = S.fromList $ fmap (typed'value . fst) binds
         bindTypeCtx = M.fromList $ fmap ((\(Typed name t) -> (name, t)) . fst) binds
 
+        ctx' = SubstCtx locals' bindNames types'
         locals' = bindNames   <> substCtx'locals env
         types'  = bindTypeCtx <> substCtx'types env
 
+        bindMap = M.fromList $ fmap (\(b, e) -> (typed'value b, (b, e))) binds
 
-    substLocalLetBinds localSubst binds = undefined
+    flatSubst (LetSubst m) = foldMap fromLocalSubsts $ M.toList m
+      where
+        fromLocalSubsts (name, subst) = fmap (name,) $ toList subst
+
+    substLocalLetBinds bindCtx bindMap bindNames prevBinds letSubst =
+      fmap unique $ substLocalLetBindList bindCtx bindMap bindNames prevBinds ([], []) $ flatSubst letSubst
+
+    substLocalLetBindList bindCtx bindMap bindNames prevBinds res letSubsts =
+      case letSubsts of
+        []   -> return res
+        a:as -> do
+          (binds, seeds, nextSubst) <- substLocalBind a
+          let newNames = S.fromList $ fmap (typed'value . fst) binds
+          substLocalLetBindList bindCtx bindMap bindNames (prevBinds <> newNames) (res <> (binds, seeds)) (nextSubst <> as)
+      where
+        substLocalBind (name, locSub) =
+          case M.lookup name bindMap of
+            Just (var, rhs) ->
+              case locSub of
+                LocalIdentitySubst       -> checkAlreadyDefined name $ do
+                  SubstResult seeds localSubst rhs' <- substExpr bindCtx rhs
+                  let binds = [(var, rhs')]
+                      nextSubst = flatSubst localSubst
+                  return (binds, seeds, nextSubst)
+                LocalSubst subst newName -> checkAlreadyDefined newName $ do
+                  SubstResult seeds localSubst rhs' <- substExpr bindCtx $ applySubstAnnExpr subst rhs
+                  let binds = [(Typed newName (H.apply subst $ typed'type var), rhs')]
+                      nextSubst = flatSubst localSubst
+                  return (binds, seeds, nextSubst)
+
+            Nothing -> errorUnboundVar (H.getLoc expr) name
+
+        checkAlreadyDefined name cont =
+          if S.member name prevBinds
+            then return ([], [], [])
+            else cont
+
+    unique (binds, seeds) = (L.nubBy ((==) `on` (typed'value. fst)) binds, L.nub seeds)
 
     onLam loc args body
       | all (isMonoT . typed'type) args && (isMonoT $ getAnnType body) = do
@@ -248,7 +289,27 @@ substExpr env (Fix (Ann ty expr)) =
       (SubstResult eF eL eE) <- rec $ setAnn ty e
       return $ SubstResult (mconcat [cF, tF, eF]) (mconcat [cL, tL, eL]) (Fix $ Ann ty $ EIf loc cE tE eE)
 
-    onCase = undefined
+    onCase loc e alts = do
+      SubstResult eSeeds eLocalSubst e' <- rec e
+      if isMonoExpr e'
+        then do
+          let eT = getAnnType e'
+          (altSeeds, altLocalSubst, alts') <- foldM (substAlt eT) (mempty, mempty, mempty) alts
+          return $ SubstResult (eSeeds <> altSeeds) (eLocalSubst <> altLocalSubst) (Fix $ Ann ty $ ECase loc e' alts')
+        else errorNoMonoType "For Case-expr"
+      where
+        substAlt eT (resSeeds, resLocSubst, res) ca@CaseAlt{..} = do
+          (ty', subst) <- unifySubst eT caseAlt'constrType
+          let args  = fmap (\a -> a { typed'type = H.apply subst $ typed'type a }) caseAlt'args
+              types = M.fromList $ fmap (\a -> (typed'value a, typed'type a)) args
+              ctx'  = SubstCtx (substCtx'locals env <> S.fromList (fmap typed'value args)) (substCtx'letBinds env) (types <> substCtx'types env)
+          SubstResult seeds locSubst rhs <- substExpr ctx' caseAlt'rhs
+          let alt = ca { caseAlt'args       = args
+                       , caseAlt'constrType = ty'
+                       , caseAlt'rhs        = rhs
+                       }
+          return (resSeeds <> seeds, resLocSubst <> locSubst, alt : res )
+
 
     onConstr loc conTy m n
       | isMonoT conTy = return $ SubstResult [] mempty (Fix $ Ann conTy $ EConstr loc conTy m n)
@@ -304,7 +365,8 @@ getSubstName (H.Subst m) name =
 
     joinNames = mconcat . L.intersperse "_"
 
-
+isMonoExpr :: TypedExpr -> Bool
+isMonoExpr = isMonoT . getAnnType
 
 isMonoT :: Type -> Bool
 isMonoT (H.Type x) = flip cata x $ \case
