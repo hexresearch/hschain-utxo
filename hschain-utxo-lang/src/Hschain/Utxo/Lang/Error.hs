@@ -50,6 +50,8 @@ data PatError
 
 data InternalError
   = FailedToEliminate Text
+  | NonIntegerConstrTag Text
+  | NonLamType
   deriving (Show)
 
 data MonoError
