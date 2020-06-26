@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE UndecidableInstances       #-}
 module Hschain.Utxo.App(
   runApp
 ) where
@@ -19,6 +21,10 @@ import Control.Monad.Trans.Maybe
 
 import Data.ByteString (ByteString)
 
+import Data.Fix
+
+import Data.Fixed
+
 import Data.Functor.Classes (Show1)
 
 import qualified Data.Map.Strict as Map
@@ -39,12 +45,85 @@ import qualified HSChain.PoW.Types as POWTypes
 import qualified HSChain.PoW.Node as POWNode
 import HSChain.Types.Merkle.Types
 
+import HSChain.Crypto hiding (PublicKey)
+import HSChain.Crypto.Classes.Hash
+import HSChain.Crypto.Ed25519
+import HSChain.Crypto.SHA
+import HSChain.Types
+import HSChain.Types.Merkle.Types
+
+import Hschain.Utxo.Lang hiding (Height)
+import Hschain.Utxo.State.Types
+import Hschain.Utxo.State.React
+
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import qualified Hschain.Utxo.State.Query as S
 import Hschain.Utxo.State.Types
+import qualified Crypto.ECC.Edwards25519  as Ed
+
+import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
+
 
 import Hschain.Utxo.API.Rest
+
+-------------------------------------------------------------------------------
+-- Instances.
+
+instance Crypto.CryptoHashable Tx where
+  hashStep = Crypto.genericHashStep "transaction"
+
+instance Crypto.CryptoHashable BoxChain where
+  hashStep = genericHashStep "boxchain"
+
+instance Crypto.CryptoHashable BoxId where
+  hashStep = genericHashStep "boxid"
+
+instance Crypto.CryptoHashable Prim where
+  hashStep = genericHashStep "prim"
+
+instance Crypto.CryptoHashable Script where
+  hashStep = genericHashStep "script"
+
+instance Crypto.CryptoHashable Box where
+  hashStep = genericHashStep "box"
+
+instance Crypto.CryptoHashable (Sigma PublicKey) where
+  hashStep = genericHashStep "sugma pubkey"
+
+instance Crypto.CryptoHashable Proof where
+  hashStep = genericHashStep "proof"
+
+instance Crypto.CryptoHashable (Sigma.ProvenTree CryptoAlg) where
+  hashStep = genericHashStep "proven tree cryptoalg"
+
+instance Crypto.CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
+  hashStep = genericHashStep "sigma expr pubkey"
+
+instance Crypto.CryptoHashable (Sigma.OrChild CryptoAlg) where
+  hashStep = genericHashStep "orchild"
+
+instance Crypto.CryptoHashable (Sigma.Challenge CryptoAlg) where
+  hashStep = genericHashStep "challenge"
+
+instance Crypto.CryptoHashable (Sigma.ECScalar CryptoAlg) where
+  hashStep = genericHashStep "ecscalar"
+
+instance Crypto.CryptoHashable (Sigma.ECPoint CryptoAlg) where
+  hashStep = genericHashStep "ecpoint"
+
+instance Crypto.CryptoHashable PublicKey where
+  hashStep = genericHashStep "public key"
+
+instance Crypto.CryptoHashable Ed.Point where
+  hashStep x = hashStep (Ed.pointEncode x :: ByteString)
+
+instance Crypto.CryptoHashable Ed.Scalar where
+  hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
+
+instance Crypto.CryptoHashable Pico where
+  hashStep = hashStep . serialise
 
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
@@ -87,6 +166,17 @@ instance Serialise (UTXOBlock Proxy)
 instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
   hashStep = Crypto.genericHashStep "block proper"
 
+instance POWTypes.BlockData UTXOBlock where
+
+  newtype BlockID UTXOBlock = UB'BID (Crypto.Hash SHA256)
+    deriving newtype
+      (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON)
+
+instance MerkleMap UTXOBlock where
+  merkleMap f ub = ub
+                 { ubProper = (ubProper ub) { ubpData = mapMerkleNode f $ ubpData $ ubProper ub } }
+
+instance POWTypes.Mineable UTXOBlock where
 
 -- |Run the PoW node.
 runNode :: String -> IO ()
@@ -102,6 +192,9 @@ runNode cfgConfigPath =
       | otherwise                               = error "utxo view step is not done"
       where
         txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
+
+runApp :: IO ()
+runApp = putStrLn "running the app!"
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM
@@ -169,20 +262,17 @@ readBoxChain =
 -- Low level API to post transactions.
 data Bchain (m :: * -> *)
 
-class MonadIO m => MonadBChain m where
-  askBchain :: m (Bchain IO)
-
 --------------------------------------------------
 ------ bchain store operations
 
-writeTx :: (MonadBChain m) => Tx -> m (Maybe TxHash)
+writeTx :: Monad m => Tx -> m (Maybe TxHash)
 writeTx tx = do
   --Bchain{..} <- askBchain
   --liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
   --  ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
   pure Nothing
 
-readBlock :: (MonadIO m, MonadBChain m) => Int -> m (Maybe [Tx])
+readBlock :: Monad m => Int -> m (Maybe [Tx])
 readBlock height = do
   --Bchain{..} <- askBchain
   --liftIO $ do
@@ -190,7 +280,7 @@ readBlock height = do
   --  pure $ unBData . merkleValue . blockData <$> mb
   pure Nothing
 
-blockchainSize :: (MonadIO m, MonadBChain m) => m Int
+blockchainSize :: Monad m => m Int
 blockchainSize = do
   --Bchain{..} <- askBchain
   --liftIO $ do
@@ -198,19 +288,19 @@ blockchainSize = do
   --  pure $! fromIntegral h
   return 0
 
-readBoxChainState :: (MonadBChain m) => m BoxChain
+readBoxChainState :: (Monad m) => m BoxChain
 readBoxChainState = do
   --Bchain{..} <- askBchain
   --liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
   return undefined
 
-waitForTx :: (MonadBChain m) => m (TxHash -> m Bool)
+waitForTx :: (Monad m) => m (TxHash -> m Bool)
 waitForTx = do
   --Bchain{..} <- askBchain
   --fmap liftIO <$> liftIO bchain'waitForTx
   return (const $ return False)
 
-postTxWait :: (MonadBChain m) => Tx -> m (Maybe TxHash)
+postTxWait :: (Monad m) => Tx -> m (Maybe TxHash)
 postTxWait tx = do
   -- We start listening before sending transaction to mempool to avoid
   -- race when tx is commited before we start listening
