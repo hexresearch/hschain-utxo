@@ -56,7 +56,8 @@ toType = H.mapLoc (const ()) . fmap fromTag
 
 -- | Infers types for all subexpressions
 annotateTypes :: forall m . MonadLang m => CoreProg -> m TypedProg
-annotateTypes = fmap (reverse . snd) . foldM go (mempty, []) . orderDependencies
+annotateTypes =
+  fmap (reverse . snd) . foldM go (mempty, []) . unCoreProg . orderDependencies
   where
     go (ctx, prog) comb = do
       (combT, combTyped) <- typeDef ctx comb

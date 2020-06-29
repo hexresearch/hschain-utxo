@@ -30,7 +30,7 @@ runRenameM a = evalState a 0
 -- We allocate new names for all top-level argument variables,
 -- let bindings, case-bindings, lambda expression arguments
 rename :: CoreProg -> CoreProg
-rename prog = runRenameM $ mapM renameComb prog
+rename (CoreProg prog) = CoreProg $ runRenameM $ mapM renameComb prog
 
 renameComb :: Comb Name -> RenameM (Comb Name)
 renameComb def@Def{..} = do

@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Parser.Hask.ToHask(
     toHaskExp
   , toHaskModule
+  , toHaskType
 ) where
 
 import Hex.Common.Text
@@ -248,7 +249,7 @@ toSymbolName VarName{..} = H.Symbol varName'loc (T.unpack varName'name)
 
 toType :: Signature -> H.Type Loc
 toType x = case splitToPreds x of
-  (_, ty) -> singleType ty
+  (_, ty) -> toHaskType ty
   where
     splitToPreds = cata go . HM.unSignature
       where
@@ -256,18 +257,18 @@ toType x = case splitToPreds x of
           HM.MonoT ty                  -> ([], ty)
           HM.ForAllT _ name (xs, ty) -> (name : xs, ty)
 
-    singleType :: Type -> H.Type Loc
-    singleType = cata go . HM.unType
-      where
-        go = \case
-          HM.VarT loc var      -> H.TyVar loc (toIdentName $ VarName loc var)
-          HM.ConT loc con args -> fromTyCon loc con args
-          HM.ArrowT loc a b    -> H.TyFun loc a b
-          HM.ListT loc a       -> H.TyList loc a
-          HM.TupleT loc as     -> H.TyTuple loc H.Boxed as
+toHaskType :: Type -> H.Type Loc
+toHaskType = cata go . HM.unType
+  where
+    go = \case
+      HM.VarT loc var      -> H.TyVar loc (toIdentName $ VarName loc var)
+      HM.ConT loc con args -> fromTyCon loc con args
+      HM.ArrowT loc a b    -> H.TyFun loc a b
+      HM.ListT loc a       -> H.TyList loc a
+      HM.TupleT loc as     -> H.TyTuple loc H.Boxed as
 
-        fromTyCon loc con args =
-          foldl (\a b -> H.TyApp loc a b) (H.TyCon loc (toQName $ VarName loc con)) args
+    fromTyCon loc con args =
+      foldl (\a b -> H.TyApp loc a b) (H.TyCon loc (toQName $ VarName loc con)) args
 
 toQName :: VarName -> H.QName Loc
 toQName x = H.UnQual (HM.getLoc x) $ toIdentName x

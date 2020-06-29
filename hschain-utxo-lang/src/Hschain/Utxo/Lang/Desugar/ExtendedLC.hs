@@ -34,7 +34,11 @@ import qualified Language.HM as H
 -- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
 toExtendedLC :: MonadLang m => Module -> m CoreProg
-toExtendedLC Module{..} = mapM toDef module'binds
+toExtendedLC = toExtendedLC' <=< desugarModule
+
+
+toExtendedLC' :: MonadLang m => Module -> m CoreProg
+toExtendedLC' Module{..} = fmap CoreProg $ mapM toDef module'binds
   where
     toDef bind = do
       body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
@@ -43,6 +47,9 @@ toExtendedLC Module{..} = mapM toDef module'binds
         , def'args = []
         , def'body = body
         }
+
+desugarModule :: MonadLang m => Module -> m Module
+desugarModule = substWildcards
 
 -- | Transforms expression of the script-language to limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
@@ -243,4 +250,41 @@ fromType = H.mapLoc (const ())
 
 desugarSyntax :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugarSyntax ctx = removeRecords ctx <=< desugarLambdaCalculus
+
+substWildcards :: MonadLang m => Module -> m Module
+substWildcards m = do
+  binds <- mapM substBind $ module'binds m
+  return $ m { module'binds = binds }
+  where
+    substBind b = do
+      alts <- mapM substAlt $ bind'alts b
+      return $ b { bind'alts = alts }
+
+    substAlt a = do
+      pats   <- mapM substPat $ alt'pats a
+      rhs    <- mapM substExpr $ alt'expr a
+      wheres <- mapM substWheres $ alt'where a
+      return $ Alt
+        { alt'pats  = pats
+        , alt'expr  = rhs
+        , alt'where = wheres
+        }
+
+    substWheres = mapM substBind
+
+    substExpr = cataM $ \case
+      Lam loc pat e      -> fmap (\p -> Fix $ Lam loc p e) $ substPat pat
+      LamList loc pats e -> fmap (\ps -> Fix $ LamList loc ps e) $ mapM substPat pats
+      CaseOf loc e alts  -> fmap (\as -> Fix $ CaseOf loc e as) $ mapM substCaseExpr alts
+      other              -> return $ Fix $ other
+
+    substPat = \case
+      PWildCard loc     -> fmap (PVar loc) $ getFreshVar loc
+      PCons loc name ps -> fmap (PCons loc name) $ mapM substPat ps
+      PTuple loc ps     -> fmap (PTuple loc) $ mapM substPat ps
+      other             -> return other
+
+    substCaseExpr a = do
+      lhs <- substPat $ caseExpr'lhs a
+      return $ a { caseExpr'lhs = lhs }
 
