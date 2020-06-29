@@ -32,6 +32,7 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Maybe
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LBS
 
 import Data.Fix
 
@@ -53,6 +54,7 @@ import Servant.Server
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
+import qualified HSChain.POW as POWFunc
 import qualified HSChain.PoW.Types as POWTypes
 import qualified HSChain.PoW.Node as POWNode
 import HSChain.Types.Merkle.Types
@@ -188,7 +190,7 @@ instance POWTypes.BlockData UTXOBlock where
   validateHeader bh (POWTypes.Time now) header
     | POWTypes.blockHeight header == 0 = return True -- skip genesis check.
     | otherwise = do
-      answerIsGood <- error "no puzzle check right now!"
+      answerIsGood <- error "no puzzle check right now"
       return
         $ and
               [ answerIsGood
@@ -200,12 +202,35 @@ instance POWTypes.BlockData UTXOBlock where
     where
       POWTypes.Time t = POWTypes.blockTime header
 
+  validateBlock = const $ return True
+
+  blockWork b = POWTypes.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
+                              $ POWTypes.targetInteger $ ubpTarget $ ubProper
+                              $ POWTypes.blockData b
+
+  blockTargetThreshold b = POWTypes.Target $ POWTypes.targetInteger $
+                          ubpTarget $ ubProper $ POWTypes.blockData b
+
 
 instance MerkleMap UTXOBlock where
   merkleMap f ub = ub
                  { ubProper = (ubProper ub) { ubpData = mapMerkleNode f $ ubpData $ ubProper ub } }
 
 instance POWTypes.Mineable UTXOBlock where
+  adjustPuzzle b0@POWTypes.GBlock{..} = do
+    maybeAnswerHash <- liftIO $ POWFunc.solve [LBS.toStrict $ serialise blockData] powCfg
+    case maybeAnswerHash of
+      Nothing -> return Nothing
+      Just (answer, _hash) -> do
+        let mined = b0 { POWTypes.blockData = blockData { ubNonce = answer } }
+        return $ Just (mined, _hash)
+    where
+      h0 = POWTypes.toHeader b0
+      powCfg = defaultPOWConfig
+                       { POWFunc.powCfgTarget = POWTypes.targetInteger tgt }
+      tgt = POWTypes.blockTargetThreshold b0
+      defaultPOWConfig = POWFunc.defaultPOWConfig
+
 
 -- FIXME: correctly compute rertargeting
 retarget :: POWTypes.BH UTXOBlock -> POWTypes.Target

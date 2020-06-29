@@ -30,6 +30,7 @@ library
                      , hschain-utxo-api-rest
                      , hschain-utxo-state
                      , hschain-PoW
+                     , hschain-pow-func
                      , containers
                      , exceptions
                      , monad-control
