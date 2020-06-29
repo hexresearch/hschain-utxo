@@ -38,7 +38,7 @@ lambdaLifting = collect . rename . abstract . annotateFreeVars . fuseLams
 --
 -- > f = \x -> \y -> g x y ===> f = \x y -> g x y
 fuseLams :: CoreProg -> CoreProg
-fuseLams = fmap (fuseLamCombArgs . fmap fuseLamExpr)
+fuseLams (CoreProg prog) = CoreProg $ fmap (fuseLamCombArgs . fmap fuseLamExpr) prog
 
 fuseLamCombArgs :: Comb Name -> Comb Name
 fuseLamCombArgs def@Def{..} =

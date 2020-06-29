@@ -4,7 +4,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
   , Comb
   , AnnComb
   , AnnDef(..)
-  , CoreProg
+  , CoreProg(..)
   , AnnProg
   , AnnExpr
   , Expr
@@ -34,7 +34,7 @@ data AnnDef ann bind = AnnDef
   } deriving (Show, Eq)
 
 type AnnProg  ann bind = [AnnComb ann bind]
-type CoreProg = [Comb Name]
+newtype CoreProg = CoreProg { unCoreProg :: [Comb Name] }
 
 type AnnComb ann bind = Def bind (AnnExpr ann bind)
 type Comb bind = Def bind (Expr bind)

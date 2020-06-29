@@ -45,10 +45,11 @@ orderDependencies :: CoreProg -> CoreProg
 orderDependencies = fromDepGraph . stronglyConnComp . toDepGraph
 
 toDepGraph :: CoreProg -> [(Comb Name, Name, [Name])]
-toDepGraph = fmap (\def -> (def, def'name def, S.toList $ defFreeVars def))
+toDepGraph (CoreProg prog) =
+  fmap (\def -> (def, def'name def, S.toList $ defFreeVars def)) prog
 
 fromDepGraph :: [SCC (Comb Name)] -> CoreProg
-fromDepGraph = toList . foldMap getVertex
+fromDepGraph = CoreProg . toList . foldMap getVertex
   where
     getVertex = \case
       AcyclicSCC v -> Seq.singleton v

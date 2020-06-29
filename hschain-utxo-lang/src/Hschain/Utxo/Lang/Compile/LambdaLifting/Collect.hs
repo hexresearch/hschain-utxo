@@ -15,13 +15,13 @@ import qualified Data.Sequence   as Seq
 
 -- | Collects all lambdas to top-level supercombinators.
 collect :: CoreProg -> CoreProg
-collect prog = scs <> prog'
+collect (CoreProg prog) = CoreProg $ scs <> prog'
   where
     (prog', scs) = runCollectM $ mapM collectDef $ fmap (fmap fuseSingleLet) prog
 
 type CollectM a = Writer (Seq (Comb Name)) a
 
-runCollectM :: CollectM a -> (a, CoreProg)
+runCollectM :: CollectM a -> (a, [Comb Name])
 runCollectM a = (res, toList combs)
   where
     (res, combs) = runWriter a

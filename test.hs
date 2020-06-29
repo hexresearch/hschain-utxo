@@ -42,6 +42,7 @@ t3_1 :: (a, b, c) -> a
 t3_1 x = case x of
   (a, b, c) -> a
 
+{-
 -- t3_2 :: (a, b, c) -> b
 t3_2 x = case x of
   (a, b, c) -> b
@@ -56,6 +57,8 @@ xor True  True   = True
 xor False False  = True
 xor True  False  = False
 xor False True   = False
+
+-}
 {-
 xorCol :: Color -> Color -> Bool
 xorCol Red Red = True
@@ -63,10 +66,11 @@ xorCol Green Green = True
 xorCol _ _ = False
 -- xorCol Red Green = False
 -- xorCol Green Red = False
--}
+
 twistedSucc :: Int -> Int
 twistedSucc 1 = 1
 twistedSucc n = n + 1
+-}
 
 data User = User
   { user'name  :: Text
