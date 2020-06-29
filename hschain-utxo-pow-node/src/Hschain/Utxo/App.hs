@@ -1,3 +1,15 @@
+-- |Hschain.Utxo.App.hs
+--
+-- Full fledged PoW consensus node.
+--
+-- Copyright (C) 2020 ...
+
+-- Please keep switched off -Wno-orphans.
+-- We need an instance of CryptoHashable of elliptic curve
+-- scalar (Ed.Scalarbelow ) provided by very much external package.
+-- We cannot fork that package and add an instance there.
+
+{-# OPTIONS  -Wno-orphans               #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE UndecidableInstances       #-}
 module Hschain.Utxo.App(
@@ -172,11 +184,55 @@ instance POWTypes.BlockData UTXOBlock where
     deriving newtype
       (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON)
 
+  blockID b = let Hashed h = hashed b in UB'BID h
+  validateHeader bh (POWTypes.Time now) header
+    | POWTypes.blockHeight header == 0 = return True -- skip genesis check.
+    | otherwise = do
+      answerIsGood <- error "no puzzle check right now"
+      return
+        $ and
+              [ answerIsGood
+              , ubpTarget (ubProper $ POWTypes.blockData header) == retarget bh
+              -- Time checks
+              , t <= now + (2*60*60*1000)
+              -- FIXME: Check that we're ahead of median time of N prev block
+              ]
+    where
+      POWTypes.Time t = POWTypes.blockTime header
+
 instance MerkleMap UTXOBlock where
   merkleMap f ub = ub
                  { ubProper = (ubProper ub) { ubpData = mapMerkleNode f $ ubpData $ ubProper ub } }
 
 instance POWTypes.Mineable UTXOBlock where
+
+-- FIXME: correctly compute rertargeting
+retarget :: POWTypes.BH UTXOBlock -> POWTypes.Target
+retarget bh
+  | POWTypes.bhHeight bh `mod` adjustInterval == 0
+  , Just old <- goBack adjustInterval bh
+  , POWTypes.bhHeight old /= 0
+  =   let POWTypes.Time t1 = POWTypes.bhTime old
+          POWTypes.Time t2 = POWTypes.bhTime bh
+          tgt     = POWTypes.targetInteger oldTarget
+          tgt'    = (tgt * fromIntegral (t2 - t1)) `div` (fromIntegral adjustInterval * fromIntegral seconds)
+      in POWTypes.Target tgt'
+  | otherwise
+    = oldTarget
+  where
+    oldTarget = ubpTarget $ ubProper $ POWTypes.bhData bh
+    (adjustInterval, POWTypes.Time seconds) = POWTypes.targetAdjustmentInfo bh
+
+-- |FIXME: Must be in POWTypes - it is defined here just as it is defined
+-- in hschain-PoW:HSChain.Examples.Simple.hs
+goBack :: POWTypes.Height -> POWTypes.BH b -> Maybe (POWTypes.BH b)
+goBack (POWTypes.Height 0) = Just
+goBack h          = goBack (pred h) <=< POWTypes.bhPrevious
+
+       
+
+-------------------------------------------------------------------------------
+-- Executable part.
 
 -- |Run the PoW node.
 runNode :: String -> IO ()
