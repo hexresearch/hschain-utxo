@@ -188,7 +188,7 @@ instance POWTypes.BlockData UTXOBlock where
   validateHeader bh (POWTypes.Time now) header
     | POWTypes.blockHeight header == 0 = return True -- skip genesis check.
     | otherwise = do
-      answerIsGood <- error "no puzzle check right now"
+      answerIsGood <- error "no puzzle check right now!"
       return
         $ and
               [ answerIsGood
@@ -199,6 +199,7 @@ instance POWTypes.BlockData UTXOBlock where
               ]
     where
       POWTypes.Time t = POWTypes.blockTime header
+
 
 instance MerkleMap UTXOBlock where
   merkleMap f ub = ub
