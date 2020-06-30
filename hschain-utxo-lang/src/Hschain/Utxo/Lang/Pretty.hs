@@ -185,7 +185,7 @@ instance Pretty Error where
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
     ExecError err         -> pretty err
     TypeError err         -> pretty err
-    PatternError err      -> pretty err
+    PatError err      -> pretty err
     InternalError err     -> pretty err
     MonoError err         -> pretty err
 
@@ -212,6 +212,10 @@ instance Pretty PatError where
     NoVarFound        -> "Var not found in the pattern"
     NoSameArgsNumber  -> "Patterns do not have the same number of arguments for a function"
     EmptyArgument     -> "Pattern has no arguments"
+    WrongPatPrimMixture loc -> err loc "Wrong pattern mixture. Primitive is mixed with constructors"
+    WrongPatConsMixture loc -> err loc "Wrong pattern mixture. Tuple is mixed with user-constructors"
+    where
+      err src msg = hsep [hcat [pretty src, ":"], msg]
 
 instance Pretty TypeError where
   pretty = \case
