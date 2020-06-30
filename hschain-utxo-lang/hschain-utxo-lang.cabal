@@ -59,6 +59,7 @@ library
       Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
       Hschain.Utxo.Lang.Core.Gmachine.Monad
       Hschain.Utxo.Lang.Desugar
+      Hschain.Utxo.Lang.Desugar.Case
       Hschain.Utxo.Lang.Desugar.ExtendedLC
       Hschain.Utxo.Lang.Desugar.FreshVar
       Hschain.Utxo.Lang.Desugar.Guard

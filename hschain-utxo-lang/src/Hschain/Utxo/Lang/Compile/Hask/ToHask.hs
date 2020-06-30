@@ -92,9 +92,9 @@ toHaskExpr = cata $ \case
 
     toAlt CaseAlt{..} = H.Alt loc pat rhs Nothing
       where
-        pat = H.PApp loc (toQName loc $ constrName caseAlt'tag (length caseAlt'args)) (fmap (toTypedPat loc)  caseAlt'args)
+        pat = H.PatTypeSig loc (H.PApp loc (toQName loc $ constrName caseAlt'tag (length caseAlt'args)) (fmap (toTypedPat loc)  caseAlt'args)) (toType loc caseAlt'constrType)
         loc = caseAlt'loc
-        rhs = H.UnGuardedRhs loc $ H.ExpTypeSig loc caseAlt'rhs (toType loc caseAlt'constrType)
+        rhs = H.UnGuardedRhs loc caseAlt'rhs
 
 toName :: Loc -> Name -> H.Name Loc
 toName loc txt = H.Ident loc $ T.unpack txt

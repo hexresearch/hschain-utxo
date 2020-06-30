@@ -42,7 +42,6 @@ t3_1 :: (a, b, c) -> a
 t3_1 x = case x of
   (a, b, c) -> a
 
-{-
 -- t3_2 :: (a, b, c) -> b
 t3_2 x = case x of
   (a, b, c) -> b
@@ -58,7 +57,6 @@ xor False False  = True
 xor True  False  = False
 xor False True   = False
 
--}
 {-
 xorCol :: Color -> Color -> Bool
 xorCol Red Red = True
@@ -91,4 +89,3 @@ setName :: Text -> User -> User
 setName name user = user { user'name = name }
 
 -- sumPair (a, b) = a + b
-

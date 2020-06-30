@@ -44,7 +44,7 @@ toPatternInput alts = case getSimpleBind alts of
   Nothing  -> fmap Right $
     if checkArgs alts
       then getPattern
-      else throwError $ PatternError NoSameArgsNumber
+      else throwError $ PatError NoSameArgsNumber
   where
     getSimpleBind xs = case xs of
       [x] -> case alt'pats x of
@@ -66,7 +66,7 @@ toPatternInput alts = case getSimpleBind alts of
 
     getFirstLocs = \case
       a:_ -> return $ fmap getLoc $ alt'pats a
-      []  -> throwError $ PatternError EmptyArgument
+      []  -> throwError $ PatError EmptyArgument
 
     failCase = Fix $ FailCase noLoc
 
@@ -160,7 +160,7 @@ toCaseBody pattern@Pattern{..}
         getHeadPat p@PatCase{..} = fmap (, p) $ checkNoCases $ V.headM patCase'lhs
 
 checkMaybe :: MonadLang m => PatError -> Maybe a -> m a
-checkMaybe err = maybe (throwError $ PatternError err) pure
+checkMaybe err = maybe (throwError $ PatError err) pure
 
 checkNoCases, checkNoVarFound :: MonadLang m => Maybe a -> m a
 
@@ -251,13 +251,13 @@ fromGroupCons headArgs errorCase GroupCons{..} = do
     toExprWithError err cases = toExpr $ cases ++ [CaseExpr (PWildCard noLoc) err ]
 
     fromPrim other ((loc, p), body) = case body of
-      [] -> throwError $ PatternError NoCasesLeft
+      [] -> throwError $ PatError NoCasesLeft
       xs ->
         fmap (CaseExpr (PPrim loc p)) $
           toCaseBody $ Pattern headArgs (toPatCases $ fmap ([], ) xs) other
 
     fromCons other (cons, xs) = case xs of
-      []   -> throwError $ PatternError NoCasesLeft
+      []   -> throwError $ PatError NoCasesLeft
       a:_ -> do
         vars <- mapM (getFreshVar . getLoc) $ fst a
         let pvars = fmap toPVar vars
@@ -273,7 +273,7 @@ fromGroupCons headArgs errorCase GroupCons{..} = do
 
 
     fromTuple other (loc, xs) = fmap (toExpr . pure) $ case xs of
-      []  -> throwError $ PatternError NoCasesLeft
+      []  -> throwError $ PatError NoCasesLeft
       a:_ -> do
         vars <- mapM (getFreshVar . getLoc) $ fst a
         let pvars = fmap toPVar vars

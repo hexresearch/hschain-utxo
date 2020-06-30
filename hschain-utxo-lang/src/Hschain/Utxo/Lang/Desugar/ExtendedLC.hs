@@ -23,6 +23,7 @@ import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, int
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Records
+import Hschain.Utxo.Lang.Core.Data.Prim(Name)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -38,7 +39,8 @@ toExtendedLC = toExtendedLC' <=< desugarModule
 
 
 toExtendedLC' :: MonadLang m => Module -> m CoreProg
-toExtendedLC' Module{..} = fmap CoreProg $ mapM toDef module'binds
+toExtendedLC' Module{..} =
+  fmap (removeTopLevelLambdas . CoreProg) $ mapM toDef module'binds
   where
     toDef bind = do
       body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
@@ -117,7 +119,24 @@ exprToExtendedLC' typeCtx = cataM $ \case
                   , caseAlt'constrType = fromType rhsT
                   , caseAlt'rhs        = caseExpr'rhs
                   }
+      PTuple loc ps -> do
+        args <- mapM fromPat ps
+        let arity = length ps
+        return $ CaseAlt
+                  { caseAlt'loc        = loc
+                  , caseAlt'tag        = 0
+                  , caseAlt'args       = zipWith P.Typed args $ tupleArgsT arity
+                  , caseAlt'constrType = tupleConstrT arity
+                  , caseAlt'rhs        = caseExpr'rhs
+                  }
+
+
       _               -> failedToEliminate "Non-constructor case in case alternative"
+      where
+        tupleArgsT   arity = vs arity
+        tupleConstrT arity = H.tupleT () $ vs arity
+        vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
+
 
 
     fromAlt _ _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
@@ -287,4 +306,17 @@ substWildcards m = do
     substCaseExpr a = do
       lhs <- substPat $ caseExpr'lhs a
       return $ a { caseExpr'lhs = lhs }
+
+removeTopLevelLambdas :: CoreProg -> CoreProg
+removeTopLevelLambdas (CoreProg defs) = CoreProg $ fmap removeTopLevelLambdasDef defs
+
+removeTopLevelLambdasDef :: Comb Name -> Comb Name
+removeTopLevelLambdasDef def@Def{..} =
+  case def'body of
+    Fix (ELam _ args body) -> removeTopLevelLambdasDef $
+                                    def { def'args = def'args ++ args
+                                        , def'body = body
+                                        }
+    _                        -> def
+
 

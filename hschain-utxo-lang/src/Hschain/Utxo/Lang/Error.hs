@@ -16,7 +16,7 @@ data Error
   = ParseError Loc Text         -- ^ parse errors
   | ExecError ExecError         -- ^ errors of execution
   | TypeError TypeError         -- ^ type-errors
-  | PatternError PatError       -- ^ pattern definition errors
+  | PatError PatError       -- ^ pattern definition errors
   | InternalError InternalError -- ^ errors of this type should not happen in production
   | MonoError MonoError         -- ^ errors during monomorphizing
   deriving (Show)
@@ -46,6 +46,8 @@ data PatError
   | NoVarFound
   | NoSameArgsNumber  -- ^ All bindings should have the same number of arguments
   | EmptyArgument
+  | WrongPatPrimMixture Loc
+  | WrongPatConsMixture Loc
   deriving (Show)
 
 data InternalError
