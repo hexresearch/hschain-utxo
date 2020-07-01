@@ -41,6 +41,7 @@ import Data.Fixed
 import Data.Functor.Classes (Show1)
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 import Data.Maybe
 
@@ -197,7 +198,7 @@ instance POWTypes.BlockData UTXOBlock where
       return
         $ and
               [ answerIsGood
-              , ubpTarget (ubProper $ POWTypes.blockData header) == retarget bh
+              , ubpTarget (ubProper $ POWTypes.blockData header) == POWTypes.retarget bh
               -- Time checks
               , t <= now + (2*60*60*1000)
               -- FIXME: Check that we're ahead of median time of N prev block
@@ -232,36 +233,37 @@ instance POWTypes.Mineable UTXOBlock where
       defaultPOWConfig = POWFunc.defaultPOWConfig
 
 
--- FIXME: correctly compute rertargeting
-retarget :: POWTypes.BH UTXOBlock -> POWTypes.Target
-retarget bh
-  | POWTypes.bhHeight bh `mod` adjustInterval == 0
-  , Just old <- POWTypes.goBack adjustInterval bh
-  , POWTypes.bhHeight old /= 0
-  =   let POWTypes.Time t1 = POWTypes.bhTime old
-          POWTypes.Time t2 = POWTypes.bhTime bh
-          tgt     = POWTypes.targetInteger oldTarget
-          tgt'    = (tgt * fromIntegral (t2 - t1)) `div` (fromIntegral adjustInterval * fromIntegral seconds)
-      in POWTypes.Target tgt'
-  | otherwise
-    = oldTarget
-  where
-    oldTarget = ubpTarget $ ubProper $ POWTypes.bhData bh
-    (adjustInterval, POWTypes.Time seconds) = POWTypes.targetAdjustmentInfo bh
-
 -------------------------------------------------------------------------------
 -- Executable part.
+
+newtype Profitability = Profitability Rational
+  deriving (Eq, Show)
+
+instance Ord Profitability where
+  compare (Profitability a) (Profitability b) = compare b a -- ^More profitable first.
+
+data ProfitTx = PTx
+  { ptxProfitability :: !Profitability
+  , ptxTx            :: !Tx
+  }
+  deriving (Eq, Ord, Show)
+
+data UTXONodeState = UTXONodeState
+  { unsTransactions :: !(Set.Set ProfitTx)
+  , unsUTXOSet      :: !(Set.Set Box)
+  }
+  deriving (Eq, Ord, Show)
 
 -- |Run the PoW node.
 runNode :: String -> IO ()
 runNode cfgConfigPath =
-  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep Map.empty (getBlockToMine optNodeName)
+  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep (getBlockToMine optNodeName) (UTXONodeState Set.empty Set.empty)
   where
     getBlockToMine = error "getBlockToMine"
     optNodeName = error "optnodename"
     optMine = True
     genesisBlock = undefined
-    utxoViewStep :: POWTypes.Block UTXOBlock -> Map.Map Int String -> Maybe (Map.Map Int String)
+    utxoViewStep :: POWTypes.Block UTXOBlock -> UTXONodeState -> Maybe UTXONodeState
     utxoViewStep b m
       | otherwise                               = error "utxo view step is not done"
       where
