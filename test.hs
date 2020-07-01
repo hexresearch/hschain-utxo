@@ -21,9 +21,10 @@ data Color
 colToNum :: Color -> Int
 colToNum x = case x of
   Red -> 1
-  Green -> 2
-  Blue -> 3
-  Gen r g b -> 100 * r + 10 * g + b
+--  Green -> 2
+--  Blue -> 3
+--  Gen r g b -> 100 * r + 10 * g + b
+  _ -> 5
 
 double f x = f (f x)
 
@@ -51,13 +52,15 @@ q x = p x + 2
 p :: Int -> Int
 p x = x
 
-xor :: Bool -> Bool -> Bool
-xor True  True   = True
-xor False False  = True
-xor True  False  = False
-xor False True   = False
+xorC :: Bool -> Bool -> Bool
+xorC x y = case (x, y) of
+  (True, True)   -> True
+  (False, False) -> True
+  (True,  False) -> False
+  (False, True)  -> False
 
 {-
+
 xorCol :: Color -> Color -> Bool
 xorCol Red Red = True
 xorCol Green Green = True

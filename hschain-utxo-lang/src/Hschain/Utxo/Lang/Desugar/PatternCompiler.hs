@@ -3,6 +3,7 @@
 module Hschain.Utxo.Lang.Desugar.PatternCompiler(
     PatError
   , altGroupToExpr
+  , altGroupToTupleExpr
   , altToExpr
 ) where
 
@@ -26,6 +27,20 @@ import Hschain.Utxo.Lang.Monad
 
 import qualified Data.List   as L
 import qualified Data.Vector as V
+
+import qualified Language.HM as H
+
+altGroupToTupleExpr :: MonadLang m => [Alt Lang] -> m Lang
+altGroupToTupleExpr xs = case xs of
+  [a] -> return $ Fix $ LamList (H.getLoc $ alt'expr a) (alt'pats a) (addWhere whereExprs $ fromGuardedRhs $ alt'expr a)
+  []  -> noCasesLeft
+  as  -> do
+    let loc = H.getLoc $ alt'expr $ head as
+    v <- getFreshVar loc
+
+  where
+    whereExprs = concat $ mapMaybe alt'where xs
+
 
 -- | Converts list of function definitions with pattern matching to single
 -- expression with case-expression.
@@ -91,14 +106,15 @@ data PatCase = PatCase
 
 toCaseLam :: forall m . MonadLang m => BindGroup Lang -> Pattern -> m Lang
 toCaseLam whereExprs p = case args of
-  [] -> fmap addWhere $ toCaseBody p
-  _  -> fmap ((\body -> Fix $ LamList noLoc args body) . addWhere) $ toCaseBody p
+  [] -> fmap (addWhere whereExprs) $ toCaseBody p
+  _  -> fmap ((\body -> Fix $ LamList noLoc args body) . addWhere whereExprs) $ toCaseBody p
   where
     args = fmap (\x -> PVar (getLoc x) x) $ V.toList $ pattern'args p
 
-    addWhere = case whereExprs of
-      [] -> id
-      _  -> Fix . Let noLoc whereExprs
+addWhere ::  BindGroup Lang -> Lang -> Lang
+addWhere whereExprs = case whereExprs of
+  [] -> id
+  _  -> Fix . Let noLoc whereExprs
 
 
 

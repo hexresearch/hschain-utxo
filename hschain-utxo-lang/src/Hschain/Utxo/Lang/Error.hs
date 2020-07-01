@@ -81,5 +81,23 @@ fromParseError = \case
   H.ParseOk a           -> Right a
   H.ParseFailed loc err -> Left $ ParseError (H.noInfoSpan $ H.mkSrcSpan loc loc) (fromString err)
 
+-- errors:
+
+wrongPatPrimMixture :: MonadError Error m => Loc -> m a
+wrongPatPrimMixture loc = throwError $ PatError $ WrongPatPrimMixture loc
+
+wrongPatConsMixture :: MonadError Error m => Loc -> m a
+wrongPatConsMixture loc = throwError $ PatError $ WrongPatConsMixture loc
+
+noCasesLeft :: MonadError Error m => m a
+noCasesLeft = throwError $ PatError $ NoCasesLeft
+
 failedToEliminate :: MonadError Error m => Text -> m a
 failedToEliminate msg = throwError $ InternalError $ FailedToEliminate msg
+
+unboundVariable :: MonadError Error m => VarName -> m a
+unboundVariable = unboundVariables . return
+
+unboundVariables :: MonadError Error m => [VarName] -> m a
+unboundVariables vars = throwError $ ExecError $ UnboundVariables vars
+

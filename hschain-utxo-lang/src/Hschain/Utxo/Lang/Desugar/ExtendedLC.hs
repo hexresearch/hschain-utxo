@@ -22,6 +22,7 @@ import Hschain.Utxo.Lang.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, intT, boxT, textT)
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
+import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.Records
 import Hschain.Utxo.Lang.Core.Data.Prim(Name)
 
@@ -51,7 +52,7 @@ toExtendedLC' Module{..} =
         }
 
 desugarModule :: MonadLang m => Module -> m Module
-desugarModule = substWildcards
+desugarModule = desugarCase <=< substWildcards
 
 -- | Transforms expression of the script-language to limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
@@ -129,9 +130,7 @@ exprToExtendedLC' typeCtx = cataM $ \case
                   , caseAlt'constrType = tupleConstrT arity
                   , caseAlt'rhs        = caseExpr'rhs
                   }
-
-
-      _               -> failedToEliminate "Non-constructor case in case alternative"
+      _ -> failedToEliminate "Non-constructor case in case alternative"
       where
         tupleArgsT   arity = vs arity
         tupleConstrT arity = H.tupleT () $ vs arity
@@ -157,7 +156,7 @@ exprToExtendedLC' typeCtx = cataM $ \case
 
     fromPk loc a = pure $ ap1 loc (var loc "pk") a
 
-    fromTuple loc args = pure $ Fix $ EConstr loc ty tagId arity
+    fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args
       where
         arity = V.length args
         ty    = foldr (\v rhs -> arrowT v rhs) tyRhs vs

@@ -67,15 +67,19 @@ setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'typ
     getConsInfoMap = foldMap getConsInfo . M.elems
 
     getConsInfo :: UserType -> Map ConsName ConsInfo
-    getConsInfo UserType{..} = M.fromList $ fmap (toInfo userType'name userType'args) $ zip [0..] $ M.toList userType'cases
+    getConsInfo ut@UserType{..} = M.fromList $ fmap (toInfo ut) $ zip [0..] $ M.toList userType'cases
 
-    toInfo :: VarName -> [VarName] -> (Int, (ConsName, ConsDef)) -> (ConsName, ConsInfo)
-    toInfo ty tyArgs (tagId, (name, def)) = (name, info)
+    toInfo :: UserType -> (Int, (ConsName, ConsDef)) -> (ConsName, ConsInfo)
+    toInfo userT (tagId, (name, def)) = (name, info)
       where
+        ty = userType'name userT
+        tyArgs = userType'args userT
+
         info = ConsInfo
                 { consInfo'tagId = tagId
                 , consInfo'arity = arity
                 , consInfo'type  = consTy
+                , consInfo'def   = userT
                 }
 
         arity = V.length consArgs
@@ -89,6 +93,9 @@ setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'typ
 
     toResultType :: VarName -> [VarName] -> Type
     toResultType name args = H.conT noLoc (varName'name name) (fmap (H.varT noLoc . varName'name) args)
+
+getConsDefArity :: ConsDef -> Int
+getConsDefArity = V.length . getConsTypes
 
 setupUserRecords :: UserTypeCtx -> UserTypeCtx
 setupUserRecords = setupRecFields . setupRecConstrs
@@ -143,9 +150,10 @@ data RecordField = RecordField
 -- We need to know it's type, arity and integer tag that is unique within
 -- its group of constructor for a given type (global uniqueness is not needed)
 data ConsInfo = ConsInfo
-  { consInfo'type  :: Type  -- ^ type of the constructor as a function
-  , consInfo'tagId :: !Int  -- ^ unique integer identifier (within the type scope)
-  , consInfo'arity :: !Int  -- ^ arity of constructor
+  { consInfo'type  :: !Type      -- ^ type of the constructor as a function
+  , consInfo'tagId :: !Int       -- ^ unique integer identifier (within the type scope)
+  , consInfo'arity :: !Int       -- ^ arity of constructor
+  , consInfo'def   :: !UserType  -- ^ definition where constructor is defined
   } deriving (Show, Eq)
 
 -- | Order of names in the record constructor.
