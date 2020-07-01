@@ -221,12 +221,9 @@ instance MerkleMap UTXOBlock where
 
 instance POWTypes.Mineable UTXOBlock where
   adjustPuzzle b0@POWTypes.GBlock{..} = do
-    maybeAnswerHash <- liftIO $ POWFunc.solve [LBS.toStrict $ serialise blockData] powCfg
-    case maybeAnswerHash of
-      (Nothing, _hash) -> return (Nothing, _hash)
-      (Just answer, _hash) -> do
-        let mined = b0 { POWTypes.blockData = blockData { ubNonce = answer } }
-        return $ (Just mined, _hash)
+    (maybeAnswer, hash) <- liftIO $ POWFunc.solve [LBS.toStrict $ serialise blockData] powCfg
+    let tgt = POWTypes.hash256AsTarget hash
+    return (fmap (\answer -> b0 { POWTypes.blockData = blockData { ubNonce = answer} }) maybeAnswer, tgt)
     where
       h0 = POWTypes.toHeader b0
       powCfg = defaultPOWConfig
