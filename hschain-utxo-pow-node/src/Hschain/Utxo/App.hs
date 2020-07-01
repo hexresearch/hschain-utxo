@@ -1,6 +1,6 @@
 -- |Hschain.Utxo.App.hs
 --
--- Full fledged PoW consensus node.
+-- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
 
@@ -139,6 +139,9 @@ instance Crypto.CryptoHashable Ed.Scalar where
 instance Crypto.CryptoHashable Pico where
   hashStep = hashStep . serialise
 
+-------------------------------------------------------------------------------
+-- The Block.
+
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
 data UTXOBlockProper f = UTXOBlockProper
@@ -220,10 +223,10 @@ instance POWTypes.Mineable UTXOBlock where
   adjustPuzzle b0@POWTypes.GBlock{..} = do
     maybeAnswerHash <- liftIO $ POWFunc.solve [LBS.toStrict $ serialise blockData] powCfg
     case maybeAnswerHash of
-      Nothing -> return Nothing
-      Just (answer, _hash) -> do
+      (Nothing, _hash) -> return (Nothing, _hash)
+      (Just answer, _hash) -> do
         let mined = b0 { POWTypes.blockData = blockData { ubNonce = answer } }
-        return $ Just (mined, _hash)
+        return $ (Just mined, _hash)
     where
       h0 = POWTypes.toHeader b0
       powCfg = defaultPOWConfig
@@ -236,7 +239,7 @@ instance POWTypes.Mineable UTXOBlock where
 retarget :: POWTypes.BH UTXOBlock -> POWTypes.Target
 retarget bh
   | POWTypes.bhHeight bh `mod` adjustInterval == 0
-  , Just old <- goBack adjustInterval bh
+  , Just old <- POWTypes.goBack adjustInterval bh
   , POWTypes.bhHeight old /= 0
   =   let POWTypes.Time t1 = POWTypes.bhTime old
           POWTypes.Time t2 = POWTypes.bhTime bh
@@ -248,14 +251,6 @@ retarget bh
   where
     oldTarget = ubpTarget $ ubProper $ POWTypes.bhData bh
     (adjustInterval, POWTypes.Time seconds) = POWTypes.targetAdjustmentInfo bh
-
--- |FIXME: Must be in POWTypes - it is defined here just as it is defined
--- in hschain-PoW:HSChain.Examples.Simple.hs
-goBack :: POWTypes.Height -> POWTypes.BH b -> Maybe (POWTypes.BH b)
-goBack (POWTypes.Height 0) = Just
-goBack h          = goBack (pred h) <=< POWTypes.bhPrevious
-
-       
 
 -------------------------------------------------------------------------------
 -- Executable part.
