@@ -1,4 +1,4 @@
--- | Functions to convert extended lambda-calculus to haskell-like programsm.
+-- | Functions to convert extended lambda-calculus to haskell-like programms.
 -- We use it to borrow pretty-printer from the package haskell-src-exts.
 module Hschain.Utxo.Lang.Compile.Hask.ToHask(
     toHaskProg
