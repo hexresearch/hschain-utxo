@@ -3,20 +3,28 @@ module Hschain.Utxo.Lang.Compile.Expr(
   , Def(..)
   , Comb
   , AnnComb
-  , AnnDef(..)
+--  , AnnDef(..)
   , CoreProg(..)
-  , AnnProg
+  , AnnProg(..)
   , AnnExpr
   , Expr
   , ExprF(..)
   , CaseAlt(..)
+  , TypedDef
+  , TypedProg
+  , TypedExpr
+  , getTypedDefType
 ) where
 
 import Data.Fix
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Expr (Loc)
+import Hschain.Utxo.Lang.Expr (Loc, VarName)
 
 import qualified Language.HM as H
+
+type TypedProg = AnnProg Type (Typed Name)
+type TypedDef = AnnComb Type (Typed Name)
+type TypedExpr = AnnExpr Type (Typed Name)
 
 data Ann ann f a = Ann
   { ann'note  :: ann
@@ -33,14 +41,15 @@ data AnnDef ann bind = AnnDef
   , annDef'body :: AnnExpr ann bind
   } deriving (Show, Eq)
 
-type AnnProg  ann bind = [AnnComb ann bind]
+newtype AnnProg  ann bind = AnnProg { unAnnProg :: [AnnComb ann bind] }
+
 newtype CoreProg = CoreProg { unCoreProg :: [Comb Name] }
 
 type AnnComb ann bind = Def bind (AnnExpr ann bind)
 type Comb bind = Def bind (Expr bind)
 
 data Def bind rhs = Def
-  { def'name :: Name
+  { def'name :: VarName
   , def'args :: [bind]
   , def'body :: rhs
   } deriving (Functor, Foldable, Traversable, Show, Eq)
@@ -101,3 +110,9 @@ instance H.HasLoc (ExprF bind a) where
     EBottom loc        -> loc
 
 
+-- | Reads  type signature of typed def
+getTypedDefType :: TypedDef -> Type
+getTypedDefType Def{..} = foldr (H.arrowT ()) res args
+  where
+    args = fmap typed'type def'args
+    res  = ann'note $ unFix def'body

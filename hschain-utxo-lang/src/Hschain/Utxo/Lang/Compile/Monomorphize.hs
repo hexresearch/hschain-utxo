@@ -17,7 +17,6 @@ import Data.Sequence (Seq)
 
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Compile.Infer (TypedProg)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType, funT)
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..))
@@ -32,20 +31,18 @@ import qualified Data.Set as S
 
 -- | Makes types monomorphic.
 makeMonomorphic :: MonadLang m => TypedProg -> m TypedProg
-makeMonomorphic prog = runMono progMap (makeMono context)
+makeMonomorphic (AnnProg prog) = runMono progMap (makeMono context)
   where
-    progMap = M.fromList $ fmap (\x -> (def'name x, x)) prog
+    progMap = M.fromList $ fmap (\x -> (varName'name $ def'name x, x)) prog
     context = fmap getDefType progMap
 
 type Mono a = StateT MonoSt (Either Error) a
 type ProgMap = Map Name TypedDef
-type TypedDef = AnnComb Type (Typed Name)
 type Context = Map Name Type
 type Subst = H.Subst () Name
-type TypedExpr = AnnExpr Type (Typed Name)
 
 runMono :: MonadLang m => ProgMap -> Mono a -> m TypedProg
-runMono sourceProg m = liftEither $ fmap (M.elems . monoSt'resultProg) $ execStateT m initSt
+runMono sourceProg m = liftEither $ fmap (AnnProg . M.elems . monoSt'resultProg) $ execStateT m initSt
   where
     initSt = MonoSt
       { monoSt'seeds = initSeed
@@ -166,7 +163,7 @@ substExpr env (Fix (Ann ty expr)) =
               (ty', subst) <- unifySubst ty varTy
               if isMonoT ty'
                 then do
-                  let name' = getSubstName subst name
+                  let name' = varName'name $ getSubstName subst (VarName loc name)
                       resE = Fix $ Ann ty' $ EVar loc name'
                   globalSeeds <- checkGlobalSubst subst ty' loc name
                   let localSubst = if isLetLocal then singletonLetSubst name (LocalSubst { localSubst'subst = subst, localSubst'name = name'}) else mempty
@@ -187,7 +184,7 @@ substExpr env (Fix (Ann ty expr)) =
                 defn  <- getSourceDef src varName
                 let defn' = specifyDef subst defn
                 insertSourceDef defn'
-                return [Typed (def'name defn') varMonoTy]
+                return [Typed (varName'name $ def'name defn') varMonoTy]
             | otherwise = return []
 
 
@@ -350,8 +347,8 @@ applySubstAnnExpr subst = cata $ \case
       }
 
 
-getSubstName :: Subst -> Name -> Name
-getSubstName (H.Subst m) name =
+getSubstName :: Subst -> VarName -> VarName
+getSubstName (H.Subst m) (VarName loc name) = VarName loc $
   mconcat $ L.intersperse delim $ (name :) $ fmap (toTypeName . snd) $ M.toList m
   where
     delim = ":"
@@ -382,11 +379,11 @@ addSeeds seeds =
 
 insertResultDef :: TypedDef -> Mono ()
 insertResultDef defn =
-  modify' $ \st -> st { monoSt'resultProg = M.insert (def'name defn) defn $ monoSt'resultProg st }
+  modify' $ \st -> st { monoSt'resultProg = M.insert (varName'name $ def'name defn) defn $ monoSt'resultProg st }
 
 insertSourceDef :: TypedDef -> Mono ()
 insertSourceDef defn =
-  modify' $ \st -> st { monoSt'sourceProg = M.insert (def'name defn) defn $ monoSt'sourceProg st }
+  modify' $ \st -> st { monoSt'sourceProg = M.insert (varName'name $ def'name defn) defn $ monoSt'sourceProg st }
 
 getSourceProg :: Mono ProgMap
 getSourceProg = fmap monoSt'sourceProg get

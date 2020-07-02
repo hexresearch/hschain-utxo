@@ -8,6 +8,7 @@ import Data.Fix
 import Data.Foldable
 import Data.Sequence (Seq)
 
+import Hschain.Utxo.Lang.Expr (VarName(..))
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 
@@ -53,8 +54,8 @@ collectExpr = cataM $ \case
 
     getSc :: (Name, Expr Name) -> Maybe (Comb Name)
     getSc (name, Fix x) = case x of
-      ELam _ args body -> Just $ Def name args body
-      _                -> Nothing
+      ELam loc args body -> Just $ Def (VarName loc name) args body
+      _                  -> Nothing
 
 
 partitionBy :: (a -> Maybe b) -> [a] -> ([b], [a])

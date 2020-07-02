@@ -9,6 +9,7 @@ import Data.Foldable (toList)
 import Data.Graph
 import Data.Set (Set)
 
+import Hschain.Utxo.Lang.Expr (VarName(..))
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
 
@@ -46,7 +47,7 @@ orderDependencies = fromDepGraph . stronglyConnComp . toDepGraph
 
 toDepGraph :: CoreProg -> [(Comb Name, Name, [Name])]
 toDepGraph (CoreProg prog) =
-  fmap (\def -> (def, def'name def, S.toList $ defFreeVars def)) prog
+  fmap (\def -> (def, varName'name $ def'name def, S.toList $ defFreeVars def)) prog
 
 fromDepGraph :: [SCC (Comb Name)] -> CoreProg
 fromDepGraph = CoreProg . toList . foldMap getVertex
