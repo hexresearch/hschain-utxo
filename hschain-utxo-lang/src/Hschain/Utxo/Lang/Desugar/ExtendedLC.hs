@@ -23,6 +23,7 @@ import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, int
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case
+import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
 import Hschain.Utxo.Lang.Core.Data.Prim(Name)
 
@@ -52,7 +53,7 @@ toExtendedLC' Module{..} =
         }
 
 desugarModule :: MonadLang m => Module -> m Module
-desugarModule = desugarCase <=< substWildcards
+desugarModule = desugarCase <=< altGroupToTupleModule <=< substWildcards
 
 -- | Transforms expression of the script-language to limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)

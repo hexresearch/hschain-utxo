@@ -37,7 +37,7 @@ desugarCase m = do
   return $ m { module'binds = binds }
 
 desugarCaseExpr :: MonadLang m => UserTypeCtx -> Lang -> m Lang
-desugarCaseExpr ctx = {-completeConsCaseExpr ctx <=< -} flatternCaseExpr
+desugarCaseExpr ctx = completeConsCaseExpr ctx <=< flatternCaseExpr
 
 -- | Completes missing case-expressions, and removes redundant cases
 -- like cases that are shadowed by previous catch-all cases.
