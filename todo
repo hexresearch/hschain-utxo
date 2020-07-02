@@ -1,3 +1,6 @@
+* debug pattern-matching compiler, for now switched to tuple-based compiler
+   but it should not remain in the long run.
+
 * consider compilation of arguments
    It's desirable to keep a map from text keys to primitives.
   But how can we implement it in the low-level language?
