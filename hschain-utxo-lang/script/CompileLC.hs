@@ -6,7 +6,7 @@ import Control.Monad
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Pretty()
-import Hschain.Utxo.Lang.Desugar (altGroupToExpr)
+import Hschain.Utxo.Lang.Desugar (altGroupToExpr, altGroupToTupleExpr)
 import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
 import Hschain.Utxo.Lang.Error
@@ -33,7 +33,7 @@ compileSingleSteps :: String -> IO ()
 compileSingleSteps file = do
   P.ParseOk m <- fmap (P.parseModule (Just "test2.hs")) $ readFile file
   let defn = head $ module'binds m
-  either printRes printRes $ runInferM (altGroupToExpr $ bind'alts defn)
+  either printRes printRes $ runInferM (altGroupToTupleExpr $ bind'alts defn)
   putStrLn "-----------------------"
   either printRes printRes $ runInferM (desugarCaseExpr (module'userTypes m) <=< altGroupToExpr $ bind'alts defn)
 
