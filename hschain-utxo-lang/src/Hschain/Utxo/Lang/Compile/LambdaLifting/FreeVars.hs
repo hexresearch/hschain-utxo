@@ -15,7 +15,7 @@ import qualified Data.Set        as S
 
 -- | Annotates expression tree with free vars.
 annotateFreeVars :: CoreProg -> AnnProg (Set Name) Name
-annotateFreeVars (CoreProg prog) = fmap onDef prog
+annotateFreeVars (CoreProg prog) = AnnProg $ fmap onDef prog
   where
     onDef def@Def{..} = fmap (getFreeVars initLocals) def
       where

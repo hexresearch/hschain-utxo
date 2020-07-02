@@ -29,13 +29,13 @@ compile = toCoreProg <=< makeMonomorphic <=< annotateTypes . lambdaLifting <=< t
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
 toCoreProg :: forall m . MonadLang m => TypedProg -> m Core.CoreProg
-toCoreProg = mapM toScomb
+toCoreProg = mapM toScomb . unAnnProg
   where
     toScomb :: AnnComb Type (Typed Name) -> m Core.Scomb
     toScomb Def{..} = do
       expr <- toCoreExpr def'body
       return $ Core.Scomb
-          { Core.scomb'name = def'name
+          { Core.scomb'name = varName'name def'name
           , Core.scomb'args = V.fromList def'args
           , Core.scomb'body = expr
           }

@@ -47,7 +47,7 @@ toExtendedLC' Module{..} =
     toDef bind = do
       body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
       return $ Def
-        { def'name = varName'name $ bind'name bind
+        { def'name = bind'name bind
         , def'args = []
         , def'body = body
         }

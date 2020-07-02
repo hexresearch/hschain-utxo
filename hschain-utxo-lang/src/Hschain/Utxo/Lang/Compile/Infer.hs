@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | Type inference for core programms
 module Hschain.Utxo.Lang.Compile.Infer(
-    TypedProg
-  , annotateTypes
+  annotateTypes
 ) where
 
 import Hex.Common.Text
@@ -15,11 +14,10 @@ import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type, Prim(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
-import Hschain.Utxo.Lang.Expr (Loc, noLoc)
+import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
 
 import qualified Language.HM as H
 
-type TypedProg = AnnProg Type (Typed Name)
 type Context = H.Context Loc Tag
 
 -- | We need this type for type-inference algorithm
@@ -57,11 +55,11 @@ toType = H.mapLoc (const ()) . fmap fromTag
 -- | Infers types for all subexpressions
 annotateTypes :: forall m . MonadLang m => CoreProg -> m TypedProg
 annotateTypes =
-  fmap (reverse . snd) . foldM go (mempty, []) . unCoreProg . orderDependencies
+  fmap (AnnProg . reverse . snd) . foldM go (mempty, []) . unCoreProg . orderDependencies
   where
     go (ctx, prog) comb = do
       (combT, combTyped) <- typeDef ctx comb
-      return (H.insertContext (VarTag $ def'name comb) combT ctx, combTyped : prog)
+      return (H.insertContext (VarTag $ varName'name $ def'name comb) combT ctx, combTyped : prog)
 
     typeDef :: Context -> Comb Name -> m (H.Type Loc Tag, AnnComb Type (Typed Name))
     typeDef ctx comb = do

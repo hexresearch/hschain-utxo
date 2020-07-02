@@ -29,6 +29,8 @@ library
       Hschain.Utxo.Lang.Compile.Monomorphize
       Hschain.Utxo.Lang.Compile.Pretty
       Hschain.Utxo.Lang.Compile.Hask.ToHask
+      Hschain.Utxo.Lang.Compile.Hask.TypedToHask
+      Hschain.Utxo.Lang.Compile.Hask.Utils
       Hschain.Utxo.Lang.Compile.LambdaLifting
       Hschain.Utxo.Lang.Compile.LambdaLifting.Abstract
       Hschain.Utxo.Lang.Compile.LambdaLifting.Collect
