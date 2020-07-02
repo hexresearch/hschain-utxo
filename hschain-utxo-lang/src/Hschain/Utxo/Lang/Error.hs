@@ -101,3 +101,8 @@ unboundVariable = unboundVariables . return
 unboundVariables :: MonadError Error m => [VarName] -> m a
 unboundVariables vars = throwError $ ExecError $ UnboundVariables vars
 
+noSameArgsNumber :: MonadError Error m => m a
+noSameArgsNumber = throwError $ PatError NoSameArgsNumber
+
+emptyArgument :: MonadError Error m => m a
+emptyArgument = throwError $ PatError EmptyArgument

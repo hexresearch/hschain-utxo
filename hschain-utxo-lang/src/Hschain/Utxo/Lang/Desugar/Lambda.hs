@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Desugar.Lambda(
   , removeInfixApply
   , removeAscr
   , simplifyLet
+  , substLamPats
   , desugarLambdaCalculus
 ) where
 
@@ -14,6 +15,10 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 
+import qualified Language.HM as H
+import qualified Data.Vector as V
+
+
 -- | Single function that brings together several lambda-calculus transformations.
 --
 -- * Joins arguments of lambda abstractions
@@ -21,9 +26,10 @@ import Hschain.Utxo.Lang.Desugar.PatternCompiler
 -- * Transforms infix applications to prefix ones
 -- * Removes explicit type-annotations
 -- * Simplifies Let-expressions.
+-- * Substitute patterns in lambda-functions for variables and let bindings
 desugarLambdaCalculus :: MonadLang m => Lang -> m Lang
 desugarLambdaCalculus =
-  simplifyLet . removeAscr . removeInfixApply . joinLetBinds . joinLamArgs
+  simplifyLet . removeAscr . removeInfixApply . joinLetBinds <=< substLamPats . joinLamArgs
 
 -- | Aggregates all lambda arguments to lists. It converts:
 --
@@ -76,4 +82,33 @@ simplifyLet = cataM $ \case
   where
     simplify Bind{..} = fmap (bind'name, ) $ altGroupToExpr bind'alts
 
+-- | Substitutes pattersn in lambda arguments for case+let
+-- do this step after elimination of single Lams so
+-- that we can consider only cases with LamList
+substLamPats :: MonadLang m => Lang -> m Lang
+substLamPats = cataM $ \case
+  LamList loc ps body -> fromLamList loc ps body
+  other               -> return $ Fix other
+  where
+    fromLamList loc patterns body = do
+      (as, ps) <- fmap (\(args, pats) -> (reverse args, reverse pats)) $ foldM collectPats ([], []) patterns
+      return $ case ps of
+        []  -> Fix $ LamList loc as body
+        [(v, p)] ->
+               let ploc = H.getLoc p
+               in  Fix $ LamList loc as $ Fix $ CaseOf ploc (toVarArg v) [CaseExpr p body]
+        p:_      ->
+               let ploc = H.getLoc $ fst p
+               in  Fix $ LamList loc as $ Fix $ CaseOf ploc (toTupleArg $ fmap fst ps) [CaseExpr (toTuplePat $ fmap snd ps) body]
+
+    collectPats (args, pats) p = case p of
+      PVar _ _ -> return (p : args, pats)
+      other    -> do
+        let loc = H.getLoc other
+        v <- getFreshVar loc
+        return (PVar loc v : args, (v, p) : pats)
+
+    toTupleArg vs = Fix $ Tuple (H.getLoc $ head vs) $ fmap toVarArg $ V.fromList vs
+    toVarArg v = Fix $ Var (H.getLoc v) v
+    toTuplePat ps = PTuple (H.getLoc $ head ps) ps
 
