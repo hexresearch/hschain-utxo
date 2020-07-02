@@ -224,11 +224,11 @@ substAlts ctx loc expr alts
       []   -> return $ ifPrim $ Fix $ FailCase ploc
       a:as -> case caseExpr'lhs a of
                 PPrim ploc2 p2 -> fmap ifPrim $ fromPrim ploc2 p2 (caseExpr'rhs a) as
-                PVar _ v       -> return $ ifPrim $ subst rhs v expr
+                PVar _ v       -> return $ ifPrim $ subst (caseExpr'rhs a) v expr
                 PWildCard _    -> return $ ifPrim expr
                 other          -> wrongPatPrimMixture $ H.getLoc other
       where
-        ifPrim e = Fix $ If ploc (Fix $ BinOpE ploc Equals (Fix $ PrimE ploc p) expr) rhs e
+        ifPrim e = Fix $ If ploc (Fix $ BinOpE ploc Equals expr (Fix $ PrimE ploc p)) rhs e
 
 
 
