@@ -29,12 +29,8 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
--- | TODO we need to transform patterns in similiar way as Pattern-compiler
--- prior to further transformations!
 desugarCase :: MonadLang m => Module -> m Module
-desugarCase m = do
-  binds <- mapM (mapM (desugarCaseExpr $ module'userTypes m)) $ module'binds m
-  return $ m { module'binds = binds }
+desugarCase = liftToModuleWithCtx desugarCaseExpr
 
 desugarCaseExpr :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugarCaseExpr ctx = completeConsCaseExpr ctx <=< flatternCaseExpr

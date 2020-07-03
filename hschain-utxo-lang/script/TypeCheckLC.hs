@@ -20,6 +20,8 @@ import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
 import qualified Data.Text.IO as T
 
+main = compileShow "../test2.hs"
+
 compileShow :: String -> IO ()
 compileShow file = do
   fileTxt <- readFile file

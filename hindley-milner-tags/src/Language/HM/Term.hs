@@ -18,9 +18,12 @@ module Language.HM.Term(
   , freeVars
 ) where
 
+import Control.Arrow
+
 import Data.Fix
 import Data.Set (Set)
 
+import Language.HM.Subst
 import Language.HM.Type
 
 import qualified Data.Set as S
@@ -53,7 +56,7 @@ data CaseAlt loc v a = CaseAlt
   -- ^ source code location
   , caseAlt'tag   :: v
   -- ^ tag of the constructor
-  , caseAlt'args  :: [Typed loc v v]
+  , caseAlt'args  :: [Typed loc v (loc, v)]
   -- ^ arguments of the pattern matching
   , caseAlt'constrType :: Type loc v
   -- ^ type of the matched expression, they should be the same for all cases
@@ -96,7 +99,7 @@ instance Functor (Term prim loc) where
         , caseAlt'constrType = fmap f caseAlt'constrType
         }
 
-      mapTyped g Typed{..} = Typed (fmap f typed'type) (g typed'value)
+      mapTyped g Typed{..} = Typed (fmap f typed'type) (second g typed'value)
 
 -- | 'varE' @loc x@ constructs a variable whose name is @x@ with source code at @loc@.
 varE :: loc -> var -> Term prim loc var
@@ -176,7 +179,7 @@ instance LocFunctor (Term prim) where
         , caseAlt'constrType = mapLoc g caseAlt'constrType
         }
 
-      mapTyped g (Typed ty val) = Typed (mapLoc g ty) val
+      mapTyped g (Typed ty val) = Typed (mapLoc g ty) (first g val)
 
 -- | Get free variables of the term.
 freeVars :: Ord v => Term lprim oc v -> Set v
@@ -199,6 +202,24 @@ freeVars = cata go . unTerm
 
     freeBinds = foldMap bind'rhs
 
-    freeVarAlts CaseAlt{..} = caseAlt'rhs `S.difference` (S.fromList $ fmap typed'value caseAlt'args)
+    freeVarAlts CaseAlt{..} = caseAlt'rhs `S.difference` (S.fromList $ fmap (snd . typed'value) caseAlt'args)
 
+instance TypeFunctor (Term prim) where
+  mapType f (Term term) = Term $ cata go term
+    where
+      go = \case
+        Constr loc ty cons arity -> Fix $ Constr loc (f ty) cons arity
+        Case loc e alts          -> Fix $ Case loc e $ fmap applyAlt alts
+        other                    -> Fix other
+
+      applyAlt alt@CaseAlt{..} = alt
+        { caseAlt'args       = fmap applyTyped caseAlt'args
+        , caseAlt'constrType = f caseAlt'constrType
+        }
+
+      applyTyped ty@Typed{..} = ty { typed'type = f typed'type }
+
+
+instance CanApply (Term prim) where
+  apply subst term = mapType (apply subst) term
 

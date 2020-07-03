@@ -32,6 +32,7 @@ module Language.HM.Type (
     HasTypeVars(..),
     LocFunctor(..),
     setLoc,
+    TypeFunctor(..),
 
     extractFunType,
     extractArrow
@@ -201,6 +202,13 @@ instance LocFunctor Signature where
       go = \case
         ForAllT loc var a -> Fix $ ForAllT (f loc) var a
         MonoT ty          -> Fix $ MonoT $ mapLoc f ty
+
+-- | Mapps over all types that are contained in the value
+class TypeFunctor f where
+  mapType :: (Type loc var -> Type loc var) -> f loc var -> f loc var
+
+instance TypeFunctor Type where
+  mapType f = f
 
 -- | 'forAllT' @x t@ universally quantifies @x@ in @t@.
 forAllT :: loc -> v -> Signature loc v -> Signature loc v

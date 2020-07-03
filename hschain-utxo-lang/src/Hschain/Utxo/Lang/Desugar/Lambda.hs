@@ -27,9 +27,11 @@ import qualified Data.Vector as V
 -- * Removes explicit type-annotations
 -- * Simplifies Let-expressions.
 -- * Substitute patterns in lambda-functions for variables and let bindings
+--
+-- Note that order of trasformation matters
 desugarLambdaCalculus :: MonadLang m => Lang -> m Lang
 desugarLambdaCalculus =
-  simplifyLet . removeAscr . removeInfixApply . joinLetBinds <=< substLamPats . joinLamArgs
+  fmap (removeAscr . removeInfixApply) . substLamPats . joinLamArgs <=< simplifyLet . joinLetBinds
 
 -- | Aggregates all lambda arguments to lists. It converts:
 --
@@ -80,7 +82,7 @@ simplifyLet = cataM $ \case
     return $ Fix $ PrimLet loc binds' body
   other             -> pure $ Fix other
   where
-    simplify Bind{..} = fmap (bind'name, ) $ altGroupToExpr bind'alts
+    simplify Bind{..} = fmap (bind'name, ) $ altGroupToTupleExpr bind'alts
 
 -- | Substitutes pattersn in lambda arguments for case+let
 -- do this step after elimination of single Lams so

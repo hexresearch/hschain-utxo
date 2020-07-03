@@ -15,8 +15,11 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type, Prim(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, intT, textT)
 
 import qualified Language.HM as H
+
+import qualified Data.Map.Strict as M
 
 type Context = H.Context Loc Tag
 
@@ -39,6 +42,8 @@ fromTag = \case
   IfTag       -> "if"
   ConstrTag n -> showt n
 
+instance IsString Tag where
+  fromString = VarTag . fromString
 
 instance H.IsPrim Prim where
   type PrimLoc Prim = Loc
@@ -55,7 +60,7 @@ toType = H.mapLoc (const ()) . fmap fromTag
 -- | Infers types for all subexpressions
 annotateTypes :: forall m . MonadLang m => CoreProg -> m TypedProg
 annotateTypes =
-  fmap (AnnProg . reverse . snd) . foldM go (mempty, []) . unCoreProg . orderDependencies
+  fmap (AnnProg . reverse . snd) . foldM go (libTypeContext, []) . unCoreProg . orderDependencies
   where
     go (ctx, prog) comb = do
       (combT, combTyped) <- typeDef ctx comb
@@ -106,7 +111,7 @@ annotateTypes =
       }
       where
         -- we need to know the types of the constructors on this stage:
-        toArg (Typed val ty) = H.Typed (eraseLoc ty) (VarTag val)
+        toArg (Typed val ty) = H.Typed (eraseLoc ty) (caseAlt'loc, VarTag val)
 
     fromInferExpr :: H.TyTerm Prim Loc Tag -> m (AnnExpr Type (Typed Name))
     fromInferExpr (H.TyTerm x) = flip cataM x $ \case
@@ -132,7 +137,7 @@ annotateTypes =
           CaseAlt
             { caseAlt'loc        = H.caseAlt'loc alt
             , caseAlt'tag        = tagId
-            , caseAlt'args       = fmap (\t -> Typed (fromTag $ H.typed'value t) (toType $ H.typed'type t)) $ H.caseAlt'args alt
+            , caseAlt'args       = fmap (\t -> Typed (fromTag $ snd $ H.typed'value t) (toType $ H.typed'type t)) $ H.caseAlt'args alt
             , caseAlt'constrType = toType $ H.caseAlt'constrType alt
             , caseAlt'rhs        = H.caseAlt'rhs alt
             }
@@ -150,3 +155,28 @@ annotateTypes =
       H.ArrowT _ a _ -> pure $ H.Type a
       _              -> throwError $ InternalError $ NonLamType
 
+
+libTypeContext :: Context
+libTypeContext = H.Context $ M.fromList
+  [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
+  , ("==",  forA $ funT' [aT, aT] boolT')
+  , ("+",  H.monoT $ funT' [intT', intT'] intT')
+  ]
+  where
+    aT = varT' "a"
+    forA = H.forAllT noLoc (VarTag "a") . H.monoT
+
+funT' :: [H.Type Loc Tag] -> H.Type Loc Tag -> H.Type Loc Tag
+funT' args res = foldr arrowT' res args
+
+arrowT' :: H.Type Loc Tag -> H.Type Loc Tag -> H.Type Loc Tag
+arrowT' a b = H.arrowT noLoc a b
+
+varT' :: Name -> H.Type Loc Tag
+varT'   a   = H.varT noLoc $ VarTag a
+
+boolT', intT', textT' :: H.Type Loc Tag
+
+intT' = eraseLoc intT
+textT' = eraseLoc textT
+boolT' = eraseLoc boolT

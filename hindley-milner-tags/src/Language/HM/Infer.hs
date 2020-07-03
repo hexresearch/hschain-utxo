@@ -135,7 +135,7 @@ inferTerm ctx term =
 type Out prim loc var = (Subst (Origin loc) var, Type (Origin loc) var, TyTerm prim (Origin loc) var)
 type InferOut prim loc var = InferM loc var (Out prim loc var)
 
-infer :: (IsVar var, Show loc, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var)
+infer :: (Eq loc, IsVar var, Show loc, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var)
   => Context' loc var -> Term' prim loc var -> InferOut prim loc var
 infer ctx (Term (Fix x)) = case x of
   Var loc v           -> inferVar ctx loc v
@@ -163,7 +163,7 @@ inferPrim loc prim =
   where
     ty = mapLoc UserCode $ getPrimType prim
 
-inferApp :: (IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
+inferApp :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v -> Origin loc -> Term' prim loc v -> Term' prim loc v -> InferOut prim loc v
 inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]) $ -} do
   tvn <- fmap (varT loc) $ freshVar
@@ -171,11 +171,11 @@ inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]
   case res of
     (phi, [(tf, f'), (ta, a')]) -> liftEither $ fmap (\subst ->
                                                     let ty   = apply subst tvn
-                                                        term = tyAppE ty loc f' a'
+                                                        term = tyAppE ty loc (apply subst f') (apply subst a')
                                                     in  (subst, ty, term)) $ unify phi tf (arrowT loc ta tvn)
     _               -> error "Impossible has happened!"
 
-inferLam :: (IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
+inferLam :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v -> Origin loc -> v -> Term' prim loc v -> InferOut prim loc v
 inferLam ctx loc x body = do
   tvn <- freshVar
@@ -185,7 +185,7 @@ inferLam ctx loc x body = do
   where
     ctx1 tvn = insertCtx x (newVar loc tvn) ctx
 
-inferLet :: (IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
+inferLet :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc
   -> [Bind' loc v (Term' prim loc v)]
@@ -199,7 +199,7 @@ inferLet ctx loc vs body = do
   let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
   return (subst <> phi, tbody, tyLetE tbody loc tyBinds bodyTerm)
 
-inferLetRec :: forall prim loc v . (IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
+inferLetRec :: forall prim loc v . (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc
   -> [Bind' loc v (Term' prim loc v)]
@@ -237,7 +237,7 @@ inferLetRec ctx topLoc vs body = do
       let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
       return (phi <> subst, ty, tyLetRecE ty topLoc tyBinds bodyTerm)
 
-inferAssertType :: (IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
+inferAssertType :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc
   -> Term' prim loc v
@@ -252,14 +252,14 @@ inferConstr :: Ord v => Origin loc -> Type' loc v -> v -> Int -> InferOut prim l
 inferConstr loc ty tag arity =return $  (mempty, ty, tyConstrE loc ty tag arity)
 
 inferCase :: forall prim loc v .
-     (IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
+     (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc -> Term' prim loc v -> [CaseAlt' loc v (Term' prim loc v)]
   -> InferOut prim loc v
 inferCase ctx loc e caseAlts = do
   (phi, tE, tyTermE) <- infer ctx e
   (psi, tRes, tyAlts) <- inferAlts phi tE caseAlts
-  return (psi, tRes, tyCaseE tRes loc tyTermE tyAlts)
+  return (psi, tRes, apply psi $ tyCaseE tRes loc tyTermE tyAlts)
   where
     inferAlts :: Subst' loc v -> Type' loc v -> [CaseAlt' loc v (Term' prim loc v)] -> InferM loc v (Subst' loc v, Type' loc v, [CaseAlt' loc v (TyTerm' prim loc v)])
     inferAlts substE tE alts = case alts of
@@ -275,17 +275,61 @@ inferCase ctx loc e caseAlts = do
           return (tRes, alt' : resAlts)
 
     inferAlt :: Subst' loc v -> Type' loc v -> CaseAlt' loc v (Term' prim loc v) -> InferM loc v (Type' loc v, CaseAlt' loc v (TyTerm' prim loc v))
-    inferAlt substE tE alt@CaseAlt{..} = do
+    inferAlt substE tE alt = do
+      subst2 <- liftEither $ unify substE tE $ caseAlt'constrType alt
+      argVars <- mapM (\ty -> fmap (\v -> (snd $ typed'value ty, (fst $ typed'value ty, v))) freshVar) $ caseAlt'args alt
+      let ctx1 = Context (M.fromList $ fmap (second $ uncurry newVar) argVars) <> ctx
+      (subst, tRes, tyTermRhs) <- infer ctx1 $ caseAlt'rhs alt
+      let args = fmap (\(v, (loc, tv)) -> Typed (apply subst $ varT loc tv) (loc, v)) argVars
+          alt' = alt
+                  { caseAlt'rhs = tyTermRhs
+                  , caseAlt'args = args
+                  , caseAlt'constrType = apply subst $ caseAlt'constrType alt
+                  }
+      return (tRes, alt')
+{-
+      alt@CaseAlt{..} <- newCaseAltInstance preAlt
       subst2 <- liftEither $ unify substE tE caseAlt'constrType
       tvs <- freshArgs alt
-      (subst3, tRes, tyTermRes) <- infer (ctx1 tvs) caseAlt'rhs
+      (subst3, tRes, tyTermRes) <- infer (ctx1 alt tvs) caseAlt'rhs
       zipWithM_ (\arg tv -> checkSameType subst2 (typed'type arg) (apply subst3 tv)) caseAlt'args tvs
-      return (tRes, alt { caseAlt'rhs = tyTermRes })
+      return (tRes, applyAlt (subst3 <> subst2) $ alt { caseAlt'rhs = tyTermRes })
       where
-        ctx1 tvs = L.foldl' (\context (name, v) -> insertCtx name (monoT v) context) ctx $ zip (fmap typed'value caseAlt'args) tvs
+        ctx1 alt tvs = L.foldl' (\context (name, v) -> insertCtx name (monoT v) context) ctx $ zip (fmap typed'value $ caseAlt'args alt) tvs
+-}
+    newCaseAltInstance :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v (CaseAlt' loc v (Term' prim loc v))
+    newCaseAltInstance alt = do
+      tv <- newInstance $ typeToSignature $ getCaseType alt
+      let (argsT, resT)= splitFunT tv
+      return $ alt
+        { caseAlt'constrType = resT
+        , caseAlt'args = zipWith (\aT ty -> ty { typed'type = aT }) argsT $ caseAlt'args alt
+        }
+
+    getCaseType :: CaseAlt' loc v (Term' prim loc v) -> Type' loc v
+    getCaseType CaseAlt{..} = funT (fmap typed'type caseAlt'args) caseAlt'constrType
+
+    splitFunT :: Type' loc v -> ([Type' loc v], Type' loc v)
+    splitFunT arrT = go [] arrT
+      where
+        go argsT (Type (Fix t)) = case t of
+          ArrowT _loc a b -> go (Type a : argsT) (Type b)
+          other           -> (reverse argsT, Type $ Fix other)
+
+
+    funT :: [Type' loc v] -> Type' loc v -> Type' loc v
+    funT argsT resT = foldr (\a b -> arrowT (getLoc a) a b) resT argsT
 
     freshArgs :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v [Type' loc v]
     freshArgs CaseAlt{..} = mapM (\arg -> fmap (varT (getLoc $ typed'type arg)) freshVar) caseAlt'args
+
+    applyAlt subst alt@CaseAlt{..} = alt
+      { caseAlt'constrType = apply subst caseAlt'constrType
+      , caseAlt'args       = fmap applyTyped caseAlt'args
+      }
+      where
+        applyTyped ty@Typed{..} = ty { typed'type = apply subst $ typed'type }
+
 
 checkSameType :: (IsVar v, Show loc) => Subst' loc v -> Type' loc v -> Type' loc v -> InferM loc v ()
 checkSameType subst tA tB = case unify subst tA tB of
@@ -314,7 +358,7 @@ freshVar = do
   put $ n + 1
   return $ intToVar n
 
-inferTerms :: (IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
+inferTerms :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> [Term' prim loc v]
   -> InferM loc v (Subst' loc v, [(Type' loc v, TyTerm' prim loc v)])
