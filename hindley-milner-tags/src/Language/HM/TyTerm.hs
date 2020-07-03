@@ -15,6 +15,8 @@ module Language.HM.TyTerm(
   , mapType
 ) where
 
+import Control.Arrow
+
 import Data.Fix
 
 import Language.HM.Subst
@@ -98,14 +100,25 @@ instance LocFunctor (TyTerm prim) where
         , caseAlt'constrType = mapLoc g caseAlt'constrType
         }
 
-      mapTyped g (Typed ty val) = Typed (mapLoc g ty) val
+      mapTyped g (Typed ty val) = Typed (mapLoc g ty) (first g val)
 
+instance TypeFunctor (TyTerm prim) where
+  mapType f (TyTerm x) = TyTerm $ cata go x
+    where
+      go (Ann ty term) = Fix $ Ann (f ty) $
+        case term of
+          Constr loc cty cons arity -> Constr loc (f cty) cons arity
+          Case loc e alts          -> Case loc e $ fmap applyAlt alts
+          other                    -> other
+
+      applyAlt alt@CaseAlt{..} = alt
+        { caseAlt'args       = fmap applyTyped caseAlt'args
+        , caseAlt'constrType = f caseAlt'constrType
+        }
+
+      applyTyped ty@Typed{..} = ty { typed'type = f typed'type }
 
 instance CanApply (TyTerm prim) where
   apply subst term = mapType (apply subst) term
 
-mapType :: (Type loc var -> Type loc var) -> TyTerm prim loc var -> TyTerm prim loc var
-mapType f (TyTerm x) = TyTerm $ cata go x
-    where
-      go (Ann ty term) = Fix $ Ann (f ty) term
 

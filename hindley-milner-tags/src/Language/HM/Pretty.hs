@@ -165,7 +165,7 @@ instance (HasPrefix v, PrintCons v, Pretty v, Pretty prim) => Pretty (Term prim 
                  , hsep ["in ", body]]
 
           onAlt CaseAlt{..} = hsep
-            [ pretty caseAlt'tag, hsep $ fmap (pretty . typed'value) caseAlt'args
+            [ pretty caseAlt'tag, hsep $ fmap (pretty . snd . typed'value) caseAlt'args
             , "->"
             , caseAlt'rhs ]
 

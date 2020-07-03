@@ -52,16 +52,8 @@ toExtendedLC' Module{..} =
         , def'body = body
         }
 
-desugarModule :: MonadLang m => Module -> m Module
-desugarModule = desugarCase <=< altGroupToTupleModule <=< substWildcards
-
--- | Transforms expression of the script-language to limited lambda-calculus.
--- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
 exprToExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
-exprToExtendedLC ctx = exprToExtendedLC' ctx <=< desugarSyntax ctx
-
-exprToExtendedLC' :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
-exprToExtendedLC' typeCtx = cataM $ \case
+exprToExtendedLC typeCtx = cataM $ \case
   Var loc v               -> fromVar loc v
   Apply loc a b           -> fromApply loc a b
   LamList loc ps a        -> fromLamList loc ps a
@@ -267,8 +259,14 @@ getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
 fromType :: Type -> P.Type
 fromType = H.mapLoc (const ())
 
-desugarSyntax :: MonadLang m => UserTypeCtx -> Lang -> m Lang
-desugarSyntax ctx = removeRecords ctx <=< desugarLambdaCalculus
+desugarModule :: MonadLang m => Module -> m Module
+desugarModule =
+      desugarCase
+  <=< liftToModuleWithCtx desugarSyntaxExpr
+  <=< altGroupToTupleModule <=< substWildcards
+
+desugarSyntaxExpr :: MonadLang m => UserTypeCtx -> Lang -> m Lang
+desugarSyntaxExpr ctx = removeRecords ctx <=< desugarLambdaCalculus
 
 substWildcards :: MonadLang m => Module -> m Module
 substWildcards m = do
