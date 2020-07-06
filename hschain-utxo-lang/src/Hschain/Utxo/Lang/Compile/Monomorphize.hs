@@ -188,7 +188,7 @@ substExpr env (Fix (Ann ty expr)) =
             | otherwise = return []
 
 
-    onPrim loc prim = return $ SubstResult [] mempty (Fix $ Ann (primToType prim) $ EPrim loc prim)
+    onPrim loc prim = return $ SubstResult [] mempty (Fix $ Ann (primToType $ primLoc'value prim) $ EPrim loc prim)
 
     onAp loc f a
       | haveMonoTs [f, a] = do

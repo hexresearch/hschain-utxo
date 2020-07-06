@@ -135,7 +135,7 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromFailCase loc = pure $ Fix $ EBottom loc
 
-    fromPrim loc p = pure $ Fix $ EPrim loc $ case p of
+    fromPrim loc p = pure $ Fix $ EPrim loc $ PrimLoc loc $ case p of
       PrimInt n       -> P.PrimInt n
       PrimString txt  -> P.PrimText txt
       PrimBool b      -> P.PrimBool b

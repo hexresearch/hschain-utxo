@@ -41,6 +41,7 @@ instance H.IsVar Text where
 type Term = H.Term EmptyPrim Loc Text
 
 data EmptyPrim = EmptyPrim
+  deriving (Show)
 
 instance H.IsPrim EmptyPrim where
   type PrimLoc EmptyPrim = Loc

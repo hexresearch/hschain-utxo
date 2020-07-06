@@ -53,15 +53,15 @@ funDecl Def{..} = H.FunBind defLoc [match]
 toHaskExpr :: TypedExpr -> H.Exp Loc
 toHaskExpr = cata $ \case
   Ann exprTy expr -> withSig (H.getLoc expr) exprTy $ case expr of
-    EVar loc name            -> toVar loc name
-    EPrim loc p              -> toPrim loc p
-    EAp loc f a              -> toAp loc f a
-    ELet loc bs a            -> toLet loc bs a
-    ELam loc args a          -> toLam loc args a
-    EIf loc c t e            -> toIf loc c t e
-    ECase loc e alts         -> toCase loc e alts
-    EConstr loc ty tag arity -> toConstr loc ty tag arity
-    EBottom loc              -> toBottom loc
+    EVar loc name              -> toVar loc name
+    EPrim _ (PrimLoc ploc p)   -> toPrim ploc p
+    EAp loc f a                -> toAp loc f a
+    ELet loc bs a              -> toLet loc bs a
+    ELam loc args a            -> toLam loc args a
+    EIf loc c t e              -> toIf loc c t e
+    ECase loc e alts           -> toCase loc e alts
+    EConstr loc ty tag arity   -> toConstr loc ty tag arity
+    EBottom loc                -> toBottom loc
   where
     withSig loc ty e = H.ExpTypeSig loc e (H.toHaskType $ H.mapLoc (const noLoc) ty)
 

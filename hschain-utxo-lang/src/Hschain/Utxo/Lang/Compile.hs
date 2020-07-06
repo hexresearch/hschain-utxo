@@ -45,7 +45,7 @@ toCoreProg = mapM toScomb . unAnnProg
       where
         convert (Ann exprTy val) = case val of
           EVar _ name          -> pure $ Core.EVar name
-          EPrim _ prim         -> pure $ Core.EPrim prim
+          EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
           EAp _  f a           -> pure $ Core.EAp f a
           ELet _ binds e       -> pure $ Core.ELet binds e
           ELam _ _ _           -> eliminateLamError

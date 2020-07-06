@@ -36,5 +36,5 @@ var loc = Fix . EVar loc
 
 -- | Build a primitive value
 prim :: Loc -> Prim -> Expr a
-prim loc = Fix . EPrim loc
+prim loc = Fix . EPrim loc . PrimLoc loc
 

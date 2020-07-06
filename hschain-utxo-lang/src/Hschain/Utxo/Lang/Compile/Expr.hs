@@ -10,6 +10,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
   , Expr
   , ExprF(..)
   , CaseAlt(..)
+  , PrimLoc(..)
   , TypedDef
   , TypedProg
   , TypedExpr
@@ -58,7 +59,7 @@ data Def bind rhs = Def
 data ExprF bind a
   = EVar Loc Name
   -- ^ variables
-  | EPrim Loc !Prim
+  | EPrim Loc !PrimLoc
   -- ^ constant primitive
   | EAp Loc a a
   -- ^ application
@@ -91,6 +92,12 @@ data CaseAlt bind a = CaseAlt
   -- ^ right-hand side of the case-alternative
   }
   deriving (Show, Eq, Functor, Foldable, Traversable)
+
+-- | Primitive values with locations
+data PrimLoc = PrimLoc
+  { primLoc'loc   :: !Loc
+  , primLoc'value :: !Prim
+  } deriving (Show, Eq)
 
 instance H.HasLoc (Expr bind) where
   type Loc (Expr bind) = Loc

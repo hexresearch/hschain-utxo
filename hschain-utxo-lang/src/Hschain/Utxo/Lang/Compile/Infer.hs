@@ -12,7 +12,7 @@ import Data.String
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type, Prim(..))
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, intT, textT)
@@ -45,14 +45,17 @@ fromTag = \case
 instance IsString Tag where
   fromString = VarTag . fromString
 
-instance H.IsPrim Prim where
-  type PrimLoc Prim = Loc
-  type PrimVar Prim = Tag
+instance H.IsPrim PrimLoc where
+  type PrimLoc PrimLoc = Loc
+  type PrimVar PrimLoc = Tag
 
-  getPrimType = H.mapLoc (const noLoc) . fmap VarTag . primToType
+  getPrimType (PrimLoc loc p) = eraseWith  loc $ primToType p
 
 eraseLoc :: Type -> H.Type Loc Tag
 eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
+
+eraseWith :: Loc -> Type -> H.Type Loc Tag
+eraseWith loc = H.mapLoc (const loc) . fmap VarTag
 
 toType :: H.Type Loc Tag -> Type
 toType = H.mapLoc (const ()) . fmap fromTag
@@ -79,10 +82,10 @@ annotateTypes =
 
     getCombExpr Def{..}
       | null def'args = def'body
-      | otherwise     = Fix $ ELam noLoc def'args def'body
-                         -- todo consider to add locations to definitions }{
+      | otherwise     = Fix $ ELam (H.getLoc def'name) def'args def'body
+                         -- todo consider to add locations to definitions
 
-    toInferExpr :: Expr Name -> H.Term Prim Loc Tag
+    toInferExpr :: Expr Name -> H.Term PrimLoc Loc Tag
     toInferExpr = cata $ \case
       EVar loc name   -> H.varE loc (VarTag name)
       EPrim loc prim  -> H.primE loc prim
@@ -90,7 +93,7 @@ annotateTypes =
       ELam loc args e -> foldr (H.lamE loc) e (fmap VarTag args)
       EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
       EBottom loc     -> H.bottomE loc
-      EConstr loc ty tag arity -> H.constrE loc (H.mapLoc (const noLoc) $ fmap VarTag ty) (ConstrTag tag) arity
+      EConstr loc ty tag arity -> H.constrE loc (eraseWith loc ty) (ConstrTag tag) arity
       ELet loc bs e   -> H.letE loc (fmap (fromBind loc) bs) e
       ECase loc e alts -> H.caseE loc e (fmap fromAlt alts)
 
@@ -106,14 +109,14 @@ annotateTypes =
       { H.caseAlt'loc        = caseAlt'loc
       , H.caseAlt'tag        = ConstrTag caseAlt'tag
       , H.caseAlt'args       = fmap toArg caseAlt'args
-      , H.caseAlt'constrType = eraseLoc caseAlt'constrType
+      , H.caseAlt'constrType = eraseWith caseAlt'loc $ caseAlt'constrType
       , H.caseAlt'rhs        = caseAlt'rhs
       }
       where
         -- we need to know the types of the constructors on this stage:
-        toArg (Typed val ty) = H.Typed (eraseLoc ty) (caseAlt'loc, VarTag val)
+        toArg (Typed val ty) = H.Typed (eraseWith caseAlt'loc ty) (caseAlt'loc, VarTag val)
 
-    fromInferExpr :: H.TyTerm Prim Loc Tag -> m (AnnExpr Type (Typed Name))
+    fromInferExpr :: H.TyTerm PrimLoc Loc Tag -> m (AnnExpr Type (Typed Name))
     fromInferExpr (H.TyTerm x) = flip cataM x $ \case
       H.Ann ty expr -> fmap (Fix . Ann (toType ty)) $ case expr of
         H.Var loc name -> pure $ EVar loc (fromTag name)
