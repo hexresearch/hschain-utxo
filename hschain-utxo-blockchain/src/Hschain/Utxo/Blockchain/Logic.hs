@@ -140,8 +140,3 @@ instance CryptoHashable Ed.Point where
 
 instance CryptoHashable Ed.Scalar where
   hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
-
-instance CryptoHashable Pico where
-  hashStep = hashStep . serialise
-
-
