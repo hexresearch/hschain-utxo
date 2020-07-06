@@ -69,7 +69,8 @@ library
     TemplateHaskell
 
 
-executable hschain-utxo-test
+test-suite hschain-utxo-test
+  Type:                exitcode-stdio-1.0
   main-is:             Main.hs
   hs-source-dirs:      app
   -- other-modules:
