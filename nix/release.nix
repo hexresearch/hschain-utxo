@@ -1,14 +1,8 @@
 { isProd    ? false
 }:
 let
-  noCheck = [
-      "timeout"
-      "servant-client"
-      "haskeline"
-      "repline" ];
-
   cabalProject     = parseCabalProject { path = ./..; };
-  haskellOverrides = projectOverrides { inherit cabalProject noCheck; };
+  haskellOverrides = projectOverrides { inherit cabalProject; };
   config           = configOverrides haskellOverrides;
   pkgs             = import ./pkgs.nix { inherit config; overlays = []; };
   # ---
@@ -59,28 +53,26 @@ let
     in
       builtins.listToAttrs (map toPackage cabalProject);
 
-  projectOverrides = {cabalProject, noCheck ? []}: hsNew: hsOld:
+  projectOverrides = {cabalProject}: hsNew: hsOld:
     let
       # Overrides from cabal2nix files
       derivations = lib.packagesFromDirectory { directory = ./derivations; } hsNew hsOld;
       # Local overrides
       locals = localsToOverrides cabalProject hsNew;
-      # Suppress tests
-      stopCheck = x: { name = x; value = lib.dontCheck (hsOld // derivations).${x}; };
-      noCheckLibs = builtins.listToAttrs (map stopCheck noCheck);
       # HSChain packages
       callHSChain = name: hsNew.callCabal2nixWithOptions name
         (pkgs.fetchgit pkgConfig.hschain)
         ("--subpath " + name)
         {};
     in
-      derivations // locals // noCheckLibs // {
+      derivations // locals // {
         mkDerivation = args: hsOld.mkDerivation (args // {
           doCheck = false;
           enableLibraryProfiling = false;
           doHaddock = false;
         });
       } // {
+        # HSChain dependencies
         hschain-control = callHSChain "hschain-control";
         hschain-config  = callHSChain "hschain-config";
         hschain-merkle  = callHSChain "hschain-merkle";
@@ -89,6 +81,9 @@ let
         hschain-types   = callHSChain "hschain-types";
         hschain-net     = callHSChain "hschain-net";
         hschain         = callHSChain "hschain";
+        # Disable tests
+        timeout         = lib.dontCheck hsOld.timeout;
+        repline         = lib.dontCheck hsOld.repline;
       };
 
   attrsToList = set: builtins.attrValues (
