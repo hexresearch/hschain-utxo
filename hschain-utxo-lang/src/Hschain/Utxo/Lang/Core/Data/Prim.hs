@@ -40,8 +40,7 @@ data Prim
   | PrimSigma !SigmaExpr
   deriving (Show, Eq, Ord)
 
--- | Boolean expressions
--- that include Sigma-expressions
+-- | Boolean expressions that include Sigma-expressions
 data SigmaExpr
   = SigmaBool Bool         -- ^ constant values
   | SigmaAnd  [SigmaExpr]  -- ^ boolean AND
