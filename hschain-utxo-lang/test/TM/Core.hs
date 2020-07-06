@@ -1,0 +1,2 @@
+-- |
+module TM.Core where
