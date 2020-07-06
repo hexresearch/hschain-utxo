@@ -48,8 +48,6 @@ data UtxoError = UtxoError Text
 hashDomain :: String
 hashDomain = "hschain.utxo.sigma"
 
-deriving instance Generic E12
-deriving instance Generic Sigma.Ed25519
 
 instance BlockData BData where
    type TX              BData = Tx
