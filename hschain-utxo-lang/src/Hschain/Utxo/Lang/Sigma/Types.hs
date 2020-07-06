@@ -50,8 +50,6 @@ generateKeyPair = do
   s <- generateSecretKey
   return $ KeyPair s (getPublicKey s)
 
-deriving instance Show (Secret    Ed25519)
-deriving instance Eq   (Secret    Ed25519)
-deriving instance Ord  (Secret    Ed25519)
-
-
+deriving instance Show (ECScalar a) => Show (Secret a)
+deriving instance Eq   (ECScalar a) => Eq   (Secret a)
+deriving instance Ord  (ECScalar a) => Ord  (Secret a)
