@@ -19,6 +19,7 @@ import Hschain.Utxo.Lang.Infer
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
 import qualified Data.Text.IO as T
+import Text.Show.Pretty
 
 main = compileShow "../test2.hs"
 
@@ -27,6 +28,8 @@ compileShow file = do
   fileTxt <- readFile file
   let m = compileModule fileTxt
   pr (runInferM m)
+--  putStrLn "----------------------"
+--  pPrint (fmap unCoreProg $ runInferM m)
   putStrLn "----------------------"
   pr $ runInferM $ annotateTypes =<< m
   where

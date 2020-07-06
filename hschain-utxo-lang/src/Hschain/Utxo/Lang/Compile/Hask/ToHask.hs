@@ -41,7 +41,7 @@ toHaskDecl Def{..} = H.FunBind defLoc [match]
 toHaskExpr :: Expr Name -> H.Exp Loc
 toHaskExpr = cata $ \case
   EVar loc name            -> toVar loc name
-  EPrim loc p              -> toPrim loc p
+  EPrim _ (PrimLoc loc p)  -> toPrim loc p
   EAp loc f a              -> toAp loc f a
   ELet loc bs a            -> toLet loc bs a
   ELam loc args a          -> toLam loc args a

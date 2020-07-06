@@ -26,7 +26,6 @@ import Language.HM.TyTerm
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.List as L
-
 {-
 import Debug.Trace
 import Text.Show.Pretty
@@ -71,7 +70,7 @@ markProven = Context . M.map (mapLoc Proven) . unContext
 markUserCode :: Term prim loc v -> Term prim (Origin loc) v
 markUserCode = mapLoc UserCode
 
-chooseUserOrigin :: Origin a -> Origin a -> a
+chooseUserOrigin :: Show a => Origin a -> Origin a -> a
 chooseUserOrigin x y = case (x, y) of
   (UserCode a, _) -> a
   (_, UserCode a) -> a
@@ -259,44 +258,32 @@ inferCase :: forall prim loc v .
 inferCase ctx loc e caseAlts = do
   (phi, tE, tyTermE) <- infer ctx e
   (psi, tRes, tyAlts) <- inferAlts phi tE caseAlts
-  return (psi, tRes, apply psi $ tyCaseE tRes loc tyTermE tyAlts)
+  return (psi, tRes, apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
   where
     inferAlts :: Subst' loc v -> Type' loc v -> [CaseAlt' loc v (Term' prim loc v)] -> InferM loc v (Subst' loc v, Type' loc v, [CaseAlt' loc v (TyTerm' prim loc v)])
-    inferAlts substE tE alts = case alts of
-      []   -> throwError $ EmptyCaseExpr $ fromOrigin loc
-      a:as -> do
-        (tRes, a') <- inferAlt substE tE a
-        alts' <- fmap snd $ foldM go (tRes, [a']) as
-        return (substE, tRes, L.reverse alts')
+    inferAlts substE tE alts =
+      fmap (\(subst, _, tRes, as) -> (subst, tRes, L.reverse as)) $ foldM go (substE, tE, tE, []) alts
       where
-        go (tRes, resAlts) alt = do
-          (tRes', alt') <- inferAlt substE tE alt
-          checkSameType substE tRes tRes'
-          return (tRes, alt' : resAlts)
+        go (subst, tyTop, _, res) alt = do
+          (phi, tRes, alt') <- inferAlt alt
+          subst' <- liftEither $ unify (subst <> phi) (apply phi tyTop) (apply phi $ caseAlt'constrType alt')
+          return (subst', apply subst' tyTop, apply subst' tRes, applyAlt subst' alt' : res)
 
-    inferAlt :: Subst' loc v -> Type' loc v -> CaseAlt' loc v (Term' prim loc v) -> InferM loc v (Type' loc v, CaseAlt' loc v (TyTerm' prim loc v))
-    inferAlt substE tE alt = do
-      subst2 <- liftEither $ unify substE tE $ caseAlt'constrType alt
-      argVars <- mapM (\ty -> fmap (\v -> (snd $ typed'value ty, (fst $ typed'value ty, v))) freshVar) $ caseAlt'args alt
-      let ctx1 = Context (M.fromList $ fmap (second $ uncurry newVar) argVars) <> ctx
+
+    inferAlt :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v (Subst' loc v, Type' loc v, CaseAlt' loc v (TyTerm' prim loc v))
+    inferAlt preAlt = do
+      alt <- newCaseAltInstance preAlt
+      let argVars = fmap  (\ty -> (snd $ typed'value ty, (fst $ typed'value ty, typed'type ty))) $ caseAlt'args alt
+          ctx1 = Context (M.fromList $ fmap (second $ monoT . snd) argVars) <> ctx
       (subst, tRes, tyTermRhs) <- infer ctx1 $ caseAlt'rhs alt
-      let args = fmap (\(v, (loc, tv)) -> Typed (apply subst $ varT loc tv) (loc, v)) argVars
+      let args = fmap (\(v, (argLoc, tv)) -> Typed (apply subst tv) (argLoc, v)) argVars
           alt' = alt
                   { caseAlt'rhs = tyTermRhs
                   , caseAlt'args = args
                   , caseAlt'constrType = apply subst $ caseAlt'constrType alt
                   }
-      return (tRes, alt')
-{-
-      alt@CaseAlt{..} <- newCaseAltInstance preAlt
-      subst2 <- liftEither $ unify substE tE caseAlt'constrType
-      tvs <- freshArgs alt
-      (subst3, tRes, tyTermRes) <- infer (ctx1 alt tvs) caseAlt'rhs
-      zipWithM_ (\arg tv -> checkSameType subst2 (typed'type arg) (apply subst3 tv)) caseAlt'args tvs
-      return (tRes, applyAlt (subst3 <> subst2) $ alt { caseAlt'rhs = tyTermRes })
-      where
-        ctx1 alt tvs = L.foldl' (\context (name, v) -> insertCtx name (monoT v) context) ctx $ zip (fmap typed'value $ caseAlt'args alt) tvs
--}
+      return (subst, tRes, alt')
+
     newCaseAltInstance :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v (CaseAlt' loc v (Term' prim loc v))
     newCaseAltInstance alt = do
       tv <- newInstance $ typeToSignature $ getCaseType alt
@@ -320,22 +307,13 @@ inferCase ctx loc e caseAlts = do
     funT :: [Type' loc v] -> Type' loc v -> Type' loc v
     funT argsT resT = foldr (\a b -> arrowT (getLoc a) a b) resT argsT
 
-    freshArgs :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v [Type' loc v]
-    freshArgs CaseAlt{..} = mapM (\arg -> fmap (varT (getLoc $ typed'type arg)) freshVar) caseAlt'args
-
     applyAlt subst alt@CaseAlt{..} = alt
       { caseAlt'constrType = apply subst caseAlt'constrType
       , caseAlt'args       = fmap applyTyped caseAlt'args
+      , caseAlt'rhs        = apply subst caseAlt'rhs
       }
       where
         applyTyped ty@Typed{..} = ty { typed'type = apply subst $ typed'type }
-
-
-checkSameType :: (IsVar v, Show loc) => Subst' loc v -> Type' loc v -> Type' loc v -> InferM loc v ()
-checkSameType subst tA tB = case unify subst tA tB of
-  Right _  -> return ()
-  Left err -> throwError err
-
 
 inferBottom :: IsVar v => Origin loc -> InferOut prim loc v
 inferBottom loc = do
