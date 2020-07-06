@@ -1,4 +1,4 @@
-port      : "45003"
+port      : 45003
 seeds     :
     - "127.0.0.1:45004"
 privKey   : "3Fj8bZjKc53F2a87sQaFkrDas2d9gjzK57FmQwnNnSHS"
