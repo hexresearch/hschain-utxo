@@ -122,20 +122,6 @@ instance CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
 instance CryptoHashable (Sigma.OrChild CryptoAlg) where
   hashStep = genericHashStep hashDomain
 
-instance CryptoHashable (Sigma.Challenge CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ECScalar CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ECPoint CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
 instance CryptoHashable PublicKey where
   hashStep = genericHashStep hashDomain
 
-instance CryptoHashable Ed.Point where
-  hashStep x = hashStep (Ed.pointEncode x :: ByteString)
-
-instance CryptoHashable Ed.Scalar where
-  hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
