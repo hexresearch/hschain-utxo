@@ -7,6 +7,8 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , preludeTypeContext
 ) where
 
+
+import Data.Fix
 import Data.Map.Strict (Map)
 import Data.String
 
@@ -18,6 +20,8 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
+
+import qualified Language.HM as H
 
 preludeTypeContext :: TypeContext
 preludeTypeContext = TypeContext $ M.fromList $
@@ -33,13 +37,6 @@ primitives =
   , intOp2 "/"
   , op1 "negate" intT intT
 
-  -- comparision
-  , compareOp "=="
-  , compareOp "/="
-  , compareOp ">"
-  , compareOp ">="
-  , compareOp "<"
-  , compareOp "<="
 
   -- booleans
   , constant "true"  (PrimBool True)
@@ -74,6 +71,19 @@ primitives =
   , getInputs
   , getOutputs
   , getArgs
+  ]
+  ++ (comparePack =<< [intT, boolT, textT])
+
+
+-- | comparision operators per type
+comparePack :: Type -> [Scomb]
+comparePack ty =
+  [ compareOp ty (toCompareName ty "equals")
+  , compareOp ty (toCompareName ty "notEquals")
+  , compareOp ty (toCompareName ty "greaterThan")
+  , compareOp ty (toCompareName ty "greaterThanEquals")
+  , compareOp ty (toCompareName ty "lessThan")
+  , compareOp ty (toCompareName ty "lessThanEquals")
   ]
 
 ap :: Expr -> [Expr] -> Expr
@@ -110,8 +120,8 @@ sigmaOp2 :: Name -> Scomb
 sigmaOp2 name = op2 name (sigmaT, sigmaT) sigmaT
 
 -- | TODO: do we need polymorphic comparison?
-compareOp :: Name -> Scomb
-compareOp name = op2 name (intT, intT) boolT
+compareOp :: Type -> Name -> Scomb
+compareOp ty name = op2 name (ty, ty) boolT
 
 op2 :: Name -> (Type, Type) -> Type -> Scomb
 op2 name (xT, yT) resT = Scomb
@@ -121,6 +131,13 @@ op2 name (xT, yT) resT = Scomb
   }
 
 -- boxes
+
+toCompareName :: Type -> Name -> Name
+toCompareName ty name = mconcat [primName ty, ".", name]
+  where
+    primName (H.Type (Fix x)) = case x of
+      H.ConT _ prim _ -> prim
+      _               -> error "Non-primitive type"
 
 -- | Low level representation of Box is a tuple of four elements:
 -- > (name, script, value, args)
@@ -207,24 +224,27 @@ getArgs :: Scomb
 getArgs = getEnvField "getArgs" "args" (listT intT)
 
 builtInDiadic :: Map Name Instr
-builtInDiadic = M.fromList
+builtInDiadic = M.fromList $
   [ ("+", Add)
   , ("*", Mul)
   , ("-", Sub)
   , ("/", Div)
-  , ("==", Eq)
-  , ("/=", Ne)
-  , ("<", Lt)
-  , ("<=", Le)
-  , (">", Gt)
-  , (">=", Ge)
   , ("&&", And)
   , ("||", Or)
   , ("^^", Xor)
   , ("&", SAnd)
   , ("|", SOr)
   , ("<>", TextAppend)
-  ]
+  ] ++ (compareNames =<< [intT, boolT, textT])
+  where
+    compareNames ty =
+      [ (toCompareName ty "equals", Eq)
+      , (toCompareName ty "notEquals", Ne)
+      , (toCompareName ty "lessThan", Lt)
+      , (toCompareName ty "lessThanEquals", Le)
+      , (toCompareName ty "greaterThan", Gt)
+      , (toCompareName ty "greaterThanEquals", Ge)
+      ]
 
 builtInUnary :: Map Name Instr
 builtInUnary = M.fromList
