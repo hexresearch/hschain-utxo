@@ -57,23 +57,25 @@ data Def bind rhs = Def
 
 -- | Expressions of the Extended Core-language
 data ExprF bind a
-  = EVar Loc Name
+  = EVar !Loc !Name
   -- ^ variables
-  | EPrim Loc !PrimLoc
+  | EPrim !Loc !PrimLoc
   -- ^ constant primitive
-  | EAp Loc a a
+  | EAp !Loc a a
   -- ^ application
-  | ELet Loc [(bind, a)] a
+  | ELet !Loc [(bind, a)] a
   -- ^ lent bindings
-  | ELam Loc [bind] a
+  | ELam !Loc [bind] a
   -- ^ lambda abstraction
-  | EIf Loc a a a
+  | EIf !Loc a a a
   -- ^ if expressions
-  | ECase Loc !a [CaseAlt bind a]
+  | ECase !Loc a [CaseAlt bind a]
   -- ^ case alternatives
-  | EConstr Loc Type !Int !Int
+  | EConstr !Loc !Type !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
+  | EAssertType !Loc a !Type
+  -- ^ Explicit type annotations
   | EBottom Loc
   -- ^ Value of any type that means failed programm.
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -106,15 +108,16 @@ instance H.HasLoc (Expr bind) where
 instance H.HasLoc (ExprF bind a) where
   type Loc (ExprF bind a) = Loc
   getLoc = \case
-    EVar loc _         -> loc
-    EPrim loc _        -> loc
-    EAp loc _ _        -> loc
-    ELet loc _ _       -> loc
-    ELam loc _ _       -> loc
-    EIf loc _ _ _      -> loc
-    ECase loc _ _      -> loc
-    EConstr loc _ _ _  -> loc
-    EBottom loc        -> loc
+    EVar loc _          -> loc
+    EPrim loc _         -> loc
+    EAp loc _ _         -> loc
+    ELet loc _ _        -> loc
+    ELam loc _ _        -> loc
+    EIf loc _ _ _       -> loc
+    ECase loc _ _       -> loc
+    EConstr loc _ _ _   -> loc
+    EAssertType loc _ _ -> loc
+    EBottom loc         -> loc
 
 
 -- | Reads  type signature of typed def

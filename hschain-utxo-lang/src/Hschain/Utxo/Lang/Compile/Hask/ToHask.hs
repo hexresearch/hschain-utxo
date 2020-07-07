@@ -48,6 +48,7 @@ toHaskExpr = cata $ \case
   EIf loc c t e            -> toIf loc c t e
   ECase loc e alts         -> toCase loc e alts
   EConstr loc ty tag arity -> toConstr loc ty tag arity
+  EAssertType loc e ty     -> toAssertType loc e ty
   EBottom loc              -> toBottom loc
   where
     toVar loc name = H.Var loc $ toQName $ VarName loc name
@@ -69,6 +70,8 @@ toHaskExpr = cata $ \case
     toCase loc e alts = H.Case loc e $ fmap toAlt alts
 
     toConstr loc ty tag arity = H.ExpTypeSig loc (H.Con loc (toQName $ VarName loc $ constrName tag arity)) (toType loc ty)
+
+    toAssertType loc e ty = H.ExpTypeSig loc e (toType loc ty)
 
     toBottom loc = toVar loc "undefined"
 

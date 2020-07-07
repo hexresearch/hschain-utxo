@@ -52,6 +52,7 @@ toCoreProg = mapM toScomb . unAnnProg
           EIf _ c t e          -> pure $ Core.EIf c t e
           ECase _ e alts       -> pure $ Core.ECase (Typed e exprTy) (fmap convertAlt alts)
           EConstr _ consTy m n -> pure $ Core.EConstr consTy m n
+          EAssertType _ e _    -> pure e
           EBottom _            -> pure $ Core.EBottom
 
         convertAlt CaseAlt{..} = Core.CaseAlt caseAlt'tag caseAlt'args caseAlt'rhs

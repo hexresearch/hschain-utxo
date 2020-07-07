@@ -147,6 +147,7 @@ substExpr env (Fix (Ann ty expr)) =
     EIf loc c t e               -> onIf loc c t e
     ECase loc e alts            -> onCase loc e alts
     EConstr loc conTy m n       -> onConstr loc conTy m n
+    EAssertType loc e ety       -> onAssertType loc e ety
     EBottom loc                 -> onBottom loc
   where
     rec = substExpr env
@@ -315,6 +316,11 @@ substExpr env (Fix (Ann ty expr)) =
           if isMonoT ty'
             then return $ SubstResult [] mempty (Fix $ Ann ty' $ EConstr loc ty' m n)
             else errorNoMonoType $ mconcat ["Constr-", showt m, "-", showt n]
+
+    -- | TODO: consider polymorphic type annotations
+    onAssertType loc e ety = do
+      (SubstResult eF eL eE) <- rec e
+      return $ SubstResult eF eL (Fix $ Ann ty $ EAssertType loc eE ety)
 
     onBottom loc = return $ SubstResult [] mempty (Fix $ Ann ty $ EBottom loc)
 
