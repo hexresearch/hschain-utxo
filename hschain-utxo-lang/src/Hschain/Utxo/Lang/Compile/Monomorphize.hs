@@ -1,6 +1,7 @@
 -- | Turns polymorphic programs to monomorphic ones
 module Hschain.Utxo.Lang.Compile.Monomorphize(
-  makeMonomorphic
+    makeMonomorphic
+  , specifyCompareOps
 ) where
 
 import Hex.Common.Text
@@ -20,6 +21,8 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType, funT)
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..))
+
+import Hschain.Utxo.Lang.Core.Compile.Primitives(toCompareName)
 
 import qualified Language.HM as H
 import qualified Language.HM.Subst as H
@@ -73,8 +76,8 @@ procSeed ctx resultProgMap seed
       progMap <- getSourceProg
       case M.lookup name progMap of
         Just defn -> withCheckCache name (procDef ctx defn)
-        Nothing   -> errorUnboundVar noLoc name
-  | otherwise  = errorNoMonoType name
+        Nothing   -> failedToFindMonoType noLoc name
+  | otherwise  = failedToFindMonoType noLoc name
   where
     name = typed'value seed
 
@@ -169,8 +172,8 @@ substExpr env (Fix (Ann ty expr)) =
                   globalSeeds <- checkGlobalSubst subst ty' loc name
                   let localSubst = if isLetLocal then singletonLetSubst name (LocalSubst { localSubst'subst = subst, localSubst'name = name'}) else mempty
                   return (SubstResult (globalSeeds <> seeds ty') localSubst resE)
-                else errorNoMonoType name
-        Nothing -> errorUnboundVar loc name
+                else failedToFindMonoType noLoc name
+        Nothing -> unboundVariable $ VarName loc name
         where
           isLetLocal = S.member name (substCtx'letBinds env)
           isLocal = S.member name (substCtx'locals env)
@@ -204,7 +207,7 @@ substExpr env (Fix (Ann ty expr)) =
             aT' <- unify lhs (getAnnType a)
             (SubstResult aF aL aE) <- rec $ setAnn aT' a
             return $ SubstResult (fF <> aF) (fL <> aL) (Fix $ Ann ty' $ EAp loc fE aE)
-          Nothing -> errorNoMonoType "ap-nothing"
+          Nothing -> failedToFindMonoType noLoc "ap-nothing"
 
 
     onLet loc binds body = do
@@ -253,7 +256,7 @@ substExpr env (Fix (Ann ty expr)) =
                       nextSubst = flatSubst localSubst
                   return (binds, seeds, nextSubst)
 
-            Nothing -> errorUnboundVar (H.getLoc expr) name
+            Nothing -> unboundVariable $ VarName (H.getLoc expr) name
 
         checkAlreadyDefined name cont =
           if S.member name prevBinds
@@ -294,7 +297,7 @@ substExpr env (Fix (Ann ty expr)) =
           let eT = getAnnType e'
           (altSeeds, altLocalSubst, alts') <- foldM (substAlt eT) (mempty, mempty, mempty) alts
           return $ SubstResult (eSeeds <> altSeeds) (eLocalSubst <> altLocalSubst) (Fix $ Ann ty $ ECase loc e' alts')
-        else errorNoMonoType "For Case-expr"
+        else failedToFindMonoType loc "For Case-expr"
       where
         substAlt eT (resSeeds, resLocSubst, res) ca@CaseAlt{..} = do
           (ty', subst) <- unifySubst eT caseAlt'constrType
@@ -315,7 +318,7 @@ substExpr env (Fix (Ann ty expr)) =
           ty' <- unify ty conTy
           if isMonoT ty'
             then return $ SubstResult [] mempty (Fix $ Ann ty' $ EConstr loc ty' m n)
-            else errorNoMonoType $ mconcat ["Constr-", showt m, "-", showt n]
+            else failedToFindMonoType loc $ mconcat ["Constr-", showt m, "-", showt n]
 
     -- | TODO: consider polymorphic type annotations
     onAssertType loc e ety = do
@@ -397,7 +400,7 @@ getSourceProg = fmap monoSt'sourceProg get
 getSourceDef :: Loc -> Name -> Mono TypedDef
 getSourceDef loc name = do
   mDef <- fmap (M.lookup name . monoSt'sourceProg) get
-  maybe (errorUnboundVar loc name) pure mDef
+  maybe (unboundVariable $ VarName loc name) pure mDef
 
 getDefType :: TypedDef -> Type
 getDefType Def{..} = foldr (\a b -> H.arrowT () a b) rhs args
@@ -416,8 +419,50 @@ unifySubst tA tB = case H.unifyTypes tA tB of
   Right subst -> return $ (H.apply subst tB, subst)
   Left err    -> throwError $ TypeError $ H.mapLoc (const noLoc) err
 
-errorUnboundVar :: MonadError Error m => Loc -> Name -> m a
-errorUnboundVar loc name = throwError $ ExecError $ UnboundVariables [VarName loc name]
+-- | Substitutes polymorphic comparison operators to
+-- monomorphic ones. After type checking we have precise
+-- information to what operator we should specify.
+-- If it still remains polymorphic we throw an error
+-- that we have failed to specify the types.
+specifyCompareOps :: MonadLang m => TypedProg -> m TypedProg
+specifyCompareOps = liftTypedProg $ cataM $ \case
+  Ann ty expr -> fmap (Fix . Ann ty) $ case expr of
+    EVar loc name -> checkCompOp ty loc name
+    other         -> pure other
+  where
+    checkCompOp ty loc name = do
+      mOp <- toCompOp loc ty name
+      return $ case mOp of
+        Just newName -> EVar loc newName
+        Nothing      -> EVar loc name
 
-errorNoMonoType :: MonadError Error m => Name -> m a
-errorNoMonoType name = throwError $ MonoError $ FailedToFindMonoType name
+    toCompOp loc ty name = forM (fromCompName name) $ \opName -> do
+      cmpT <- fromCompType name loc ty
+      return $ toCompareName (H.mapLoc (const ()) cmpT) opName
+
+    fromCompName name = case name of
+      "==" -> Just "equals"
+      "/=" -> Just "notEquals"
+      "<"  -> Just "lessThan"
+      "<=" -> Just "lessThanEquals"
+      ">"  -> Just "greaterThan"
+      ">=" -> Just "greaterThanEquals"
+      _    -> Nothing
+
+    fromCompType name loc (H.Type (Fix ty)) = case ty of
+      H.ArrowT _ a (Fix (H.ArrowT _ b (Fix (H.ConT _ "Bool" [])))) ->
+        if (isPrimType a && a == b)
+          then pure $ H.Type a
+          else if (isMonoT $ H.Type a)
+                 then compareForNonPrim loc
+                 else failedToFindMonoType loc name
+      _ -> compareForNonPrim loc
+
+    isPrimType (Fix x) = case x of
+      H.ConT _ name [] -> isPrimTypeName name
+      _                -> False
+      where
+        isPrimTypeName name = name == "Bool" || name == "Int" || name == "Text"
+
+
+
