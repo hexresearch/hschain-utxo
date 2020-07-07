@@ -81,8 +81,15 @@ data Proof a = Proof
   , proof'tree          :: ProvenTree a  -- ^ expression to prove
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
+instance ( CBOR.Serialise (ECPoint a)
+         , CBOR.Serialise (ECScalar a)
+         , CBOR.Serialise (Challenge a)
          ) => CBOR.Serialise (Proof a)
+instance ( CryptoHashable (ECPoint a)
+         , CryptoHashable (ECScalar a)
+         , CryptoHashable (Challenge a)
+         ) => CryptoHashable (Proof a) where
+  hashStep = genericHashStep hashDomain
 
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (Proof a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (Proof a)

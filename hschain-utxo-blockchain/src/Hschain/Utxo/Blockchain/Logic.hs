@@ -110,9 +110,6 @@ instance CryptoHashable Box where
 instance CryptoHashable (Sigma PublicKey) where
   hashStep = genericHashStep hashDomain
 
-instance CryptoHashable Proof where
-  hashStep = genericHashStep hashDomain
-
 instance CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
   hashStep = genericHashStep hashDomain
 
