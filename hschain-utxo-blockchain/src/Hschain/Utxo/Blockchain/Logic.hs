@@ -113,13 +113,6 @@ instance CryptoHashable (Sigma PublicKey) where
 instance CryptoHashable Proof where
   hashStep = genericHashStep hashDomain
 
-instance CryptoHashable (Sigma.ProvenTree CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
 instance CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
   hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.OrChild CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
 
