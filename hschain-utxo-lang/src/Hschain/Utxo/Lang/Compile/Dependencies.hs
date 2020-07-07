@@ -20,15 +20,16 @@ import qualified Data.Sequence as Seq
 -- | Finds free variables for expression
 freeVars :: Expr Name -> Set Name
 freeVars = cata $ \case
-  EVar _ var      -> S.singleton var
-  EPrim _ _       -> mempty
-  EAp _ a b       -> a <> b
-  ELet _ bs e     -> freeLet bs e
-  ELam _ as e     -> e `S.difference` (S.fromList as)
-  EIf _ a b c     -> a <> b <> c
-  ECase _ e alts  -> e <> foldMap freeAlts alts
-  EConstr _ _ _ _ -> mempty
-  EBottom _       -> mempty
+  EVar _ var        -> S.singleton var
+  EPrim _ _         -> mempty
+  EAp _ a b         -> a <> b
+  ELet _ bs e       -> freeLet bs e
+  ELam _ as e       -> e `S.difference` (S.fromList as)
+  EIf _ a b c       -> a <> b <> c
+  ECase _ e alts    -> e <> foldMap freeAlts alts
+  EConstr _ _ _ _   -> mempty
+  EAssertType _ e _ -> e
+  EBottom _         -> mempty
   where
     freeLet binds body = (body `S.difference` binded) <> free
       where

@@ -44,15 +44,16 @@ renameComb def@Def{..} = do
 renameExpr :: Map Name Name -> Expr Name -> RenameM (Expr Name)
 renameExpr env (Fix expr) =
   case expr of
-    EVar loc v         -> var loc v
-    EPrim loc p        -> prim loc p
-    EAp loc f a        -> app loc f a
-    EIf loc a b c      -> iff loc a b c
-    ELam loc args e    -> lam loc args e
-    ELet loc binds e   -> letExpr loc binds e
-    EConstr loc ty m n -> constr loc ty m n
-    ECase loc e alts   -> caseExpr loc e alts
-    EBottom loc        -> pure $ Fix $ EBottom loc
+    EVar loc v          -> var loc v
+    EPrim loc p         -> prim loc p
+    EAp loc f a         -> app loc f a
+    EIf loc a b c       -> iff loc a b c
+    ELam loc args e     -> lam loc args e
+    ELet loc binds e    -> letExpr loc binds e
+    EConstr loc ty m n  -> constr loc ty m n
+    ECase loc e alts    -> caseExpr loc e alts
+    EAssertType loc e t -> assertType loc e t
+    EBottom loc         -> pure $ Fix $ EBottom loc
   where
     var loc v = return $ Fix $ EVar loc $ fromMaybe v $ M.lookup v env
 
@@ -80,6 +81,10 @@ renameExpr env (Fix expr) =
       body' <- renameExpr bodyEnv body
       rhss' <- mapM (renameExpr bodyEnv . snd) binds
       return $ Fix $ ELet loc (zip bindNames' rhss') body'
+
+    assertType loc e t = do
+      e' <- renameExpr env e
+      return $ Fix $ EAssertType loc e' t
 
     constr loc ty m n = return $ Fix $ EConstr loc ty m n
 

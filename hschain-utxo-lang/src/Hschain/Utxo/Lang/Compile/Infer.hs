@@ -13,9 +13,10 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
+import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, intT, textT)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, TypeContext(..))
 
 import qualified Language.HM as H
 
@@ -95,6 +96,7 @@ annotateTypes =
       EBottom loc     -> H.bottomE loc
       EConstr loc ty tag arity -> H.constrE loc (eraseWith loc ty) (ConstrTag tag) arity
       ELet loc bs e   -> H.letE loc (fmap (fromBind loc) bs) e
+      EAssertType loc e ty -> H.assertTypeE loc e (eraseWith loc ty)
       ECase loc e alts -> H.caseE loc e (fmap fromAlt alts)
 
     -- todo: we do need to use VarName to keep info on bind locations
@@ -160,14 +162,15 @@ annotateTypes =
 
 
 libTypeContext :: Context
-libTypeContext = H.Context $ M.fromList
+libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
-  , ("==",  forA $ funT' [aT, aT] boolT')
-  , ("+",  H.monoT $ funT' [intT', intT'] intT')
-  ]
+  ])
+  <> fromCoreContext preludeTypeContext
   where
     aT = varT' "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
+
+    fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap (H.typeToSignature . eraseLoc) ctx
 
 funT' :: [H.Type Loc Tag] -> H.Type Loc Tag -> H.Type Loc Tag
 funT' args res = foldr arrowT' res args
@@ -178,8 +181,5 @@ arrowT' a b = H.arrowT noLoc a b
 varT' :: Name -> H.Type Loc Tag
 varT'   a   = H.varT noLoc $ VarTag a
 
-boolT', intT', textT' :: H.Type Loc Tag
-
-intT' = eraseLoc intT
-textT' = eraseLoc textT
+boolT' :: H.Type Loc Tag
 boolT' = eraseLoc boolT

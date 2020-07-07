@@ -73,8 +73,8 @@ exprToExtendedLC typeCtx = cataM $ \case
   TextE loc e             -> fromTextExpr loc e
   BoxE loc e              -> fromBoxExpr loc e
   Trace loc a b           -> fromTrace loc a b
+  Ascr loc e t            -> fromAscr loc e t
   Let _ _ _               -> failedToEliminate "Complex let-expression"
-  Ascr _ _ _              -> failedToEliminate "Type ascertion (Ascr)"
   InfixApply _ _ _ _      -> failedToEliminate "InfixApply"
   Lam _ _ _               -> failedToEliminate "Single argument Lam"
   RecConstr _ _ _         -> failedToEliminate "RecordConstr"
@@ -93,6 +93,8 @@ exprToExtendedLC typeCtx = cataM $ \case
     fromLet loc binds body = pure $ Fix $ ELet loc (fmap (first varName'name) binds) body
 
     fromCons loc name args = fmap (\constr -> fun loc constr $ V.toList args) (fromConstrName loc name)
+
+    fromAscr loc e t = pure $ Fix $ EAssertType loc  e (fromType $ H.stripSignature t)
 
     fromConstrName loc name = do
       ConsInfo{..} <- getConsInfo typeCtx name

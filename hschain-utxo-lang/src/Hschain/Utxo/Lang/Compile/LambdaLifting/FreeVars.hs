@@ -34,6 +34,7 @@ getFreeVars localVars (Fix x) = case x of
   EConstr loc ty m n -> constr loc ty m n
   ECase loc e alts -> cases loc e alts
   ELet loc binds body -> letExpr loc binds body
+  EAssertType loc e ty -> assertType loc e ty
   EBottom loc -> bottom loc
   where
 
@@ -79,6 +80,10 @@ getFreeVars localVars (Fix x) = case x of
         defnsFree = freeInValues
         ebody = getFreeVars bodyLocals body
         bodyFree = getLocals ebody S.\\ binderSet
+
+    assertType loc e ty = Fix $ Ann (getLocals ea) $ EAssertType loc ea ty
+      where
+        ea = getFreeVars localVars e
 
     bottom loc = Fix $ Ann mempty $ EBottom loc
 

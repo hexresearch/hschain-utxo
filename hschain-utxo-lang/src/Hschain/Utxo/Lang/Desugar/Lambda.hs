@@ -3,7 +3,6 @@ module Hschain.Utxo.Lang.Desugar.Lambda(
     joinLamArgs
   , joinLetBinds
   , removeInfixApply
-  , removeAscr
   , simplifyLet
   , substLamPats
   , desugarLambdaCalculus
@@ -31,7 +30,7 @@ import qualified Data.Vector as V
 -- Note that order of trasformation matters
 desugarLambdaCalculus :: MonadLang m => Lang -> m Lang
 desugarLambdaCalculus =
-  fmap (removeAscr . removeInfixApply) . substLamPats . joinLamArgs <=< simplifyLet . joinLetBinds
+  fmap (removeInfixApply) . substLamPats . joinLamArgs <=< simplifyLet . joinLetBinds
 
 -- | Aggregates all lambda arguments to lists. It converts:
 --
@@ -63,14 +62,6 @@ removeInfixApply :: Lang -> Lang
 removeInfixApply = cata $ \case
   InfixApply loc a var b -> Fix (Apply loc (Fix (Apply loc (Fix $ Var loc var) a)) b)
   other                  -> Fix other
-
--- | Removes explicit type-annotations provided by user
---
--- > (a :: Int) ===> a
-removeAscr :: Lang -> Lang
-removeAscr = cata $ \case
-  Ascr _ a _ -> a
-  other      -> Fix other
 
 -- | converts let-bindings to simple bindings like
 --
