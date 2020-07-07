@@ -108,21 +108,18 @@ instance CBOR.Serialise (Challenge Ed25519) where
   decode = fmap ChallengeEd25519 CBOR.decode
 
 
-instance CryptoHashable Ed.Point where
-  hashStep x = hashStep (Ed.pointEncode x :: BS.ByteString)
-
-instance CryptoHashable Ed.Scalar where
-  hashStep x = hashStep (Ed.scalarEncode x :: BS.ByteString)
-
-
 instance CryptoHashable (Challenge Ed25519) where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable (ECScalar Ed25519) where
-  hashStep = genericHashStep hashDomain
+  hashStep (ECScalar25519 x)
+    =  hashStep (CryPrivateKey "Ed25519")
+    <> hashStep (Ed.scalarEncode x :: BS.ByteString)
 
 instance CryptoHashable (ECPoint Ed25519) where
-  hashStep = genericHashStep hashDomain
+  hashStep (ECPoint25519 x)
+    =  hashStep (CryPublicKey "Ed25519")
+    <> hashStep (Ed.pointEncode x :: BS.ByteString)
 
 
 hashDomain :: String
