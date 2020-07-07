@@ -18,6 +18,7 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Parser.Hask
@@ -125,4 +126,7 @@ $(deriveJSON dropPrefixOptions ''Tx)
 $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Box)
 $(deriveJSON dropPrefixOptions ''Env)
+
+instance CryptoHashable Tx where
+  hashStep = genericHashStep hashDomain
 

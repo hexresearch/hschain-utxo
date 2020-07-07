@@ -80,8 +80,5 @@ utxoLogic = BChLogic{..}
 ------------------------------------------
 -- instance boilerplate
 
-instance CryptoHashable Tx where
-  hashStep = genericHashStep hashDomain
-
 instance CryptoHashable BoxChain where
   hashStep = genericHashStep hashDomain
