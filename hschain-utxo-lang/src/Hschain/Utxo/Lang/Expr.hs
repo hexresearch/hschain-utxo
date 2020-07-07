@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
@@ -25,6 +24,7 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Language.HM as H
@@ -33,6 +33,7 @@ import qualified Language.Haskell.Exts.SrcLoc as Hask
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
+
 
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
@@ -788,3 +789,23 @@ $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
 
+instance (CryptoHashable k) => CryptoHashable (Sigma k) where
+  hashStep = genericHashStep hashDomain
+
+instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaExpr k a) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Prim where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Script where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxId where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Box where
+  hashStep = genericHashStep hashDomain
+
+hashDomain :: String
+hashDomain = "hschain.utxo.sigma"

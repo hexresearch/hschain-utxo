@@ -1,13 +1,11 @@
 -- | Bridge to hschain logic
 module Hschain.Utxo.Blockchain.Logic where
 
-import Codec.Serialise      (Serialise, serialise)
+import Codec.Serialise      (Serialise)
 import Control.DeepSeq      (NFData)
 import Control.Exception
 import Control.Monad
 
-import Data.ByteString (ByteString)
-import Data.Fix
 import Data.Text (Text)
 
 import GHC.Generics (Generic)
@@ -26,10 +24,6 @@ import Hschain.Utxo.State.React
 
 import qualified Data.Aeson          as JSON
 import qualified Data.HashMap.Strict as HM
-import qualified Crypto.ECC.Edwards25519  as Ed
-
-import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 
 
 
@@ -43,9 +37,6 @@ newtype BData = BData { unBData :: [Tx] }
 data UtxoError = UtxoError Text
    deriving stock    (Show,Generic)
    deriving anyclass (Exception,NFData)
-
-hashDomain :: String
-hashDomain = "hschain.utxo.sigma"
 
 
 instance BlockData BData where
@@ -94,22 +85,3 @@ instance CryptoHashable Tx where
 
 instance CryptoHashable BoxChain where
   hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxId where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Prim where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Script where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Box where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma PublicKey) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
-  hashStep = genericHashStep hashDomain
-
