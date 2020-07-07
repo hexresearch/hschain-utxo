@@ -3,5 +3,5 @@ import qualified TM.Core
 
 main :: IO ()
 main = defaultMain $ testGroup "lang"
-  [
+  [ TM.Core.tests
   ]
