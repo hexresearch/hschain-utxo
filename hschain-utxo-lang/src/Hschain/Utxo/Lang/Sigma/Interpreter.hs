@@ -18,6 +18,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
@@ -108,6 +109,12 @@ data ProvenTree a
 instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
          ) => CBOR.Serialise (ProvenTree a)
 
+instance ( CryptoHashable (ECScalar  a)
+         , CryptoHashable (ECPoint   a)
+         , CryptoHashable (Challenge a)
+         ) => CryptoHashable (ProvenTree a) where
+  hashStep = genericHashStep hashDomain
+
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (ProvenTree a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (ProvenTree a)
 deriving stock   instance (Ord  (ECPoint a), Ord  (ECScalar a), Ord  (Challenge a)) => Ord  (ProvenTree a)
@@ -119,8 +126,17 @@ data OrChild a = OrChild
   , orChild'tree      :: ProvenTree a
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
+instance ( CBOR.Serialise (ECPoint a)
+         , CBOR.Serialise (ECScalar a)
+         , CBOR.Serialise (Challenge a)
          ) => CBOR.Serialise (OrChild a)
+
+instance ( CryptoHashable (ECScalar  a)
+         , CryptoHashable (ECPoint   a)
+         , CryptoHashable (Challenge a)
+         ) => CryptoHashable (OrChild a) where
+  hashStep = genericHashStep hashDomain
+
 
 deriving stock    instance (Show   (ECPoint a), Show   (ECScalar a), Show   (Challenge a)) => Show   (OrChild a)
 deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Challenge a)) => Eq     (OrChild a)
@@ -360,3 +376,5 @@ traceMsg :: Show a => String -> a -> a
 traceMsg msg a = trace (mconcat [msg, ": ", ppShow a]) a
 -}
 
+hashDomain :: String
+hashDomain = "hschain.utxo.sigma"
