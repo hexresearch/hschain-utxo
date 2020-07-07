@@ -1,3 +1,12 @@
+* Implement typical Bitcoin scenarios
+
+1. Оплата на хеш от адреса
+2. Оплата на хеш от скрипта, 1 и 2 могут быть одинаковые, но мне интересен тонкий момент, что в битке для 2 нужен redeem script, который надо отдельно хранить.
+3. Транзакция траты K from N мультисига
+4. Hash lock
+5. Time lock
+К этим всем транзам надо проверить, что их id не меняется после подписи соответствующих выходов каждой из сторон, чтобы можно было делать цепочки неопубликованных транзакций.
+
 * debug pattern-matching compiler, for now switched to tuple-based compiler
    but it should not remain in the long run.
 
@@ -9,18 +18,8 @@
   Also we can simplify it by reducing text to value map to list of values.
   It would be easier implement right now. And this is how it works in the Ergo.
 
-* add bottoms to G-machine or some mechanism of throwing errors
-
 * add elimination of polymorphic functions.
    Do it on the level of extended LC.
-
-* add conversion form lambda-lifted form to G-machine language.
-   It should be fast because it operates during transaction verification.
-   
-* we need type tag allterms for termination check.
-   I'm not sure right now on what stage should it happen.
-
-* update hschain version many instance of CryptoHashable are already defined there
 
 * implement let-pattenrs for repl in the style of
     
