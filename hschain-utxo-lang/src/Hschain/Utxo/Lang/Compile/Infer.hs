@@ -165,12 +165,18 @@ libTypeContext :: Context
 libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
   ])
+  <> genericCompareOps
   <> fromCoreContext preludeTypeContext
   where
     aT = varT' "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
 
     fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap (H.typeToSignature . eraseLoc) ctx
+
+    genericCompareOps = H.Context $ M.fromList $ fmap (, cmpT) $
+      [ "==", "/=", "<", ">", "<=", ">=" ]
+
+    cmpT = forA $ arrowT' aT (arrowT' aT boolT')
 
 funT' :: [H.Type Loc Tag] -> H.Type Loc Tag -> H.Type Loc Tag
 funT' args res = foldr arrowT' res args
