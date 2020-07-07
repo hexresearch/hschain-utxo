@@ -12,6 +12,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Gmachine
+import Hschain.Utxo.Lang.Core.RefEval
 import qualified Hschain.Utxo.Lang.Core.Data.Output as O
 import Examples.SKI
 import Examples.Simple
