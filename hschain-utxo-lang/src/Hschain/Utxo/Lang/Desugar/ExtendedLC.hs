@@ -263,7 +263,8 @@ fromType = H.mapLoc (const ())
 
 desugarModule :: MonadLang m => Module -> m Module
 desugarModule =
-      desugarCase
+      liftToModule simplifyLet
+  <=< desugarCase
   <=< liftToModuleWithCtx desugarSyntaxExpr
   <=< altGroupToTupleModule <=< substWildcards
 
