@@ -247,8 +247,10 @@ inferAssertType ctx loc a ty = do
   subst <- liftEither $ genSubtypeOf phi ty tA
   return (subst <> phi, ty, tyAssertTypeE loc aTyTerm ty)
 
-inferConstr :: Ord v => Origin loc -> Type' loc v -> v -> Int -> InferOut prim loc v
-inferConstr loc ty tag arity =return $  (mempty, ty, tyConstrE loc ty tag arity)
+inferConstr :: (Eq loc, IsVar v) => Origin loc -> Type' loc v -> v -> Int -> InferOut prim loc v
+inferConstr loc ty tag arity = do
+  vT <- newInstance $ typeToSignature ty
+  return $  (mempty, vT, tyConstrE loc vT tag arity)
 
 inferCase :: forall prim loc v .
      (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
