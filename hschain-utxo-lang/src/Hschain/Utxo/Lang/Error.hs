@@ -57,7 +57,8 @@ data InternalError
   deriving (Show)
 
 data MonoError
-  = FailedToFindMonoType Text
+  = FailedToFindMonoType Loc Text
+  | CompareForNonPrim Loc
   deriving (Show)
 
 -- pretty message
@@ -106,3 +107,9 @@ noSameArgsNumber = throwError $ PatError NoSameArgsNumber
 
 emptyArgument :: MonadError Error m => m a
 emptyArgument = throwError $ PatError EmptyArgument
+
+compareForNonPrim :: MonadError Error m => Loc -> m a
+compareForNonPrim = throwError . MonoError . CompareForNonPrim
+
+failedToFindMonoType :: MonadError Error m => Loc -> Text -> m a
+failedToFindMonoType loc name = throwError $ MonoError $ FailedToFindMonoType loc name

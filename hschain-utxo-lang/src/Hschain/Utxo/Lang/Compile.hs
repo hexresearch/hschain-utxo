@@ -24,7 +24,9 @@ import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m Core.CoreProg
-compile = toCoreProg <=< makeMonomorphic <=< annotateTypes . lambdaLifting <=< toExtendedLC
+compile =
+      toCoreProg <=< makeMonomorphic <=< specifyCompareOps
+  <=< annotateTypes . lambdaLifting <=< toExtendedLC
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.

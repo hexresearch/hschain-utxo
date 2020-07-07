@@ -15,6 +15,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
   , TypedProg
   , TypedExpr
   , getTypedDefType
+  , liftTypedProg
 ) where
 
 import Data.Fix
@@ -126,3 +127,11 @@ getTypedDefType Def{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type def'args
     res  = ann'note $ unFix def'body
+
+liftTypedProg :: Monad m => (TypedExpr -> m TypedExpr) -> TypedProg -> m TypedProg
+liftTypedProg f (AnnProg combs) =  fmap AnnProg $ mapM liftComb combs
+  where
+    liftComb def = do
+      body <- f $ def'body def
+      return $ def { def'body = body }
+

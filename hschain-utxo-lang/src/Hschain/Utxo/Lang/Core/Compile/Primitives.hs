@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , builtInUnary
   , builtInDiadic
   , preludeTypeContext
+  , toCompareName
 ) where
 
 

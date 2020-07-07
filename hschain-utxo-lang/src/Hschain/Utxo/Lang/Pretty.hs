@@ -236,7 +236,10 @@ instance Pretty InternalError where
 
 instance Pretty MonoError where
   pretty = \case
-    FailedToFindMonoType name -> hsep ["Failed to find monomorphic type for", pretty name]
+    FailedToFindMonoType loc name -> err loc $ hsep ["Failed to find monomorphic type for", pretty name]
+    CompareForNonPrim loc         -> err loc "Compare operator expects primitive type as input."
+    where
+      err src msg = hsep [hcat [pretty src, ":"], msg]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x

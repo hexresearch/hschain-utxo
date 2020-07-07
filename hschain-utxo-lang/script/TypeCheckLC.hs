@@ -7,6 +7,7 @@ import Data.Text.Prettyprint.Doc
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Compile.Infer
+import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Pretty()
 import Hschain.Utxo.Lang.Desugar (altGroupToExpr, altGroupToTupleExpr)
@@ -32,6 +33,8 @@ compileShow file = do
 --  pPrint (fmap unCoreProg $ runInferM m)
   putStrLn "----------------------"
   pr $ runInferM $ annotateTypes =<< m
+  putStrLn "----------------------"
+  pr $ runInferM $ specifyCompareOps =<< annotateTypes =<< m
   where
     pr eProg = either printRes printRes eProg
 
