@@ -12,7 +12,6 @@ import GHC.Generics (Generic)
 
 import HSChain.Blockchain.Internal.Engine.Types
 import HSChain.Crypto hiding (PublicKey)
-import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
 import HSChain.Types
@@ -76,9 +75,3 @@ utxoLogic = BChLogic{..}
 
     processTransaction :: Tx -> BoxChain -> Either UtxoError BoxChain
     processTransaction tx st = either (Left . UtxoError) Right $ fst $ react tx st
-
-------------------------------------------
--- instance boilerplate
-
-instance CryptoHashable BoxChain where
-  hashStep = genericHashStep hashDomain
