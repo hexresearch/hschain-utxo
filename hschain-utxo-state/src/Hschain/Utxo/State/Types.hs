@@ -4,7 +4,6 @@ module Hschain.Utxo.State.Types where
 import Hex.Common.Aeson
 
 import Codec.Serialise (Serialise)
-import Control.Monad
 
 import Data.Text (Text)
 import Data.Map.Strict (Map)

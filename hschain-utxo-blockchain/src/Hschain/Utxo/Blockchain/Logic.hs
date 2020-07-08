@@ -8,7 +8,6 @@ import Control.Monad
 
 import Data.ByteString (ByteString)
 import Data.Fix
-import Data.Fixed
 import Data.Text (Text)
 
 import GHC.Generics (Generic)

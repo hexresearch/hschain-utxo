@@ -28,10 +28,8 @@ import Control.Concurrent.STM
 
 import Control.Monad
 import Control.Monad.Except
-import Control.Monad.IO.Class
 import Control.Monad.Reader
 
-import Data.Fix
 import Data.Sequence (Seq)
 import Data.Text (Text)
 

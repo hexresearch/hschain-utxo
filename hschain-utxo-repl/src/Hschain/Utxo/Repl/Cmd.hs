@@ -13,22 +13,15 @@ import Control.Monad.IO.Class
 import Control.Monad.State.Strict
 
 import Data.String
-import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
-import Hschain.Utxo.Repl.Eval
 import Hschain.Utxo.Repl.Monad
 import Hschain.Utxo.Repl.Imports (Imports(..), ImportError(..))
 
 import Safe
 
-import System.Console.Repline
 import System.Exit
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Desugar
-import Hschain.Utxo.Lang.Lib.Base
-import Hschain.Utxo.Lang.Infer
-import Hschain.Utxo.Lang.Infer.Pretty
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T

@@ -6,17 +6,12 @@ module Hschain.Utxo.Repl(
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
-import Control.Monad.IO.Class
 
-import Data.Fix
 
 import Hschain.Utxo.Lang
 
 import System.Console.Repline hiding (options)
-import System.Console.Haskeline.MonadException
 import System.Process
-import Data.List (isPrefixOf)
-import Data.Text (Text)
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T

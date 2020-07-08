@@ -21,7 +21,6 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Build
 
 import qualified Hschain.Utxo.API.Client as C

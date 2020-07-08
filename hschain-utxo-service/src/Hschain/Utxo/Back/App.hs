@@ -5,11 +5,7 @@ module Hschain.Utxo.Back.App(
 
 import Hex.Common.Delay
 
-import Control.Concurrent (newEmptyMVar, takeMVar, myThreadId, ThreadId, forkIO)
-import Control.Monad
 import Control.Monad.Cont
-import Control.Monad.IO.Class
-import Foreign.StablePtr
 
 import Data.Proxy
 import Data.String
@@ -26,7 +22,6 @@ import Hschain.Utxo.Back.Monad
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Back.Server
 import Hschain.Utxo.Back.Env
-import Hschain.Utxo.Lang
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
