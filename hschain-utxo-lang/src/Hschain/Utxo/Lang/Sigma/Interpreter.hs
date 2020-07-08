@@ -382,6 +382,3 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
 traceMsg :: Show a => String -> a -> a
 traceMsg msg a = trace (mconcat [msg, ": ", ppShow a]) a
 -}
-
-hashDomain :: String
-hashDomain = "hschain.utxo.sigma"
