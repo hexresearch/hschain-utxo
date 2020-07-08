@@ -1,3 +1,4 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
@@ -790,7 +791,7 @@ $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
 
-instance (CryptoHashable k) => CryptoHashable (Sigma k) where
+instance (forall k. CryptoHashable k => CryptoHashable (f k)) => CryptoHashable (Fix f) where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Prim where
