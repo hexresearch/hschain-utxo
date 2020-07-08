@@ -44,6 +44,7 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
@@ -134,6 +135,10 @@ data SigmaExpr k a =
 
 instance Serialise k => Serialise (Sigma k)
 instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)
+
+instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaExpr k a) where
+  hashStep = genericHashStep Sigma.hashDomain
+
 
 -- | Not for sigma expressions.
 --  Warning: assumption

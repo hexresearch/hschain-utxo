@@ -2,7 +2,8 @@
 module Hschain.Utxo.Lang.Sigma.EllipticCurve(
     EC(..)
   , Ed25519
-) where
+  , hashDomain
+  ) where
 
 import Control.DeepSeq (NFData)
 

@@ -11,6 +11,7 @@ import Data.Map.Strict (Map)
 import GHC.Generics
 
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang
 
 import qualified Data.Map.Strict as M

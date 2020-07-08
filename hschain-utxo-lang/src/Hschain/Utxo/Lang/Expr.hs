@@ -26,6 +26,7 @@ import Text.Show.Deriving
 
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -792,9 +793,6 @@ $(deriveShow1 ''BoxExpr)
 instance (CryptoHashable k) => CryptoHashable (Sigma k) where
   hashStep = genericHashStep hashDomain
 
-instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaExpr k a) where
-  hashStep = genericHashStep hashDomain
-
 instance CryptoHashable Prim where
   hashStep = genericHashStep hashDomain
 
@@ -806,6 +804,3 @@ instance CryptoHashable BoxId where
 
 instance CryptoHashable Box where
   hashStep = genericHashStep hashDomain
-
-hashDomain :: String
-hashDomain = "hschain.utxo.sigma"
