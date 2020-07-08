@@ -4,18 +4,13 @@ module Hschain.Utxo.Test.Client.Proc(
   runTestProc
 ) where
 
-import Hex.Common.Control
-import Hex.Common.Aeson
 import Hex.Common.Yaml
 
 import Control.Concurrent
 
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Timeout
 
 import Data.Maybe
-import Data.Ord
 import Data.UUID
 
 import System.Directory
@@ -28,7 +23,6 @@ import HSChain.Logger
 import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Back.App
 import Hschain.Utxo.Back.Config
-import Hschain.Utxo.Back.Env
 import Hschain.Utxo.Lang.Sigma (newSecret)
 import Hschain.Utxo.Test.Client.Monad(App, runTest, toHspec, TestSpec(..), initGenesis)
 

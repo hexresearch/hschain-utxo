@@ -1,12 +1,8 @@
 -- | Simple exchange of funds between users (no conditions, just ownership).
 module Hschain.Utxo.Test.Client.Scripts.SimpleExchange where
 
-import Control.Timeout
 
-import Text.Show.Pretty
 
-import Hschain.Utxo.Lang
-import Hschain.Utxo.Test.Client.Proc
 import Hschain.Utxo.Test.Client.Wallet
 
 import qualified Hschain.Utxo.API.Client as C

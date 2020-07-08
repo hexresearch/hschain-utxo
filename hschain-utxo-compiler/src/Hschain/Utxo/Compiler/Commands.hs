@@ -8,7 +8,6 @@ module Hschain.Utxo.Compiler.Commands(
 
 import Data.Aeson
 import Data.Maybe
-import Data.String
 
 import Data.ByteString.Lazy (ByteString)
 import Hschain.Utxo.Lang.Parser.Hask
@@ -19,10 +18,8 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base
-import Hschain.Utxo.Lang.Parser.Hask
 
 import qualified Hschain.Utxo.Lang.Sigma as Sigma
 

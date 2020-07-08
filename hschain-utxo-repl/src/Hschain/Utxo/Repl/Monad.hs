@@ -17,13 +17,10 @@ module Hschain.Utxo.Repl.Monad(
   , hasType
 ) where
 
-import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
-import Control.Monad.IO.Class
 
 import Data.Default
-import Data.Fix
 import Data.Either
 import Data.Text (Text)
 

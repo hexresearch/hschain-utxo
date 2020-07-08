@@ -5,8 +5,6 @@ module Hschain.Utxo.Test.Client.Scripts.ReversibleAddress(
 import Prelude hiding ((<*))
 
 import Data.Int
-import Data.Fix
-import Data.Fixed
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang
