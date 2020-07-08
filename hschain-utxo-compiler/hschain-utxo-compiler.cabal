@@ -18,6 +18,7 @@ build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
 library
+  Ghc-options:         -Wall
   exposed-modules:
       Hschain.Utxo.Compiler.App
       Hschain.Utxo.Compiler.Commands
@@ -57,6 +58,7 @@ library
     UndecidableInstances
 
 executable hschain-utxo-compiler
+  Ghc-options:         -Wall
   main-is: Main.hs
   -- other-modules:
   hs-source-dirs:

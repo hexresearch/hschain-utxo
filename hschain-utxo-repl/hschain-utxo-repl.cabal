@@ -18,6 +18,7 @@ build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Repl
                        Hschain.Utxo.Repl.Cmd
                        Hschain.Utxo.Repl.Eval
@@ -56,6 +57,7 @@ library
     TupleSections
 
 executable hschain-utxo-repl
+  Ghc-options:         -Wall
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:

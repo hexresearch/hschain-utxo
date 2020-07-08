@@ -14,6 +14,7 @@ build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.App
                        Hschain.Utxo.App.Options
   -- other-modules:
@@ -40,6 +41,7 @@ library
 
 
 executable hschain-utxo
+  Ghc-options:         -Wall
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
@@ -49,6 +51,7 @@ executable hschain-utxo
   default-language:    Haskell2010
 
 executable hschain-utxo-generate-genesis
+  Ghc-options:         -Wall
   main-is:             Genesis.hs
   -- other-modules:
   -- other-extensions:
