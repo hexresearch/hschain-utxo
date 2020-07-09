@@ -173,7 +173,7 @@ compileC expr env = case expr of
   EIf a b c           -> compileIf a b c
   EBottom             -> Code.singleton Bottom
   -- TODO: we need to substitute it with special case
-  -- see discussion at the book on impl at p. 136 section: 3.8.7
+  -- see discussion at the book on impl at p. 136 section: 3.8.7
   where
     compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 
