@@ -9,4 +9,6 @@ import Examples.SKI
 main :: IO ()
 main = defaultMain
   [ bench "SKK3.typecheck" $ nf (typeCheck preludeTypeContext) exampleSKK3
+  , bench "SKK3.compile"   $ nf compile exampleSKK3
+  , bench "SKK3.eval"      $ nf (fmap gmachine'output . eval . compile) exampleSKK3
   ]
