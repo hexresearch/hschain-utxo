@@ -31,6 +31,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Core.Data.Prim as P
+import qualified Hschain.Utxo.Lang.Const as Const
 
 import qualified Language.HM as H
 
@@ -187,12 +188,12 @@ exprToExtendedLC typeCtx = cataM $ \case
           GreaterThanEquals    -> ">="
 
     fromGetEnv _ envId = pure $ case envId of
-      Height loc    -> var loc "getHeight"
-      Input loc a   -> ap2 loc (var loc "listAt") (var loc "getInputs") a
-      Output loc a  -> ap2 loc (var loc "listAt") (var loc "getOutputs") a
-      Self loc      -> var loc "getSelf"
-      Inputs loc    -> var loc "getInputs"
-      Outputs loc   -> var loc "getOutputs"
+      Height loc    -> var loc Const.getHeight
+      Input loc a   -> ap2 loc (var loc "listAt") (var loc Const.getInputs) a
+      Output loc a  -> ap2 loc (var loc "listAt") (var loc Const.getOutputs) a
+      Self loc      -> var loc Const.getSelf
+      Inputs loc    -> var loc Const.getInputs
+      Outputs loc   -> var loc Const.getOutputs
       GetVar loc ty -> var loc (getEnvVarName ty)
 
     fromVecExpr _ expr = pure $ case expr of
@@ -231,10 +232,10 @@ exprToExtendedLC typeCtx = cataM $ \case
       BoxAt loc a field   -> fromBoxField loc a field
       where
         fromBoxField loc a field = (\f -> ap1 loc f a) $ case field of
-          BoxFieldId         -> var loc "getBoxId"
-          BoxFieldValue      -> var loc "getBoxValue"
-          BoxFieldScript     -> var loc "getBoxScript"
-          BoxFieldArgList ty -> var loc $ getBoxArgVar ty
+          BoxFieldId         -> var loc Const.getBoxName
+          BoxFieldValue      -> var loc Const.getBoxValue
+          BoxFieldScript     -> var loc Const.getBoxScript
+          BoxFieldArgList ty -> var loc $ Const.getBoxArgs $ argTypeName ty
 
         fromPrimBox loc Box{..} = fun loc boxCons [id', value, script, args]
           where
@@ -317,6 +318,5 @@ removeTopLevelLambdasDef def@Def{..} =
                                     def { def'args = def'args ++ args
                                         , def'body = body
                                         }
-    _                        -> def
-
+    _                      -> def
 
