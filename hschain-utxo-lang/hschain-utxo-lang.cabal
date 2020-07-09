@@ -156,6 +156,7 @@ Test-suite hschain-utxo-lang-tests
   Default-Language:    Haskell2010
   Build-Depends:       base              >=4.9 && <5
                      , hschain-utxo-lang
+                     , text
                      , tasty
                      , tasty-hunit
   hs-source-dirs:      test
