@@ -4,13 +4,14 @@ module Hschain.Utxo.Lang.Core.Data.Vstack(
   , pop
 ) where
 
-import Hschain.Utxo.Lang.Core.Data.Prim
-
+import Control.DeepSeq
 import Data.Sequence (Seq, (<|), ViewL(..))
 import qualified Data.Sequence as S
 
+import Hschain.Utxo.Lang.Core.Data.Prim
+
 newtype Vstack = Vstack (Seq Prim)
-  deriving newtype (Show, Eq, Semigroup, Monoid)
+  deriving newtype (Show, Eq, Semigroup, Monoid, NFData)
 
 put :: Prim -> Vstack -> Vstack
 put n (Vstack xs) = Vstack (n <| xs)

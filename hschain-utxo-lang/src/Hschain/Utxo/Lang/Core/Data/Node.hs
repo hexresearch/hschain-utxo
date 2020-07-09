@@ -5,10 +5,13 @@ module Hschain.Utxo.Lang.Core.Data.Node(
   , getNodePrim
 ) where
 
+import Control.DeepSeq
 import Data.Sequence(Seq)
+import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Data.Prim
+
 
 data Node
   = NodePrim !Prim              -- ^ constant primitive
@@ -16,7 +19,8 @@ data Node
   | NodeConstr !Int (Seq Addr)  -- ^ constructor (integer-tag, addresses to arguments)
   | Ap !Addr !Addr              -- ^ application
   | Fun !Int !Code              -- ^ supercombinator with k-arguments and code instructions
-  deriving (Show, Eq)
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
 
 
 -- | Reads argument of application from the node
