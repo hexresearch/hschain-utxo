@@ -37,6 +37,8 @@ freeVars :: Expr -> Set Name
 freeVars = \case
   EVar name     -> S.singleton name
   EPrim _       -> S.empty
+  EPrimOp op    -> case op of
+    OpAdd a b -> freeVars a <> freeVars b
   EAp f a       -> freeVars f <> freeVars a
   ELet binds e  -> freeLetVars binds e
   EIf a b c     -> freeVars a <> freeVars b <> freeVars c
@@ -76,6 +78,8 @@ checkLetExpr = \case
   EConstr _ _ _ -> True
   EVar _        -> True
   EPrim _       -> True
+  EPrimOp op    -> case op of
+    OpAdd a b -> checkLetExpr a && checkLetExpr b
   EBottom       -> True
   where
     checkBinds binds e = checkLetExpr e && all (checkLetExpr . snd) binds && check binds

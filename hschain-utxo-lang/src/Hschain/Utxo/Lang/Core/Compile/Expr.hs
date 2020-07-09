@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , Typed(..)
   , Type
   , Expr(..)
+  , PrimOp(..)
   , CaseAlt(..)
   , CompiledScomb(..)
 ) where
@@ -35,6 +36,8 @@ data Expr
   -- ^ variables
   | EPrim !Prim
   -- ^ constant primitive
+  | EPrimOp !PrimOp
+  -- ^ Primitive operation
   | EAp  Expr Expr
   -- ^ application
   | ELet [(Typed Name, Expr)] Expr
@@ -48,6 +51,12 @@ data Expr
   -- of constructor as afunction for a type-checker
   | EBottom
   -- ^ failed termination for the program
+  deriving (Show, Eq)
+
+-- | Primitive operations. Here we require that all applications are
+--   completely saturated. it's useful for compilation to G-machine.
+data PrimOp
+  = OpAdd !Expr !Expr           -- ^ Integer addition
   deriving (Show, Eq)
 
 -- | Case alternatives

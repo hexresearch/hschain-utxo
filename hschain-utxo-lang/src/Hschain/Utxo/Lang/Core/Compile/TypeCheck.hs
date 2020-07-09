@@ -127,6 +127,7 @@ inferExpr :: Expr -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
     EPrim prim     -> inferPrim prim
+    EPrimOp op     -> inferPrimOp op
     EAp  f a       -> inferAp f a
     ELet es e      -> inferLet es e
     ECase e alts   -> inferCase e alts
@@ -139,6 +140,13 @@ inferVar name = fmap MonoType $ getType name
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
+
+inferPrimOp :: PrimOp -> Check MonoType
+inferPrimOp = \case
+  OpAdd a b -> do tA <- inferExpr a
+                  tB <- inferExpr b
+                  lift $ unifyMonoType (MonoType intT) tA
+                      >> unifyMonoType (MonoType intT) tB
 
 inferAp :: Expr -> Expr -> Check MonoType
 inferAp f a = do

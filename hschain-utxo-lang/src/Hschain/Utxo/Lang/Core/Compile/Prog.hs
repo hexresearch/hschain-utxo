@@ -134,6 +134,9 @@ compileLetR env arity defs e =
 compileE :: Expr -> Env -> Code
 compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
+  EPrimOp op -> case op of
+    OpAdd a b -> compileDiadicInstrB env Add a b
+              <> Code.singleton MkPrim
   ELet es e -> compileLet env (fmap stripLetType es) e
   EIf a b c                         -> compileIf a b c
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
@@ -166,6 +169,7 @@ compileC expr env = case expr of
                Just n  -> Push n
                Nothing -> PushGlobal (GlobalName v)
   EPrim n             -> Code.singleton $ PushPrim n
+  EPrimOp op          -> error "Unreachable"
   EAp a b             -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
   ELet es e           -> compileLet env (fmap stripLetType es) e
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity

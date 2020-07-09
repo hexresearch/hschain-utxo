@@ -21,6 +21,9 @@ tests = testGroup "core"
     , testCase "Addition" $ do
         assertBool "typecheck" $ typeCheck preludeTypeContext progAddition
         Right [PrimInt 101] @=? run progAddition
+    , testCase "AdditionPrim" $ do
+        assertBool "typecheck" $ typeCheck preludeTypeContext progAdditionPrim
+        Right [PrimInt 101] @=? run progAddition
     ]
   ]
 
@@ -41,6 +44,15 @@ progAddition =
     { typed'value = EAp
                     (EAp (EVar "+") (EPrim (PrimInt 1)))
                     (EPrim (PrimInt 100))
+    , typed'type  = intT
+    }
+  ]
+
+-- Addition of two integers
+progAdditionPrim :: [Scomb]
+progAdditionPrim =
+  [ mkMain $ Typed
+    { typed'value = EPrimOp (OpAdd (EPrim (PrimInt 1)) (EPrim (PrimInt 100)))
     , typed'type  = intT
     }
   ]
