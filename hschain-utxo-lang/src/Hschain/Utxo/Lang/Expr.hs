@@ -1,4 +1,5 @@
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
@@ -843,3 +844,7 @@ instance CryptoHashable BoxId where
 
 instance CryptoHashable Box where
   hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Args where
+  hashStep = genericHashStep hashDomain
+
