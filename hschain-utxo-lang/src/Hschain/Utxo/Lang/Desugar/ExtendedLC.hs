@@ -193,8 +193,7 @@ exprToExtendedLC typeCtx = cataM $ \case
       Self loc      -> var loc "getSelf"
       Inputs loc    -> var loc "getInputs"
       Outputs loc   -> var loc "getOutputs"
-      GetVar loc a  -> ap1 loc (var loc "getVar") a  -- todo: consider typing (now it's polymorphic but we need to be more specific)
-                                                   -- we should introudce getVarInt, getVarString etc.
+      GetVar loc ty -> var loc (getEnvVarName ty)
 
     fromVecExpr _ expr = pure $ case expr of
       NewVec loc args     -> newVec loc args
@@ -232,10 +231,10 @@ exprToExtendedLC typeCtx = cataM $ \case
       BoxAt loc a field   -> fromBoxField loc a field
       where
         fromBoxField loc a field = (\f -> ap1 loc f a) $ case field of
-          BoxFieldId      -> var loc "getBoxId"
-          BoxFieldValue   -> var loc "getBoxValue"
-          BoxFieldScript  -> var loc "getBoxScript"
-          BoxFieldArg key -> ap1 loc (var loc "getBoxArg") key
+          BoxFieldId         -> var loc "getBoxId"
+          BoxFieldValue      -> var loc "getBoxValue"
+          BoxFieldScript     -> var loc "getBoxScript"
+          BoxFieldArgList ty -> var loc $ getBoxArgVar ty
 
         fromPrimBox loc Box{..} = fun loc boxCons [id', value, script, args]
           where

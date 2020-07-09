@@ -12,7 +12,6 @@ import Data.Fix
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 
-import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -103,7 +102,7 @@ toHaskExp (Fix expr) = case expr of
       Self loc      -> toVar loc (VarName loc "getSelf")
       Inputs loc    -> toVar loc (VarName loc "getInputs")
       Outputs loc   -> toVar loc (VarName loc "getOutputs")
-      GetVar loc a  -> ap (VarName loc "getVar") a
+      GetVar loc ty -> toVar loc (VarName loc $ getEnvVarName ty)
 
     fromVec _ = \case
       NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
@@ -134,19 +133,26 @@ toHaskExp (Fix expr) = case expr of
       [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
       , field "box'value"  $ prim $ PrimInt  $ box'value
       , field "box'script" $ prim $ PrimString $ unScript box'script
-      , field "box'args"   $ Fix $ VecE loc $ NewVec loc (V.fromList $ fmap (\(a, b) -> Fix $ Tuple loc (V.fromList [a, b])) args)
+      , field "box'args"   $ args
       ]
       where
         qname a = toQName $ VarName loc a
         field name a = H.FieldUpdate loc (qname name) (rec a)
         prim = Fix . PrimE loc
-        args = fmap (\(txt, val) -> (Fix $ PrimE loc $ PrimString txt, Fix $ PrimE loc val)) $ M.toList box'args
+        args = Fix $ Tuple loc $ V.fromList
+          [ toArgField PrimInt    $ args'ints  box'args
+          , toArgField PrimString $ args'texts box'args
+          , toArgField PrimBool   $ args'bools box'args
+          ]
+
+        toArgField :: (a -> Prim) -> V.Vector a -> Lang
+        toArgField primCons as = Fix $ VecE loc $ NewVec loc $ fmap (prim . primCons) as
 
     fromBoxField loc a = \case
       BoxFieldId          -> get "getBoxId"
       BoxFieldValue       -> get "getBoxValue"
       BoxFieldScript      -> get "getBoxScript"
-      BoxFieldArg b       -> ap2 (VarName loc "getBoxArg") b a
+      BoxFieldArgList ty  -> get (getBoxArgVar ty)
       where
         get name = ap (VarName loc name) a
 

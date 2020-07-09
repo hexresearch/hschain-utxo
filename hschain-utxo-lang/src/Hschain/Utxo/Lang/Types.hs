@@ -123,6 +123,7 @@ scriptToText = unScript
 
 $(deriveJSON dropPrefixOptions ''Tx)
 $(deriveJSON dropPrefixOptions ''TxArg)
+$(deriveJSON dropPrefixOptions ''Args)
 $(deriveJSON dropPrefixOptions ''Box)
 $(deriveJSON dropPrefixOptions ''Env)
 

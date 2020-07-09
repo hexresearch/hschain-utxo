@@ -483,12 +483,13 @@ execLang (Fix topExpr) = case topExpr of
         Output loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getOutputs
         Inputs loc1  -> fmap (toBoxes loc1) getInputs
         Outputs loc1 -> fmap (toBoxes loc1) getOutputs
-        GetVar _ (Fix (PrimE _ (PrimString argName))) -> do
+        GetVar varLoc argType -> do
           args <- getUserArgs
-          case M.lookup argName args of
-            Just value -> prim loc value
-            _          -> noField (VarName loc argName)
-        _      -> return $ Fix $ GetEnv loc idx
+          return $ case argType of
+            IntArg  -> toArgField varLoc PrimInt  $ args'ints args
+            TextArg -> toArgField varLoc PrimString $ args'texts args
+            BoolArg -> toArgField varLoc PrimBool $ args'bools args
+        _ -> thisShouldNotHappen $ Fix $ GetEnv loc idx
       where
         toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? (fromIntegral n)
         toBoxes loc1 vs = Fix $ VecE loc $ NewVec loc $ fmap (Fix . BoxE loc1 . PrimBox loc1) vs
@@ -501,14 +502,18 @@ execLang (Fix topExpr) = case topExpr of
         BoxAt loc1 (Fix (BoxE _ (PrimBox _ box))) field -> getBoxField loc1 box field
         _ -> thisShouldNotHappen $ Fix $ BoxE loc x
 
+    toArgField :: Loc -> (a -> Prim) -> V.Vector a -> Lang
+    toArgField loc primCons as = Fix $ VecE loc $ NewVec loc $ fmap (Fix . PrimE loc . primCons) as
+
     getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
-      BoxFieldId      -> prim loc $ PrimString $ unBoxId box'id
-      BoxFieldValue   -> prim loc $ PrimInt $ box'value
-      BoxFieldScript  -> prim loc $ PrimString $ unScript $ box'script
-      BoxFieldArg txt -> case txt of
-        Fix (PrimE loc1 (PrimString t)) -> maybe (noField $ VarName loc1 t) (prim loc1) $ M.lookup t box'args
-        _                               -> thisShouldNotHappen txt
+      BoxFieldId         -> prim loc $ PrimString $ unBoxId box'id
+      BoxFieldValue      -> prim loc $ PrimInt $ box'value
+      BoxFieldScript     -> prim loc $ PrimString $ unScript $ box'script
+      BoxFieldArgList ty -> return $ case ty of
+        IntArg  -> toArgField loc PrimInt    $ args'ints box'args
+        TextArg -> toArgField loc PrimString $ args'texts box'args
+        BoolArg -> toArgField loc PrimBool   $ args'bools box'args
 
     fromVec loc x = do
       x' <- mapM rec x
@@ -587,9 +592,6 @@ toError = throwError . ExecError
 
 thisShouldNotHappen :: Lang -> Exec Lang
 thisShouldNotHappen = toError . ThisShouldNotHappen
-
-noField :: VarName -> Exec Lang
-noField = toError . NoField
 
 outOfBound :: Lang -> Exec Lang
 outOfBound = toError . OutOfBound

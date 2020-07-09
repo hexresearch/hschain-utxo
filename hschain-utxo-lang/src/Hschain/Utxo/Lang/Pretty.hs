@@ -20,7 +20,6 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Infer.Pretty ()
 
-import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
@@ -71,9 +70,11 @@ prettyRecord name fields = vcat [name <> colon, indent 2 (vsep $ fmap ppField fi
     ppField (field, val) = hsep [hcat [pretty field, colon], val ]
 
 prettyArgs :: Args -> Doc ann
-prettyArgs m = hsep $ punctuate comma $ fmap phi $ M.toList m
-    where
-      phi (uid, pk) = hsep [pretty uid, "->", pretty pk]
+prettyArgs Args{..} = prettyRecord "Args"
+  [ ("args'ints",  pretty $ V.toList args'ints)
+  , ("args'texts", pretty $ V.toList args'texts)
+  , ("args'bools", pretty $ V.toList args'bools)
+  ]
 
 instance Pretty TxHash where
   pretty (TxHash bs) = pretty $ serialiseToText bs
@@ -165,7 +166,7 @@ prettyId = \case
     Inputs _         -> "INPUTS"
     Outputs _        -> "OUTPUTS"
     Self _           -> hcat ["SELF"]
-    GetVar _ a       -> op1 "getVar" a
+    GetVar _ ty      -> pretty $ getEnvVarName ty
 
 prettyVec :: Doc ann -> Doc ann -> Doc ann
 prettyVec name n = hcat [name, brackets n]
@@ -178,7 +179,7 @@ prettyBoxField = \case
     BoxFieldId      -> "id"
     BoxFieldValue   -> "value"
     BoxFieldScript  -> "script"
-    BoxFieldArg txt -> txt
+    BoxFieldArgList tag -> pretty $ getBoxArgVar tag
 
 instance Pretty Error where
   pretty = \case

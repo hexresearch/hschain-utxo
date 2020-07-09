@@ -8,9 +8,9 @@ module Hschain.Utxo.Lang.Build(
   , pk'
   , getHeight
   , getSelf, getInput, getOutput
-  , getBoxId, getBoxValue, getBoxScript, getBoxArg
+  , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
   , getInputs, getOutputs
-  , getVar
+  , getIntVars, getBoolVars, getTextVars
   , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec
   , var
   , def
@@ -155,14 +155,26 @@ getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
 getBoxScript :: Expr Box -> Expr Script
 getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScript
 
-getBoxArg :: Expr Box -> Expr Text -> Expr a
-getBoxArg (Expr box) (Expr field) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArg field)
+getBoxIntArgList :: Expr Box -> Expr (Vector Int)
+getBoxIntArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList IntArg)
+
+getBoxTextArgList :: Expr Box -> Expr (Vector Text)
+getBoxTextArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList TextArg)
+
+getBoxBoolArgList :: Expr Box -> Expr (Vector Bool)
+getBoxBoolArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList BoolArg)
 
 getHeight :: Expr Int64
 getHeight = Expr $ Fix $ GetEnv noLoc (Height noLoc)
 
-getVar :: Expr Text -> Expr a
-getVar (Expr arg) = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc arg
+getIntVars :: Expr (Vector Int)
+getIntVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc IntArg
+
+getBoolVars :: Expr (Vector Bool)
+getBoolVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BoolArg
+
+getTextVars :: Expr (Vector Text)
+getTextVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc TextArg
 
 toScriptBytes :: Expr Bool -> Expr Script
 toScriptBytes expr = unsafeCoerceExpr $ text $ unScript $ toScript expr

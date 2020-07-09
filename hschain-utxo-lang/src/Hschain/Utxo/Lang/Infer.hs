@@ -207,10 +207,10 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       BoxAt loc a field -> fromBoxField loc a field
 
     fromBoxField loc a field = case field of
-      BoxFieldId       -> app1 loc getBoxIdVar a
-      BoxFieldValue    -> app1 loc getBoxValueVar a
-      BoxFieldScript   -> app1 loc getBoxScriptVar a
-      BoxFieldArg arg  -> app2 loc getBoxArgVar a arg
+      BoxFieldId         -> app1 loc getBoxIdVar a
+      BoxFieldValue      -> app1 loc getBoxValueVar a
+      BoxFieldScript     -> app1 loc getBoxScriptVar a
+      BoxFieldArgList ty -> app1 loc (getBoxArgVar' ty) a
 
     fromTrace loc msg a = app2 loc traceVar msg a
 
@@ -221,7 +221,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       Self loc      -> varE loc selfVar
       Inputs loc    -> varE loc inputsVar
       Outputs loc   -> varE loc outputsVar
-      GetVar loc a  -> app1 loc getVarVar a
+      GetVar loc ty -> varE loc (getEnvVarName ty)
 
     app1 loc var a = appE loc (varE loc var) a
     app2 loc var a b = appE loc (appE loc (varE loc var) a) b
@@ -274,7 +274,6 @@ defaultContext = H.Context $ M.fromList $
   , (getBoxIdVar, monoT $ boxT `arr` textT)
   , (getBoxValueVar, monoT $ boxT `arr` intT)
   , (getBoxScriptVar, monoT $ boxT `arr` scriptT)
-  , (getBoxArgVar, forA $ monoT $ boxT `arr` (textT `arr` a))
   , (undefVar, forA $ monoT a)
   , (traceVar, forA $ monoT $ textT `arr` (a `arr` a))
   , (heightVar, monoT intT)
@@ -286,8 +285,11 @@ defaultContext = H.Context $ M.fromList $
   , (getVarVar, forA $ monoT $ intT `arr` a)
   , (altVar, forA $ monoT $ a `arr` (a `arr` a))
   , (failCaseVar, forA $ monoT a)
-  ] ++ tupleConVars ++ tupleAtVars ++ textExprVars
+  ] ++ tupleConVars ++ tupleAtVars ++ textExprVars ++ getBoxArgVars
   where
+    getBoxArgVars =
+      fmap (\ty -> (getBoxArgVar' ty, monoT $ boxT `arr` (vectorT $ argTagToType ty))) argTypes
+
     forA = forAllT noLoc "a"
     forAB = forA . forAllT noLoc "b"
     a = varT noLoc "a"
@@ -402,12 +404,11 @@ textHashVar :: HashAlgo -> Text
 textHashVar hashAlgo = secretVar $ mappend "textHash" (showt hashAlgo)
 
 
-getBoxIdVar, getBoxValueVar, getBoxScriptVar, getBoxArgVar :: Text
+getBoxIdVar, getBoxValueVar, getBoxScriptVar :: Text
 
 getBoxIdVar = secretVar "getBoxId"
 getBoxValueVar = secretVar "getBoxValue"
 getBoxScriptVar = secretVar "getBoxScript"
-getBoxArgVar = secretVar "getBoxArg"
 
 undefVar :: Text
 undefVar = secretVar "undefined"
@@ -499,4 +500,7 @@ selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", s
 
 recordUpdateVar :: VarName -> Text
 recordUpdateVar field = secretVar $ mconcat ["update_", varName'name field]
+
+getBoxArgVar' :: ArgType -> Text
+getBoxArgVar' = secretVar . getBoxArgVar
 

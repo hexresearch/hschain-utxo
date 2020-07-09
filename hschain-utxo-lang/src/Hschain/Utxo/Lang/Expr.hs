@@ -2,6 +2,8 @@
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
+import Hex.Common.Text
+
 import Control.Applicative
 import Control.DeepSeq (NFData)
 
@@ -215,7 +217,11 @@ varToConsName VarName{..} = ConsName varName'loc varName'name
 -- | Argument for script in the transaction
 --
 -- It's Key-Value map from argument-names to primitive constant values.
-type Args = Map Text Prim
+data Args = Args
+  { args'ints  :: Vector Int64
+  , args'bools :: Vector Bool
+  , args'texts :: Vector Text
+  } deriving (Show, Eq, Ord, Generic, NFData, Serialise)
 
 -- | Identifier of the box. Box holds value protected by the script.
 newtype BoxId = BoxId { unBoxId :: Text }
@@ -459,9 +465,31 @@ data BoxField a
   -- ^ Get box value (or money)
   | BoxFieldScript
   -- ^ Get box script
-  | BoxFieldArg a
-  -- ^ Get box argument by name (it can be sub-expression not just constant text)
+  | BoxFieldArgList ArgType
+  -- ^ Get box argument. It should be primitive value stored in the vector.
+  -- We get the vector of primitive values stored by primitive-value tag.
   deriving (Show, Eq, Functor, Foldable, Traversable)
+
+-- | Types that we can store as arguments in transactions.
+-- We store lists of them.
+data ArgType = IntArg | TextArg | BoolArg
+  deriving (Show, Eq)
+
+argTypes :: [ArgType]
+argTypes = [IntArg, TextArg, BoolArg]
+
+argTagToType :: ArgType -> Type
+argTagToType = \case
+  IntArg  -> intT
+  TextArg -> textT
+  BoolArg -> boolT
+
+getBoxArgVar :: ArgType -> Text
+getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
+
+-- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
+secretVar :: Text -> Text
+secretVar = flip mappend "___"
 
 -- | Expressions that operate on vectors
 data VecExpr a
@@ -534,9 +562,18 @@ data EnvId a
   -- ^ Get list of all input boxes
   | Outputs Loc
   -- ^ Get list of all output boxes
-  | GetVar Loc a
+  | GetVar Loc ArgType
   -- ^ Get argument of the transaction by name
   deriving (Show, Eq, Functor, Foldable, Traversable)
+
+getEnvVarName :: ArgType -> Text
+getEnvVarName ty = mconcat ["get", argTypeName ty, "Vars"]
+
+argTypeName :: ArgType -> Text
+argTypeName = \case
+  IntArg  -> "Int"
+  TextArg -> "Text"
+  BoolArg -> "Bool"
 
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
