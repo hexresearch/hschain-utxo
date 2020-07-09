@@ -140,7 +140,10 @@ compileE expr env = case expr of
   EAp (EVar op) a                   -> compileUnary op a
   ECase e alts -> compileCase env (typed'value e) alts
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
-  _ -> defaultCase
+  --
+  EVar{}  -> defaultCase
+  EAp{}   -> defaultCase
+  EBottom -> defaultCase
   where
     compileDiadic op a b =
       case M.lookup op builtInDiadic of
