@@ -159,6 +159,7 @@ Test-suite hschain-utxo-lang-tests
                      , text
                      , tasty
                      , tasty-hunit
-  hs-source-dirs:      test
+  hs-source-dirs:      test examples
   Main-is:             Main.hs
   Other-modules:       TM.Core
+                       Examples.SKI
