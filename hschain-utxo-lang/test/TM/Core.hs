@@ -1,4 +1,6 @@
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 -- |
 module TM.Core ( tests )where
 
@@ -10,6 +12,8 @@ import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Gmachine
 import qualified Hschain.Utxo.Lang.Core.Data.Output as O
+import Examples.SKI
+
 
 tests :: TestTree
 tests = testGroup "core"
@@ -21,6 +25,9 @@ tests = testGroup "core"
     , testCase "Addition" $ do
         assertBool "typecheck" $ typeCheck preludeTypeContext progAddition
         Right [PrimInt 101] @=? run progAddition
+    , testCase "SKK3" $ do
+        assertBool "typecheck" $ typeCheck preludeTypeContext exampleSKK3
+        Right [PrimInt 3] @=? run exampleSKK3
     ]
   ]
 
@@ -44,13 +51,6 @@ progAddition =
     , typed'type  = intT
     }
   ]
-
-mkMain :: Typed Expr -> Scomb
-mkMain s = Scomb
-  { scomb'name = "main"
-  , scomb'args = mempty
-  , scomb'body = s
-  }
 
 run :: CoreProg -> Either Error [Prim]
 run

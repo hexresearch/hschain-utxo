@@ -1,21 +1,17 @@
 -- | Bridge to hschain logic
 module Hschain.Utxo.Blockchain.Logic where
 
-import Codec.Serialise      (Serialise, serialise)
+import Codec.Serialise      (Serialise)
 import Control.DeepSeq      (NFData)
 import Control.Exception
 import Control.Monad
 
-import Data.ByteString (ByteString)
-import Data.Fix
-import Data.Fixed
 import Data.Text (Text)
 
 import GHC.Generics (Generic)
 
 import HSChain.Blockchain.Internal.Engine.Types
 import HSChain.Crypto hiding (PublicKey)
-import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
 import HSChain.Types
@@ -27,10 +23,6 @@ import Hschain.Utxo.State.React
 
 import qualified Data.Aeson          as JSON
 import qualified Data.HashMap.Strict as HM
-import qualified Crypto.ECC.Edwards25519  as Ed
-
-import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 
 
 
@@ -44,9 +36,6 @@ newtype BData = BData { unBData :: [Tx] }
 data UtxoError = UtxoError Text
    deriving stock    (Show,Generic)
    deriving anyclass (Exception,NFData)
-
-hashDomain :: String
-hashDomain = "hschain.utxo.sigma"
 
 
 instance BlockData BData where
@@ -86,57 +75,3 @@ utxoLogic = BChLogic{..}
 
     processTransaction :: Tx -> BoxChain -> Either UtxoError BoxChain
     processTransaction tx st = either (Left . UtxoError) Right $ fst $ react tx st
-
-------------------------------------------
--- instance boilerplate
-
-instance CryptoHashable Tx where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxChain where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxId where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Prim where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Script where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Box where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma PublicKey) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Proof where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ProvenTree CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.OrChild CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.Challenge CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ECScalar CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable (Sigma.ECPoint CryptoAlg) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable PublicKey where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Ed.Point where
-  hashStep x = hashStep (Ed.pointEncode x :: ByteString)
-
-instance CryptoHashable Ed.Scalar where
-  hashStep x = hashStep (Ed.scalarEncode x :: ByteString)

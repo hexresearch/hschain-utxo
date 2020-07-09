@@ -2,7 +2,8 @@
 module Hschain.Utxo.Lang.Sigma.EllipticCurve(
     EC(..)
   , Ed25519
-) where
+  , hashDomain
+  ) where
 
 import Control.DeepSeq (NFData)
 
@@ -22,6 +23,7 @@ import qualified Crypto.Hash              as Hash
 import qualified Crypto.Random.Types      as RND
 import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
+import HSChain.Crypto.Classes.Hash
 
 -- | Operations with elliptic curve
 class EC a where
@@ -106,3 +108,20 @@ instance CBOR.Serialise (Challenge Ed25519) where
   encode (ChallengeEd25519 bs) = CBOR.encode bs
   decode = fmap ChallengeEd25519 CBOR.decode
 
+
+instance CryptoHashable (Challenge Ed25519) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable (ECScalar Ed25519) where
+  hashStep (ECScalar25519 x)
+    =  hashStep (CryPrivateKey "Ed25519")
+    <> hashStep (Ed.scalarEncode x :: BS.ByteString)
+
+instance CryptoHashable (ECPoint Ed25519) where
+  hashStep (ECPoint25519 x)
+    =  hashStep (CryPublicKey "Ed25519")
+    <> hashStep (Ed.pointEncode x :: BS.ByteString)
+
+
+hashDomain :: String
+hashDomain = "hschain.utxo.sigma"

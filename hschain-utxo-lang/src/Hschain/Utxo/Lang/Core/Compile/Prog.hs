@@ -130,7 +130,7 @@ compileLetR env arity defs e =
     lets = snd $ foldr (\(_, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
     env' = compileArgs defs env
 
-
+-- | Compile expression in strict context
 compileE :: Expr -> Env -> Code
 compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
@@ -140,7 +140,10 @@ compileE expr env = case expr of
   EAp (EVar op) a                   -> compileUnary op a
   ECase e alts -> compileCase env (typed'value e) alts
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
-  _ -> defaultCase
+  --
+  EVar{}  -> defaultCase
+  EAp{}   -> defaultCase
+  EBottom -> defaultCase
   where
     compileDiadic op a b =
       case M.lookup op builtInDiadic of
@@ -160,6 +163,7 @@ compileE expr env = case expr of
 compileCase :: Env -> Expr -> [CaseAlt] -> Code
 compileCase env e alts = compileE e env <> Code.singleton (CaseJump $ compileAlts env alts)
 
+-- | Compile expression in lazy context
 compileC :: Expr -> Env -> Code
 compileC expr env = case expr of
   EVar v  -> Code.singleton $ case lookupEnv v env of
@@ -173,7 +177,7 @@ compileC expr env = case expr of
   EIf a b c           -> compileIf a b c
   EBottom             -> Code.singleton Bottom
   -- TODO: we need to substitute it with special case
-  -- see discussion at the book on impl at p. 136 section: 3.8.7
+  -- see discussion at the book on impl at p. 136 section: 3.8.7
   where
     compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 

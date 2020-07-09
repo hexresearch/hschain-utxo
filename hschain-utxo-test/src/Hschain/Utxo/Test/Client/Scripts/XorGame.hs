@@ -9,8 +9,6 @@ import Control.Monad.IO.Class
 import Control.Timeout
 
 import Data.Int
-import Data.Fix
-import Data.Either
 import Data.Maybe
 import Data.String
 import Data.Text (Text)
@@ -34,7 +32,6 @@ import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 
-import Text.Show.Pretty
 
 bobGuessField, bobDeadlineField, bobPkField, sField, aField :: IsString a => a
 

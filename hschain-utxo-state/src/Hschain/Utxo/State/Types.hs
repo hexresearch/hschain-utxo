@@ -4,13 +4,14 @@ module Hschain.Utxo.State.Types where
 import Hex.Common.Aeson
 
 import Codec.Serialise (Serialise)
-import Control.Monad
 
 import Data.Text (Text)
 import Data.Map.Strict (Map)
 
 import GHC.Generics
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang
 
 import qualified Data.Map.Strict as M
@@ -28,6 +29,10 @@ emptyBoxChain = BoxChain
   { boxChain'boxes  = M.empty
   , boxChain'height = 0
   }
+
+instance CryptoHashable BoxChain where
+  hashStep = genericHashStep hashDomain
+
 
 -- | Tx referes to input boxes by identifiers and
 -- contains functions to read blockchain environment.

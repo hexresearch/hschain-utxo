@@ -2,8 +2,6 @@
 module Main where
 
 import Data.Aeson.Encode.Pretty
-import Data.Aeson
-import Data.Default
 import Data.Fix
 
 import Hschain.Utxo.Lang
@@ -11,7 +9,6 @@ import Hschain.Utxo.Lang.Build
 
 import Data.ByteString.Char8 as B
 import Data.ByteString.Lazy as LB
-import Data.ByteString.Char8 as LB
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 

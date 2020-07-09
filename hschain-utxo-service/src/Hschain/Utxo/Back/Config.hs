@@ -18,11 +18,8 @@ import Data.ByteString (ByteString)
 import Data.Yaml                   (decodeEither')
 import Data.Yaml.Config            (loadYamlSettings, useEnv)
 
-import Data.Text (Text)
 
-import GHC.Generics
 
-import HSChain.Logger
 
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Blockchain.Net

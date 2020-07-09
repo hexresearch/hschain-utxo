@@ -5,19 +5,15 @@ module Hschain.Utxo.Back.Monad(
   , readBoxChain
 ) where
 
-import Control.Concurrent.STM
 import Control.Monad.Base
 import Control.Monad.Catch hiding (Handler)
-import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
-import Data.Text (Text)
 
 import Servant.Server
 
 import Hschain.Utxo.Blockchain
-import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Env
 

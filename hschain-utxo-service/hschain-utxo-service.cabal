@@ -16,6 +16,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Back.App
                        Hschain.Utxo.Back.Config
                        Hschain.Utxo.Back.Env
@@ -72,6 +73,7 @@ library
     TemplateHaskell
 
 executable hschain-utxo-service
+  Ghc-options:         -Wall
   main-is: Main.hs
   -- other-modules:
   hs-source-dirs:

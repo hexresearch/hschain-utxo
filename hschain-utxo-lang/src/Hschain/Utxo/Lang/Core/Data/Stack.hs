@@ -19,7 +19,7 @@ module Hschain.Utxo.Lang.Core.Data.Stack(
 import Prelude hiding (lookup, length, drop)
 
 import Control.Monad
-
+import Control.DeepSeq
 import Data.Sequence hiding (lookup, length, drop, singleton)
 
 import Hschain.Utxo.Lang.Core.Data.Heap (Heap)
@@ -32,7 +32,7 @@ import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 
 -- | Current stack of the G-machine
 newtype Stack = Stack (Seq Addr)
-  deriving newtype (Semigroup, Monoid, Show, Eq)
+  deriving newtype (Semigroup, Monoid, Show, Eq, NFData)
 
 -- | Put address on top of the stack
 put :: Addr -> Stack -> Stack

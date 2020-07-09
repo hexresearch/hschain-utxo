@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
@@ -27,7 +27,9 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -827,3 +829,17 @@ $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
 
+instance (forall k. CryptoHashable k => CryptoHashable (f k)) => CryptoHashable (Fix f) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Prim where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Script where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxId where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Box where
+  hashStep = genericHashStep hashDomain

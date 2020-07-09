@@ -19,8 +19,10 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Parser.Hask
 
 import qualified Crypto.Hash as C
@@ -136,4 +138,7 @@ $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Args)
 $(deriveJSON dropPrefixOptions ''Box)
 $(deriveJSON dropPrefixOptions ''Env)
+
+instance CryptoHashable Tx where
+  hashStep = genericHashStep hashDomain
 

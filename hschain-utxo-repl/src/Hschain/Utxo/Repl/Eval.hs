@@ -7,25 +7,14 @@ module Hschain.Utxo.Repl.Eval(
   , parseBind
 ) where
 
-import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
-import Control.Monad.IO.Class
 
-import Data.Fix
-import Data.String
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Desugar
-import Hschain.Utxo.Lang.Lib.Base
 
-import System.Console.Repline
-import System.Console.Haskeline.MonadException
-import System.Process
-import Data.List (isPrefixOf)
-import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Repl.Monad
 
 import qualified Data.Text as T
