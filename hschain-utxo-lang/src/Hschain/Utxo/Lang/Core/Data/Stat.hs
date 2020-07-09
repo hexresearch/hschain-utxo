@@ -5,10 +5,15 @@ module Hschain.Utxo.Lang.Core.Data.Stat(
   , update
 ) where
 
+import Control.DeepSeq
+import GHC.Generics (Generic)
+
 -- | Statistics of program execution
 data Stat = Stat
   { stat'execCounter :: !Int  -- ^ Counts the number of executions
-  } deriving (Show, Eq)
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
 
 -- | Initialize statistics.
 empty :: Stat

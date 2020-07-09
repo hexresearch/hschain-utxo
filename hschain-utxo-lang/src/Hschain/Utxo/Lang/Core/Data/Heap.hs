@@ -16,8 +16,10 @@ module Hschain.Utxo.Lang.Core.Data.Heap(
 
 import Prelude hiding (lookup)
 
+import Control.DeepSeq
 import Data.IntMap (IntMap)
 import Data.Map.Strict (Map)
+import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Data.Node
@@ -30,14 +32,18 @@ import qualified Data.Map.Strict as M
 data Heap = Heap
   { heap'values    :: IntMap Node   -- ^ Values stored on the heap
   , heap'freshAddr :: Addr          -- ^ fresh addresses counter
-  } deriving (Show, Eq)
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
 
 -- | Memory to store global definitions
 data Globals = Globals
   { globals'scombs      :: Map GlobalName Addr
   , globals'constPrims  :: Map Prim       Addr
   , globals'constInts   :: IntMap         Addr
-  } deriving (Show, Eq)
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
 
 -- | Lookup the address of the global definition
 lookupGlobalScomb :: GlobalName -> Globals -> Maybe Addr

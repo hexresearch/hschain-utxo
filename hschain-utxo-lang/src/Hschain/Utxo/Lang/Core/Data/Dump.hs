@@ -6,12 +6,13 @@ module Hschain.Utxo.Lang.Core.Data.Dump(
   , pop
 ) where
 
+import Control.DeepSeq
 import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Stack (Stack)
 
 -- | Structure to save current state of the stack
 newtype Dump = Dump [(Code, Stack)]
-  deriving newtype (Show, Eq, Semigroup, Monoid)
+  deriving newtype (Show, Eq, Semigroup, Monoid, NFData)
 
 -- | Save code and stack to the dump.
 put :: Code -> Stack -> Dump -> Dump
