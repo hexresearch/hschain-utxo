@@ -13,6 +13,7 @@ import Codec.Serialise
 import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
+import Data.Int
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -84,6 +85,15 @@ data Env = Env
   { env'height   :: !Integer  -- ^ blockchain height
   } deriving (Show, Eq)
 
+-- | Transaction environment. All values that user can read
+-- from the script
+data TxEnv = TxEnv
+  { txEnv'height   :: !Int64
+  , txEnv'self     :: !Int64
+  , txEnv'inputs   :: !(Vector Box)
+  , txEnv'outputs  :: !(Vector Box)
+  , txEnv'args     :: !Args
+  }
 
 --------------------------------------------
 

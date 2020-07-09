@@ -36,6 +36,8 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
@@ -567,7 +569,7 @@ data EnvId a
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 getEnvVarName :: ArgType -> Text
-getEnvVarName ty = mconcat ["get", argTypeName ty, "Vars"]
+getEnvVarName ty = Const.getArgs $ argTypeName ty
 
 argTypeName :: ArgType -> Text
 argTypeName = \case

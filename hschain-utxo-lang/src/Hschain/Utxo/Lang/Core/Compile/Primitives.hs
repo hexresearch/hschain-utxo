@@ -6,27 +6,46 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , builtInDiadic
   , preludeTypeContext
   , toCompareName
+  , environmentFunctions
 ) where
 
-
 import Data.Fix
+import Data.Int
 import Data.Map.Strict (Map)
 import Data.String
+import Data.Text (Text)
+import Data.Vector (Vector)
 
+import Hschain.Utxo.Lang.Expr (Box(..), BoxId(..), Script(..), Args(..), ArgType(..), argTypeName)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Code (Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Types (TxEnv(..))
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
+import qualified Hschain.Utxo.Lang.Const as Const
 
 preludeTypeContext :: TypeContext
 preludeTypeContext = TypeContext $ M.fromList $
   fmap (\sc -> (scomb'name sc, getScombType sc)) primitives
+
+-- | Built-in functions that read environment.
+-- We create set of global constants in the script
+-- os that user can rely on them in the code.
+--
+-- So we create library functions that contain concrete
+-- constants for current state of our blockchain.
+environmentFunctions :: TxEnv -> [Scomb]
+environmentFunctions TxEnv{..} =
+  [ getHeight txEnv'height
+  , getInputs txEnv'inputs
+  , getOutputs txEnv'outputs
+  ] ++ getArgs txEnv'args
 
 -- | Built-in language primitives
 primitives :: [Scomb]
@@ -64,17 +83,12 @@ primitives =
   , getBoxName
   , getBoxScript
   , getBoxValue
-  , getBoxArgs
-
-  -- environment
-  , envCons
-  , getHeight
-  , getInputs
-  , getOutputs
-  , getArgs
   ]
   ++ (comparePack =<< [intT, boolT, textT])
+  ++ getBoxArgs
 
+------------------------------------------------------------
+-- generic utilities
 
 -- | comparision operators per type
 comparePack :: Type -> [Scomb]
@@ -131,6 +145,7 @@ op2 name (xT, yT) resT = Scomb
   , scomb'body = Typed (ap2 (EVar name) (EVar "x") (EVar "y")) resT
   }
 
+------------------------------------------------------------
 -- boxes
 
 toCompareName :: Type -> Name -> Name
@@ -167,62 +182,108 @@ boxArgs =
   [ Typed "name"   textT
   , Typed "script" textT
   , Typed "value"  intT
-  , Typed "args"   (arrowT textT intT)] -- TODO: think out type for argument it's not only int
-
-getBoxName :: Scomb
-getBoxName = getBoxField "getBoxName" "name" textT
-
-getBoxScript :: Scomb
-getBoxScript = getBoxField "getBoxScript" "script" textT
-
-getBoxValue :: Scomb
-getBoxValue = getBoxField "getBoxValue" "value" intT
-
-getBoxArgs :: Scomb
-getBoxArgs = getBoxField "getBoxArgs" "args" (arrowT textT intT) -- TODO: think on result type of getArg
-
--- environment
-
--- | Low-level representation of environment is a tuple of four elements
--- > (blockchainHeight, inputList, outputList, argList)
-envCons :: Scomb
-envCons = Scomb
-  { scomb'name = "Env"
-  , scomb'args = V.fromList envArgs
-  , scomb'body = Typed (ap (EConstr consTy 0 4) (fmap (EVar . typed'value) envArgs)) envT
-  }
-  where
-    consTy = funT (fmap typed'type envArgs) envT
-
-envArgs :: [Typed Name]
-envArgs =
-  [ Typed "height"  intT
-  , Typed "inputs"  (listT boxT)
-  , Typed "outputs" (listT boxT)
-  , Typed "args"    (listT intT) -- TODO: reconsider type for args it can be not only int as a result
+  , Typed "args"   (tupleT argsTypes)
   ]
 
-getEnvField :: Name -> Name -> Type -> Scomb
-getEnvField name field resT = Scomb
+getBoxName :: Scomb
+getBoxName = getBoxField Const.getBoxName "name" textT
+
+getBoxScript :: Scomb
+getBoxScript = getBoxField Const.getBoxScript "script" textT
+
+getBoxValue :: Scomb
+getBoxValue = getBoxField Const.getBoxValue "value" intT
+
+getBoxArgs :: [Scomb]
+getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
+  where
+    getBoxIntArgs  = getBoxArgsBy IntArg  intT  "ints"
+    getBoxTextArgs = getBoxArgsBy TextArg textT "texts"
+    getBoxBoolArgs = getBoxArgsBy BoolArg boolT "bools"
+
+    getBoxArgsBy typeTag resType resVar = Scomb
+      { scomb'name = Const.getBoxArgs $ argTypeName typeTag
+      , scomb'args = V.fromList [Typed "x" argT]
+      , scomb'body = Typed
+          (ECase (Typed (EVar "x") argT)
+            [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] (EVar resVar)])
+          (listT resType)
+      }
+
+    argT = tupleT argsTypes
+
+boxConstr :: Expr -> Expr -> Expr -> Expr -> Expr
+boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]
+  where
+    consTy = funT (fmap typed'type boxArgs) boxT
+
+
+toBox :: Box -> Expr
+toBox Box{..} = boxConstr name script value args
+  where
+    name   = EPrim $ PrimText $ unBoxId box'id
+    script = EPrim $ PrimText $ unScript box'script
+    value  = EPrim $ PrimInt  $ box'value
+    args   = toArgs box'args
+
+toArgs :: Args -> Expr
+toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
+  where
+    consTy = funT argsTypes (tupleT argsTypes)
+    ints   = toVec intT  $ fmap (EPrim . PrimInt)  args'ints
+    texts  = toVec textT $ fmap (EPrim . PrimText) args'texts
+    bools  = toVec boolT $ fmap (EPrim . PrimBool) args'bools
+
+argsTypes :: [Type]
+argsTypes = [listT intT, listT textT, listT boolT]
+
+
+------------------------------------------------------------
+-- environment
+
+getHeight :: Int64 -> Scomb
+getHeight height = constant Const.getHeight (PrimInt height)
+
+getInputs :: Vector Box -> Scomb
+getInputs = getBoxes Const.getInputs
+
+getOutputs :: Vector Box -> Scomb
+getOutputs = getBoxes Const.getOutputs
+
+getBoxes :: Text -> Vector Box -> Scomb
+getBoxes name boxes = Scomb
   { scomb'name = name
-  , scomb'args = V.fromList [Typed "env" envT]
-  , scomb'body =
-      Typed
-        (ECase (Typed "env" envT) [CaseAlt 0 envArgs (EVar field)])
-        resT
+  , scomb'args = V.empty
+  , scomb'body = Typed
+      (toVec boxT $ fmap toBox boxes)
+      (listT boxT)
   }
 
-getHeight :: Scomb
-getHeight = getEnvField "getHeight" "height" intT
+toVec :: Type -> Vector Expr -> Expr
+toVec t vs = V.foldr cons nil vs
+  where
+    nil      = EConstr (listT t) 0 0
+    cons a b = ap (EConstr consTy 1 2) [a, b]
 
-getInputs :: Scomb
-getInputs = getEnvField "getInputs" "inputs" (listT boxT)
+    consTy = funT [t, listT t] (listT t)
 
-getOutputs :: Scomb
-getOutputs = getEnvField "getOutputs" "outputs" (listT boxT)
+getArgs :: Args -> [Scomb]
+getArgs Args{..} =
+  [ argComb PrimInt  intT  IntArg  args'ints
+  , argComb PrimText textT TextArg args'texts
+  , argComb PrimBool boolT BoolArg args'bools
+  ]
+  where
+    argComb cons ty tyTag vals = Scomb
+      { scomb'name = Const.getArgs $ argTypeName tyTag
+      , scomb'args = V.empty
+      , scomb'body = Typed
+          (toVec ty $ fmap (EPrim . cons) vals)
+          (listT ty)
+      }
 
-getArgs :: Scomb
-getArgs = getEnvField "getArgs" "args" (listT intT)
+------------------------------------------------------------
+-- prim ops
 
 builtInDiadic :: Map Name Instr
 builtInDiadic = M.fromList $
