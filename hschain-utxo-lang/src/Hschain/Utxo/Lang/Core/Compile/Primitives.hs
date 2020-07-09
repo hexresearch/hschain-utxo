@@ -31,8 +31,10 @@ import qualified Language.HM as H
 import qualified Hschain.Utxo.Lang.Const as Const
 
 preludeTypeContext :: TypeContext
-preludeTypeContext = TypeContext $ M.fromList $
-  fmap (\sc -> (scomb'name sc, getScombType sc)) primitives
+preludeTypeContext = primitivesCtx <> environmentTypes
+  where
+    primitivesCtx = TypeContext $ M.fromList $
+      fmap (\sc -> (scomb'name sc, getScombType sc)) primitives
 
 -- | Built-in functions that read environment.
 -- We create set of global constants in the script
@@ -46,6 +48,17 @@ environmentFunctions TxEnv{..} =
   , getInputs txEnv'inputs
   , getOutputs txEnv'outputs
   ] ++ getArgs txEnv'args
+
+environmentTypes :: TypeContext
+environmentTypes = TypeContext $ M.fromList $
+  [ (Const.getHeight,  intT)
+  , (Const.getInputs,  listT boxT)
+  , (Const.getOutputs, listT boxT)
+  ] ++ getArgsTypes
+  where
+    getArgsTypes = fmap toArgType [ (IntArg, intT), (TextArg, textT), (BoolArg, boolT)]
+
+    toArgType (typeTag, ty) = (Const.getArgs $ argTypeName typeTag, listT ty)
 
 -- | Built-in language primitives
 primitives :: [Scomb]
