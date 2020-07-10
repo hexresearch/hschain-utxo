@@ -38,8 +38,6 @@ instance H.IsVar Text where
   intToVar n = mappend "$$" (showt n)
   prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
-type Term = H.Term EmptyPrim Loc Text
-
 data EmptyPrim = EmptyPrim
   deriving (Show)
 
@@ -74,11 +72,11 @@ inferExpr (InferCtx typeCtx userTypes) =
 
 -- | Convert expression of our language to term of simpler language
 -- that can be type-checked by the library.
-reduceExpr :: UserTypeCtx -> Lang -> InferM Term
+reduceExpr :: UserTypeCtx -> Lang -> InferM (H.Term EmptyPrim Loc Text)
 reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
-  Var _loc var               -> pure $ fromVarName var
+  Var _loc var              -> pure $ fromVarName var
   Apply loc a b             -> liftA2 (appE loc) (rec a) (rec b)
-  InfixApply loc a name b     -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
+  InfixApply loc a name b   -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
   Cons loc name args        -> fmap (fromCons loc name) (mapM rec $ V.toList args)
   Lam loc pat a             -> case pat of
                                   PVar src var -> fmap (lamE src $ varName'name var) (rec a)
@@ -338,8 +336,7 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, textE, boolE :: Loc -> Term
-
+intE, textE, boolE :: loc -> H.Term prim loc Text
 intE loc = varE loc intVar
 textE loc = varE loc textVar
 boolE loc = varE loc boolVar
