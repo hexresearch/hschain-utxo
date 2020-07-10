@@ -170,16 +170,16 @@ instance LocFunctor (Term prim) where
         LetRec loc vs a -> Fix $ LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> Fix $ AssertType (f loc) r (mapLoc f sig)
         Constr loc ty v arity -> Fix $ Constr (f loc) (mapLoc f ty) v arity
-        Case loc e alts -> Fix $ Case (f loc) e (fmap (mapAlt f) alts)
+        Case loc e alts -> Fix $ Case (f loc) e (fmap mapAlt alts)
         Bottom loc -> Fix $ Bottom (f loc)
 
-      mapAlt g alt@CaseAlt{..} = alt
-        { caseAlt'loc  = g caseAlt'loc
-        , caseAlt'args = fmap (mapTyped g) caseAlt'args
-        , caseAlt'constrType = mapLoc g caseAlt'constrType
+      mapAlt alt@CaseAlt{..} = alt
+        { caseAlt'loc  = f caseAlt'loc
+        , caseAlt'args = fmap mapTyped caseAlt'args
+        , caseAlt'constrType = mapLoc f caseAlt'constrType
         }
 
-      mapTyped g (Typed ty val) = Typed (mapLoc g ty) (first g val)
+      mapTyped (Typed ty val) = Typed (mapLoc f ty) (first f val)
 
 -- | Get free variables of the term.
 freeVars :: Ord v => Term lprim oc v -> Set v
