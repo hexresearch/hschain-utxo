@@ -2,6 +2,7 @@
 module Hschain.Utxo.Back.Monad(
     ServerM
   , runServerM
+  , runServerMIO
   , readBoxChain
 ) where
 

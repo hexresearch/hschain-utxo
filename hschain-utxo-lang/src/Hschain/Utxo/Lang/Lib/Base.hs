@@ -157,7 +157,7 @@ baseNames =
   , "fold"
   , "length"
   , "pk"
-  , "!!"
+  , "!"
   , "&&"
   , "||"
   , "not"
@@ -240,7 +240,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
   , assumpType "pk" (monoT $ textT ~> boolT)
-  , assumpType "!!" (forA $ vectorT aT ~> intT ~> aT)
+  , assumpType "!" (forA $ vectorT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
   , assumpType "<" (forA $ aT ~> aT ~> boolT)
@@ -464,7 +464,7 @@ appendText :: Bind Lang
 appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
 
 atVec :: Bind Lang
-atVec = bind "!!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
+atVec = bind "!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
 
 pk :: Bind Lang
 pk = bind "pk" (Fix $ Lam noLoc "x" $ Fix $ Pk noLoc x)

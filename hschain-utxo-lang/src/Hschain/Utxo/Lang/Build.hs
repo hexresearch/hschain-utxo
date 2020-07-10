@@ -11,7 +11,7 @@ module Hschain.Utxo.Lang.Build(
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
   , getInputs, getOutputs
   , getIntVars, getBoolVars, getTextVars
-  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec
+  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, vecAt
   , var
   , def
   , (=:)
@@ -35,7 +35,6 @@ module Hschain.Utxo.Lang.Build(
 
 import Data.Boolean
 import Data.Fix
-import Data.Int
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -54,8 +53,8 @@ import Hschain.Utxo.Lang.Expr
 primExpr :: Prim -> Expr a
 primExpr p = Expr $ Fix $ PrimE noLoc p
 
-int :: Int64 -> Expr Int64
-int x = primExpr $ PrimInt x
+int :: Int -> Expr Int
+int x = primExpr $ PrimInt $ fromIntegral x
 
 text :: Text -> Expr Text
 text x = primExpr $ PrimString x
@@ -117,13 +116,6 @@ instance IsString (Expr Text) where
 ----------------------------------------------
 -- boolean
 
-class PrimTy a where
-
-instance PrimTy Double
-instance PrimTy Int64
-instance PrimTy Bool
-instance PrimTy Text
-
 instance Boolean (Expr Bool) where
   true = mkBool True
   false = mkBool False
@@ -140,16 +132,16 @@ pk (Expr key) = Expr $ Fix $ Pk noLoc key
 getSelf :: Expr Box
 getSelf = Expr $ Fix $ GetEnv noLoc (Self noLoc)
 
-getInput :: Expr Int64 -> Expr Box
+getInput :: Expr Int -> Expr Box
 getInput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Input noLoc n
 
-getOutput :: Expr Int64 -> Expr Box
+getOutput :: Expr Int -> Expr Box
 getOutput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Output noLoc n
 
 getBoxId :: Expr Box -> Expr Text
 getBoxId (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldId
 
-getBoxValue :: Expr Box -> Expr Money
+getBoxValue :: Expr Box -> Expr Int
 getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
 
 getBoxScript :: Expr Box -> Expr Script
@@ -164,7 +156,7 @@ getBoxTextArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFie
 getBoxBoolArgList :: Expr Box -> Expr (Vector Bool)
 getBoxBoolArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList BoolArg)
 
-getHeight :: Expr Int64
+getHeight :: Expr Int
 getHeight = Expr $ Fix $ GetEnv noLoc (Height noLoc)
 
 getIntVars :: Expr (Vector Int)
@@ -191,13 +183,16 @@ getOutputs = Expr $ Fix $ GetEnv noLoc (Outputs noLoc)
 fromVec :: Vector (Expr a) -> Expr (Vector a)
 fromVec vs = Expr $ Fix $ VecE noLoc $ NewVec noLoc $ fmap (\(Expr a) -> a) vs
 
+vecAt :: Expr (Vector a) -> Expr Int -> Expr a
+vecAt (Expr vector) (Expr index) = Expr $ Fix $ VecE noLoc $ VecAt noLoc vector index
+
 mapVec :: Expr (a -> b) -> Expr (Vector a) -> Expr (Vector b)
 mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecMap noLoc)) f) v
 
 foldVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
 foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z) v
 
-lengthVec :: Expr (Vector a) -> Expr Int64
+lengthVec :: Expr (Vector a) -> Expr Int
 lengthVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) v
 
 concatVec :: Expr (Vector a) -> Expr (Vector a) -> Expr (Vector a)
@@ -210,13 +205,13 @@ anyVec :: Expr (Vector Bool) -> Expr Bool
 anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
 
 type instance BooleanOf (Expr Bool) = Expr Bool
-type instance BooleanOf (Expr Int64) = Expr Bool
+type instance BooleanOf (Expr Int) = Expr Bool
 type instance BooleanOf (Expr Text) = Expr Bool
 type instance BooleanOf (Expr Script) = Expr Bool
 type instance BooleanOf (Expr (a, b)) = Expr Bool
 type instance BooleanOf (Expr (a, b, c)) = Expr Bool
 
-instance IfB (Expr Int64) where
+instance IfB (Expr Int) where
   ifB = ifExpr
 
 instance IfB (Expr Bool) where
@@ -243,7 +238,7 @@ ifExprLang c t e = Fix $ If noLoc c t e
 -------------------------------------------------
 -- numeric
 
-instance Num (Expr Int64) where
+instance Num (Expr Int) where
   (+) = op2 (BinOpE noLoc Plus)
   (*) = op2 (BinOpE noLoc Times)
   negate = op1 (UnOpE noLoc Neg)
@@ -254,7 +249,7 @@ instance Num (Expr Int64) where
 -- equals
 --
 
-instance EqB (Expr Int64) where
+instance EqB (Expr Int) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
@@ -268,7 +263,7 @@ instance EqB (Expr Script) where
 
 -- order
 
-instance OrdB (Expr Int64) where
+instance OrdB (Expr Int) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
 instance OrdB (Expr Text) where
@@ -280,10 +275,10 @@ instance OrdB (Expr Text) where
 concatText :: Expr Text -> Expr Text -> Expr Text
 concatText (Expr a) (Expr b) = Expr $ Fix $ TextE noLoc $ TextAppend noLoc a b
 
-lengthText :: Expr Text -> Expr Int64
+lengthText :: Expr Text -> Expr Int
 lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
 
-showInt :: Expr Int64 -> Expr Text
+showInt :: Expr Int -> Expr Text
 showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) a
 
 showScript :: Expr Script -> Expr Text

@@ -193,7 +193,7 @@ instance Pretty Error where
 instance Pretty ExecError where
   pretty = \case
     AppliedNonFunction lang        -> err "Applied non-function" lang
-    UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]
+    UnboundVariables vars          -> vcat $ fmap unboundedVar vars
     UndefinedRecordCons loc cons   -> hcat [pretty loc, ": undefined record constructor ", pretty cons]
     UndefinedReocrdField loc cons field
                                    -> hcat [pretty loc, ": undefined record field ", pretty field, " for constructor ", pretty cons]
@@ -206,6 +206,7 @@ instance Pretty ExecError where
     NoMainFunction                 -> "Error: No main function is defined"
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
+      unboundedVar VarName{..} = hsep [hcat [pretty varName'loc, ":"], "Unbound variable:", pretty varName'name]
 
 instance Pretty PatError where
   pretty = \case

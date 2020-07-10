@@ -28,8 +28,8 @@ library
                       , http-client-tls
                       , mtl
                       , servant
-                      , servant-client      >= 0.16 && < 0.17
-                      , servant-client-core >= 0.16 && < 0.17
+                      , servant-client      >= 0.16
+                      , servant-client-core >= 0.16
                       , text
   hs-source-dirs:      src
   default-language:    Haskell2010

@@ -228,6 +228,13 @@ data Args = Args
   , args'texts :: Vector Text
   } deriving (Show, Eq, Ord, Generic, NFData, Serialise)
 
+instance Semigroup Args where
+  (Args intsA boolsA textsA) <> (Args intsB boolsB textsB) =
+    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB)
+
+instance Monoid Args where
+  mempty = Args mempty mempty mempty
+
 -- | Identifier of the box. Box holds value protected by the script.
 newtype BoxId = BoxId { unBoxId :: Text }
   deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)

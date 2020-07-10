@@ -14,17 +14,11 @@ import Control.Monad.IO.Class
 
 import Data.Aeson
 import Data.Aeson.TH
-import Data.ByteString (ByteString)
-import Data.Yaml                   (decodeEither')
 import Data.Yaml.Config            (loadYamlSettings, useEnv)
-
-
-
 
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Blockchain.Net
 
-import qualified Control.Exception   as Exception
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
 
@@ -55,11 +49,6 @@ loadConfig path = liftIO $ loadYamlSettings [path] [] useEnv
 
 loadGenesis :: FilePath -> IO (Maybe Genesis)
 loadGenesis = readJson
-
-loadYaml ::  FromJSON settings => ByteString -> IO settings
-loadYaml bs = loadYamlSettings [] [value] useEnv
-  where
-    value = either Exception.throw id $ decodeEither' bs
 
 readJson :: FromJSON a => FilePath -> IO (Maybe a)
 readJson = fmap (decode' . LB.fromStrict =<<) . readStrictByteStringSafe

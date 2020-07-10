@@ -10,7 +10,6 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Bifunctor
 import Data.Bool
-import Data.ByteString (ByteString)
 import Data.Proxy
 import Data.Text (Text)
 import GHC.Generics

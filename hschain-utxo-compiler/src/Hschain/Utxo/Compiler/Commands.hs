@@ -24,7 +24,6 @@ import Hschain.Utxo.Lang.Lib.Base
 import qualified Hschain.Utxo.Lang.Sigma as Sigma
 
 import qualified Codec.Serialise as S
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as C
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text    as T

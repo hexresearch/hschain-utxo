@@ -14,8 +14,6 @@ import System.Console.Repline hiding (options)
 import System.Process
 
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import qualified Data.Vector as V
 
 import Hschain.Utxo.Repl.Cmd
 import Hschain.Utxo.Repl.Eval

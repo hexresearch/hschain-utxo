@@ -17,7 +17,6 @@ import Hschain.Utxo.State.Types
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
-import qualified Data.Text as T
 import qualified Data.Vector as V
 
 -- | React to single input transaction.
@@ -36,6 +35,7 @@ react tx bch
       | isValidTx           = (inputsAreValid, debugMsgInputs)
       | not inputsAreValid  = (False, "Tx inputs are invalid")
       | not outputsAreValid = (False, mconcat ["Tx output is invalid: ", fromMaybe "" mInvalidOutputId])
+      | otherwise           = (False, "TX is invalid")
       where
         isValidTx = inputsAreValid && outputsAreValid
 
@@ -71,7 +71,7 @@ execInBoxChain tx bch = case toTxArg bch tx of
 -- | We move outputs to inputs to check that expressions of outputs
 -- are all valid and produce sigma expressions or booleans.
 checkOutputTxArg :: TxArg -> [Box]
-checkOutputTxArg tx@TxArg{..} = V.toList txArg'outputs
+checkOutputTxArg TxArg{..} = V.toList txArg'outputs
 
 -- | Applies list of transactions to blockchain.
 applyTxs :: [Tx] -> BoxChain -> Either Text BoxChain

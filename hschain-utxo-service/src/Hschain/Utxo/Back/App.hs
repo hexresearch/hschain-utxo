@@ -46,8 +46,8 @@ greetNode NodeSpec{..} = T.putStrLn $ mconcat
   [ "Starts ", logSpec'namespace nspec'logs , " on port ", T.pack (show nspec'port) ]
 
 -- | Create service application
-serverApp :: AppEnv -> Config -> Application
-serverApp env config = do
+serverApp :: AppEnv -> Application
+serverApp env = do
   serve (Proxy :: Proxy UtxoAPI) utxoServerImpl
   where
     utxoServerImpl = hoistServer (Proxy :: Proxy UtxoAPI) (runServerM env) utxoServer
@@ -65,6 +65,6 @@ runApp :: AppEnv -> Config -> IO ()
 runApp env settings = do
   let httpServer
         = runSettings (warpSettings env $ config'server settings)
-        $ serverApp env settings
+        $ serverApp env
   httpServer
 

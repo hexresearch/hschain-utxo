@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | API for hschain-utxo node
 module Hschain.Utxo.API.Rest where
 
@@ -6,7 +7,6 @@ import Hex.Common.Serialise
 
 import Control.Monad
 
-import Data.Aeson
 import Data.Text (Text)
 
 import Web.HttpApiData
