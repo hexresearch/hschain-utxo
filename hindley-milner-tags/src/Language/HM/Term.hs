@@ -44,7 +44,7 @@ data TermF prim loc v r
     | Bottom loc                      -- ^ value of any type that means failed programm.
     deriving (Show, Eq, Functor, Foldable, Traversable)
 
-class Show prim => IsPrim prim where
+class IsPrim prim where
   type PrimLoc prim :: *
   type PrimVar prim :: *
 
