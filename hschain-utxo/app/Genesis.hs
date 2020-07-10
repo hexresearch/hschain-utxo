@@ -9,7 +9,6 @@ import Hschain.Utxo.Lang.Build
 
 import Data.ByteString.Char8 as B
 import Data.ByteString.Lazy as LB
-import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 main :: IO ()
@@ -29,7 +28,7 @@ singleOwnerGenesis = withSecret =<< newSecret
           { box'id     = BoxId "master:box-0"
           , box'value  = initMoney
           , box'script = toScript $ pk' publicKey
-          , box'args   = M.empty
+          , box'args   = mempty
           }
 
         tx proof = Tx
