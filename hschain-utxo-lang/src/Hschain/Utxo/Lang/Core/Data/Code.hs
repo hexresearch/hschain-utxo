@@ -98,7 +98,7 @@ type CaseMap = IntMap Code
 data GlobalName
   = GlobalName !Name
   -- ^ name of the global supercombinator
-  | ConstrName Int Int
+  | ConstrName !Int !Int
   -- ^ name of the global constructor (int tag, arity)
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData)
