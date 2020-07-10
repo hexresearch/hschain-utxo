@@ -32,6 +32,11 @@ import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
 import qualified Hschain.Utxo.Lang.Error as E
 
+-- | Executes script to sigma-expression.
+--
+-- Sigma script should contain main function that
+-- returns sigma-expression. The script should be well-typed and
+-- contain no recursion.
 execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error SigmaExpr
 execScriptToSigma env prog
   | isSigmaScript prog = either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
@@ -45,7 +50,8 @@ addPrelude :: TxEnv -> CoreProg -> CoreProg
 addPrelude txEnv prog = preludeLib txEnv <> prog
 
 -- | TODO: implement the function to remove unreachable code.
--- We start from main and then include only functions that are needed.
+-- We start from main and then include only functions that are needed by finding free variables.
+-- or maybe we can include it as a filter in prelude import.
 removeDeadCode :: CoreProg -> CoreProg
 removeDeadCode = id
 

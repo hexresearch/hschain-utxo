@@ -40,6 +40,7 @@ data ExecError
   | NoSigmaScript
   | ResultIsNotSigma
   | GmachineError G.Error
+  | FailedToDecodeScript
   deriving (Show)
 
 -- | Errors that can arise during transformation of patterns in the bindings

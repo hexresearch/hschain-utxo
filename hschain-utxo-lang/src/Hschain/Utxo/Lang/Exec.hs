@@ -64,7 +64,7 @@ trace' x = trace (ppShow x) x
 data Ctx = Ctx
   { ctx'vars       :: !(Map VarName Lang)  -- ^ global bindings (outer scope)
   , ctx'userArgs   :: !Args                -- ^ list user arguments for transaction
-  , ctx'height     :: !Integer             -- ^ height of blockchain
+  , ctx'height     :: !Int64               -- ^ height of blockchain
   , ctx'inputs     :: !(Vector Box)        -- ^ vector of input boxes
   , ctx'outputs    :: !(Vector Box)        -- ^ vector of ouptut boxes
   , ctx'debug      :: !Text                -- ^ debug log for executed expression
@@ -84,8 +84,8 @@ instance Alternative Exec where
             Right res -> return res
             Left _    -> runStateT stB s
 
-getHeight :: Exec Int
-getHeight = fmap (fromInteger . ctx'height) get
+getHeight :: Exec Int64
+getHeight = fmap ctx'height get
 
 getInputs :: Exec (Vector Box)
 getInputs = fmap ctx'inputs get
@@ -111,7 +111,7 @@ saveTrace msg =
   modify' $ \st -> st { ctx'debug = T.unlines [ctx'debug st, msg] }
 
 -- | Run execution monad.
-runExec :: ExecCtx -> Args -> Integer -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
+runExec :: ExecCtx -> Args -> Int64 -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
 runExec (ExecCtx binds) args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where

@@ -206,6 +206,7 @@ instance Pretty ExecError where
     NoMainFunction                 -> "Error: No main function is defined"
     NoSigmaScript                  -> "Error: Script does not contain main function or does not terminate"
     ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
+    FailedToDecodeScript           -> "Error: Failed to decode script"
     GmachineError e                -> pretty $ show e
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]

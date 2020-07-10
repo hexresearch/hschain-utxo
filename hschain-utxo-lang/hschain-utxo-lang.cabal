@@ -52,6 +52,7 @@ library
       Hschain.Utxo.Lang.Core.Data.Stack
       Hschain.Utxo.Lang.Core.Data.Stat
       Hschain.Utxo.Lang.Core.Data.Vstack
+      Hschain.Utxo.Lang.Core.Eval
       Hschain.Utxo.Lang.Core.Gmachine
       Hschain.Utxo.Lang.Core.Gmachine.Eval
       Hschain.Utxo.Lang.Core.Gmachine.Eval.Dump
