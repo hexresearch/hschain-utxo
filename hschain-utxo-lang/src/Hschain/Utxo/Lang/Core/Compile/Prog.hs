@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
   , compileSc
   , coreProgTerminates
   , isSigmaScript
+  , execScriptToSigma
 ) where
 
 import Hschain.Utxo.Lang.Core.Gmachine
@@ -18,6 +19,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
+import Hschain.Utxo.Lang.Types (TxEnv)
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
@@ -26,7 +28,26 @@ import qualified Data.Vector     as V
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
+import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
+import qualified Hschain.Utxo.Lang.Error as E
+
+execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error SigmaExpr
+execScriptToSigma env prog
+  | isSigmaScript prog = either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
+  | otherwise          = Left $ E.ExecError $ E.NoSigmaScript
+  where
+    getSigmaOutput st = case Output.toList $ gmachine'output st of
+      [PrimSigma sigma] -> Right sigma
+      _                 -> Left $ E.ExecError E.ResultIsNotSigma
+
+addPrelude :: TxEnv -> CoreProg -> CoreProg
+addPrelude txEnv prog = preludeLib txEnv <> prog
+
+-- | TODO: implement the function to remove unreachable code.
+-- We start from main and then include only functions that are needed.
+removeDeadCode :: CoreProg -> CoreProg
+removeDeadCode = id
 
 -- | the program is sigma script if
 --
@@ -76,7 +97,7 @@ compile prog = Gmachine
 buildInitHeap :: CoreProg -> (Heap, Globals)
 buildInitHeap (CoreProg prog) = (heap, Heap.initGlobals globalElems)
   where
-    compiled = fmap compileSc (primitives ++ prog)
+    compiled = fmap compileSc prog
 
     (heap, globalElems) = L.foldl' allocateSc (Heap.empty, []) compiled
 

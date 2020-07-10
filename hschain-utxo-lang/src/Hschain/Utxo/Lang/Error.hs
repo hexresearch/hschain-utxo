@@ -11,6 +11,8 @@ import Hschain.Utxo.Lang.Expr
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Parser as H
 
+import qualified Hschain.Utxo.Lang.Core.Gmachine.Monad as G(Error)
+
 -- | errors for our language
 data Error
   = ParseError Loc Text         -- ^ parse errors
@@ -35,6 +37,9 @@ data ExecError
   | NoField VarName
   | NoMainFunction
   | NonExaustiveCase Loc Lang
+  | NoSigmaScript
+  | ResultIsNotSigma
+  | GmachineError G.Error
   deriving (Show)
 
 -- | Errors that can arise during transformation of patterns in the bindings

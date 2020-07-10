@@ -29,6 +29,12 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 newtype CoreProg = CoreProg [Scomb]
   deriving newtype (Generic)
 
+instance Semigroup CoreProg where
+  (CoreProg a) <> (CoreProg b) = CoreProg (a <> b)
+
+instance Monoid CoreProg where
+  mempty = CoreProg []
+
 coreProgToText :: CoreProg -> Text
 coreProgToText = serialiseToText
 

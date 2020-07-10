@@ -204,6 +204,9 @@ instance Pretty ExecError where
     Undefined loc                  -> hcat [pretty loc, ": undefined"]
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
     NoMainFunction                 -> "Error: No main function is defined"
+    NoSigmaScript                  -> "Error: Script does not contain main function or does not terminate"
+    ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
+    GmachineError e                -> pretty $ show e
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
       unboundedVar VarName{..} = hsep [hcat [pretty varName'loc, ":"], "Unbound variable:", pretty varName'name]

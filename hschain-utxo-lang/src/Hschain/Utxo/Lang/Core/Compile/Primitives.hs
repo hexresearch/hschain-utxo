@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | Built-in language primitives
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
-    primitives
+    preludeLib
+  , primitives
   , builtInUnary
   , builtInDiadic
   , preludeTypeContext
@@ -29,6 +30,9 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 import qualified Hschain.Utxo.Lang.Const as Const
+
+preludeLib :: TxEnv -> CoreProg
+preludeLib env = CoreProg $ environmentFunctions env ++ primitives
 
 preludeTypeContext :: TypeContext
 preludeTypeContext = primitivesCtx <> environmentTypes

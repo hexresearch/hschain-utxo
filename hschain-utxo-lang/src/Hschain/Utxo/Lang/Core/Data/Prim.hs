@@ -118,3 +118,4 @@ instance Serialise TypeSer
 instance Serialise Prim
 instance Serialise SigmaExpr
 instance Serialise a => Serialise (Typed a)
+
