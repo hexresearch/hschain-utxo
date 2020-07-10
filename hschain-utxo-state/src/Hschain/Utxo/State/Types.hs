@@ -7,6 +7,7 @@ import Codec.Serialise (Serialise)
 
 import Data.Text (Text)
 import Data.Map.Strict (Map)
+import Data.Text.Prettyprint.Doc
 
 import GHC.Generics
 
@@ -61,3 +62,7 @@ getEnv BoxChain{..} = Env { env'height = boxChain'height }
 
 $(deriveJSON dropPrefixOptions ''BoxChain)
 
+instance Pretty BoxChain where
+  pretty BoxChain{..} = prettyRecord "BoxChain"
+    [ ("height", pretty boxChain'height)
+    , ("boxes",  vsep $ fmap pretty $ M.elems boxChain'boxes )]

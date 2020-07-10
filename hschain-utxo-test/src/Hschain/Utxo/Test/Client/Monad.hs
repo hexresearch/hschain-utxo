@@ -43,7 +43,6 @@ import Hschain.Utxo.Back.Config
 
 import qualified Hschain.Utxo.API.Client as C
 
-import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -87,12 +86,12 @@ runTest TestSpec{..} masterSecret app = do
     Left  err -> test { test'cases =  mappend (test'cases test) (pure (TestCase err False)) }
     Right _   -> test
   where
-    env tv logTv masterSecret = TestEnv
+    env tv logTv masterPrivateKey = TestEnv
         { testEnv'client = testSpec'client
         , testEnv'verbose = testSpec'verbose
         , testEnv'log = logTv
         , testEnv'test = tv
-        , testEnv'masterSecret = masterSecret
+        , testEnv'masterSecret = masterPrivateKey
         }
 
     emptyTest = Test "" mempty
@@ -170,13 +169,12 @@ initGenesis :: Secret -> Genesis
 initGenesis secret = [tx]
   where
     publicKey = getPublicKey secret
-    env = proofEnvFromKeys [getKeyPair secret]
 
     box = Box
       { box'id     = initMasterBox
       , box'value  = initMoney
       , box'script = toScript $ pk' publicKey
-      , box'args   = M.empty
+      , box'args   = mempty
       }
 
     tx = Tx

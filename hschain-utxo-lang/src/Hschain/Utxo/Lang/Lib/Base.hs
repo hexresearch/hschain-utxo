@@ -71,10 +71,8 @@ baseFuns =
   , getBoxId
   , getBoxValue
   , getBoxScript
-  , getBoxArg
   , sha256
   , blake2b256
-  , getVar
   , trace
   , lengthVec
   , lengthText
@@ -108,7 +106,10 @@ baseFuns =
   , snd
   , otherwise
   , undefined
-  ] P.++ tupleFuns
+  ] P.++ tupleFuns P.++ getBoxArgListFuns P.++ getVars
+  where
+    getBoxArgListFuns = fmap getBoxArgList argTypes
+    getVars = fmap getVarBy argTypes
 
 baseNames :: [Text]
 baseNames =
@@ -135,7 +136,6 @@ baseNames =
   , "getBoxArg"
   , "sha256"
   , "blake2b256"
-  , "getVar"
   , "trace"
   , "length"
   , "lengthText"
@@ -157,7 +157,7 @@ baseNames =
   , "fold"
   , "length"
   , "pk"
-  , "!!"
+  , "!"
   , "&&"
   , "||"
   , "not"
@@ -171,7 +171,10 @@ baseNames =
   , "snd"
   , "otherwise"
   , "undefined"
-  ] P.++ tupleNames
+  ] P.++ tupleNames P.++ getVarNames
+
+getVarNames :: [Text]
+getVarNames = fmap getEnvVarName argTypes
 
 tupleNames :: [Text]
 tupleNames = P.fmap (P.uncurry toTupleName) tupleIndices
@@ -210,7 +213,6 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "getBoxId" (monoT $ boxT ~> textT)
   , assumpType "getBoxValue" (monoT $ boxT ~> intT)
   , assumpType "getBoxScript" (monoT $ boxT ~> scriptT)
-  , assumpType "getBoxArg" (forA $ boxT ~> textT ~> aT)
   , assumpType "sha256" (monoT $ textT ~> textT)
   , assumpType "blake2b256" (monoT $ textT ~> textT)
   , assumpType "getVar" (forA $ textT ~> aT)
@@ -238,7 +240,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
   , assumpType "pk" (monoT $ textT ~> boolT)
-  , assumpType "!!" (forA $ vectorT aT ~> intT ~> aT)
+  , assumpType "!" (forA $ vectorT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
   , assumpType "<" (forA $ aT ~> aT ~> boolT)
@@ -249,7 +251,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "snd" (forAB $ tupleT [aT, bT] ~> bT)
   , assumpType "otherwise" (monoT boolT)
   , assumpType "undefined" $ forA aT
-  ] P.++ tupleTypes
+  ] P.++ tupleTypes P.++ getBoxArgListTypes P.++ getEnvVarTypes
   where
     forA = forAllT' "a" . monoT
     forAB = forAllT' "a" . forAllT' "b" . monoT
@@ -268,6 +270,12 @@ baseLibTypeContext = H.Context $ M.fromList $
         tupleCon size = tupleT $ P.fmap (varT . v) [0..size P.- 1]
 
         v n = P.mappend "a" (showt n)
+
+    getBoxArgListTypes =
+      fmap (\ty -> assumpType (getBoxArgVar ty) (monoT $ boxT ~> vectorT (argTagToType ty))) argTypes
+
+    getEnvVarTypes =
+      fmap (\ty -> assumpType (getEnvVarName ty) (monoT $ vectorT (argTagToType ty))) argTypes
 
 tupleIndices :: [(P.Int, P.Int)]
 tupleIndices = [ (size, idx) | size <- [2 .. maxTupleSize], idx <- [0 .. size P.- 1] ]
@@ -356,8 +364,8 @@ getBoxValue = bind "getBoxValue" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt
 getBoxScript :: Bind Lang
 getBoxScript = bind "getBoxScript" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldScript)
 
-getBoxArg :: Bind Lang
-getBoxArg = bind "getBoxArg" (Fix $ Lam noLoc "arg" $ Fix $ Lam noLoc "box" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "box") (BoxFieldArg $ Fix $ Var noLoc "arg"))
+getBoxArgList :: ArgType -> Bind Lang
+getBoxArgList ty = bind (getBoxArgVar ty) (Fix $ Lam noLoc "box" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "box") (BoxFieldArgList ty))
 
 sha256 :: Bind Lang
 sha256 = bind "sha256" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) (Fix $ Var noLoc "x"))
@@ -365,8 +373,8 @@ sha256 = bind "sha256" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noL
 blake2b256 :: Bind Lang
 blake2b256 = bind "blake2b256" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Blake2b256) (Fix $ Var noLoc "x"))
 
-getVar :: Bind Lang
-getVar = bind "getVar" (Fix $ Lam noLoc "x" $ Fix $ GetEnv noLoc $ GetVar noLoc $ Fix $ Var noLoc "x")
+getVarBy :: ArgType -> Bind Lang
+getVarBy ty = bind (getEnvVarName ty) (Fix $ GetEnv noLoc $ GetVar noLoc ty)
 
 trace :: Bind Lang
 trace = bind "trace" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Trace noLoc (Fix $ Var noLoc "x") (Fix $ Var noLoc "y"))
@@ -456,7 +464,7 @@ appendText :: Bind Lang
 appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
 
 atVec :: Bind Lang
-atVec = bind "!!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
+atVec = bind "!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
 
 pk :: Bind Lang
 pk = bind "pk" (Fix $ Lam noLoc "x" $ Fix $ Pk noLoc x)

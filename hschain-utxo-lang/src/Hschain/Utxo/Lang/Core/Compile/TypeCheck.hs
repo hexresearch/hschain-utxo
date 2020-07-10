@@ -205,6 +205,12 @@ inferIf c t e = do
 -- | Type context of the known signatures
 newtype TypeContext = TypeContext (Map Name Type)
 
+instance Semigroup TypeContext where
+  (TypeContext a) <> (TypeContext b) = TypeContext (a <> b)
+
+instance Monoid TypeContext where
+  mempty = TypeContext mempty
+
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext -> TypeContext
 loadContext defs ctx =

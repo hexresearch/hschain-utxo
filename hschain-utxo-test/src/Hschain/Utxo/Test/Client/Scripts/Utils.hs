@@ -17,17 +17,10 @@ import Control.Monad.IO.Class
 import Data.Maybe
 import Data.Text (Text)
 
-import Text.Show.Pretty
-
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.State.Pretty
 import Hschain.Utxo.API.Rest
-import Hschain.Utxo.Test.Client.Proc
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Monad
-
-import qualified Data.Text.IO as T
 
 data SendResult = SendResult
   { sendResult'from   :: BoxId

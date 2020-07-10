@@ -1,26 +1,27 @@
 module Hschain.Utxo.Test.Client.Scripts.ReversibleAddress(
-
+  reversibleAddressScript
 ) where
 
 import Prelude hiding ((<*))
 
-import Data.Int
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-bobDeadline :: Text
-bobDeadline = "bob-deadline"
+-- | Bob's id for deadline in the list of ints
+bobDeadlineId :: Expr Int
+bobDeadlineId = int 0
 
-bobPubKey :: Text
-bobPubKey = "bob-public-key"
+-- | Bob's id for public key in the list of text args
+bobPubKeyId :: Expr Int
+bobPubKeyId = int 0
 
-getBobDeadline :: Expr Box -> Expr Int64
-getBobDeadline box = getBoxArg box (text bobDeadline)
+getBobDeadline :: Expr Box -> Expr Int
+getBobDeadline box = vecAt (getBoxIntArgList box) bobDeadlineId
 
 getBobPubKey :: Expr Box -> Expr Text
-getBobPubKey box = getBoxArg box (text bobPubKey)
+getBobPubKey box = vecAt (getBoxTextArgList box) bobPubKeyId
 
 withdrawScript :: Expr Text -> Expr Bool
 withdrawScript carol =
@@ -29,6 +30,7 @@ withdrawScript carol =
   (pk bob &&* getHeight >* bobDeadline) ||* (pk carol &&* getHeight <=* bobDeadline)
 
 
+reversibleAddressScript :: Expr Int -> Expr Text -> Expr Bool -> Expr Int -> Expr Bool
 reversibleAddressScript blocksIn24h carol feeProposition maxFee =
   "isChange"   =: (lam "out" $ \out -> getBoxScript out ==* getBoxScript getSelf) $ \isChange ->
   "isWithdraw" =: (lam "out" $ \out ->

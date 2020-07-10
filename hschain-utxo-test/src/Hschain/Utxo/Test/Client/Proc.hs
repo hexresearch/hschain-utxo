@@ -11,11 +11,9 @@ import Control.Concurrent
 import Control.Timeout
 
 import Data.Maybe
-import Data.UUID
 
 import System.Directory
 import System.FilePath
-import System.Random
 import Test.Hspec
 
 import HSChain.Logger
@@ -123,10 +121,10 @@ app opt genesisTx = do
       }
 
     substDir dir path
-      | isAbsolute path = path
-      | otherwise       = dir </> path
+      | isAbsolutePath path = path
+      | otherwise           = dir </> path
       where
-        isAbsolute = L.isPrefixOf "/"
+        isAbsolutePath = L.isPrefixOf "/"
 
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do
@@ -141,26 +139,15 @@ runTestProc testApp = do
     wait = sleep 1
 
 withTestDir :: Options -> (FilePath -> IO a) -> IO a
-withTestDir Options{..} cont = do
+withTestDir Options{..} nextAct = do
   createDirectoryIfMissing True testDir
-  withFixedDirectory testDir "test" cont
+  withFixedDirectory testDir "test" nextAct
   where
     withFixedDirectory dir name cont = do
       let resDir = dir </> name
       putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
       createDirectory resDir
       cont resDir
-
-    withTempDirectory dir name cont = do
-      tempDir <- getTempDirName name
-      let resDir= dir </> tempDir
-      putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
-      createDirectory resDir
-      cont resDir
-      where
-        getTempDirName name = do
-          suffix :: UUID <- randomIO
-          return $ mconcat [name, "-", show suffix]
 
 clearDb :: FilePath -> IO ()
 clearDb path = removeFile path

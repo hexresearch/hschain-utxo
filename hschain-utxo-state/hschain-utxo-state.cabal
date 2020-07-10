@@ -15,7 +15,6 @@ cabal-version:       >=1.10
 library
   Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.State
-                       Hschain.Utxo.State.Pretty
                        Hschain.Utxo.State.Query
                        Hschain.Utxo.State.React
                        Hschain.Utxo.State.Types

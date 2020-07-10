@@ -15,7 +15,7 @@ import Control.Monad.State.Strict
 import Data.String
 import Data.Text.Prettyprint.Doc
 import Hschain.Utxo.Repl.Monad
-import Hschain.Utxo.Repl.Imports (Imports(..), ImportError(..))
+import Hschain.Utxo.Repl.Imports (ImportError(..))
 
 import Safe
 
@@ -86,12 +86,12 @@ loadScript file = do
     printErr err = liftIO $
       case err of
         ImportTypeError tyErr    -> T.putStrLn $ renderText tyErr
-        ImportParseError loc err -> showParseErr loc err
-        ImportFileMissing file   -> T.putStrLn $ mconcat ["File not found: ", fromString file]
+        ImportParseError loc msg -> showParseErr loc msg
+        ImportFileMissing missingFile   -> T.putStrLn $ mconcat ["File not found: ", fromString missingFile]
 
     showParseErr loc msg = T.putStrLn $ T.unlines
       [ mconcat ["Failed to load script ", T.pack file]
-      , mappend (renderText loc) " Parsing exited with error"
+      , mconcat [(renderText loc), " Parsing exited with error: ", fromString msg]
       ]
 
 resetEvalCtx :: Repl ()

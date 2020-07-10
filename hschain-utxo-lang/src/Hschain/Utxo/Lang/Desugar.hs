@@ -19,7 +19,6 @@ module Hschain.Utxo.Lang.Desugar(
   , reduceSubPats
   , desugarRecordUpdate
   , recordFieldUpdateFunName
-  , secretVar
   , module Hschain.Utxo.Lang.Desugar.FreshVar
   , module Hschain.Utxo.Lang.Desugar.PatternCompiler
   , module Hschain.Utxo.Lang.Desugar.Records
@@ -145,7 +144,4 @@ recordFieldUpdateFunName VarName{..} = VarName
   , varName'name = secretVar $ mappend "update_" varName'name
   }
 
--- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
-secretVar :: Text -> Text
-secretVar = flip mappend "___"
 
