@@ -31,7 +31,7 @@ compile =
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
 toCoreProg :: forall m . MonadLang m => TypedProg -> m Core.CoreProg
-toCoreProg = mapM toScomb . unAnnProg
+toCoreProg = fmap Core.CoreProg . mapM toScomb . unAnnProg
   where
     toScomb :: AnnComb Type (Typed Name) -> m Core.Scomb
     toScomb Def{..} = do

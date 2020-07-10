@@ -1,3 +1,4 @@
+-- | Functions to compile core progrmamms to instructions of G-machine
 module Hschain.Utxo.Lang.Core.Compile.Prog(
     compile
   , compileSc
@@ -48,7 +49,7 @@ coreProgTerminates prog =
   && recursionCheck prog
 
 mainIsSigma :: CoreProg -> Bool
-mainIsSigma prog =
+mainIsSigma (CoreProg prog) =
   case L.find (\sc -> scomb'name sc == "main") prog of
     Just mainComb -> hasNoArgs mainComb && resultIsSigma mainComb
     Nothing       -> False
@@ -73,7 +74,7 @@ compile prog = Gmachine
     (heap, globals) = buildInitHeap prog
 
 buildInitHeap :: CoreProg -> (Heap, Globals)
-buildInitHeap prog = (heap, Heap.initGlobals globalElems)
+buildInitHeap (CoreProg prog) = (heap, Heap.initGlobals globalElems)
   where
     compiled = fmap compileSc (primitives ++ prog)
 
@@ -264,5 +265,4 @@ compileLetB env defs e =
     lets = snd $ foldr (\(_, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
 
     env' = compileArgs defs env
-
 
