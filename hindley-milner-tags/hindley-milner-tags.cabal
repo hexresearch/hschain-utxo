@@ -75,7 +75,10 @@ test-suite hindley-milner-tests
   Build-Depends:       base              >=4.9 && <5
                      , hindley-milner-tags
                      , text
+                     , data-fix
                      , tasty
                      , tasty-hunit
+                     , prettyprinter
   hs-source-dirs:      test
   Main-is:             Main.hs
+  Other-modules:       TM.Infer
