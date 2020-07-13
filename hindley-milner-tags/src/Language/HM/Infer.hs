@@ -52,7 +52,7 @@ insertContext v ty (Context m) = Context $ M.insert v (monoT ty) m
 instance CanApply Context where
   apply subst = Context . fmap (apply subst) . unContext
 
-insertCtx :: Ord v => v -> Signature' loc v ->  Context' loc v -> Context' loc v
+insertCtx :: Ord v => v -> Signature loc v ->  Context loc v -> Context loc v
 insertCtx v sign (Context ctx) = Context $ M.insert v sign ctx
 
 
