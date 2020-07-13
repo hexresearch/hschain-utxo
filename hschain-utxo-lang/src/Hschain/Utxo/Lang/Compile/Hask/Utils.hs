@@ -11,11 +11,12 @@ module Hschain.Utxo.Lang.Compile.Hask.Utils(
 
 import Hex.Common.Text
 
+import Data.Fix
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Type, SigmaExpr(..), Typed(..))
-import Hschain.Utxo.Lang.Sigma (publicKeyToText)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Type, Typed(..))
+import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L
 import qualified Data.Text as T
@@ -40,15 +41,14 @@ toPat loc name = H.PVar loc $ toName (VarName loc name)
 toTypedPat :: Loc -> Typed Name -> H.Pat Loc
 toTypedPat loc (Typed name ty) = H.PatTypeSig loc (H.PVar loc $ toName $ VarName loc name) (toType loc ty)
 
-toSigma :: Loc -> SigmaExpr -> H.Exp Loc
-toSigma loc = \case
+toSigma :: Loc -> Sigma PublicKey -> H.Exp Loc
+toSigma loc = cata $ \case
   SigmaBool b  -> H.App loc (H.Var loc $ toQName $ VarName loc "toSigma") (toBool loc b)
   SigmaAnd  as -> sigmaOp "&&" as
   SigmaOr   as -> sigmaOp "||" as
   SigmaPk   pk -> H.App loc (H.Var loc $ toQName $ VarName loc "pk") (toText loc $ publicKeyToText pk)
   where
-    rec = toSigma loc
-    sigmaOp op args = L.foldr1 (\a b -> H.InfixApp loc a (toQOp op) b) $ fmap rec args
+    sigmaOp op args = L.foldr1 (\a b -> H.InfixApp loc a (toQOp op) b) args
     toQOp op = H.QVarOp loc (toQName $ VarName loc op)
 
 toText :: Loc -> Text -> H.Exp Loc

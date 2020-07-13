@@ -19,6 +19,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
+import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (TxEnv)
 
 import qualified Data.List       as L
@@ -37,7 +38,7 @@ import qualified Hschain.Utxo.Lang.Error as E
 -- Sigma script should contain main function that
 -- returns sigma-expression. The script should be well-typed and
 -- contain no recursion.
-execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error SigmaExpr
+execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
 execScriptToSigma env prog
   | isSigmaScript prog = either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
   | otherwise          = Left $ E.ExecError $ E.NoSigmaScript

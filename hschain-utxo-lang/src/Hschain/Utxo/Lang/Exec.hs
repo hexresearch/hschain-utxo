@@ -651,7 +651,7 @@ traceFun name f x =
 exec :: ExecCtx -> TxArg -> (Bool, Text)
 exec ctx tx
   | txPreservesValue tx = case res of
-        Right (SigmaBool sigma) -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
+        Right (SigmaResult sigma) -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
         Right (ConstBool bool)  -> (bool, "")
         Left err    -> (False, err)
   | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
@@ -663,18 +663,18 @@ exec ctx tx
 -- that user have to prove.
 data BoolExprResult
   = ConstBool Bool
-  | SigmaBool (Sigma PublicKey)
+  | SigmaResult (Sigma PublicKey)
   deriving (Show, Eq)
 
 instance ToJSON BoolExprResult where
   toJSON = \case
     ConstBool b -> object ["bool"  .= b]
-    SigmaBool s -> object ["sigma" .= s]
+    SigmaResult s -> object ["sigma" .= s]
 
 instance FromJSON BoolExprResult where
   parseJSON = withObject "BoolExprResult" $ \obj ->
         (ConstBool <$> obj .: "bool")
-    <|> (SigmaBool <$> obj .: "sigma")
+    <|> (SigmaResult <$> obj .: "sigma")
 
 
 -- | Executes expression to sigma-expression
@@ -683,7 +683,7 @@ execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
   where
     execExpr (Expr x) =
       case runExec ctx txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> (Right $ SigmaBool b, msg)
+        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> (Right $ SigmaResult b, msg)
         Right (Fix (PrimE _ (PrimBool b)), msg)   -> (Right $ ConstBool b, msg)
         Right _                                   -> (Left noSigmaExpr, noSigmaExpr)
         Left err                                  -> (Left (showt err), showt err)

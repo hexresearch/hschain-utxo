@@ -14,7 +14,6 @@ import Data.Fix
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT, intT, boxT, textT)
-import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Types (scriptToText)
 import Hschain.Utxo.Lang.Compile.Expr
@@ -142,11 +141,7 @@ exprToExtendedLC typeCtx = cataM $ \case
       PrimInt n       -> P.PrimInt n
       PrimString txt  -> P.PrimText txt
       PrimBool b      -> P.PrimBool b
-      PrimSigma sigma -> P.PrimSigma $ flip cata sigma $ \case
-                            SigmaPk k    -> P.SigmaPk k
-                            SigmaAnd as  -> P.SigmaAnd as
-                            SigmaOr as   -> P.SigmaOr as
-
+      PrimSigma sigma -> P.PrimSigma sigma
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 

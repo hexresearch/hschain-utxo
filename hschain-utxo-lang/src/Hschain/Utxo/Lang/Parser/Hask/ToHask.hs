@@ -168,7 +168,6 @@ toLiteral loc = \case
   PrimSigma x -> sigma loc x
   where
     lit = H.Lit loc
-    bool src x = H.UnQual src $ H.Ident loc $ show x
 
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma src x = cata go x
@@ -179,6 +178,7 @@ toLiteral loc = \case
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
           SigmaAnd as  -> foldl1 (op2 src "&&") as
           SigmaOr  as  -> foldl1 (op2 src "||") as
+          SigmaBool b  -> H.Con src $ bool src b
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
 
@@ -243,8 +243,10 @@ toPat pat = case pat of
 
     toPVar var = H.PVar (varName'loc var) (toIdentName var)
 
-    bool loc x = H.UnQual loc $ H.Ident loc $ show x
     lit loc = H.PLit loc (H.Signless loc)
+
+bool :: Loc -> Bool -> H.QName Loc
+bool loc x = H.UnQual loc $ H.Ident loc $ show x
 
 toIdentName :: VarName -> H.Name Loc
 toIdentName (VarName loc name) = H.Ident loc (T.unpack name)
