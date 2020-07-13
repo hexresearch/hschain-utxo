@@ -10,7 +10,7 @@ import Hex.Common.Text
 import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma hiding (SigmaExpr(..))
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -20,6 +20,7 @@ import qualified Language.Haskell.Exts.Syntax as H
 import Language.HM.Type() -- import instances
 
 import qualified Language.HM as HM
+import qualified Hschain.Utxo.Lang.Sigma as S
 
 toHaskExp :: Lang -> H.Exp Loc
 toHaskExp (Fix expr) = case expr of
@@ -39,7 +40,6 @@ toHaskExp (Fix expr) = case expr of
   PrimE loc p -> toLiteral loc p
   -- logic
   If loc a b c -> H.If loc (rec a) (rec b) (rec c)
-  Pk loc a -> ap (VarName loc "pk") a
   -- tuples
   Tuple loc ts -> H.Tuple loc H.Boxed (fmap rec $ V.toList ts)
   -- operations
@@ -47,6 +47,8 @@ toHaskExp (Fix expr) = case expr of
   BinOpE loc op a b -> fromBimOp loc op a b
   -- environment
   GetEnv loc env -> fromEnv loc env
+  -- sigmas
+  SigmaE loc sigma -> fromSigma loc sigma
   -- vectors
   VecE loc vec -> fromVec loc vec
   -- text
@@ -103,6 +105,13 @@ toHaskExp (Fix expr) = case expr of
       Inputs loc    -> toVar loc (VarName loc "getInputs")
       Outputs loc   -> toVar loc (VarName loc "getOutputs")
       GetVar loc ty -> toVar loc (VarName loc $ getEnvVarName ty)
+
+    fromSigma _ = \case
+      Pk loc a         -> ap (VarName loc "pk") a
+      SigmaOr loc a b  -> op2 loc "sigmaOr" (rec a) (rec b)
+      SigmaAnd loc a b -> op2 loc "sigmaAnd" (rec a) (rec b)
+      SigmaBool loc a  -> ap (VarName loc "toSigma") a
+
 
     fromVec _ = \case
       NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
@@ -172,13 +181,13 @@ toLiteral loc = \case
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma src x = cata go x
       where
-        go :: SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
+        go :: S.SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
-          SigmaPk pkey -> let keyTxt = publicKeyToText pkey
+          S.SigmaPk pkey -> let keyTxt = publicKeyToText pkey
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (op2 src "&&") as
-          SigmaOr  as  -> foldl1 (op2 src "||") as
-          SigmaBool b  -> H.Con src $ bool src b
+          S.SigmaAnd as  -> foldl1 (op2 src "&&") as
+          S.SigmaOr  as  -> foldl1 (op2 src "||") as
+          S.SigmaBool b  -> H.Con src $ bool src b
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
 

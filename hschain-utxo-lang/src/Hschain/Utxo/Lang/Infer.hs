@@ -93,11 +93,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Ascr loc a ty             -> fmap (\term -> fromAscr loc term $ stripSignature ty) (rec a)
   PrimE loc prim            -> pure $ fromPrim loc prim
   If loc cond t e           -> liftA3 (fromIf loc) (rec cond) (rec t) (rec e)
-  Pk loc a                  -> fmap (fromPk loc) (rec a)
   -- operations
   UnOpE loc unOp a          -> fmap (fromUnOp loc unOp) (rec a)
   BinOpE loc binOp a b      -> liftA2 (fromBinOp loc binOp) (rec a) (rec b)
   Tuple loc vs              -> fmap (fromTuple loc) $ mapM rec vs
+  -- sigmas
+  SigmaE loc sigma          -> fmap (fromSigma loc) $ mapM rec sigma
   -- vectors
   VecE loc v                -> fmap (fromVec loc) $ mapM rec v
   -- text
@@ -188,6 +189,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       where
         size = V.length vs
 
+    fromSigma _ = \case
+      Pk loc a           -> fromPk loc a
+      SigmaAnd loc a b   -> app2 loc sigmaAndVar a b
+      SigmaOr loc a b    -> app2 loc sigmaOrVar a b
+      SigmaBool loc a    -> app1 loc toSigmaVar a
+
     fromVec _ = \case
       NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
       VecAppend loc a b  -> app2 loc appendVecVar a b
@@ -245,7 +252,7 @@ defaultContext = H.Context $ M.fromList $
   -- if
   , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
   -- pk
-  , (pkVar,     monoT $ textT `arr` boolT)
+  , (pkVar,     monoT $ textT `arr` sigmaT)
   -- operations
   --  unary
   , (notVar,    monoT $ boolT `arr` boolT)
@@ -263,6 +270,10 @@ defaultContext = H.Context $ M.fromList $
   , (greaterThanVar, cmpOp2)
   , (lessThanEqualsVar, cmpOp2)
   , (greaterThanEqualsVar, cmpOp2)
+  -- sigma expressions
+  , (sigmaOrVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
+  , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
+  , (toSigmaVar, monoT $ boolT `arr` sigmaT)
   -- vec expressions
   , (nilVecVar, forA $ monoT $ vectorT a)
   , (consVecVar, forA $ monoT $ a `arr` (vectorT a `arr` vectorT a))
@@ -430,6 +441,12 @@ altVar, failCaseVar :: Text
 
 altVar = secretVar "altCases"
 failCaseVar = secretVar "failCase"
+
+sigmaAndVar, sigmaOrVar, toSigmaVar :: Text
+
+sigmaAndVar = "sigmaAnd"
+sigmaOrVar  = "sigmaOr"
+toSigmaVar  = "toSigma"
 
 ---------------------------------------------------------
 

@@ -6,6 +6,9 @@ module Hschain.Utxo.Lang.Build(
   , text
   , pk
   , pk'
+  , toSigma
+  , sigmaAnd
+  , sigmaOr
   , getHeight
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
@@ -42,10 +45,12 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 import Hschain.Utxo.Lang.Desugar
-import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
 import Hschain.Utxo.Lang.Types (toScript)
 
 import Hschain.Utxo.Lang.Expr
+
+data Sigma
 
 (=:) :: Text -> Expr a -> (Expr a -> Expr b) -> Expr b
 (=:) = def
@@ -123,11 +128,20 @@ instance Boolean (Expr Bool) where
   (&&*) = op2 (BinOpE noLoc And)
   (||*) = op2 (BinOpE noLoc Or)
 
-pk' :: PublicKey -> Expr Bool
+pk' :: PublicKey -> Expr Sigma
 pk' = pk . text . publicKeyToText
 
-pk :: Expr Text -> Expr Bool
-pk (Expr key) = Expr $ Fix $ Pk noLoc key
+pk :: Expr Text -> Expr Sigma
+pk (Expr key) = Expr $ Fix $ SigmaE noLoc $ Pk noLoc key
+
+sigmaAnd :: Expr Sigma -> Expr Sigma -> Expr Sigma
+sigmaAnd (Expr a) (Expr b) = Expr $ Fix $ SigmaE noLoc $ SigmaAnd noLoc a b
+
+sigmaOr :: Expr Sigma -> Expr Sigma -> Expr Sigma
+sigmaOr (Expr a) (Expr b) = Expr $ Fix $ SigmaE noLoc $ SigmaOr noLoc a b
+
+toSigma :: Expr Bool -> Expr Sigma
+toSigma (Expr x) = Expr $ Fix $ SigmaE noLoc $ SigmaBool noLoc x
 
 getSelf :: Expr Box
 getSelf = Expr $ Fix $ GetEnv noLoc (Self noLoc)

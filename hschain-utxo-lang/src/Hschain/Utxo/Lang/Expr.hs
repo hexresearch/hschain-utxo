@@ -29,7 +29,7 @@ import GHC.Generics
 import Text.Show.Deriving
 
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
-import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma hiding (SigmaExpr(..))
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 
 import qualified Language.HM as H
@@ -405,9 +405,6 @@ data E a
   -- logic
   | If Loc a a a
   -- ^ if-expressions (@if cond then a else b@)
-  | Pk Loc a
-  -- ^ private key ownership (@pk publicKey@)
-  -- tuples
   | Tuple Loc (Vector a)
   -- ^ Tuple constructor with list of arguments (@(a, b, c)@)
   -- operations
@@ -419,6 +416,8 @@ data E a
   | GetEnv Loc (EnvId a)
   -- ^ query some item by id in blockchain environment (@getEnvField@)
   -- vectors
+  | SigmaE Loc (SigmaExpr a)
+  -- ^ Sigma-expressions
   | VecE Loc (VecExpr a)
   -- ^ Vector expression
   -- text
@@ -502,6 +501,14 @@ getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
 -- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
 secretVar :: Text -> Text
 secretVar = flip mappend "___"
+
+-- | Sigma-expressions
+data SigmaExpr a
+  = Pk Loc a
+  | SigmaAnd Loc a a
+  | SigmaOr Loc a a
+  | SigmaBool Loc a
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Expressions that operate on vectors
 data VecExpr a
@@ -606,13 +613,14 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT :: Type
+intT, boolT, boxT, scriptT, textT, sigmaT :: Type
 
 intT = intT' noLoc
 boolT = boolT' noLoc
 boxT  = boxT' noLoc
 scriptT = scriptT' noLoc
 textT = textT' noLoc
+sigmaT = sigmaT' noLoc
 
 constType :: Text -> Loc -> Type
 constType name loc = H.conT loc name []
@@ -628,6 +636,9 @@ intT' = constType "Int"
 
 boolT' :: Loc -> Type
 boolT' = constType "Bool"
+
+sigmaT' :: Loc -> Type
+sigmaT' = constType "Sigma"
 
 scriptT' :: Loc -> Type
 scriptT' = constType "Script"
@@ -690,7 +701,6 @@ instance Show a => H.HasLoc (E a) where
     PrimE loc _ -> loc
     -- logic
     If loc _ _ _ -> loc
-    Pk loc _ -> loc
     -- tuples
     Tuple loc _ -> loc
     -- operations
@@ -698,6 +708,8 @@ instance Show a => H.HasLoc (E a) where
     BinOpE loc _ _ _ -> loc
     -- environment
     GetEnv loc _ -> loc
+    -- sigmas
+    SigmaE loc _ -> loc
     -- vectors
     VecE loc _ -> loc
     -- text
@@ -766,11 +778,11 @@ freeVars = cata $ \case
   RecUpdate _ a ts -> mconcat $ a : fmap snd ts
   PrimE _ _        -> Set.empty
   If _ a b c       -> mconcat [a, b, c]
-  Pk _ a           -> a
   Tuple _ vs       -> fold $ V.toList vs
   UnOpE _ _ a      -> a
   BinOpE _ _ a b   -> mconcat [a, b]
   GetEnv _ env     -> fold env
+  SigmaE _ sigma   -> fold sigma
   VecE _ vec       -> fold vec
   TextE _ txt      -> fold txt
   BoxE _ box       -> fold box
@@ -834,6 +846,7 @@ $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
 $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
+$(deriveShow1 ''SigmaExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
 

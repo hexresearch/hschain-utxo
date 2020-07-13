@@ -40,17 +40,19 @@ import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Language.HM as H
+
+import qualified Hschain.Utxo.Lang.Sigma as S
 
 {- for debug
 import Debug.Trace
@@ -144,10 +146,10 @@ execLang (Fix topExpr) = case topExpr of
     PrimLet _ _ _ -> error "Undefined exec for PrimLet case"
     -- logic
     If loc a b c -> fromIf loc a b c
-    Pk loc a -> fromPk loc a
     -- environment
     GetEnv loc idx -> fromEnv loc idx
     BoxE loc box -> fromBoxExpr loc box
+    SigmaE loc sigma -> fromSigma loc sigma
     VecE loc vec -> fromVec loc vec
     TextE loc txt -> fromText loc txt
     Trace loc str a -> fromTrace loc str a
@@ -273,7 +275,7 @@ execLang (Fix topExpr) = case topExpr of
             then return (Fix x')
             else prim locX1 $ PrimBool False
         (PrimE _ (PrimSigma a), PrimE _ (PrimSigma b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaAnd [a, b]
+          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaAnd [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     -- todo: maybe it's worth to make it lazy
@@ -290,7 +292,7 @@ execLang (Fix topExpr) = case topExpr of
             then prim locX1 $ PrimBool True
             else return (Fix x')
         (PrimE _ (PrimSigma a), PrimE _ (PrimSigma b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaOr [a, b]
+          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaOr [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+))
@@ -398,7 +400,7 @@ execLang (Fix topExpr) = case topExpr of
       case x' of
         PrimE _ (PrimString pkeyTxt) ->
           case publicKeyFromText pkeyTxt of
-            Just pkey  -> return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaPk pkey
+            Just pkey  -> return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaPk pkey
             Nothing    -> parseError loc $ mconcat ["Failed to convert parse public key from string: ", pkeyTxt]
         _                                    -> thisShouldNotHappen x
 
@@ -515,6 +517,22 @@ execLang (Fix topExpr) = case topExpr of
         TextArg -> toArgField loc PrimString $ args'texts box'args
         BoolArg -> toArgField loc PrimBool   $ args'bools box'args
 
+    fromSigma _ x = do
+      x' <- mapM rec x
+      case x' of
+        Pk loc a         -> fromPk loc a
+        SigmaAnd loc a b -> fromSigmaOp S.SigmaAnd loc a b
+        SigmaOr loc a b  -> fromSigmaOp S.SigmaOr loc a b
+        SigmaBool loc a  -> fromSigmaBool loc a
+
+    fromSigmaOp cons loc a b = do
+      a' <- getPrimSigmaOrFail =<< rec a
+      b' <- getPrimSigmaOrFail =<< rec b
+      return $ Fix $ PrimE loc $ PrimSigma $ Fix $ cons [a', b']
+
+    fromSigmaBool = undefined
+
+
     fromVec loc x = do
       x' <- mapM rec x
       case x' of
@@ -590,7 +608,7 @@ prim loc p = return $ Fix $ PrimE loc p
 toError :: ExecError -> Exec a
 toError = throwError . ExecError
 
-thisShouldNotHappen :: Lang -> Exec Lang
+thisShouldNotHappen :: Lang -> Exec a
 thisShouldNotHappen = toError . ThisShouldNotHappen
 
 outOfBound :: Lang -> Exec Lang
@@ -638,6 +656,20 @@ txPreservesValue tx@TxArg{..}
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
+getPrim :: Lang -> Maybe (Loc, Prim)
+getPrim (Fix a) = case a of
+  PrimE loc p -> Just (loc, p)
+  _           -> Nothing
+
+getPrimSigma :: Prim -> Maybe (Sigma PublicKey)
+getPrimSigma = \case
+  PrimSigma p -> Just p
+  _           -> Nothing
+
+getPrimSigmaOrFail :: Lang -> Exec (Sigma PublicKey)
+getPrimSigmaOrFail x = maybe (thisShouldNotHappen x) pure $
+  getPrim x >>= (\(_, p) -> getPrimSigma p)
+
 
 {- for debug
 traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
@@ -651,7 +683,7 @@ traceFun name f x =
 exec :: ExecCtx -> TxArg -> (Bool, Text)
 exec ctx tx
   | txPreservesValue tx = case res of
-        Right (SigmaResult sigma) -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
+        Right (SigmaResult sigma) -> maybe (False, "No proof submitted") (\proof -> (S.equalSigmaProof sigma proof && S.verifyProof proof, debug)) mProof
         Right (ConstBool bool)  -> (bool, "")
         Left err    -> (False, err)
   | otherwise = (False, "Sum of inputs does not equal to sum of outputs")

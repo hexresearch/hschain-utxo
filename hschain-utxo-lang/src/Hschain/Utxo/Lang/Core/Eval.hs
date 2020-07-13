@@ -9,7 +9,7 @@ import Data.Vector (Vector)
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Prog
-import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Expr hiding (SigmaExpr(..))
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
