@@ -32,6 +32,7 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Maybe
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 
 import Data.Fix
@@ -190,6 +191,8 @@ instance POWTypes.BlockData UTXOBlock where
     deriving newtype
       (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON)
 
+  type Tx UTXOBlock = Tx
+
   blockID b = let Hashed h = hashed b in UB'BID h
   validateHeader bh (POWTypes.Time now) header
     | POWTypes.blockHeight header == 0 = return True -- skip genesis check.
@@ -257,9 +260,23 @@ data UTXONodeState = UTXONodeState
 -- |Run the PoW node.
 runNode :: String -> IO ()
 runNode cfgConfigPath =
-  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep (getBlockToMine optNodeName) (UTXONodeState Set.empty Set.empty)
+  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep getBlockToMine (UTXONodeState Set.empty Set.empty)
   where
-    getBlockToMine = error "getBlockToMine"
+    getBlockToMine bh st@(UTXONodeState{..}) = (POWTypes.GBlock
+      { blockHeight = succ $ POWTypes.bhHeight bh
+      , blockTime   = POWTypes.Time 0
+      , prevBlock   = Just $! POWTypes.bhBID bh
+      , blockData   = UTXOBlock {
+                           ubNonce = BS.empty
+                         , ubProper = UTXOBlockProper
+                              { ubpPrevious   = error "no previous block??"
+                              , ubpData       = merkled []
+                              , ubpTarget     = error "no target??"
+                              , ubpTime       = error "no time??"
+                              }
+                      }
+      }, st)
+
     optNodeName = error "optnodename"
     optMine = True
     genesisBlock = undefined
