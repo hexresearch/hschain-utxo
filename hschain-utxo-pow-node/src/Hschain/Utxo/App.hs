@@ -147,7 +147,7 @@ instance Crypto.CryptoHashable Pico where
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
 data UTXOBlockProper f = UTXOBlockProper
-  { ubpPrevious   :: !(Crypto.Hash SHA256)
+  { ubpPrevious   :: !(POWTypes.BlockID UTXOBlock)
   -- ^Previous block.
   , ubpData       :: !(MerkleNode f SHA256 [Tx])
   -- ^ List of key-value pairs
@@ -187,7 +187,7 @@ instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
 
 instance POWTypes.BlockData UTXOBlock where
 
-  newtype BlockID UTXOBlock = UB'BID (Crypto.Hash SHA256)
+  newtype BlockID UTXOBlock = UB'BID { fromUBBID :: Crypto.Hash SHA256 }
     deriving newtype
       (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON)
 
@@ -269,10 +269,10 @@ runNode cfgConfigPath =
       , blockData   = UTXOBlock {
                            ubNonce = BS.empty
                          , ubProper = UTXOBlockProper
-                              { ubpPrevious   = error "no previous block??"
+                              { ubpPrevious   = POWTypes.bhBID bh
                               , ubpData       = merkled []
-                              , ubpTarget     = error "no target??"
-                              , ubpTime       = error "no time??"
+                              , ubpTarget     = POWTypes.retarget bh
+                              , ubpTime       = POWTypes.Time 0
                               }
                       }
       }, st)
