@@ -8,6 +8,7 @@ import Hex.Common.Text
 
 import Data.Fix
 import Data.String
+import qualified Data.Map.Strict as M
 
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
@@ -20,9 +21,7 @@ import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, TypeContext(..))
 
 import qualified Language.HM as H
 
-import qualified Data.Map.Strict as M
 
-type Context = H.Context Loc Tag
 
 -- | We need this type for type-inference algorithm
 data Tag
@@ -70,7 +69,7 @@ annotateTypes =
       (combT, combTyped) <- typeDef ctx comb
       return (H.insertContext (VarTag $ varName'name $ def'name comb) combT ctx, combTyped : prog)
 
-    typeDef :: Context -> Comb Name -> m (H.Type Loc Tag, AnnComb Type (Typed Name))
+    typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, AnnComb Type (Typed Name))
     typeDef ctx comb = do
       (combT, term) <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
       body <- fromInferExpr term
@@ -161,7 +160,7 @@ annotateTypes =
       _              -> throwError $ InternalError $ NonLamType
 
 
-libTypeContext :: Context
+libTypeContext :: H.Context Loc Tag
 libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
   ])
