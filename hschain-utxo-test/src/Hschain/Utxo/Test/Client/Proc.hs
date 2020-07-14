@@ -74,7 +74,7 @@ defaultServiceOptions = Options
 defaultTestSpec :: TestSpec
 defaultTestSpec = TestSpec
   { testSpec'client  = C.ClientSpec "127.0.0.1" 8080 False
-  , testSpec'verbose = False
+  , testSpec'verbose = True
   }
 
 app :: Options -> Genesis -> IO Resource

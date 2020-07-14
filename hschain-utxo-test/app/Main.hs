@@ -9,12 +9,12 @@ import Hschain.Utxo.Test.Client.Scripts.XorGame
 
 main :: IO ()
 main = do
-  exchangeTest <- runTestProc simpleExchange
-  xorTest      <- runTestProc xorGame
+--  exchangeTest <- runTestProc simpleExchange
+--  xorTest      <- runTestProc xorGame
   payTest1     <- runTestProc payForCofeeAlice
-  payTest2     <- runTestProc payForCofeeBob
+--  payTest2     <- runTestProc payForCofeeBob
   hspec $ do
-    exchangeTest
+--    exchangeTest
     payTest1
-    payTest2
-    xorTest
+--    payTest2
+--    xorTest

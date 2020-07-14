@@ -56,29 +56,30 @@ sFieldId, aFieldId :: Expr Int
 sFieldId = int 0
 aFieldId = int 0
 
-halfGameScript :: Expr Text -> Expr Bool
+halfGameScript :: Expr Text -> Expr SigmaBool
 halfGameScript fullGameScriptHash =
   "out"            =: getOutput 0                      $ \out ->
   "b"              =: getBobGuess out                  $ \(b :: Expr Int) ->
   "bobDeadline"    =: getBobDeadline out               $ \bobDeadline ->
   "validBobInput"  =: (b ==* 0 ||* b ==* 1)            $ \validBobInput ->
+      toSigma $
       validBobInput
   &&* (blake2b256 (showScript $ getBoxScript out) ==* fullGameScriptHash)
   &&* (lengthVec getOutputs ==* 1 ||* lengthVec getOutputs ==* 2)
   &&* (bobDeadline >=* getHeight + 30)
   &&* (getBoxValue out >=* 2 * getBoxValue getSelf )
 
-fullGameScript :: Expr Text -> Expr Text -> Expr Bool
+fullGameScript :: Expr Text -> Expr Text -> Expr SigmaBool
 fullGameScript k alice =
   "s"              =: getS                               $ \(s :: Expr Text) ->
   "a"              =: getA                               $ \(a :: Expr Int) ->
   "b"              =: getBobGuess getSelf                $ \(b :: Expr Int) ->
   "bob"            =: getBobPk getSelf                   $ \bob ->
   "bobDeadline"    =: getBobDeadline getSelf             $ \bobDeadline ->
-      (pk bob &&* getHeight >* bobDeadline)
-  ||* (     blake2b256 (s <> showInt a) ==* k
-        &&* (     pk alice &&* a ==* b
-              ||* pk bob   &&* a /=* b ))
+      (pk bob &&* (toSigma $ getHeight >* bobDeadline))
+  ||* (toSigma (blake2b256 (s <> showInt a) ==* k))
+        &&* (     pk alice &&* (toSigma (a ==* b))
+              ||* pk bob   &&* (toSigma (a /=* b )))
 
 
 data Game = Game
@@ -132,7 +133,7 @@ xorGameRound Scene{..} game@Game{..} = do
           aliceScript = halfGameScript $ text $ fullScriptHash
       backAddr <- allocAddress wallet
       gameAddr <- allocAddress wallet
-      preTx <- makeAliceTx (fromIntegral game'amount) aliceScript wallet box backAddr gameAddr Nothing
+      preTx <- makeAliceTx game'amount aliceScript wallet box backAddr gameAddr Nothing
       eSigma <- getTxSigma preTx
       eProof <- liftIO $ fmap join $ mapM (newProof (getProofEnv wallet)) eSigma
       case eProof of
@@ -204,7 +205,7 @@ xorGameRound Scene{..} game@Game{..} = do
 
         makeBobTx gameAddr backAddr mProof = do
           total <- fmap (fromMaybe 0) $ getBoxBalance inBox
-          height <- fmap fromInteger $ M.getHeight
+          height <- M.getHeight
           return $ Tx
               { tx'inputs  = V.fromList [inBox, scriptBox]
               , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]

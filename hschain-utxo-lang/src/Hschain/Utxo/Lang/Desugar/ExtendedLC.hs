@@ -146,10 +146,10 @@ exprToExtendedLC typeCtx = cataM $ \case
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
     fromSigma locA = \case
-      Pk locB a         -> pure $ ap1 locA (var locB "pk") a
-      SigmaAnd locB a b -> pure $ ap2 locA (var locB "sigmaAnd") a b
-      SigmaOr  locB a b -> pure $ ap2 locA (var locB "sigmaOr")  a b
-      SigmaBool locB a  -> pure $ ap1 locA (var locB "toSigma") a
+      Pk locB a        -> pure $ ap1 locA (var locB "pk") a
+      SAnd locB a b    -> pure $ ap2 locA (var locB "sigmaAnd") a b
+      SOr  locB a b    -> pure $ ap2 locA (var locB "sigmaOr")  a b
+      SPrimBool locB a -> pure $ ap1 locA (var locB "toSigma") a
 
     fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args
       where

@@ -461,13 +461,13 @@ divisionDouble :: Bind Lang
 divisionDouble = biOp "/." Div
 
 sigmaAnd :: Bind Lang
-sigmaAnd = bind "sigmaAnd" (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SigmaAnd noLoc x y)
+sigmaAnd = bind "sigmaAnd" (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAnd noLoc x y)
 
 sigmaOr :: Bind Lang
-sigmaOr = bind "sigmaOr" (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SigmaOr noLoc x y)
+sigmaOr = bind "sigmaOr" (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SOr noLoc x y)
 
 toSigma :: Bind Lang
-toSigma = bind "toSigma" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ SigmaBool noLoc x)
+toSigma = bind "toSigma" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ SPrimBool noLoc x)
 
 pk :: Bind Lang
 pk = bind "pk" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ Pk noLoc x)

@@ -6,7 +6,6 @@ module Hschain.Utxo.Lang.Core.Eval(
 import Data.Fix
 import Data.Vector (Vector)
 
-import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Prog
 import Hschain.Utxo.Lang.Expr hiding (SigmaExpr(..))

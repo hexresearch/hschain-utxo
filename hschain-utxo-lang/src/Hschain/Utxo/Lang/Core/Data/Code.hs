@@ -84,7 +84,7 @@ data Instr
   -- ^ Comparison operations
   | And | Or | Not | Xor
   -- ^ boolean operators
-  | SAnd | SOr | Pk | SBool
+  | SigAnd | SigOr | SigPk | SigBool
   -- ^ sigma operators
   | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
   -- ^ text operators

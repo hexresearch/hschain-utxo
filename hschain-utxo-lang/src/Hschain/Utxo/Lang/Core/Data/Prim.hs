@@ -6,7 +6,6 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
   , Typed(..)
   , Addr
   , Prim(..)
-  , SigmaExpr(..)
   , getPrimInt
   , getPrimText
   , getPrimBool
@@ -74,38 +73,12 @@ getPrimSigma = \case
 -----------------------------------------------------
 -- instnaces
 
--- special proxy type for serialization needs.
-data TypeSer
-    = VarT Name               -- ^ Variables
-    | ConT Name [TypeSer]     -- ^ type constant with list of arguments
-    | ArrowT TypeSer TypeSer  -- ^ Special case of ConT that is rendered as ->
-    | TupleT [TypeSer]        -- ^ Special case of ConT that is rendered as (,,,)
-    | ListT TypeSer           -- ^ Special case of ConT that is rendered as [a]
-    deriving (Eq, Ord, Show, Generic)
+instance Serialise (Fix (H.TypeF () Text))
+instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
+instance Serialise Type
+--  encode = encode . toTypeSer
+--  decode = fmap fromTypeSer decode
 
-toTypeSer :: Type -> TypeSer
-toTypeSer (H.Type ty) = flip cata ty $ \case
-  H.VarT _ v     -> VarT v
-  H.ConT _ v xs  -> ConT v xs
-  H.ArrowT _ a b -> ArrowT a b
-  H.TupleT _ xs  -> TupleT xs
-  H.ListT _ t    -> ListT t
-
-fromTypeSer :: TypeSer -> Type
-fromTypeSer x = H.Type $ case x of
-  VarT v     -> Fix $ H.VarT () v
-  ConT v xs  -> Fix $ H.ConT () v $ fmap rec xs
-  ArrowT a b -> Fix $ H.ArrowT () (rec a) (rec b)
-  TupleT xs  -> Fix $ H.TupleT () $ fmap rec xs
-  ListT t    -> Fix $ H.ListT () (rec t)
-  where
-    rec = H.unType . fromTypeSer
-
-instance Serialise Type where
-  encode = encode . toTypeSer
-  decode = fmap fromTypeSer decode
-
-instance Serialise TypeSer
 instance Serialise Prim
 instance Serialise a => Serialise (Typed a)
 

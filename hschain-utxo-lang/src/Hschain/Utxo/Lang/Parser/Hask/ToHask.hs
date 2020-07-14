@@ -10,7 +10,7 @@ import Hex.Common.Text
 import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Sigma hiding (SigmaExpr(..))
+import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -20,7 +20,6 @@ import qualified Language.Haskell.Exts.Syntax as H
 import Language.HM.Type() -- import instances
 
 import qualified Language.HM as HM
-import qualified Hschain.Utxo.Lang.Sigma as S
 
 toHaskExp :: Lang -> H.Exp Loc
 toHaskExp (Fix expr) = case expr of
@@ -107,10 +106,10 @@ toHaskExp (Fix expr) = case expr of
       GetVar loc ty -> toVar loc (VarName loc $ getEnvVarName ty)
 
     fromSigma _ = \case
-      Pk loc a         -> ap (VarName loc "pk") a
-      SigmaOr loc a b  -> op2 loc "sigmaOr" (rec a) (rec b)
-      SigmaAnd loc a b -> op2 loc "sigmaAnd" (rec a) (rec b)
-      SigmaBool loc a  -> ap (VarName loc "toSigma") a
+      Pk loc a        -> ap (VarName loc "pk") a
+      SOr loc a b     -> ap2 (VarName loc "sigmaOr") a b
+      SAnd loc a b    -> ap2 (VarName loc "sigmaAnd") a b
+      SPrimBool loc a -> ap (VarName loc "toSigma") a
 
 
     fromVec _ = \case
@@ -181,15 +180,16 @@ toLiteral loc = \case
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma src x = cata go x
       where
-        go :: S.SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
+        go :: SigmaF PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
-          S.SigmaPk pkey -> let keyTxt = publicKeyToText pkey
+          SigmaPk pkey -> let keyTxt = publicKeyToText pkey
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          S.SigmaAnd as  -> foldl1 (op2 src "&&") as
-          S.SigmaOr  as  -> foldl1 (op2 src "||") as
-          S.SigmaBool b  -> H.Con src $ bool src b
+          SigmaAnd as  -> foldl1 (ap2 (VarName src "sigmaAnd")) as
+          SigmaOr  as  -> foldl1 (ap2 (VarName src "sigmaOr")) as
+          SigmaBool b  -> H.Con src $ bool src b
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
+        ap2 f a b = H.App src (H.App src (toVar src f) a) b
 
 -- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc

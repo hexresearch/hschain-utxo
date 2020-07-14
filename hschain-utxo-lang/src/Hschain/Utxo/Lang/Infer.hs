@@ -154,7 +154,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       PrimInt _    -> intE
       PrimString _ -> textE
       PrimBool _   -> boolE
-      PrimSigma _  -> boolE
+      PrimSigma _  -> sigmaE
 
     fromIf loc cond t e = app3 loc ifVar cond t e
 
@@ -190,10 +190,10 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
         size = V.length vs
 
     fromSigma _ = \case
-      Pk loc a           -> fromPk loc a
-      SigmaAnd loc a b   -> app2 loc sigmaAndVar a b
-      SigmaOr loc a b    -> app2 loc sigmaOrVar a b
-      SigmaBool loc a    -> app1 loc toSigmaVar a
+      Pk loc a         -> fromPk loc a
+      SAnd loc a b     -> app2 loc sigmaAndVar a b
+      SOr loc a b      -> app2 loc sigmaOrVar a b
+      SPrimBool loc a  -> app1 loc toSigmaVar a
 
     fromVec _ = \case
       NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
@@ -249,6 +249,7 @@ defaultContext = H.Context $ M.fromList $
   [ (intVar,    monoT intT)
   , (textVar,   monoT textT)
   , (boolVar,   monoT boolT)
+  , (sigmaVar,  monoT sigmaT)
   -- if
   , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
   -- pk
@@ -349,17 +350,19 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, textE, boolE :: Loc -> Term
+intE, textE, boolE, sigmaE :: Loc -> Term
 
 intE loc = varE loc intVar
 textE loc = varE loc textVar
 boolE loc = varE loc boolVar
+sigmaE loc = varE loc sigmaVar
 
-intVar, textVar, boolVar, notVar, negateVar, boxVar :: Text
+intVar, textVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
 
 intVar = secretVar "Int"
 textVar = secretVar "Text"
 boolVar = secretVar "Bool"
+sigmaVar = secretVar "Sigma"
 boxVar = secretVar "Box"
 notVar = secretVar "not"
 negateVar = secretVar "negate"

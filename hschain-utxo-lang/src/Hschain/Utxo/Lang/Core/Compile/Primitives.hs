@@ -311,8 +311,8 @@ builtInDiadic = M.fromList $
   , ("&&", And)
   , ("||", Or)
   , ("^^", Xor)
-  , ("&", SAnd)
-  , ("|", SOr)
+  , ("&", SigAnd)
+  , ("|", SigOr)
   , ("<>", TextAppend)
   ] ++ (compareNames =<< [intT, boolT, textT])
   where
@@ -329,8 +329,8 @@ builtInUnary :: Map Name Instr
 builtInUnary = M.fromList
   [ ("negate", Neg)
   , ("not", Not)
-  , ("pk", Pk)
-  , ("toSigma", SBool)
+  , ("pk", SigPk)
+  , ("toSigma", SigBool)
   , ("lengthText", TextLength)
   , ("hashBlake", HashBlake)
   , ("hashSha", HashSha)

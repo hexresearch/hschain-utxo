@@ -23,14 +23,14 @@ getBobDeadline box = vecAt (getBoxIntArgList box) bobDeadlineId
 getBobPubKey :: Expr Box -> Expr Text
 getBobPubKey box = vecAt (getBoxTextArgList box) bobPubKeyId
 
-withdrawScript :: Expr Text -> Expr Bool
+withdrawScript :: Expr Text -> Expr SigmaBool
 withdrawScript carol =
   "bob"         =: getBobPubKey getSelf    $ \bob         ->
   "bobDeadline" =: getBobDeadline getSelf  $ \bobDeadline ->
-  (pk bob &&* getHeight >* bobDeadline) ||* (pk carol &&* getHeight <=* bobDeadline)
+  (pk bob &&* toSigma (getHeight >* bobDeadline)) ||* (pk carol &&* (toSigma $ getHeight <=* bobDeadline))
 
 
-reversibleAddressScript :: Expr Int -> Expr Text -> Expr Bool -> Expr Int -> Expr Bool
+reversibleAddressScript :: Expr Int -> Expr Text -> Expr SigmaBool -> Expr Int -> Expr SigmaBool
 reversibleAddressScript blocksIn24h carol feeProposition maxFee =
   "isChange"   =: (lam "out" $ \out -> getBoxScript out ==* getBoxScript getSelf) $ \isChange ->
   "isWithdraw" =: (lam "out" $ \out ->
@@ -44,7 +44,7 @@ reversibleAddressScript blocksIn24h carol feeProposition maxFee =
                         app isChange out ||* app isWithdraw out ||* app isFee out
                       ) $ \isValid ->
   "totalFee"   =: (foldVec (lam2 "x" "b" $ \x b -> ifB (app isFee b) (x + getBoxValue b) x) 0 getOutputs) $ \totalFee ->
-  pk "alice" &&* allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee)
+  pk "alice" &&* (toSigma $ allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee))
 
 
 

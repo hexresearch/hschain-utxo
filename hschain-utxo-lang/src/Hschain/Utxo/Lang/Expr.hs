@@ -29,7 +29,7 @@ import GHC.Generics
 import Text.Show.Deriving
 
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
-import Hschain.Utxo.Lang.Sigma hiding (SigmaExpr(..))
+import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 
 import qualified Language.HM as H
@@ -502,12 +502,15 @@ getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
 secretVar :: Text -> Text
 secretVar = flip mappend "___"
 
+-- | Type tag for type-safe construction
+data SigmaBool
+
 -- | Sigma-expressions
 data SigmaExpr a
-  = Pk Loc a
-  | SigmaAnd Loc a a
-  | SigmaOr Loc a a
-  | SigmaBool Loc a
+  = Pk Loc a         -- ^ key ownership
+  | SAnd Loc a a     -- ^ sigma and
+  | SOr Loc a a      -- ^ sigma or
+  | SPrimBool Loc a  -- ^ constant bool
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Expressions that operate on vectors

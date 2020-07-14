@@ -133,7 +133,7 @@ sendTxDelayed from fromBox to delayDiff amount = do
   toBox     <- allocAddress to
   backBox   <- allocAddress from
   refundBox <- allocAddress from
-  currentHeight <- fmap fromInteger $ M.getHeight
+  currentHeight <- M.getHeight
   totalAmount <- fmap (fromMaybe 0) $ M.getBoxBalance fromBox
   let sendTx = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
       preTx = toSendTxDelayed from sendTx Nothing
@@ -194,10 +194,10 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
     -- receiver can get money only hieght is greater than specified limit
     receiverScript =
             pk' (getWalletPublicKey sendDelayed'recepientWallet)
-        &&* getSpendHeight <* getHeight
+        &&* toSigma (getSpendHeight <* getHeight)
 
     -- sender can get money back if hieght is less or equals to specified limit
     refundScript =
             senderPk
-        &&* getSpendHeight >=* getHeight
+        &&* toSigma (getSpendHeight >=* getHeight)
 

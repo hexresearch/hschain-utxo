@@ -10,6 +10,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Bifunctor
 import Data.Bool
+import Data.Int
 import Data.Proxy
 import Data.Text (Text)
 import GHC.Generics
@@ -94,7 +95,7 @@ getTxSigma txHash = liftClientM (getTxSigma' txHash)
 getEnv :: ClientM GetEnvResponse
 getEnv = liftClientM getEnv'
 
-getHeight :: ClientM Integer
+getHeight :: ClientM Int64
 getHeight = fmap (\(GetEnvResponse env) -> env'height env) getEnv
 
 getState :: ClientM BoxChain

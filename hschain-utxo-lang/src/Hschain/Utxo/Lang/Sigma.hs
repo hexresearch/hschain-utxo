@@ -12,7 +12,7 @@ module Hschain.Utxo.Lang.Sigma(
   , ProofEnv
   , Proof
   , Sigma
-  , SigmaExpr(..)
+  , SigmaF(..)
   , newProof
   , verifyProof
   , notSigma
@@ -127,12 +127,12 @@ newProof env expr =
 verifyProof :: Proof -> Bool
 verifyProof = Sigma.verifyProof
 
-type Sigma k = Fix (SigmaExpr k)
+type Sigma k = Fix (SigmaF k)
 
 deriving anyclass instance NFData k => NFData (Sigma k)
 
 -- | Sigma-expression
-data SigmaExpr k a =
+data SigmaF k a =
     SigmaPk k      -- ownership of the key (contains public key)
   | SigmaAnd [a]   -- and-expression
   | SigmaOr  [a]   -- or-expression
@@ -140,9 +140,9 @@ data SigmaExpr k a =
   deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData)
 
 instance Serialise k => Serialise (Sigma k)
-instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)
+instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
 
-instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaExpr k a) where
+instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
   hashStep = genericHashStep Sigma.hashDomain
 
 
@@ -246,4 +246,4 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
                         else False
       _ -> False
 
-$(deriveShow1 ''SigmaExpr)
+$(deriveShow1 ''SigmaF)

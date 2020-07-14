@@ -111,7 +111,7 @@ fromScript :: Script -> Either Text (Expr Bool)
 fromScript (Script txt) = parseScript txt
 
 -- | Convert boolean expression to script.
-toScript :: Expr Bool -> Script
+toScript :: Expr SigmaBool -> Script
 toScript (Expr expr) = Script $ T.pack $ prettyExp expr
 
 encodeScript :: ExecCtx -> Lang -> Text

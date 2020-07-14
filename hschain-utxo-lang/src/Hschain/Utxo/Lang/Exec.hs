@@ -54,13 +54,17 @@ import qualified Language.HM as H
 
 import qualified Hschain.Utxo.Lang.Sigma as S
 
-{- for debug
+-- {- for debug
 import Debug.Trace
+import Hschain.Utxo.Lang.Pretty
 import Text.Show.Pretty (ppShow)
 
 trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
--}
+
+trace2 :: Lang -> a -> a
+trace2 expr x = trace (T.unpack $ renderText expr) x
+-- -}
 
 -- | Context of execution
 data Ctx = Ctx
@@ -462,7 +466,7 @@ execLang (Fix topExpr) = case topExpr of
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix $ Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a') arg'
           Cons src name vs -> rec $ Fix $ Cons src name (mappend vs $ V.singleton arg)
-          other              -> throwError $ ExecError $ AppliedNonFunction $ Fix other
+          other              -> throwError $ ExecError $ trace2 (Fix topExpr) $ AppliedNonFunction $ Fix other
 
     desugarGenLamPattern newVar pat body =
       Fix $ CaseOf (H.getLoc newVar) (Fix $ Var (H.getLoc newVar) newVar)
@@ -521,17 +525,18 @@ execLang (Fix topExpr) = case topExpr of
       x' <- mapM rec x
       case x' of
         Pk loc a         -> fromPk loc a
-        SigmaAnd loc a b -> fromSigmaOp S.SigmaAnd loc a b
-        SigmaOr loc a b  -> fromSigmaOp S.SigmaOr loc a b
-        SigmaBool loc a  -> fromSigmaBool loc a
+        SAnd loc a b     -> fromSigmaOp S.SigmaAnd loc a b
+        SOr loc a b      -> fromSigmaOp S.SigmaOr loc a b
+        SPrimBool loc a  -> fromSigmaBool loc a
 
     fromSigmaOp cons loc a b = do
       a' <- getPrimSigmaOrFail =<< rec a
       b' <- getPrimSigmaOrFail =<< rec b
       return $ Fix $ PrimE loc $ PrimSigma $ Fix $ cons [a', b']
 
-    fromSigmaBool = undefined
-
+    fromSigmaBool loc a = do
+      a' <- getPrimBoolOrFail =<< rec a
+      return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaBool a'
 
     fromVec loc x = do
       x' <- mapM rec x
@@ -666,10 +671,18 @@ getPrimSigma = \case
   PrimSigma p -> Just p
   _           -> Nothing
 
+getPrimBool :: Prim -> Maybe Bool
+getPrimBool = \case
+  PrimBool b -> Just b
+  _          -> Nothing
+
 getPrimSigmaOrFail :: Lang -> Exec (Sigma PublicKey)
 getPrimSigmaOrFail x = maybe (thisShouldNotHappen x) pure $
   getPrim x >>= (\(_, p) -> getPrimSigma p)
 
+getPrimBoolOrFail :: Lang -> Exec Bool
+getPrimBoolOrFail x = maybe (thisShouldNotHappen x) pure $
+  getPrim x >>= (\(_, p) -> getPrimBool p)
 
 {- for debug
 traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
