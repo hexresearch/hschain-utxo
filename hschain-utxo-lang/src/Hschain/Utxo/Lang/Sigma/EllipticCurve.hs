@@ -12,7 +12,7 @@ import Crypto.Error
 import Data.Bits
 import Data.Coerce
 import Data.Function (on)
-
+import HSChain.Crypto.Classes (ByteRepr(..))
 import GHC.Generics
 
 import qualified Codec.Serialise          as CBOR
@@ -90,6 +90,22 @@ instance Ord (ECPoint   Ed25519) where
 instance Ord (ECScalar  Ed25519) where
   compare = coerce (compare `on` (Ed.scalarEncode :: Ed.Scalar -> BS.ByteString))
 
+
+instance ByteRepr (ECPoint Ed25519) where
+  decodeFromBS bs = case Ed.pointDecode bs of
+    CryptoPassed p -> Just $ ECPoint25519 p
+    CryptoFailed _ -> Nothing
+  encodeToBS (ECPoint25519 p) = Ed.pointEncode p
+
+instance ByteRepr (ECScalar Ed25519) where
+  decodeFromBS bs = case Ed.scalarDecodeLong bs of
+    CryptoPassed p -> Just $ ECScalar25519 p
+    CryptoFailed _ -> Nothing
+  encodeToBS (ECScalar25519 p) = Ed.scalarEncode p
+
+instance ByteRepr (Challenge Ed25519) where
+  decodeFromBS = Just . ChallengeEd25519
+  encodeToBS   = coerce
 
 instance CBOR.Serialise (ECPoint Ed25519) where
   encode = CBOR.encode . id @BS.ByteString . Ed.pointEncode . coerce
