@@ -329,7 +329,7 @@ newInstance = fmap (uncurry apply) . cataM go . unSignature
       MonoT ty -> return (mempty, ty)
       ForAllT loc v (Subst m, ty) -> fmap (\nv -> (Subst $ M.insert v (varT loc nv) m, ty)) freshVar
 
-newVar :: IsVar v => Origin loc -> v -> Signature' loc v
+newVar :: IsVar v => loc -> v -> Signature loc v
 newVar loc tvn = monoT $ varT loc tvn
 
 freshVar :: IsVar v => InferM loc v v
