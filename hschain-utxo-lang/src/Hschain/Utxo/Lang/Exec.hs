@@ -44,7 +44,7 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
-import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText)
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText, eliminateSigmaBool)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -54,7 +54,7 @@ import qualified Language.HM as H
 
 import qualified Hschain.Utxo.Lang.Sigma as S
 
--- {- for debug
+{- for debug
 import Debug.Trace
 import Hschain.Utxo.Lang.Pretty
 import Text.Show.Pretty (ppShow)
@@ -64,7 +64,7 @@ trace' x = trace (ppShow x) x
 
 trace2 :: Lang -> a -> a
 trace2 expr x = trace (T.unpack $ renderText expr) x
--- -}
+-}
 
 -- | Context of execution
 data Ctx = Ctx
@@ -466,7 +466,7 @@ execLang (Fix topExpr) = case topExpr of
             arg' <- rec arg
             return $ Fix $ Apply loc (Fix $ Apply loc1 (Fix (VecE loc2 (VecFold loc3))) a') arg'
           Cons src name vs -> rec $ Fix $ Cons src name (mappend vs $ V.singleton arg)
-          other              -> throwError $ ExecError $ trace2 (Fix topExpr) $ AppliedNonFunction $ Fix other
+          other              -> throwError $ ExecError $ AppliedNonFunction $ Fix other
 
     desugarGenLamPattern newVar pat body =
       Fix $ CaseOf (H.getLoc newVar) (Fix $ Var (H.getLoc newVar) newVar)
@@ -696,7 +696,9 @@ traceFun name f x =
 exec :: ExecCtx -> TxArg -> (Bool, Text)
 exec ctx tx
   | txPreservesValue tx = case res of
-        Right (SigmaResult sigma) -> maybe (False, "No proof submitted") (\proof -> (S.equalSigmaProof sigma proof && S.verifyProof proof, debug)) mProof
+        Right (SigmaResult sigmaWithBools) -> case eliminateSigmaBool sigmaWithBools of
+          Right sigma -> maybe (False, "No proof submitted") (\proof -> (S.equalSigmaProof sigma proof && S.verifyProof proof, debug)) mProof
+          Left bool   -> (bool, "")
         Right (ConstBool bool)  -> (bool, "")
         Left err    -> (False, err)
   | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
@@ -728,7 +730,9 @@ execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
   where
     execExpr (Expr x) =
       case runExec ctx txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> (Right $ SigmaResult b, msg)
+        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> case eliminateSigmaBool b of
+          Left bool                               -> (Right $ ConstBool bool, msg)
+          Right sigma                             -> (Right $ SigmaResult sigma, msg)
         Right (Fix (PrimE _ (PrimBool b)), msg)   -> (Right $ ConstBool b, msg)
         Right _                                   -> (Left noSigmaExpr, noSigmaExpr)
         Left err                                  -> (Left (showt err), showt err)

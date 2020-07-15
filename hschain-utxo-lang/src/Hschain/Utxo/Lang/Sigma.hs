@@ -26,6 +26,7 @@ module Hschain.Utxo.Lang.Sigma(
   , toProofEnv
   , equalSigmaExpr
   , equalSigmaProof
+  , eliminateSigmaBool
   ) where
 
 import Hex.Common.Serialise

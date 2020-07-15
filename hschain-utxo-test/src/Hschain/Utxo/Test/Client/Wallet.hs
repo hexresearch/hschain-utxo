@@ -17,6 +17,8 @@ module Hschain.Utxo.Test.Client.Wallet(
   , getTxSigmaUnsafe
 ) where
 
+import Hex.Common.Text
+
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Control.Monad.Except
@@ -113,6 +115,7 @@ newSendTx wallet send@Send{..} = do
   back <- getSendBack
   preTx <- toSendTx wallet send back Nothing
   eSigma <- getTxSigma preTx
+  logTest $ T.unlines ["PRE TX SIGMA:", showt eSigma]
   fmap join $ forM eSigma $ \sigma -> do
     let env = getProofEnv wallet
     eProof <- liftIO $ newProof env sigma
