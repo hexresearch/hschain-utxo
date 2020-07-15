@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | It defines types and functions for Sigma-expressions.
 -- Sigma-expressions are used to sign scripts without providing
 -- the information on who signed the script.
@@ -94,12 +93,6 @@ publicKeyFromText = serialiseFromText
 -- | Convert public key to text.
 publicKeyToText :: PublicKey -> Text
 publicKeyToText = serialiseToText
-
-instance FromJSON Proof where
-  parseJSON = serialiseFromJSON
-
-instance ToJSON Proof where
-  toJSON = serialiseToJSON
 
 instance Serialise a => ToJSON (Sigma a) where
   toJSON = serialiseToJSON
