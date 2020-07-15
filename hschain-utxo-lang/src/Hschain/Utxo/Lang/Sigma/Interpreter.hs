@@ -81,10 +81,7 @@ data Proof a = Proof
   , proof'tree          :: ProvenTree a  -- ^ expression to prove
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a)
-         , CBOR.Serialise (ECScalar a)
-         , CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (Proof a)
+instance (EC a) => CBOR.Serialise (Proof a)
 instance ( CryptoHashable (ECPoint a)
          , CryptoHashable (ECScalar a)
          , CryptoHashable (Challenge a)
@@ -113,8 +110,7 @@ data ProvenTree a
       } -- ^ chalenges are calculated
   deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (ProvenTree a)
+instance (EC a) => CBOR.Serialise (ProvenTree a)
 
 instance ( CryptoHashable (ECScalar  a)
          , CryptoHashable (ECPoint   a)
@@ -133,10 +129,7 @@ data OrChild a = OrChild
   , orChild'tree      :: ProvenTree a
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a)
-         , CBOR.Serialise (ECScalar a)
-         , CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (OrChild a)
+instance (EC a) => CBOR.Serialise (OrChild a)
 
 instance ( CryptoHashable (ECScalar  a)
          , CryptoHashable (ECPoint   a)
