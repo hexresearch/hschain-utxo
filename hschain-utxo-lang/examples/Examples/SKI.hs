@@ -75,7 +75,7 @@ exampleSKK3 = CoreProg
 -- Helpers
 ----------------------------------------------------------------
 
-mkMain :: Typed Expr -> Scomb
+mkMain :: Typed ExprCore -> Scomb
 mkMain s = Scomb
   { scomb'name = "main"
   , scomb'args = mempty

@@ -15,8 +15,8 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import qualified Data.Sequence   as Seq
 
 -- | Collects all lambdas to top-level supercombinators.
-collect :: CoreProg -> CoreProg
-collect (CoreProg prog) = CoreProg $ scs <> prog'
+collect :: LamProg -> LamProg
+collect (LamProg prog) = LamProg $ scs <> prog'
   where
     (prog', scs) = runCollectM $ mapM collectDef $ fmap (fmap fuseSingleLet) prog
 
@@ -38,7 +38,7 @@ collectDef def@Def{..} =
                   -> collectDef $ def { def'body = body }
     _ -> mapM collectExpr def
 
-collectExpr :: Expr Name -> CollectM (Expr Name)
+collectExpr :: ExprLam Name -> CollectM (ExprLam Name)
 collectExpr = cataM $ \case
   ELet loc binds body -> letExpr loc binds body
   other           -> pure $ Fix other
@@ -52,7 +52,7 @@ collectExpr = cataM $ \case
       where
         (scs, nonScs) = partitionBy  getSc binds
 
-    getSc :: (Name, Expr Name) -> Maybe (Comb Name)
+    getSc :: (Name, ExprLam Name) -> Maybe (Comb Name)
     getSc (name, Fix x) = case x of
       ELam loc args body -> Just $ Def (VarName loc name) args body
       _                  -> Nothing
@@ -78,7 +78,7 @@ partitionBy f xs = case xs of
 -- > in ...
 --
 -- It reduces the number of trivial let-bindings
-fuseSingleLet :: Expr Name -> Expr Name
+fuseSingleLet :: ExprLam Name -> ExprLam Name
 fuseSingleLet = cata $ \case
   ELet loc binds body -> Fix $ ELet loc (fmap procBinds binds) body
   other           -> Fix other

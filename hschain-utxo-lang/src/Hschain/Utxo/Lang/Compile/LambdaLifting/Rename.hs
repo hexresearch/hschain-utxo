@@ -29,8 +29,8 @@ runRenameM a = evalState a 0
 -- | Rename all local variables in the functions.
 -- We allocate new names for all top-level argument variables,
 -- let bindings, case-bindings, lambda expression arguments
-rename :: CoreProg -> CoreProg
-rename (CoreProg prog) = CoreProg $ runRenameM $ mapM renameComb prog
+rename :: LamProg -> LamProg
+rename (LamProg prog) = LamProg $ runRenameM $ mapM renameComb prog
 
 renameComb :: Comb Name -> RenameM (Comb Name)
 renameComb def@Def{..} = do
@@ -41,7 +41,7 @@ renameComb def@Def{..} = do
     , def'body = body'
     }
 
-renameExpr :: Map Name Name -> Expr Name -> RenameM (Expr Name)
+renameExpr :: Map Name Name -> ExprLam Name -> RenameM (ExprLam Name)
 renameExpr env (Fix expr) =
   case expr of
     EVar loc v          -> var loc v
@@ -93,7 +93,7 @@ renameExpr env (Fix expr) =
       alts' <- mapM (renameCaseAlts env) alts
       return $ Fix $ ECase loc e' alts'
 
-renameCaseAlts :: Map Name Name -> CaseAlt Name (Expr Name) -> RenameM (CaseAlt Name (Expr Name))
+renameCaseAlts :: Map Name Name -> CaseAlt Name (ExprLam Name) -> RenameM (CaseAlt Name (ExprLam Name))
 renameCaseAlts env CaseAlt{..} = do
   (args', env') <- allocTypedNames caseAlt'args
   rhs' <- renameExpr (env' <> env) caseAlt'rhs

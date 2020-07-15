@@ -33,8 +33,8 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as S
 
 -- | Makes types monomorphic.
-makeMonomorphic :: MonadLang m => TypedProg -> m TypedProg
-makeMonomorphic (AnnProg prog) = runMono progMap (makeMono context)
+makeMonomorphic :: MonadLang m => TypedLamProg -> m TypedLamProg
+makeMonomorphic (AnnLamProg prog) = runMono progMap (makeMono context)
   where
     progMap = M.fromList $ fmap (\x -> (varName'name $ def'name x, x)) prog
     context = fmap getDefType progMap
@@ -44,8 +44,8 @@ type ProgMap = Map Name TypedDef
 type Context = Map Name Type
 type Subst = H.Subst () Name
 
-runMono :: MonadLang m => ProgMap -> Mono a -> m TypedProg
-runMono sourceProg m = liftEither $ fmap (AnnProg . M.elems . monoSt'resultProg) $ execStateT m initSt
+runMono :: MonadLang m => ProgMap -> Mono a -> m TypedLamProg
+runMono sourceProg m = liftEither $ fmap (AnnLamProg . M.elems . monoSt'resultProg) $ execStateT m initSt
   where
     initSt = MonoSt
       { monoSt'seeds = initSeed
@@ -134,12 +134,12 @@ removeLetSubsts names (LetSubst m) = LetSubst $ M.difference m (M.fromList $ fma
 
 -- Result of substitution of expression
 data SubstResult = SubstResult
-  { substResult'seeds       :: [Typed Name]               -- ^ free variables that expression depends on
-  , _substResult'localSubst :: LetSubst                   -- ^ type substitution for local definitions
-  , substResult'expr        :: AnnExpr Type (Typed Name)  -- ^ result expression
+  { substResult'seeds       :: [Typed Name]    -- ^ free variables that expression depends on
+  , _substResult'localSubst :: LetSubst        -- ^ type substitution for local definitions
+  , substResult'expr        :: TypedExprLam    -- ^ result expression
   }
 
-substExpr :: SubstCtx -> AnnExpr Type (Typed Name) -> Mono SubstResult
+substExpr :: SubstCtx -> TypedExprLam -> Mono SubstResult
 substExpr env (Fix (Ann ty expr)) =
   case expr of
     EVar loc name               -> onVar loc name
@@ -338,7 +338,7 @@ specifyDef subst def@Def{..} = def
   , def'body = applySubstAnnExpr subst def'body
   }
 
-applySubstAnnExpr :: Subst -> TypedExpr -> TypedExpr
+applySubstAnnExpr :: Subst -> TypedExprLam -> TypedExprLam
 applySubstAnnExpr subst = cata $ \case
   Ann ty expr -> Fix $ Ann (H.apply subst ty) $
     case expr of
@@ -371,7 +371,7 @@ getSubstName (H.Subst m) (VarName loc name) = VarName loc $
 
     joinNames = mconcat . L.intersperse "_"
 
-isMonoExpr :: TypedExpr -> Bool
+isMonoExpr :: TypedExprLam -> Bool
 isMonoExpr = isMonoT . getAnnType
 
 isMonoT :: Type -> Bool
@@ -408,7 +408,7 @@ getDefType Def{..} = foldr (\a b -> H.arrowT () a b) rhs args
     args = fmap typed'type def'args
     rhs  = getAnnType def'body
 
-getAnnType :: AnnExpr Type (Typed Name) -> Type
+getAnnType :: TypedExprLam -> Type
 getAnnType (Fix (Ann ty _)) = ty
 
 unify :: Type -> Type -> Mono Type
@@ -424,8 +424,8 @@ unifySubst tA tB = case H.unifyTypes tA tB of
 -- information to what operator we should specify.
 -- If it still remains polymorphic we throw an error
 -- that we have failed to specify the types.
-specifyCompareOps :: MonadLang m => TypedProg -> m TypedProg
-specifyCompareOps = liftTypedProg $ cataM $ \case
+specifyCompareOps :: MonadLang m => TypedLamProg -> m TypedLamProg
+specifyCompareOps = liftTypedLamProg $ cataM $ \case
   Ann ty expr -> fmap (Fix . Ann ty) $ case expr of
     EVar loc name -> checkCompOp ty loc name
     other         -> pure other

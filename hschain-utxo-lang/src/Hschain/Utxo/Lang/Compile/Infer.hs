@@ -61,9 +61,9 @@ toType :: H.Type Loc Tag -> Type
 toType = H.mapLoc (const ()) . fmap fromTag
 
 -- | Infers types for all subexpressions
-annotateTypes :: forall m . MonadLang m => CoreProg -> m TypedProg
+annotateTypes :: forall m . MonadLang m => LamProg -> m TypedLamProg
 annotateTypes =
-  fmap (AnnProg . reverse . snd) . foldM go (libTypeContext, []) . unCoreProg . orderDependencies
+  fmap (AnnLamProg . reverse . snd) . foldM go (libTypeContext, []) . unLamProg . orderDependencies
   where
     go (ctx, prog) comb = do
       (combT, combTyped) <- typeDef ctx comb
@@ -85,7 +85,7 @@ annotateTypes =
       | otherwise     = Fix $ ELam (H.getLoc def'name) def'args def'body
                          -- todo consider to add locations to definitions
 
-    toInferExpr :: Expr Name -> H.Term PrimLoc Loc Tag
+    toInferExpr :: ExprLam Name -> H.Term PrimLoc Loc Tag
     toInferExpr = cata $ \case
       EVar loc name   -> H.varE loc (VarTag name)
       EPrim loc prim  -> H.primE loc prim
@@ -117,7 +117,7 @@ annotateTypes =
         -- we need to know the types of the constructors on this stage:
         toArg (Typed val ty) = H.Typed (eraseWith caseAlt'loc ty) (caseAlt'loc, VarTag val)
 
-    fromInferExpr :: H.TyTerm PrimLoc Loc Tag -> m (AnnExpr Type (Typed Name))
+    fromInferExpr :: H.TyTerm PrimLoc Loc Tag -> m TypedExprLam
     fromInferExpr (H.TyTerm x) = flip cataM x $ \case
       H.Ann ty expr -> fmap (Fix . Ann (toType ty)) $ case expr of
         H.Var loc name -> pure $ EVar loc (fromTag name)

@@ -17,8 +17,8 @@ import Data.Fix
 
 import qualified Language.Haskell.Exts.Syntax as H
 
-toHaskProg :: CoreProg -> H.Module Loc
-toHaskProg (CoreProg prog) = H.Module noLoc modHead modPragmas modImports decls
+toHaskProg :: LamProg -> H.Module Loc
+toHaskProg (LamProg prog) = H.Module noLoc modHead modPragmas modImports decls
   where
     modHead    = Nothing
     modPragmas = []
@@ -38,7 +38,7 @@ toHaskDecl Def{..} = H.FunBind defLoc [match]
     name   = toName def'name
     binds  = Nothing
 
-toHaskExpr :: Expr Name -> H.Exp Loc
+toHaskExpr :: ExprLam Name -> H.Exp Loc
 toHaskExpr = cata $ \case
   EVar loc name            -> toVar loc name
   EPrim _ (PrimLoc loc p)  -> toPrim loc p

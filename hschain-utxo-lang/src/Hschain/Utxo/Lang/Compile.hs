@@ -19,6 +19,8 @@ import Hschain.Utxo.Lang.Monad
 
 import qualified Data.Vector as V
 
+
+import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore)
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
 
@@ -30,8 +32,8 @@ compile =
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
-toCoreProg :: forall m . MonadLang m => TypedProg -> m Core.CoreProg
-toCoreProg = fmap Core.CoreProg . mapM toScomb . unAnnProg
+toCoreProg :: forall m . MonadLang m => TypedLamProg -> m CoreProg
+toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
   where
     toScomb :: AnnComb Type (Typed Name) -> m Core.Scomb
     toScomb Def{..} = do
@@ -42,7 +44,7 @@ toCoreProg = fmap Core.CoreProg . mapM toScomb . unAnnProg
           , Core.scomb'body = expr
           }
 
-    toCoreExpr :: AnnExpr Type (Typed Name) -> m (Typed Core.ExprCore)
+    toCoreExpr :: TypedExprLam -> m (Typed ExprCore)
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
       where
         convert (Ann exprTy val) = case val of

@@ -20,8 +20,8 @@ import qualified Language.HM as H(getLoc, LocFunctor(..))
 
 import qualified Hschain.Utxo.Lang.Parser.Hask.ToHask as H(toHaskType)
 
-toHaskProg :: TypedProg -> H.Module Loc
-toHaskProg (AnnProg prog) = H.Module noLoc modHead modPragmas modImports decls
+toHaskProg :: TypedLamProg -> H.Module Loc
+toHaskProg (AnnLamProg prog) = H.Module noLoc modHead modPragmas modImports decls
   where
     modHead    = Nothing
     modPragmas = []
@@ -50,7 +50,7 @@ funDecl Def{..} = H.FunBind defLoc [match]
     name   = toName def'name
     binds  = Nothing
 
-toHaskExpr :: TypedExpr -> H.Exp Loc
+toHaskExpr :: TypedExprLam -> H.Exp Loc
 toHaskExpr = cata $ \case
   Ann exprTy expr -> withSig (H.getLoc expr) exprTy $ case expr of
     EVar loc name              -> toVar loc name

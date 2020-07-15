@@ -14,17 +14,17 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import qualified Data.Set        as S
 
 -- | Annotates expression tree with free vars.
-annotateFreeVars :: CoreProg -> AnnProg (Set Name) Name
-annotateFreeVars (CoreProg prog) = AnnProg $ fmap onDef prog
+annotateFreeVars :: LamProg -> AnnLamProg (Set Name) Name
+annotateFreeVars (LamProg prog) = AnnLamProg $ fmap onDef prog
   where
     onDef def@Def{..} = fmap (getFreeVars initLocals) def
       where
         initLocals = S.fromList def'args
 
-getLocals :: AnnExpr (Set Name) Name -> Set Name
+getLocals :: AnnExprLam (Set Name) Name -> Set Name
 getLocals = ann'note . unFix
 
-getFreeVars :: Set Name -> Expr Name -> AnnExpr (Set Name) Name
+getFreeVars :: Set Name -> ExprLam Name -> AnnExprLam (Set Name) Name
 getFreeVars localVars (Fix x) = case x of
   EPrim loc p -> prim loc p
   EVar loc v  -> var loc v
@@ -87,7 +87,7 @@ getFreeVars localVars (Fix x) = case x of
 
     bottom loc = Fix $ Ann mempty $ EBottom loc
 
-freeVarAlts :: Set Name -> CaseAlt Name (Expr Name) -> CaseAlt Name (AnnExpr (Set Name) Name)
+freeVarAlts :: Set Name -> CaseAlt Name (ExprLam Name) -> CaseAlt Name (AnnExprLam (Set Name) Name)
 freeVarAlts localVars alt@CaseAlt{..} =
   alt { caseAlt'rhs = Fix $ Ann (getLocals ebody S.\\ argVars) (ann'value $ unFix ebody) }
   where
