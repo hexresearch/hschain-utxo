@@ -60,8 +60,8 @@ skiS name tyA tyB tyC = Scomb
 -- | Example of program
 --
 -- > S K K 3
-exampleSKK3 :: [Scomb]
-exampleSKK3 =
+exampleSKK3 :: CoreProg
+exampleSKK3 = CoreProg
   [ skiK "intT" intT intT
   , skiK "funT" intT (intT `arrowT` intT)
   , skiS ""     intT (intT `arrowT` intT) intT

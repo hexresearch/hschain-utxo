@@ -27,13 +27,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
-  deriving newtype (Generic)
-
-instance Semigroup CoreProg where
-  (CoreProg a) <> (CoreProg b) = CoreProg (a <> b)
-
-instance Monoid CoreProg where
-  mempty = CoreProg []
+  deriving newtype (Generic, Semigroup, Monoid)
 
 coreProgToText :: CoreProg -> Text
 coreProgToText = serialiseToText

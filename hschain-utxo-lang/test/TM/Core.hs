@@ -4,9 +4,12 @@
 -- |
 module TM.Core ( tests )where
 
+import Data.Fix
+
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -20,7 +23,7 @@ tests = testGroup "core"
   [ testGroup "simple"
     [ testCase "spend to key" $ do
         assertBool "typecheck" $ typeCheck preludeTypeContext progSpendToKey
-        Right [PrimSigma (SigmaBool True)] @=? run progSpendToKey
+        Right [PrimSigma (Fix $ SigmaBool True)] @=? run progSpendToKey
       --
     , testCase "Addition" $ do
         assertBool "typecheck" $ typeCheck preludeTypeContext progAddition
@@ -33,17 +36,17 @@ tests = testGroup "core"
 
 
 -- Trivial
-progSpendToKey :: [Scomb]
-progSpendToKey =
+progSpendToKey :: CoreProg
+progSpendToKey = CoreProg
   [ mkMain $ Typed
-    { typed'value = EPrim (PrimSigma (SigmaBool True))
+    { typed'value = EPrim (PrimSigma (Fix $ SigmaBool True))
     , typed'type  = sigmaT
     }
   ]
 
 -- Addition of two integers
-progAddition :: [Scomb]
-progAddition =
+progAddition :: CoreProg
+progAddition = CoreProg
   [ mkMain $ Typed
     { typed'value = EAp
                     (EAp (EVar "+") (EPrim (PrimInt 1)))
