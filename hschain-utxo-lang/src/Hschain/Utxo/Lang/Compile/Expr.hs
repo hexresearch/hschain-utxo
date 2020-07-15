@@ -44,8 +44,10 @@ data AnnDef ann bind = AnnDef
   } deriving (Show, Eq)
 
 newtype AnnProg  ann bind = AnnProg { unAnnProg :: [AnnComb ann bind] }
+  deriving (Show)
 
 newtype CoreProg = CoreProg { unCoreProg :: [Comb Name] }
+  deriving (Show)
 
 type AnnComb ann bind = Def bind (AnnExpr ann bind)
 type Comb bind = Def bind (Expr bind)

@@ -52,7 +52,7 @@ insertContext v ty (Context m) = Context $ M.insert v (monoT ty) m
 instance CanApply Context where
   apply subst = Context . fmap (apply subst) . unContext
 
-insertCtx :: Ord v => v -> Signature' loc v ->  Context' loc v -> Context' loc v
+insertCtx :: Ord v => v -> Signature loc v ->  Context loc v -> Context loc v
 insertCtx v sign (Context ctx) = Context $ M.insert v sign ctx
 
 
@@ -329,7 +329,7 @@ newInstance = fmap (uncurry apply) . cataM go . unSignature
       MonoT ty -> return (mempty, ty)
       ForAllT loc v (Subst m, ty) -> fmap (\nv -> (Subst $ M.insert v (varT loc nv) m, ty)) freshVar
 
-newVar :: IsVar v => Origin loc -> v -> Signature' loc v
+newVar :: IsVar v => loc -> v -> Signature loc v
 newVar loc tvn = monoT $ varT loc tvn
 
 freshVar :: IsVar v => InferM loc v v
