@@ -123,7 +123,7 @@ compileSc Scomb{..} = CompiledScomb
     env   = initEnv $ fmap typed'value scomb'args
     code  = compileR (typed'value scomb'body) env (getArity env)
 
-compileR :: Expr -> Env -> Int -> Code
+compileR :: ExprCore -> Env -> Int -> Code
 compileR expr env arity =
   case expr of
     ELet es e                         -> compileLetR env arity (fmap stripLetType es) e
@@ -149,10 +149,10 @@ compileR expr env arity =
 
     compileCaseR e alts = compileE e env <> Code.singleton (CaseJump $ compileAltsR arity env alts)
 
-stripLetType :: (Typed Name, Expr) -> (Name, Expr)
+stripLetType :: (Typed Name, ExprCore) -> (Name, ExprCore)
 stripLetType (n, e) = (typed'value n, e)
 
-compileLetR :: Env -> Int -> [(Name, Expr)] -> Expr -> Code
+compileLetR :: Env -> Int -> [(Name, ExprCore)] -> ExprCore -> Code
 compileLetR env arity defs e =
   lets <> compileR e env' (arity + length defs)
   where
@@ -160,7 +160,7 @@ compileLetR env arity defs e =
     env' = compileArgs defs env
 
 -- | Compile expression in strict context
-compileE :: Expr -> Env -> Code
+compileE :: ExprCore -> Env -> Code
 compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
   ELet es e -> compileLet env (fmap stripLetType es) e
@@ -189,11 +189,11 @@ compileE expr env = case expr of
 
     defaultCase = compileC expr env <> Code.singleton Eval
 
-compileCase :: Env -> Expr -> [CaseAlt] -> Code
+compileCase :: Env -> ExprCore -> [CaseAlt] -> Code
 compileCase env e alts = compileE e env <> Code.singleton (CaseJump $ compileAlts env alts)
 
 -- | Compile expression in lazy context
-compileC :: Expr -> Env -> Code
+compileC :: ExprCore -> Env -> Code
 compileC expr env = case expr of
   EVar v  -> Code.singleton $ case lookupEnv v env of
                Just n  -> Push n
@@ -210,7 +210,7 @@ compileC expr env = case expr of
   where
     compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
 
-compileLet :: Env -> [(Name, Expr)] -> Expr -> Code
+compileLet :: Env -> [(Name, ExprCore)] -> ExprCore -> Code
 compileLet env defs e =
   lets <> compileE e env' <> Code.singleton (Slide $ length defs)
   where
@@ -218,7 +218,7 @@ compileLet env defs e =
 
     env' = compileArgs defs env
 
-compileArgs :: [(Name, Expr)] -> Env -> Env
+compileArgs :: [(Name, ExprCore)] -> Env -> Env
 compileArgs defs env =
   L.foldl' (\e x -> uncurry insertEnv x e) env' $ zip (fmap fst defs) [n - 1, n - 2 .. 0]
   where
@@ -228,7 +228,7 @@ compileArgs defs env =
 compileAltsR :: Int -> Env -> [CaseAlt] -> CaseMap
 compileAltsR arity = compileAltsBy compileR'
   where
-    compileR' :: Int -> Expr -> Env -> Code
+    compileR' :: Int -> ExprCore -> Env -> Code
     compileR' offset expr env =
          Code.singleton (Split offset)
       <> compileR expr env (offset + arity)
@@ -236,17 +236,17 @@ compileAltsR arity = compileAltsBy compileR'
 compileAlts :: Env -> [CaseAlt] -> CaseMap
 compileAlts = compileAltsBy compileE'
   where
-    compileE' :: Int -> Expr -> Env -> Code
+    compileE' :: Int -> ExprCore -> Env -> Code
     compileE' offset expr env =
         Code.singleton (Split offset)
       <> compileE expr env
       <> Code.singleton (Slide offset)
 
-compileAltsBy :: (Int -> Expr -> Env -> Code) -> Env -> [CaseAlt] -> CaseMap
+compileAltsBy :: (Int -> ExprCore -> Env -> Code) -> Env -> [CaseAlt] -> CaseMap
 compileAltsBy comp env alts =
   IM.fromList $ fmap (compileAlt comp env) alts
 
-compileAlt :: (Int -> Expr -> Env -> Code) -> Env -> CaseAlt -> (Int, Code)
+compileAlt :: (Int -> ExprCore -> Env -> Code) -> Env -> CaseAlt -> (Int, Code)
 compileAlt comp env CaseAlt{..} = (caseAlt'tag, comp arity caseAlt'rhs env')
   where
     arity = length caseAlt'args
@@ -254,7 +254,7 @@ compileAlt comp env CaseAlt{..} = (caseAlt'tag, comp arity caseAlt'rhs env')
     env' = L.foldl' (\e (n, arg) -> insertEnv arg n e) (argOffset arity env) $ zip [0..] (fmap typed'value caseAlt'args)
 
 
-compileB :: Expr -> Env -> Code
+compileB :: ExprCore -> Env -> Code
 compileB expr env = case expr of
   EPrim n                           -> Code.singleton $ PushBasic n
   ELet es e                         -> compileLetB env (fmap stripLetType es) e
@@ -278,15 +278,15 @@ compileB expr env = case expr of
 
     defaultCase = compileE expr env <> Code.singleton Get
 
-compileDiadicInstrB :: Env -> Instr -> Expr -> Expr -> Code
+compileDiadicInstrB :: Env -> Instr -> ExprCore -> ExprCore -> Code
 compileDiadicInstrB env instr a b =
   compileB b env <> compileB a env <> Code.singleton instr
 
-compileUnaryInstrB :: Env -> Instr -> Expr -> Code
+compileUnaryInstrB :: Env -> Instr -> ExprCore -> Code
 compileUnaryInstrB env instr a =
   compileB a env <> Code.singleton instr
 
-compileLetB :: Env -> [(Name, Expr)] -> Expr -> Code
+compileLetB :: Env -> [(Name, ExprCore)] -> ExprCore -> Code
 compileLetB env defs e =
   lets <> compileB e env' <> Code.singleton (Pop $ length defs)
   where

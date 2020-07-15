@@ -33,7 +33,7 @@ depIsAcyclic deps = all isAcyclic $ G.stronglyConnComp depGraph
       G.CyclicSCC _  -> False
 
 -- | Find free variables for expression.
-freeVars :: Expr -> Set Name
+freeVars :: ExprCore -> Set Name
 freeVars = \case
   EVar name     -> S.singleton name
   EPrim _       -> S.empty
@@ -67,7 +67,7 @@ checkLets :: Scomb -> Bool
 checkLets = checkLetExpr . typed'value . scomb'body
 
 -- | Check all subexpressions that let'bindings are acyclic.
-checkLetExpr :: Expr -> Bool
+checkLetExpr :: ExprCore -> Bool
 checkLetExpr = \case
   EAp f a       -> checkLetExpr f && checkLetExpr a
   ELet binds e  -> checkBinds binds e

@@ -4,7 +4,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , Scomb(..)
   , Typed(..)
   , Type
-  , Expr(..)
+  , ExprCore(..)
   , CaseAlt(..)
   , CompiledScomb(..)
   , coreProgToText
@@ -15,6 +15,7 @@ import Hex.Common.Serialise
 
 import Codec.Serialise
 
+import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -41,22 +42,22 @@ coreProgFromText = serialiseFromText
 data Scomb = Scomb
   { scomb'name :: Name                 -- ^ name of supercombinator
   , scomb'args :: Vector (Typed Name)  -- ^ list of arguments
-  , scomb'body :: Typed Expr           -- ^ body
+  , scomb'body :: Typed ExprCore       -- ^ body
   } deriving (Show, Eq, Generic)
 
 -- | Expressions of the Core-language
-data Expr
+data ExprCore
   = EVar !Name
   -- ^ variables
   | EPrim !Prim
   -- ^ constant primitive
-  | EAp  Expr Expr
+  | EAp  ExprCore ExprCore
   -- ^ application
-  | ELet [(Typed Name, Expr)] Expr
+  | ELet [(Typed Name, ExprCore)] ExprCore
   -- ^ lent bindings
-  | EIf Expr Expr Expr
+  | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
-  | ECase !(Typed Expr) [CaseAlt]
+  | ECase !(Typed ExprCore) [CaseAlt]
   -- ^ case alternatives
   | EConstr Type !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
@@ -72,7 +73,7 @@ data CaseAlt = CaseAlt
   -- (integer substitution for the name of constructor)
   , caseAlt'args  :: [Typed Name]
   -- ^ arguments of the pattern matching
-  , caseAlt'rhs   :: Expr
+  , caseAlt'rhs   :: ExprCore
   -- ^ right-hand side of the case-alternative
   } deriving (Show, Eq, Generic)
 
@@ -87,8 +88,10 @@ data CompiledScomb = CompiledScomb
 -- instances
 
 instance Serialise CaseAlt
-instance Serialise Expr
+instance Serialise ExprCore
 instance Serialise Scomb
 instance Serialise CoreProg
 
+instance IsString ExprCore where
+  fromString = EVar . fromString
 

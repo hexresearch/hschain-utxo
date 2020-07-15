@@ -108,7 +108,7 @@ typeCheckScomb Scomb{..} =
   local (loadArgs (V.toList scomb'args)) $
     typeCheckExpr scomb'body
 
-typeCheckExpr :: Typed Expr -> Check Bool
+typeCheckExpr :: Typed ExprCore -> Check Bool
 typeCheckExpr Typed{..} =
   fmap (hasType (MonoType typed'type)) $ inferExpr typed'value
 
@@ -123,7 +123,7 @@ fromMonoType = \case
 isMonoType :: MonoType -> Bool
 isMonoType x = isJust $ fromMonoType x
 
-inferExpr :: Expr -> Check MonoType
+inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
     EPrim prim     -> inferPrim prim
@@ -140,7 +140,7 @@ inferVar name = fmap MonoType $ getType name
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
 
-inferAp :: Expr -> Expr -> Check MonoType
+inferAp :: ExprCore -> ExprCore -> Check MonoType
 inferAp f a = do
   fT <- inferExpr f
   aT <- inferExpr a
@@ -160,22 +160,22 @@ inferAp f a = do
           H.ArrowT () arg res -> Just (MonoType $ H.Type arg, MonoType $ H.Type res)
           _                   -> Nothing
 
-inferLet :: [(Typed Name, Expr)] -> Expr -> Check MonoType
+inferLet :: [(Typed Name, ExprCore)] -> ExprCore -> Check MonoType
 inferLet binds body = local (loadArgs (fmap fst binds)) $ do
   mapM_ (uncurry checkBind) binds
   inferExpr body
   where
-    checkBind :: Typed Name -> Expr -> Check ()
+    checkBind :: Typed Name -> ExprCore -> Check ()
     checkBind Typed{..} expr = do
       ty <- inferExpr expr
       guard $ hasType ty (MonoType typed'type)
 
-inferCase :: Typed Expr -> [CaseAlt] -> Check MonoType
+inferCase :: Typed ExprCore -> [CaseAlt] -> Check MonoType
 inferCase e alts = do
   checkTop e
   getResultType =<< mapM inferAlt alts
   where
-    checkTop :: Typed Expr -> Check ()
+    checkTop :: Typed ExprCore -> Check ()
     checkTop Typed{..} = do
       ty <- inferExpr typed'value
       guard $ hasType ty (MonoType typed'type)
@@ -191,7 +191,7 @@ inferAlt CaseAlt{..} =
   local (loadArgs caseAlt'args) $
     inferExpr caseAlt'rhs
 
-inferIf :: Expr -> Expr -> Expr -> Check MonoType
+inferIf :: ExprCore -> ExprCore -> ExprCore -> Check MonoType
 inferIf c t e = do
   cT <- inferExpr c
   tT <- inferExpr t
