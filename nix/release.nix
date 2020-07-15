@@ -61,7 +61,7 @@ let
       locals = localsToOverrides cabalProject hsNew;
       # HSChain packages
       callHSChain = name: hsNew.callCabal2nixWithOptions name
-        (pkgs.fetchgit pkgConfig.hschain)
+        (builtins.fetchGit pkgConfig.hschain)
         ("--subpath " + name)
         {};
     in

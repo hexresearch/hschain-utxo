@@ -8,15 +8,14 @@ module Hschain.Utxo.Lang.Sigma.EllipticCurve(
 import Control.DeepSeq (NFData)
 
 import Crypto.Error
-
+import Data.Aeson (FromJSON(..),ToJSON(..),FromJSONKey(..),ToJSONKey(..))
 import Data.Bits
 import Data.Coerce
 import Data.Function (on)
-
+import HSChain.Crypto.Classes
 import GHC.Generics
 
 import qualified Codec.Serialise          as CBOR
-import qualified Codec.Serialise.Decoding as CBOR
 import qualified Crypto.ECC.Edwards25519  as Ed
 import qualified Crypto.Hash.Algorithms   as Hash
 import qualified Crypto.Hash              as Hash
@@ -25,8 +24,12 @@ import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
 import HSChain.Crypto.Classes.Hash
 
+
 -- | Operations with elliptic curve
-class EC a where
+class ( ByteRepr (ECPoint   a)
+      , ByteRepr (ECScalar  a)
+      , ByteRepr (Challenge a)
+      ) => EC a where
   data ECPoint   a
   data ECScalar  a
   data Challenge a
@@ -45,6 +48,43 @@ class EC a where
   -- Group operations
   (^+^)   :: ECPoint  a -> ECPoint  a -> ECPoint  a
   negateP :: ECPoint a -> ECPoint a
+
+instance ByteRepr (ECPoint a) => FromJSON (ECPoint a) where
+  parseJSON = defaultParseJSON "ECPoint"
+instance ByteRepr (ECPoint a) => ToJSON (ECPoint a) where
+  toJSON = defaultToJSON
+instance ByteRepr (ECPoint a) => FromJSONKey (ECPoint a) where
+  fromJSONKey = defaultFromJsonKey "ECPoint"
+instance ByteRepr (ECPoint a) => ToJSONKey   (ECPoint a) where
+  toJSONKey = defaultToJsonKey
+instance ByteRepr (ECPoint a) => CBOR.Serialise (ECPoint a) where
+  encode = defaultCborEncode
+  decode = defaultCborDecode "ECPoint"
+
+instance ByteRepr (ECScalar a) => FromJSON (ECScalar a) where
+  parseJSON = defaultParseJSON "ECScalar"
+instance ByteRepr (ECScalar a) => ToJSON (ECScalar a) where
+  toJSON = defaultToJSON
+instance ByteRepr (ECScalar a) => FromJSONKey (ECScalar a) where
+  fromJSONKey = defaultFromJsonKey "ECScalar"
+instance ByteRepr (ECScalar a) => ToJSONKey   (ECScalar a) where
+  toJSONKey = defaultToJsonKey
+instance ByteRepr (ECScalar a) => CBOR.Serialise (ECScalar a) where
+  encode = defaultCborEncode
+  decode = defaultCborDecode "ECScalar"
+
+instance ByteRepr (Challenge a) => FromJSON (Challenge a) where
+  parseJSON = defaultParseJSON "Challenge"
+instance ByteRepr (Challenge a) => ToJSON (Challenge a) where
+  toJSON = defaultToJSON
+instance ByteRepr (Challenge a) => FromJSONKey (Challenge a) where
+  fromJSONKey = defaultFromJsonKey "Challenge"
+instance ByteRepr (Challenge a) => ToJSONKey   (Challenge a) where
+  toJSONKey = defaultToJsonKey
+instance ByteRepr (Challenge a) => CBOR.Serialise (Challenge a) where
+  encode = defaultCborEncode
+  decode = defaultCborDecode "Challenge"
+
 
 -- | Algorithm tag.
 data Ed25519
@@ -91,36 +131,34 @@ instance Ord (ECScalar  Ed25519) where
   compare = coerce (compare `on` (Ed.scalarEncode :: Ed.Scalar -> BS.ByteString))
 
 
-instance CBOR.Serialise (ECPoint Ed25519) where
-  encode = CBOR.encode . id @BS.ByteString . Ed.pointEncode . coerce
-  decode = decodeBy (coerce . Ed.pointDecode) =<< CBOR.decode
+instance ByteRepr (ECPoint Ed25519) where
+  decodeFromBS bs = case Ed.pointDecode bs of
+    CryptoPassed p -> Just $ ECPoint25519 p
+    CryptoFailed _ -> Nothing
+  encodeToBS (ECPoint25519 p) = Ed.pointEncode p
 
-instance CBOR.Serialise (ECScalar Ed25519) where
-  encode = CBOR.encode . id @BS.ByteString . Ed.scalarEncode . coerce
-  decode = decodeBy (coerce . Ed.scalarDecodeLong) =<< CBOR.decode
+instance ByteRepr (ECScalar Ed25519) where
+  decodeFromBS bs = case Ed.scalarDecodeLong bs of
+    CryptoPassed p -> Just $ ECScalar25519 p
+    CryptoFailed _ -> Nothing
+  encodeToBS (ECScalar25519 p) = Ed.scalarEncode p
 
-decodeBy :: (BS.ByteString -> CryptoFailable a) -> BS.ByteString -> CBOR.Decoder s a
-decodeBy decoder bs = case decoder bs of
-  CryptoPassed a   -> return a
-  CryptoFailed err -> fail $ show err
-
-instance CBOR.Serialise (Challenge Ed25519) where
-  encode (ChallengeEd25519 bs) = CBOR.encode bs
-  decode = fmap ChallengeEd25519 CBOR.decode
-
+instance ByteRepr (Challenge Ed25519) where
+  decodeFromBS = Just . ChallengeEd25519
+  encodeToBS   = coerce
 
 instance CryptoHashable (Challenge Ed25519) where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable (ECScalar Ed25519) where
-  hashStep (ECScalar25519 x)
+  hashStep x
     =  hashStep (CryPrivateKey "Ed25519")
-    <> hashStep (Ed.scalarEncode x :: BS.ByteString)
+    <> hashStep (encodeToBS x)
 
 instance CryptoHashable (ECPoint Ed25519) where
-  hashStep (ECPoint25519 x)
+  hashStep x
     =  hashStep (CryPublicKey "Ed25519")
-    <> hashStep (Ed.pointEncode x :: BS.ByteString)
+    <> hashStep (encodeToBS x)
 
 
 hashDomain :: String
