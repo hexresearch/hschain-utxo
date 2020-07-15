@@ -129,14 +129,14 @@ instance CryptoHashable (Challenge Ed25519) where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable (ECScalar Ed25519) where
-  hashStep (ECScalar25519 x)
+  hashStep x
     =  hashStep (CryPrivateKey "Ed25519")
-    <> hashStep (Ed.scalarEncode x :: BS.ByteString)
+    <> hashStep (encodeToBS x)
 
 instance CryptoHashable (ECPoint Ed25519) where
-  hashStep (ECPoint25519 x)
+  hashStep x
     =  hashStep (CryPublicKey "Ed25519")
-    <> hashStep (Ed.pointEncode x :: BS.ByteString)
+    <> hashStep (encodeToBS x)
 
 
 hashDomain :: String
