@@ -240,6 +240,7 @@ xorGameRound Scene{..} game@Game{..} = do
     triesToWin isSuccess name wallet gameBox aliceSecret aliceGuess = do
       winAddr <- allocAddress wallet
       tx <- winTx gameBox winAddr wallet aliceSecret aliceGuess
+      _eSigma <- M.getTxSigma tx
       eTxHash <- postTxDebug isSuccess (winMsg name) tx
       return $ either (const False) (const True) eTxHash
       where

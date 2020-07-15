@@ -148,6 +148,7 @@ getBoxChainEnv = fmap unGetEnvResponse $ call C.getEnv
 getTxSigma :: Tx -> App (Either Text (Sigma PublicKey))
 getTxSigma tx = do
   resp <- call $ C.getTxSigma tx
+  logTest $ T.unlines ["PRE TX SIGMA:", showt resp]
   case sigmaTxResponse'value resp of
     Right boolRes -> return $ case boolRes of
       SigmaResult sigma -> Right sigma

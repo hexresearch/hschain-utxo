@@ -199,14 +199,22 @@ eliminateSigmaBool = cata $ \case
     let (bools, sigmas) = partitionEithers as
         boolRes = and bools
     in  if boolRes
-          then Right $ Fix $ SigmaAnd sigmas
+          then
+              case sigmas of
+                []      -> Left True
+                [sigma] -> Right sigma
+                _       -> Right $ Fix $ SigmaAnd sigmas
           else Left False
   SigmaOr as ->
     let (bools, sigmas) = partitionEithers as
         boolRes = or bools
     in  if boolRes
           then Left True
-          else Right $ Fix $ SigmaOr sigmas
+          else
+               case sigmas of
+                 []      -> Left False
+                 [sigma] -> Right sigma
+                 _       -> Right $ Fix $ SigmaOr sigmas
 
 toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
 toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
