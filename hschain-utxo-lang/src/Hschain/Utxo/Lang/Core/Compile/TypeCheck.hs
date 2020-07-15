@@ -12,6 +12,7 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , intT
   , boolT
   , textT
+  , bytesT
   , sigmaT
   , primT
   , boxT
@@ -260,12 +261,16 @@ primToType = \case
   PrimText  _ -> textT
   PrimBool  _ -> boolT
   PrimSigma _ -> sigmaT
+  PrimBS    _ -> bytesT
 
 intT :: TypeCore
 intT = primT "Int"
 
 textT :: TypeCore
 textT = primT "Text"
+
+bytesT :: TypeCore
+bytesT = primT "Bytes"
 
 boolT :: TypeCore
 boolT = primT "Bool"

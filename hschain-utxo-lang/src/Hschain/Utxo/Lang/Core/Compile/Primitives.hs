@@ -669,7 +669,7 @@ builtInDiadic = M.fromList $
   , ("&&&", SigAnd)
   , ("|||", SigOr)
   , ("<>", TextAppend)
-  ] ++ (compareNames =<< [intT, boolT, textT])
+  ] ++ (compareNames =<< [intT, boolT, textT, bytesT])
   where
     compareNames ty =
       [ (toCompareName ty "equals", Eq)

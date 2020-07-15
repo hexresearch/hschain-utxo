@@ -73,6 +73,7 @@ toHaskExpr = cata $ \case
       PrimText  txt    -> toText loc txt
       PrimBool  b      -> toBool loc b
       PrimSigma sigma  -> toSigma loc sigma
+      PrimBS    bs     -> toBytes loc bs
 
     toAp = H.App
 
