@@ -106,7 +106,7 @@ primitives =
 -- generic utilities
 
 -- | comparision operators per type
-comparePack :: Type -> [Scomb]
+comparePack :: TypeCore -> [Scomb]
 comparePack ty =
   [ compareOp ty (toCompareName ty "equals")
   , compareOp ty (toCompareName ty "notEquals")
@@ -130,7 +130,7 @@ constant name val = Scomb
   , scomb'body = Typed (EPrim val) (primToType val)
   }
 
-op1 :: Name -> Type -> Type -> Scomb
+op1 :: Name -> TypeCore -> TypeCore -> Scomb
 op1 name argT resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList $ [Typed "x" argT]
@@ -147,10 +147,10 @@ sigmaOp2 :: Name -> Scomb
 sigmaOp2 name = op2 name (sigmaT, sigmaT) sigmaT
 
 -- | TODO: do we need polymorphic comparison?
-compareOp :: Type -> Name -> Scomb
+compareOp :: TypeCore -> Name -> Scomb
 compareOp ty name = op2 name (ty, ty) boolT
 
-op2 :: Name -> (Type, Type) -> Type -> Scomb
+op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
 op2 name (xT, yT) resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT]
@@ -160,7 +160,7 @@ op2 name (xT, yT) resT = Scomb
 ------------------------------------------------------------
 -- boxes
 
-toCompareName :: Type -> Name -> Name
+toCompareName :: TypeCore -> Name -> Name
 toCompareName ty name = mconcat [primName ty, ".", name]
   where
     primName (H.Type (Fix x)) = case x of
@@ -178,7 +178,7 @@ boxCons = Scomb
   where
     consTy = funT (fmap typed'type boxArgs) boxT
 
-getBoxField :: Name -> Name -> Type -> Scomb
+getBoxField :: Name -> Name -> TypeCore -> Scomb
 getBoxField name field resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [Typed "box" boxT]
@@ -246,7 +246,7 @@ toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
     texts  = toVec textT $ fmap (EPrim . PrimText) args'texts
     bools  = toVec boolT $ fmap (EPrim . PrimBool) args'bools
 
-argsTypes :: [Type]
+argsTypes :: [TypeCore]
 argsTypes = [listT intT, listT textT, listT boolT]
 
 
@@ -271,7 +271,7 @@ getBoxes name boxes = Scomb
       (listT boxT)
   }
 
-toVec :: Type -> Vector ExprCore -> ExprCore
+toVec :: TypeCore -> Vector ExprCore -> ExprCore
 toVec t vs = V.foldr cons nil vs
   where
     nil      = EConstr (listT t) 0 0

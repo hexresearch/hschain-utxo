@@ -19,7 +19,7 @@ import Data.Sequence (Seq)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType, funT)
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..))
 
 import Hschain.Utxo.Lang.Core.Compile.Primitives(toCompareName)
@@ -41,7 +41,7 @@ makeMonomorphic (AnnLamProg prog) = runMono progMap (makeMono context)
 
 type Mono a = StateT MonoSt (Either Error) a
 type ProgMap = Map Name TypedDef
-type Context = Map Name Type
+type Context = Map Name TypeCore
 type Subst = H.Subst () Name
 
 runMono :: MonadLang m => ProgMap -> Mono a -> m TypedLamProg
@@ -55,7 +55,7 @@ runMono sourceProg m = liftEither $ fmap (AnnLamProg . M.elems . monoSt'resultPr
 
     initSeed = Seq.singleton $ Typed "main" $ fromType boolT
 
-fromType :: H.Type Loc Name -> Type
+fromType :: H.Type Loc Name -> TypeCore
 fromType = H.mapLoc (const ())
 
 data MonoSt = MonoSt
@@ -374,7 +374,7 @@ getSubstName (H.Subst m) (VarName loc name) = VarName loc $
 isMonoExpr :: TypedExprLam -> Bool
 isMonoExpr = isMonoT . getAnnType
 
-isMonoT :: Type -> Bool
+isMonoT :: TypeCore -> Bool
 isMonoT (H.Type x) = flip cata x $ \case
   H.VarT _ _     -> False
   H.ConT _ _ as  -> and as
@@ -402,19 +402,19 @@ getSourceDef loc name = do
   mDef <- fmap (M.lookup name . monoSt'sourceProg) get
   maybe (unboundVariable $ VarName loc name) pure mDef
 
-getDefType :: TypedDef -> Type
+getDefType :: TypedDef -> TypeCore
 getDefType Def{..} = foldr (\a b -> H.arrowT () a b) rhs args
   where
     args = fmap typed'type def'args
     rhs  = getAnnType def'body
 
-getAnnType :: TypedExprLam -> Type
+getAnnType :: TypedExprLam -> TypeCore
 getAnnType (Fix (Ann ty _)) = ty
 
-unify :: Type -> Type -> Mono Type
+unify :: TypeCore -> TypeCore -> Mono TypeCore
 unify tA tB = fmap fst $ unifySubst tA tB
 
-unifySubst :: Type -> Type -> Mono (Type, Subst)
+unifySubst :: TypeCore -> TypeCore -> Mono (TypeCore, Subst)
 unifySubst tA tB = case H.unifyTypes tA tB of
   Right subst -> return $ (H.apply subst tB, subst)
   Left err    -> throwError $ TypeError $ H.mapLoc (const noLoc) err

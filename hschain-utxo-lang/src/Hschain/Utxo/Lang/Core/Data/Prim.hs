@@ -2,7 +2,7 @@
 -- | Common primitive type definitions
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
-  , Type
+  , TypeCore
   , Typed(..)
   , Addr
   , Prim(..)
@@ -23,12 +23,12 @@ import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Sigma
 
-type Type = H.Type () Name
+type TypeCore = H.Type () Name
 
 -- | Type tags for values
 data Typed a = Typed
   { typed'value :: a
-  , typed'type  :: Type
+  , typed'type  :: TypeCore
   } deriving (Show, Eq, Functor, Foldable, Traversable, Generic)
 
 -- | Name identifiers for variables or global functions
@@ -75,7 +75,7 @@ getPrimSigma = \case
 
 instance Serialise (Fix (H.TypeF () Text))
 instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
-instance Serialise Type
+instance Serialise TypeCore
 --  encode = encode . toTypeSer
 --  decode = fmap fromTypeSer decode
 

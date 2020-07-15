@@ -56,9 +56,9 @@ traceT ty = trace (show $ pretty ty) ty
 -}
 
 data MonoType
-  = MonoType Type  -- ^ simple case when we know the type
-  | AnyType        -- ^ type that can be anything
-                   --    we use it for bottoms
+  = MonoType TypeCore  -- ^ simple case when we know the type
+  | AnyType            -- ^ type that can be anything
+                       --    we use it for bottoms
 
 unifyMonoType :: MonoType -> MonoType -> Maybe MonoType
 unifyMonoType a b = case (a, b) of
@@ -90,13 +90,13 @@ runCheck ctx m = runReaderT m ctx
 typeCheckM :: CoreProg -> Check Bool
 typeCheckM (CoreProg prog) = fmap and $ mapM typeCheckScomb  prog
 
-getType :: Name -> Check Type
+getType :: Name -> Check TypeCore
 getType name = do
   TypeContext ctx <- ask
   lift $ M.lookup name ctx
 
 -- | Reads  type signature of supercombinator
-getScombType :: Scomb -> Type
+getScombType :: Scomb -> TypeCore
 getScombType Scomb{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type $ V.toList scomb'args
@@ -115,7 +115,7 @@ typeCheckExpr Typed{..} =
 hasType :: MonoType -> MonoType -> Bool
 hasType a b = maybe False isMonoType $ unifyMonoType a b
 
-fromMonoType :: MonoType -> Maybe Type
+fromMonoType :: MonoType -> Maybe TypeCore
 fromMonoType = \case
   MonoType a -> Just a
   AnyType    -> Nothing
@@ -203,7 +203,7 @@ inferIf c t e = do
 -- type inference context
 
 -- | Type context of the known signatures
-newtype TypeContext = TypeContext (Map Name Type)
+newtype TypeContext = TypeContext (Map Name TypeCore)
   deriving newtype (Semigroup, Monoid)
 
 
@@ -212,7 +212,7 @@ loadContext :: CoreProg -> TypeContext -> TypeContext
 loadContext (CoreProg defs) ctx =
   L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) ctx defs
 
-insertSignature :: Name -> Type -> TypeContext -> TypeContext
+insertSignature :: Name -> TypeCore -> TypeContext -> TypeContext
 insertSignature name ty (TypeContext m) =
   TypeContext $ M.insert name ty m
 
@@ -226,45 +226,45 @@ loadName Typed{..} = insertSignature typed'value typed'type
 -------------------------------------------------------
 -- constants
 
-primToType :: Prim -> Type
+primToType :: Prim -> TypeCore
 primToType = \case
   PrimInt   _ -> intT
   PrimText  _ -> textT
   PrimBool  _ -> boolT
   PrimSigma _ -> sigmaT
 
-intT :: Type
+intT :: TypeCore
 intT = primT "Int"
 
-textT :: Type
+textT :: TypeCore
 textT = primT "Text"
 
-boolT :: Type
+boolT :: TypeCore
 boolT = primT "Bool"
 
-sigmaT :: Type
+sigmaT :: TypeCore
 sigmaT = primT "Sigma"
 
-boxT :: Type
+boxT :: TypeCore
 boxT = primT "Box"
 
-envT :: Type
+envT :: TypeCore
 envT = primT "Environment"
 
-primT :: Name -> Type
+primT :: Name -> TypeCore
 primT name = H.conT () name []
 
-varT :: Name -> Type
+varT :: Name -> TypeCore
 varT name = H.varT () name
 
-listT :: Type -> Type
+listT :: TypeCore -> TypeCore
 listT ty = H.listT () ty
 
-tupleT :: [Type] -> Type
+tupleT :: [TypeCore] -> TypeCore
 tupleT ts = H.tupleT () ts
 
-arrowT :: Type -> Type -> Type
+arrowT :: TypeCore -> TypeCore -> TypeCore
 arrowT a b = H.arrowT () a b
 
-funT :: [Type] -> Type -> Type
+funT :: [TypeCore] -> TypeCore -> TypeCore
 funT args resT = foldr arrowT resT args

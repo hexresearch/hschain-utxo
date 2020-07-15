@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as M
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
@@ -51,13 +51,13 @@ instance H.IsPrim PrimLoc where
 
   getPrimType (PrimLoc loc p) = eraseWith  loc $ primToType p
 
-eraseLoc :: Type -> H.Type Loc Tag
+eraseLoc :: TypeCore -> H.Type Loc Tag
 eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
 
-eraseWith :: Loc -> Type -> H.Type Loc Tag
+eraseWith :: Loc -> TypeCore -> H.Type Loc Tag
 eraseWith loc = H.mapLoc (const loc) . fmap VarTag
 
-toType :: H.Type Loc Tag -> Type
+toType :: H.Type Loc Tag -> TypeCore
 toType = H.mapLoc (const ()) . fmap fromTag
 
 -- | Infers types for all subexpressions
@@ -69,7 +69,7 @@ annotateTypes =
       (combT, combTyped) <- typeDef ctx comb
       return (H.insertContext (VarTag $ varName'name $ def'name comb) combT ctx, combTyped : prog)
 
-    typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, AnnComb Type (Typed Name))
+    typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, AnnComb TypeCore (Typed Name))
     typeDef ctx comb = do
       (combT, term) <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
       body <- fromInferExpr term

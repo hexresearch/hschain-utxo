@@ -3,7 +3,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
     CoreProg(..)
   , Scomb(..)
   , Typed(..)
-  , Type
+  , TypeCore
   , ExprCore(..)
   , CaseAlt(..)
   , CompiledScomb(..)
@@ -59,7 +59,7 @@ data ExprCore
   -- ^ if expressions
   | ECase !(Typed ExprCore) [CaseAlt]
   -- ^ case alternatives
-  | EConstr Type !Int !Int
+  | EConstr TypeCore !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
   | EBottom

@@ -14,7 +14,7 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Type)
+import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..))
 import Hschain.Utxo.Lang.Monad
 
 import qualified Data.Vector as V
@@ -35,7 +35,7 @@ compile =
 toCoreProg :: forall m . MonadLang m => TypedLamProg -> m CoreProg
 toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
   where
-    toScomb :: AnnComb Type (Typed Name) -> m Core.Scomb
+    toScomb :: TypedDef -> m Core.Scomb
     toScomb Def{..} = do
       expr <- toCoreExpr def'body
       return $ Core.Scomb
