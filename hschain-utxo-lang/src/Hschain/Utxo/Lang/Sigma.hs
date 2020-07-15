@@ -12,7 +12,7 @@ module Hschain.Utxo.Lang.Sigma(
   , ProofEnv
   , Proof
   , Sigma
-  , SigmaExpr(..)
+  , SigmaF(..)
   , newProof
   , verifyProof
   , notSigma
@@ -26,6 +26,7 @@ module Hschain.Utxo.Lang.Sigma(
   , toProofEnv
   , equalSigmaExpr
   , equalSigmaProof
+  , eliminateSigmaBool
   ) where
 
 import Hex.Common.Serialise
@@ -116,27 +117,33 @@ instance FromJSON (Sigma Proof) where
 
 -- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
 newProof :: ProofEnv -> Sigma PublicKey -> IO (Either Text Proof)
-newProof env = Sigma.newProof env . toSigmaExpr
+newProof env expr =
+  case toSigmaExpr expr of
+    Right sigma -> Sigma.newProof env sigma
+    Left  _     -> return catchBoolean
+  where
+    catchBoolean = Left "Expression is constant boolean. It is not  a sigma-expression"
 
 -- | Verify the proof.
 verifyProof :: Proof -> Bool
 verifyProof = Sigma.verifyProof
 
-type Sigma k = Fix (SigmaExpr k)
+type Sigma k = Fix (SigmaF k)
 
 deriving anyclass instance NFData k => NFData (Sigma k)
 
 -- | Sigma-expression
-data SigmaExpr k a =
+data SigmaF k a =
     SigmaPk k      -- ownership of the key (contains public key)
   | SigmaAnd [a]   -- and-expression
   | SigmaOr  [a]   -- or-expression
+  | SigmaBool Bool -- wraps boolean constants
   deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData)
 
 instance Serialise k => Serialise (Sigma k)
-instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)
+instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
 
-instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaExpr k a) where
+instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
   hashStep = genericHashStep Sigma.hashDomain
 
 
@@ -149,6 +156,7 @@ notSigma = cata $ \case
       SigmaPk  _   -> Left False
       SigmaAnd as  -> orTag as
       SigmaOr  as  -> andTag as
+      SigmaBool b  -> Left $ not b
   where
     orTag xs
       | or ls     = Left True
@@ -180,11 +188,43 @@ fromSigmaExpr = \case
   where
     rec  = fromSigmaExpr
 
-toSigmaExpr :: Sigma a -> Sigma.SigmaE () a
-toSigmaExpr = cata $ \case
-  SigmaPk k    -> Sigma.Leaf () k
-  SigmaAnd as  -> Sigma.AND () as
-  SigmaOr  as  -> Sigma.OR  () as
+-- | Tries to remove all boolean constants.
+-- returns Left boolean if it's not possible
+-- to eliminate boolean constants.
+eliminateSigmaBool :: Sigma a -> Either Bool (Sigma a)
+eliminateSigmaBool = cata $ \case
+  SigmaBool b -> Left b
+  SigmaPk pk  -> Right $ Fix $ SigmaPk pk
+  SigmaAnd as ->
+    let (bools, sigmas) = partitionEithers as
+        boolRes = and bools
+    in  if boolRes
+          then
+              case sigmas of
+                []      -> Left True
+                [sigma] -> Right sigma
+                _       -> Right $ Fix $ SigmaAnd sigmas
+          else Left False
+  SigmaOr as ->
+    let (bools, sigmas) = partitionEithers as
+        boolRes = or bools
+    in  if boolRes
+          then Left True
+          else
+               case sigmas of
+                 []      -> Left False
+                 [sigma] -> Right sigma
+                 _       -> Right $ Fix $ SigmaOr sigmas
+
+toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
+toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
+
+toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
+toPrimSigmaExpr = cata $ \case
+  SigmaPk k    -> Just $ Sigma.Leaf () k
+  SigmaAnd as  -> fmap (Sigma.AND ()) $ sequence as
+  SigmaOr  as  -> fmap (Sigma.OR  ()) $ sequence as
+  SigmaBool _  -> Nothing
 
 -- | Empty proof environment. It holds no keys.
 emptyProofEnv :: ProofEnv
@@ -215,4 +255,4 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
                         else False
       _ -> False
 
-$(deriveShow1 ''SigmaExpr)
+$(deriveShow1 ''SigmaF)

@@ -15,7 +15,7 @@ import qualified Data.Set   as S
 -- | Check that program has no recursion
 -- We should check all top level bindings and let-expressions.
 recursionCheck :: CoreProg -> Bool
-recursionCheck prog =
+recursionCheck (CoreProg prog) =
      (depIsAcyclic $ fmap scombToDep prog)
   && (all checkLets prog)
 

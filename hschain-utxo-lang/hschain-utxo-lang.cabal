@@ -52,6 +52,7 @@ library
       Hschain.Utxo.Lang.Core.Data.Stack
       Hschain.Utxo.Lang.Core.Data.Stat
       Hschain.Utxo.Lang.Core.Data.Vstack
+      Hschain.Utxo.Lang.Core.Eval
       Hschain.Utxo.Lang.Core.Gmachine
       Hschain.Utxo.Lang.Core.Gmachine.Eval
       Hschain.Utxo.Lang.Core.Gmachine.Eval.Dump
@@ -156,6 +157,7 @@ Test-suite hschain-utxo-lang-tests
   Ghc-options:         -Wall -threaded -rtsopts
   Default-Language:    Haskell2010
   Build-Depends:       base              >=4.9 && <5
+                     , data-fix
                      , hschain-utxo-lang
                      , text
                      , tasty

@@ -84,14 +84,14 @@ data TxArg = TxArg
 
 -- | Blockchain environment variables.
 data Env = Env
-  { env'height   :: !Integer  -- ^ blockchain height
+  { env'height   :: !Int64    -- ^ blockchain height
   } deriving (Show, Eq)
 
 -- | Transaction environment. All values that user can read
 -- from the script
 data TxEnv = TxEnv
   { txEnv'height   :: !Int64
-  , txEnv'self     :: !Int64
+  , txEnv'self     :: !Box
   , txEnv'inputs   :: !(Vector Box)
   , txEnv'outputs  :: !(Vector Box)
   , txEnv'args     :: !Args
@@ -111,7 +111,7 @@ fromScript :: Script -> Either Text (Expr Bool)
 fromScript (Script txt) = parseScript txt
 
 -- | Convert boolean expression to script.
-toScript :: Expr Bool -> Script
+toScript :: Expr SigmaBool -> Script
 toScript (Expr expr) = Script $ T.pack $ prettyExp expr
 
 encodeScript :: ExecCtx -> Lang -> Text

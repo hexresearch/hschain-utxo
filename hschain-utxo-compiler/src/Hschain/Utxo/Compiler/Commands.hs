@@ -95,8 +95,8 @@ signSigma secretFile input output = do
   secret <- readSecret
   expr   <- readInput
   case expr of
-    ConstBool _     -> errorExpressionIsConst
-    SigmaBool sigma -> do
+    ConstBool _       -> errorExpressionIsConst
+    SigmaResult sigma -> do
       let env = Sigma.proofEnvFromKeys [Sigma.getKeyPair secret]
       signedSigma <- Sigma.newProof env sigma
       saveSigma signedSigma

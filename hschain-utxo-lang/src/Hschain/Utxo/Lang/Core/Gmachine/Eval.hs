@@ -3,6 +3,9 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval(
   eval
 ) where
 
+import Data.Fix
+
+import Hschain.Utxo.Lang.Sigma (SigmaF(..))
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code, Instr(..), CaseMap, GlobalName(..))
@@ -80,10 +83,10 @@ dispatch = \case
   ShowInt      -> showInt
   ShowBool     -> showBool
   -- sigma expressions
-  SAnd         -> binSigmaOp (\a b -> SigmaAnd [a, b])
-  SOr          -> binSigmaOp (\a b -> SigmaOr [a, b])
-  Pk           -> pkOp
-  SBool        -> boolToSigmaOp
+  SigAnd       -> binSigmaOp (\a b -> Fix $ SigmaAnd [a, b])
+  SigOr        -> binSigmaOp (\a b -> Fix $ SigmaOr  [a, b])
+  SigPk        -> pkOp
+  SigBool      -> boolToSigmaOp
   -- conditionals
   Cond c1 c2   -> cond c1 c2
   Pack m n     -> pack m n

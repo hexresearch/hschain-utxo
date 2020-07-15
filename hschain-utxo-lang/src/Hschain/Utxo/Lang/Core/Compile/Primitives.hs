@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | Built-in language primitives
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
-    primitives
+    preludeLib
+  , primitives
   , builtInUnary
   , builtInDiadic
   , preludeTypeContext
@@ -29,6 +30,9 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 import qualified Hschain.Utxo.Lang.Const as Const
+
+preludeLib :: TxEnv -> CoreProg
+preludeLib env = CoreProg $ environmentFunctions env ++ primitives
 
 preludeTypeContext :: TypeContext
 preludeTypeContext = primitivesCtx <> environmentTypes
@@ -307,8 +311,8 @@ builtInDiadic = M.fromList $
   , ("&&", And)
   , ("||", Or)
   , ("^^", Xor)
-  , ("&", SAnd)
-  , ("|", SOr)
+  , ("&", SigAnd)
+  , ("|", SigOr)
   , ("<>", TextAppend)
   ] ++ (compareNames =<< [intT, boolT, textT])
   where
@@ -325,8 +329,8 @@ builtInUnary :: Map Name Instr
 builtInUnary = M.fromList
   [ ("negate", Neg)
   , ("not", Not)
-  , ("pk", Pk)
-  , ("toSigma", SBool)
+  , ("pk", SigPk)
+  , ("toSigma", SigBool)
   , ("lengthText", TextLength)
   , ("hashBlake", HashBlake)
   , ("hashSha", HashSha)

@@ -21,14 +21,13 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim(
 import Hex.Common.Text
 
 import Data.Int
+import Data.Fix
 import Data.Maybe
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Sigma (publicKeyFromText)
+import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
-
-import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.Text as T
 
@@ -67,17 +66,17 @@ notOp = primOp1 popBool putBool not
 
 -- sigma expression operators
 
-binSigmaOp :: (SigmaExpr -> SigmaExpr -> SigmaExpr) -> Exec ()
+binSigmaOp :: (Sigma PublicKey -> Sigma PublicKey -> Sigma PublicKey) -> Exec ()
 binSigmaOp = primOp2 popSigma popSigma putSigma
 
 -- | TODO: we have to provide errors or bottoms for G-machine
 pkOp :: Exec ()
-pkOp = primOp1 (fmap (fromMaybe err . publicKeyFromText) popText) putSigma SigmaPk
+pkOp = primOp1 (fmap (fromMaybe err . publicKeyFromText) popText) putSigma (Fix . SigmaPk)
   where
     err = error "Text is not valid public key"
 
 boolToSigmaOp :: Exec ()
-boolToSigmaOp = primOp1 popBool putSigma SigmaBool
+boolToSigmaOp = primOp1 popBool putSigma (Fix . SigmaBool)
 
 -- text operators
 

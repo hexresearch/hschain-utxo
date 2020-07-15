@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module contains the abstract syntax of Hindley-Milner types.
 module Language.HM.Type (
     IsVar(..),
@@ -49,6 +50,8 @@ import Data.Function (on)
 import Data.Map.Strict (Map)
 import Data.String
 import Data.Tuple (swap)
+
+import GHC.Generics
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
@@ -121,11 +124,11 @@ data TypeF loc var r
     | ArrowT loc r r    -- ^ Special case of ConT that is rendered as ->
     | TupleT loc [r]    -- ^ Special case of ConT that is rendered as (,,,)
     | ListT loc r       -- ^ Special case of ConT that is rendered as [a]
-    deriving (Eq, Ord, Show, Functor)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 -- | Monomorphic types.
 newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
 
 -- | 'varT' @loc x@ constructs a type variable named @x@ with source code at @loc@.
 varT :: loc -> var -> Type loc var
@@ -319,9 +322,14 @@ extractArrow (Type (Fix x)) = case x of
   ArrowT _ a b -> Just (Type a, Type b)
   _            -> Nothing
 
+------------------------------------
+-- instances
+
 $(deriveShow1 ''TypeF)
 $(deriveShow1 ''SignatureF)
 $(deriveEq1 ''TypeF)
 $(deriveEq1 ''SignatureF)
 $(deriveOrd1 ''TypeF)
 $(deriveOrd1 ''SignatureF)
+
+

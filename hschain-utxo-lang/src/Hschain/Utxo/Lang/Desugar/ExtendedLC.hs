@@ -14,7 +14,6 @@ import Data.Fix
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT, intT, boxT, textT)
-import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Types (scriptToText)
 import Hschain.Utxo.Lang.Compile.Expr
@@ -65,11 +64,11 @@ exprToExtendedLC typeCtx = cataM $ \case
   FailCase loc            -> fromFailCase loc
   PrimE loc p             -> fromPrim loc p
   If loc a b c            -> fromIf loc a b c
-  Pk loc a                -> fromPk loc a
   Tuple loc args          -> fromTuple loc args
   UnOpE loc op a          -> fromUnOp loc op a
   BinOpE loc op a b       -> fromBinOp loc op a b
   GetEnv loc envId        -> fromGetEnv loc envId
+  SigmaE loc e            -> fromSigma loc e
   VecE loc e              -> fromVecExpr loc e
   TextE loc e             -> fromTextExpr loc e
   BoxE loc e              -> fromBoxExpr loc e
@@ -142,15 +141,15 @@ exprToExtendedLC typeCtx = cataM $ \case
       PrimInt n       -> P.PrimInt n
       PrimString txt  -> P.PrimText txt
       PrimBool b      -> P.PrimBool b
-      PrimSigma sigma -> P.PrimSigma $ flip cata sigma $ \case
-                            SigmaPk k    -> P.SigmaPk k
-                            SigmaAnd as  -> P.SigmaAnd as
-                            SigmaOr as   -> P.SigmaOr as
-
+      PrimSigma sigma -> P.PrimSigma sigma
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
-    fromPk loc a = pure $ ap1 loc (var loc "pk") a
+    fromSigma locA = \case
+      Pk locB a        -> pure $ ap1 locA (var locB "pk") a
+      SAnd locB a b    -> pure $ ap2 locA (var locB "sigmaAnd") a b
+      SOr  locB a b    -> pure $ ap2 locA (var locB "sigmaOr")  a b
+      SPrimBool locB a -> pure $ ap1 locA (var locB "toSigma") a
 
     fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args
       where

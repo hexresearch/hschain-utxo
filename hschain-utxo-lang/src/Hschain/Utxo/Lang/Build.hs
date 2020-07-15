@@ -6,6 +6,10 @@ module Hschain.Utxo.Lang.Build(
   , text
   , pk
   , pk'
+  , SigmaBool
+  , toSigma
+  , sigmaAnd
+  , sigmaOr
   , getHeight
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
@@ -42,10 +46,11 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 import Hschain.Utxo.Lang.Desugar
-import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
 import Hschain.Utxo.Lang.Types (toScript)
 
 import Hschain.Utxo.Lang.Expr
+
 
 (=:) :: Text -> Expr a -> (Expr a -> Expr b) -> Expr b
 (=:) = def
@@ -123,11 +128,27 @@ instance Boolean (Expr Bool) where
   (&&*) = op2 (BinOpE noLoc And)
   (||*) = op2 (BinOpE noLoc Or)
 
-pk' :: PublicKey -> Expr Bool
+instance Boolean (Expr SigmaBool) where
+  true  = toSigma true
+  false = toSigma false
+  notB = error "Not is not defined for sigma-expressions"
+  (&&*) = sigmaAnd
+  (||*) = sigmaOr
+
+pk' :: PublicKey -> Expr SigmaBool
 pk' = pk . text . publicKeyToText
 
-pk :: Expr Text -> Expr Bool
-pk (Expr key) = Expr $ Fix $ Pk noLoc key
+pk :: Expr Text -> Expr SigmaBool
+pk (Expr key) = Expr $ Fix $ SigmaE noLoc $ Pk noLoc key
+
+sigmaAnd :: Expr SigmaBool -> Expr SigmaBool -> Expr SigmaBool
+sigmaAnd (Expr a) (Expr b) = Expr $ Fix $ SigmaE noLoc $ SAnd noLoc a b
+
+sigmaOr :: Expr SigmaBool -> Expr SigmaBool -> Expr SigmaBool
+sigmaOr (Expr a) (Expr b) = Expr $ Fix $ SigmaE noLoc $ SOr noLoc a b
+
+toSigma :: Expr Bool -> Expr SigmaBool
+toSigma (Expr x) = Expr $ Fix $ SigmaE noLoc $ SPrimBool noLoc x
 
 getSelf :: Expr Box
 getSelf = Expr $ Fix $ GetEnv noLoc (Self noLoc)
@@ -168,7 +189,7 @@ getBoolVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BoolArg
 getTextVars :: Expr (Vector Text)
 getTextVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc TextArg
 
-toScriptBytes :: Expr Bool -> Expr Script
+toScriptBytes :: Expr SigmaBool -> Expr Script
 toScriptBytes expr = unsafeCoerceExpr $ text $ unScript $ toScript expr
 
 unsafeCoerceExpr :: Expr a -> Expr b

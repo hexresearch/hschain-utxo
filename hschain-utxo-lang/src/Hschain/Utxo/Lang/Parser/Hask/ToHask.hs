@@ -39,7 +39,6 @@ toHaskExp (Fix expr) = case expr of
   PrimE loc p -> toLiteral loc p
   -- logic
   If loc a b c -> H.If loc (rec a) (rec b) (rec c)
-  Pk loc a -> ap (VarName loc "pk") a
   -- tuples
   Tuple loc ts -> H.Tuple loc H.Boxed (fmap rec $ V.toList ts)
   -- operations
@@ -47,6 +46,8 @@ toHaskExp (Fix expr) = case expr of
   BinOpE loc op a b -> fromBimOp loc op a b
   -- environment
   GetEnv loc env -> fromEnv loc env
+  -- sigmas
+  SigmaE loc sigma -> fromSigma loc sigma
   -- vectors
   VecE loc vec -> fromVec loc vec
   -- text
@@ -103,6 +104,13 @@ toHaskExp (Fix expr) = case expr of
       Inputs loc    -> toVar loc (VarName loc "getInputs")
       Outputs loc   -> toVar loc (VarName loc "getOutputs")
       GetVar loc ty -> toVar loc (VarName loc $ getEnvVarName ty)
+
+    fromSigma _ = \case
+      Pk loc a        -> ap (VarName loc "pk") a
+      SOr loc a b     -> ap2 (VarName loc "sigmaOr") a b
+      SAnd loc a b    -> ap2 (VarName loc "sigmaAnd") a b
+      SPrimBool loc a -> ap (VarName loc "toSigma") a
+
 
     fromVec _ = \case
       NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
@@ -168,19 +176,20 @@ toLiteral loc = \case
   PrimSigma x -> sigma loc x
   where
     lit = H.Lit loc
-    bool src x = H.UnQual src $ H.Ident loc $ show x
 
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma src x = cata go x
       where
-        go :: SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
+        go :: SigmaF PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
           SigmaPk pkey -> let keyTxt = publicKeyToText pkey
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (op2 src "&&") as
-          SigmaOr  as  -> foldl1 (op2 src "||") as
+          SigmaAnd as  -> foldl1 (ap2 (VarName src "sigmaAnd")) as
+          SigmaOr  as  -> foldl1 (ap2 (VarName src "sigmaOr")) as
+          SigmaBool b  -> H.Con src $ bool src b
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
+        ap2 f a b = H.App src (H.App src (toVar src f) a) b
 
 -- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc
@@ -243,8 +252,10 @@ toPat pat = case pat of
 
     toPVar var = H.PVar (varName'loc var) (toIdentName var)
 
-    bool loc x = H.UnQual loc $ H.Ident loc $ show x
     lit loc = H.PLit loc (H.Signless loc)
+
+bool :: Loc -> Bool -> H.QName Loc
+bool loc x = H.UnQual loc $ H.Ident loc $ show x
 
 toIdentName :: VarName -> H.Name Loc
 toIdentName (VarName loc name) = H.Ident loc (T.unpack name)

@@ -31,9 +31,9 @@ subst (Fix body) varName sub = case body of
   If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
   Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
   PrimLet loc bg e                         -> Fix $ PrimLet loc (substPrimBindGeoup bg) (recBy (primBindVars bg) e)
-  Pk loc a                                 -> Fix $ Pk loc $ rec a
   Tuple loc as                             -> Fix $ Tuple loc $ fmap rec as
   GetEnv loc idx                           -> Fix $ GetEnv loc $ fmap rec idx
+  SigmaE loc sigma                         -> Fix $ SigmaE loc $ fmap rec sigma
   VecE loc vec                             -> Fix $ VecE loc $ fmap rec vec
   TextE loc txt                            -> Fix $ TextE loc $ fmap rec txt
   BoxE loc box                             -> Fix $ BoxE loc $ fmap rec box

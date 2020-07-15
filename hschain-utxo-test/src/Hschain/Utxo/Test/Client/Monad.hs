@@ -30,6 +30,7 @@ import Control.Monad
 import Control.Monad.Except
 import Control.Monad.Reader
 
+import Data.Int
 import Data.Sequence (Seq)
 import Data.Text (Text)
 
@@ -132,7 +133,7 @@ call act = join $ fmap liftEither $ (\env -> C.call (testEnv'client env) act) =<
 postTx :: Tx -> App PostTxResponse
 postTx = call . C.postTx
 
-getHeight :: App Integer
+getHeight :: App Int64
 getHeight = call C.getHeight
 
 getBoxBalance :: BoxId -> App (Maybe Money)
@@ -147,10 +148,11 @@ getBoxChainEnv = fmap unGetEnvResponse $ call C.getEnv
 getTxSigma :: Tx -> App (Either Text (Sigma PublicKey))
 getTxSigma tx = do
   resp <- call $ C.getTxSigma tx
+  logTest $ T.unlines ["PRE TX SIGMA:", showt resp]
   case sigmaTxResponse'value resp of
     Right boolRes -> return $ case boolRes of
-      SigmaBool sigma -> Right sigma
-      ConstBool b     -> Left $ mconcat ["Not a sigma-expression from result, got ", showt b]
+      SigmaResult sigma -> Right sigma
+      ConstBool b       -> Left $ mconcat ["Not a sigma-expression from result, got ", showt b]
     Left err -> return $ Left err
 
 -------------------------

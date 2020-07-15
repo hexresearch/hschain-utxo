@@ -5,6 +5,7 @@ import Hex.Common.Aeson
 
 import Codec.Serialise (Serialise)
 
+import Data.Int
 import Data.Text (Text)
 import Data.Map.Strict (Map)
 import Data.Text.Prettyprint.Doc
@@ -21,7 +22,7 @@ import qualified Data.Map.Strict as M
 -- each box contains value and script that protects value from spending.
 data BoxChain = BoxChain
   { boxChain'boxes  :: !(Map BoxId Box)  -- ^ collection of boxes
-  , boxChain'height :: !Integer          -- ^ height of blockchain
+  , boxChain'height :: !Int64            -- ^ height of blockchain
   } deriving (Show, Eq, Generic, Serialise)
 
 -- | Empty initial blockchain state.

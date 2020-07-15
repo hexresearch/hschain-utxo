@@ -88,7 +88,7 @@ runCheck :: TypeContext -> Check a -> Maybe a
 runCheck ctx m = runReaderT m ctx
 
 typeCheckM :: CoreProg -> Check Bool
-typeCheckM prog = fmap and $ mapM typeCheckScomb  prog
+typeCheckM (CoreProg prog) = fmap and $ mapM typeCheckScomb  prog
 
 getType :: Name -> Check Type
 getType name = do
@@ -209,7 +209,7 @@ newtype TypeContext = TypeContext (Map Name Type)
 
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext -> TypeContext
-loadContext defs ctx =
+loadContext (CoreProg defs) ctx =
   L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) ctx defs
 
 insertSignature :: Name -> Type -> TypeContext -> TypeContext

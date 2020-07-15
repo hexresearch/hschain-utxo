@@ -91,11 +91,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Ascr loc a ty             -> fmap (\term -> fromAscr loc term $ stripSignature ty) (rec a)
   PrimE loc prim            -> pure $ fromPrim loc prim
   If loc cond t e           -> liftA3 (fromIf loc) (rec cond) (rec t) (rec e)
-  Pk loc a                  -> fmap (fromPk loc) (rec a)
   -- operations
   UnOpE loc unOp a          -> fmap (fromUnOp loc unOp) (rec a)
   BinOpE loc binOp a b      -> liftA2 (fromBinOp loc binOp) (rec a) (rec b)
   Tuple loc vs              -> fmap (fromTuple loc) $ mapM rec vs
+  -- sigmas
+  SigmaE loc sigma          -> fmap (fromSigma loc) $ mapM rec sigma
   -- vectors
   VecE loc v                -> fmap (fromVec loc) $ mapM rec v
   -- text
@@ -151,7 +152,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       PrimInt _    -> intE
       PrimString _ -> textE
       PrimBool _   -> boolE
-      PrimSigma _  -> boolE
+      PrimSigma _  -> sigmaE
 
     fromIf loc cond t e = app3 loc ifVar cond t e
 
@@ -185,6 +186,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
     fromTuple loc vs = appNs loc (tupleConVar size) $ V.toList vs
       where
         size = V.length vs
+
+    fromSigma _ = \case
+      Pk loc a         -> fromPk loc a
+      SAnd loc a b     -> app2 loc sigmaAndVar a b
+      SOr loc a b      -> app2 loc sigmaOrVar a b
+      SPrimBool loc a  -> app1 loc toSigmaVar a
 
     fromVec _ = \case
       NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
@@ -240,10 +247,11 @@ defaultContext = H.Context $ M.fromList $
   [ (intVar,    monoT intT)
   , (textVar,   monoT textT)
   , (boolVar,   monoT boolT)
+  , (sigmaVar,  monoT sigmaT)
   -- if
   , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
   -- pk
-  , (pkVar,     monoT $ textT `arr` boolT)
+  , (pkVar,     monoT $ textT `arr` sigmaT)
   -- operations
   --  unary
   , (notVar,    monoT $ boolT `arr` boolT)
@@ -261,6 +269,10 @@ defaultContext = H.Context $ M.fromList $
   , (greaterThanVar, cmpOp2)
   , (lessThanEqualsVar, cmpOp2)
   , (greaterThanEqualsVar, cmpOp2)
+  -- sigma expressions
+  , (sigmaOrVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
+  , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
+  , (toSigmaVar, monoT $ boolT `arr` sigmaT)
   -- vec expressions
   , (nilVecVar, forA $ monoT $ vectorT a)
   , (consVecVar, forA $ monoT $ a `arr` (vectorT a `arr` vectorT a))
@@ -336,16 +348,19 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, textE, boolE :: loc -> H.Term prim loc Text
+intE, textE, boolE, sigmaE :: loc -> H.Term prim loc Text
+
 intE loc = varE loc intVar
 textE loc = varE loc textVar
 boolE loc = varE loc boolVar
+sigmaE loc = varE loc sigmaVar
 
-intVar, textVar, boolVar, notVar, negateVar, boxVar :: Text
+intVar, textVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
 
 intVar = secretVar "Int"
 textVar = secretVar "Text"
 boolVar = secretVar "Bool"
+sigmaVar = secretVar "Sigma"
 boxVar = secretVar "Box"
 notVar = secretVar "not"
 negateVar = secretVar "negate"
@@ -427,6 +442,12 @@ altVar, failCaseVar :: Text
 
 altVar = secretVar "altCases"
 failCaseVar = secretVar "failCase"
+
+sigmaAndVar, sigmaOrVar, toSigmaVar :: Text
+
+sigmaAndVar = "sigmaAnd"
+sigmaOrVar  = "sigmaOr"
+toSigmaVar  = "toSigma"
 
 ---------------------------------------------------------
 

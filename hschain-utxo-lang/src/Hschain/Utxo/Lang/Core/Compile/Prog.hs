@@ -1,8 +1,10 @@
+-- | Functions to compile core progrmamms to instructions of G-machine
 module Hschain.Utxo.Lang.Core.Compile.Prog(
     compile
   , compileSc
   , coreProgTerminates
   , isSigmaScript
+  , execScriptToSigma
 ) where
 
 import Hschain.Utxo.Lang.Core.Gmachine
@@ -17,6 +19,8 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
+import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Types (TxEnv)
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
@@ -25,7 +29,32 @@ import qualified Data.Vector     as V
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
+import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
+import qualified Hschain.Utxo.Lang.Error as E
+
+-- | Executes script to sigma-expression.
+--
+-- Sigma script should contain main function that
+-- returns sigma-expression. The script should be well-typed and
+-- contain no recursion.
+execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
+execScriptToSigma env prog
+  | isSigmaScript prog = either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
+  | otherwise          = Left $ E.ExecError $ E.NoSigmaScript
+  where
+    getSigmaOutput st = case Output.toList $ gmachine'output st of
+      [PrimSigma sigma] -> Right sigma
+      _                 -> Left $ E.ExecError E.ResultIsNotSigma
+
+addPrelude :: TxEnv -> CoreProg -> CoreProg
+addPrelude txEnv prog = preludeLib txEnv <> prog
+
+-- | TODO: implement the function to remove unreachable code.
+-- We start from main and then include only functions that are needed by finding free variables.
+-- or maybe we can include it as a filter in prelude import.
+removeDeadCode :: CoreProg -> CoreProg
+removeDeadCode = id
 
 -- | the program is sigma script if
 --
@@ -48,7 +77,7 @@ coreProgTerminates prog =
   && recursionCheck prog
 
 mainIsSigma :: CoreProg -> Bool
-mainIsSigma prog =
+mainIsSigma (CoreProg prog) =
   case L.find (\sc -> scomb'name sc == "main") prog of
     Just mainComb -> hasNoArgs mainComb && resultIsSigma mainComb
     Nothing       -> False
@@ -73,9 +102,9 @@ compile prog = Gmachine
     (heap, globals) = buildInitHeap prog
 
 buildInitHeap :: CoreProg -> (Heap, Globals)
-buildInitHeap prog = (heap, Heap.initGlobals globalElems)
+buildInitHeap (CoreProg prog) = (heap, Heap.initGlobals globalElems)
   where
-    compiled = fmap compileSc (primitives ++ prog)
+    compiled = fmap compileSc prog
 
     (heap, globalElems) = L.foldl' allocateSc (Heap.empty, []) compiled
 
@@ -264,5 +293,4 @@ compileLetB env defs e =
     lets = snd $ foldr (\(_, expr) (curEnv, code) -> (argOffset 1 curEnv, compileC expr curEnv <> code) ) (env, mempty) defs
 
     env' = compileArgs defs env
-
 

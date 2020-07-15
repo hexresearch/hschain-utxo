@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE EmptyDataDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
@@ -5,7 +6,6 @@
 module TM.Infer (tests) where
 
 import Control.Monad
-import Data.Fix
 import Data.Text (Text)
 import Data.String (IsString(..))
 import Data.Text.Prettyprint.Doc
@@ -13,7 +13,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Language.HM
-import Language.HM.Infer
 import Language.HM.Pretty
 
 tests :: TestTree
@@ -52,3 +51,5 @@ instance HasPrefix Text where
 
 instance PrintCons Text where
   printCons name args = hsep $ pretty name : args
+
+

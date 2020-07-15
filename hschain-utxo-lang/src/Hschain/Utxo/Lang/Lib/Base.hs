@@ -92,6 +92,9 @@ baseFuns =
   , mapVec
   , foldVec
   , pk
+  , toSigma
+  , sigmaAnd
+  , sigmaOr
   , atVec
   , andB
   , orB
@@ -157,6 +160,9 @@ baseNames =
   , "fold"
   , "length"
   , "pk"
+  , "toSigma"
+  , "sigmaAnd"
+  , "sigmaOr"
   , "!"
   , "&&"
   , "||"
@@ -223,9 +229,13 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "showDouble" (monoT $ intT ~> textT)
   , assumpType "showBool" (monoT $ boolT ~> textT)
   , assumpType "showScript" (monoT $ scriptT ~> textT)
+  , assumpType "not" (monoT $ boolT ~> boolT)
   , assumpType "&&" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
-  , assumpType "not" (monoT $ boolT ~> boolT)
+  , assumpType "sigmaAnd" (monoT $ sigmaT ~> sigmaT ~> sigmaT)
+  , assumpType "sigmaOr" (monoT $ sigmaT ~> sigmaT ~> sigmaT)
+  , assumpType "pk" (monoT $ textT ~> sigmaT)
+  , assumpType "toSigma" (monoT $ boolT ~> sigmaT)
   , assumpType "+" (monoT $ intT ~> intT ~> intT)
   , assumpType "-" (monoT $ intT ~> intT ~> intT)
   , assumpType "*" (monoT $ intT ~> intT ~> intT)
@@ -239,7 +249,6 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "map" (forAB $ (aT ~> bT) ~> vectorT aT ~> vectorT bT)
   , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
-  , assumpType "pk" (monoT $ textT ~> boolT)
   , assumpType "!" (forA $ vectorT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
@@ -451,6 +460,18 @@ minusDouble = biOp "-." Minus
 divisionDouble :: Bind Lang
 divisionDouble = biOp "/." Div
 
+sigmaAnd :: Bind Lang
+sigmaAnd = bind "sigmaAnd" (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAnd noLoc x y)
+
+sigmaOr :: Bind Lang
+sigmaOr = bind "sigmaOr" (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SOr noLoc x y)
+
+toSigma :: Bind Lang
+toSigma = bind "toSigma" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ SPrimBool noLoc x)
+
+pk :: Bind Lang
+pk = bind "pk" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ Pk noLoc x)
+
 mapVec :: Bind Lang
 mapVec = bind "map" (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
 
@@ -465,9 +486,6 @@ appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ Tex
 
 atVec :: Bind Lang
 atVec = bind "!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
-
-pk :: Bind Lang
-pk = bind "pk" (Fix $ Lam noLoc "x" $ Fix $ Pk noLoc x)
 
 fst :: Bind Lang
 fst = bind "fst" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 0) (var' "x"))
