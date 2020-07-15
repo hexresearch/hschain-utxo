@@ -18,7 +18,7 @@ import qualified Data.Set  as S
 import qualified Data.Sequence as Seq
 
 -- | Finds free variables for expression
-freeVars :: Expr Name -> Set Name
+freeVars :: ExprLam Name -> Set Name
 freeVars = cata $ \case
   EVar _ var        -> S.singleton var
   EPrim _ _         -> mempty
@@ -43,15 +43,15 @@ defFreeVars :: Comb Name -> Set Name
 defFreeVars Def{..} = freeVars def'body `S.difference` (S.fromList def'args)
 
 -- | Reorders programm definitions by dependencies
-orderDependencies :: CoreProg -> CoreProg
+orderDependencies :: LamProg -> LamProg
 orderDependencies = fromDepGraph . stronglyConnComp . toDepGraph
 
-toDepGraph :: CoreProg -> [(Comb Name, Name, [Name])]
-toDepGraph (CoreProg prog) =
+toDepGraph :: LamProg -> [(Comb Name, Name, [Name])]
+toDepGraph (LamProg prog) =
   fmap (\def -> (def, varName'name $ def'name def, S.toList $ defFreeVars def)) prog
 
-fromDepGraph :: [SCC (Comb Name)] -> CoreProg
-fromDepGraph = CoreProg . toList . foldMap getVertex
+fromDepGraph :: [SCC (Comb Name)] -> LamProg
+fromDepGraph = LamProg . toList . foldMap getVertex
   where
     getVertex = \case
       AcyclicSCC v -> Seq.singleton v

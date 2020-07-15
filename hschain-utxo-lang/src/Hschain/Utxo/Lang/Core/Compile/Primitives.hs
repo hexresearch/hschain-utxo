@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Built-in language primitives
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
     preludeLib
@@ -13,7 +12,6 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
 import Data.Fix
 import Data.Int
 import Data.Map.Strict (Map)
-import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -108,7 +106,7 @@ primitives =
 -- generic utilities
 
 -- | comparision operators per type
-comparePack :: Type -> [Scomb]
+comparePack :: TypeCore -> [Scomb]
 comparePack ty =
   [ compareOp ty (toCompareName ty "equals")
   , compareOp ty (toCompareName ty "notEquals")
@@ -118,15 +116,12 @@ comparePack ty =
   , compareOp ty (toCompareName ty "lessThanEquals")
   ]
 
-ap :: Expr -> [Expr] -> Expr
+ap :: ExprCore -> [ExprCore] -> ExprCore
 ap f args = L.foldl' (\op a -> EAp op a) f args
 
 -- | Application of function to two arguments
-ap2 :: Expr -> Expr -> Expr -> Expr
+ap2 :: ExprCore -> ExprCore -> ExprCore -> ExprCore
 ap2 f a b = EAp (EAp f a) b
-
-instance IsString Expr where
-  fromString = EVar . fromString
 
 constant :: Name -> Prim -> Scomb
 constant name val = Scomb
@@ -135,7 +130,7 @@ constant name val = Scomb
   , scomb'body = Typed (EPrim val) (primToType val)
   }
 
-op1 :: Name -> Type -> Type -> Scomb
+op1 :: Name -> TypeCore -> TypeCore -> Scomb
 op1 name argT resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList $ [Typed "x" argT]
@@ -152,10 +147,10 @@ sigmaOp2 :: Name -> Scomb
 sigmaOp2 name = op2 name (sigmaT, sigmaT) sigmaT
 
 -- | TODO: do we need polymorphic comparison?
-compareOp :: Type -> Name -> Scomb
+compareOp :: TypeCore -> Name -> Scomb
 compareOp ty name = op2 name (ty, ty) boolT
 
-op2 :: Name -> (Type, Type) -> Type -> Scomb
+op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
 op2 name (xT, yT) resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT]
@@ -165,7 +160,7 @@ op2 name (xT, yT) resT = Scomb
 ------------------------------------------------------------
 -- boxes
 
-toCompareName :: Type -> Name -> Name
+toCompareName :: TypeCore -> Name -> Name
 toCompareName ty name = mconcat [primName ty, ".", name]
   where
     primName (H.Type (Fix x)) = case x of
@@ -183,7 +178,7 @@ boxCons = Scomb
   where
     consTy = funT (fmap typed'type boxArgs) boxT
 
-getBoxField :: Name -> Name -> Type -> Scomb
+getBoxField :: Name -> Name -> TypeCore -> Scomb
 getBoxField name field resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [Typed "box" boxT]
@@ -229,13 +224,13 @@ getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
 
     argT = tupleT argsTypes
 
-boxConstr :: Expr -> Expr -> Expr -> Expr -> Expr
+boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
 boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]
   where
     consTy = funT (fmap typed'type boxArgs) boxT
 
 
-toBox :: Box -> Expr
+toBox :: Box -> ExprCore
 toBox Box{..} = boxConstr name script value args
   where
     name   = EPrim $ PrimText $ unBoxId box'id
@@ -243,7 +238,7 @@ toBox Box{..} = boxConstr name script value args
     value  = EPrim $ PrimInt  $ box'value
     args   = toArgs box'args
 
-toArgs :: Args -> Expr
+toArgs :: Args -> ExprCore
 toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
   where
     consTy = funT argsTypes (tupleT argsTypes)
@@ -251,7 +246,7 @@ toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
     texts  = toVec textT $ fmap (EPrim . PrimText) args'texts
     bools  = toVec boolT $ fmap (EPrim . PrimBool) args'bools
 
-argsTypes :: [Type]
+argsTypes :: [TypeCore]
 argsTypes = [listT intT, listT textT, listT boolT]
 
 
@@ -276,7 +271,7 @@ getBoxes name boxes = Scomb
       (listT boxT)
   }
 
-toVec :: Type -> Vector Expr -> Expr
+toVec :: TypeCore -> Vector ExprCore -> ExprCore
 toVec t vs = V.foldr cons nil vs
   where
     nil      = EConstr (listT t) 0 0

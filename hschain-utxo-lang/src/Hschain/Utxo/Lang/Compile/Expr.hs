@@ -1,21 +1,30 @@
+-- | Language for extended lambda calculus.
+-- We compile our high-level language to this reduced language.
+-- And then we compile from this language to core.
+-- for this language we have type-inference that can derive types
+-- for all subexpressions. This is useful to get rexplicit type-annotations
+-- for fast type-checker in the core.
+--
+-- Lambda calculus is extended with very simple case-expressions.
+-- Case expressions of this language can have only patterns based on constructors.
+-- We can not use constants, wildcards or catch-all variables as patterns.
 module Hschain.Utxo.Lang.Compile.Expr(
     Ann(..)
   , Def(..)
   , Comb
   , AnnComb
---  , AnnDef(..)
-  , CoreProg(..)
-  , AnnProg(..)
-  , AnnExpr
-  , Expr
-  , ExprF(..)
+  , LamProg(..)
+  , AnnLamProg(..)
+  , AnnExprLam
+  , ExprLam
+  , ExprLamF(..)
   , CaseAlt(..)
   , PrimLoc(..)
   , TypedDef
-  , TypedProg
-  , TypedExpr
+  , TypedLamProg
+  , TypedExprLam
   , getTypedDefType
-  , liftTypedProg
+  , liftTypedLamProg
 ) where
 
 import Data.Fix
@@ -24,42 +33,51 @@ import Hschain.Utxo.Lang.Expr (Loc, VarName)
 
 import qualified Language.HM as H
 
-type TypedProg = AnnProg Type (Typed Name)
-type TypedDef = AnnComb Type (Typed Name)
-type TypedExpr = AnnExpr Type (Typed Name)
+-- | Programms annotated with types
+type TypedLamProg = AnnLamProg TypeCore (Typed Name)
 
+-- | Typed definitions of functions
+type TypedDef = AnnComb TypeCore (Typed Name)
+
+-- | Typed expressions
+type TypedExprLam = AnnExprLam TypeCore (Typed Name)
+
+-- | Annotation of the type with some additional information
 data Ann ann f a = Ann
-  { ann'note  :: ann
-  , ann'value :: f a
+  { ann'note  :: ann  -- ^ value to annotate all nodes of the syntax tree
+  , ann'value :: f a  -- ^ value of the syntax itself
   }
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
-type AnnExpr ann bind = Fix (Ann ann (ExprF bind))
-type Expr bind = Fix (ExprF bind)
+-- | Annotated expressions
+type AnnExprLam ann bind = Fix (Ann ann (ExprLamF bind))
 
-data AnnDef ann bind = AnnDef
-  { annDef'name :: Name
-  , annDef'args :: [bind]
-  , annDef'body :: AnnExpr ann bind
-  } deriving (Show, Eq)
+-- | Expressions of extended lambda calculus
+type ExprLam bind = Fix (ExprLamF bind)
 
-newtype AnnProg  ann bind = AnnProg { unAnnProg :: [AnnComb ann bind] }
+-- | Annotated programm.
+newtype AnnLamProg  ann bind = AnnLamProg { unAnnLamProg :: [AnnComb ann bind] }
   deriving (Show)
 
-newtype CoreProg = CoreProg { unCoreProg :: [Comb Name] }
+-- | Extended lambda calculus programm
+newtype LamProg = LamProg { unLamProg :: [Comb Name] }
   deriving (Show)
 
-type AnnComb ann bind = Def bind (AnnExpr ann bind)
-type Comb bind = Def bind (Expr bind)
+-- | Annotated combinator
+type AnnComb ann bind = Def bind (AnnExprLam ann bind)
 
+-- | Combinator
+type Comb bind = Def bind (ExprLam bind)
+
+-- | Definition (or combinator).
 data Def bind rhs = Def
-  { def'name :: VarName
-  , def'args :: [bind]
-  , def'body :: rhs
+  { def'name :: VarName  -- ^ name of the definition
+  , def'args :: [bind]   -- ^ arguments
+  , def'body :: rhs      -- ^ body of the definition
   } deriving (Functor, Foldable, Traversable, Show, Eq)
 
--- | Expressions of the Extended Core-language
-data ExprF bind a
+-- | Expressions of the Extended Lambda calculus Core-language
+data ExprLamF bind a
   = EVar !Loc !Name
   -- ^ variables
   | EPrim !Loc !PrimLoc
@@ -74,10 +92,10 @@ data ExprF bind a
   -- ^ if expressions
   | ECase !Loc a [CaseAlt bind a]
   -- ^ case alternatives
-  | EConstr !Loc !Type !Int !Int
+  | EConstr !Loc !TypeCore !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
-  | EAssertType !Loc a !Type
+  | EAssertType !Loc a !TypeCore
   -- ^ Explicit type annotations
   | EBottom Loc
   -- ^ Value of any type that means failed programm.
@@ -86,12 +104,13 @@ data ExprF bind a
 -- | Case alternatives
 data CaseAlt bind a = CaseAlt
   { caseAlt'loc   :: !Loc
+  -- ^ source code location of the expression
   , caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
   , caseAlt'args  :: [Typed Name]
   -- ^ arguments of the pattern matching
-  , caseAlt'constrType :: Type
+  , caseAlt'constrType :: TypeCore
   -- ^ Type of right hand side, it's the type that constructor belongs to
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative
@@ -100,16 +119,16 @@ data CaseAlt bind a = CaseAlt
 
 -- | Primitive values with locations
 data PrimLoc = PrimLoc
-  { primLoc'loc   :: !Loc
-  , primLoc'value :: !Prim
+  { primLoc'loc   :: !Loc   -- ^ location
+  , primLoc'value :: !Prim  -- ^ primitive value
   } deriving (Show, Eq)
 
-instance H.HasLoc (Expr bind) where
-  type Loc (Expr bind) = Loc
+instance H.HasLoc (ExprLam bind) where
+  type Loc (ExprLam bind) = Loc
   getLoc (Fix expr) = H.getLoc expr
 
-instance H.HasLoc (ExprF bind a) where
-  type Loc (ExprF bind a) = Loc
+instance H.HasLoc (ExprLamF bind a) where
+  type Loc (ExprLamF bind a) = Loc
   getLoc = \case
     EVar loc _          -> loc
     EPrim loc _         -> loc
@@ -124,14 +143,14 @@ instance H.HasLoc (ExprF bind a) where
 
 
 -- | Reads  type signature of typed def
-getTypedDefType :: TypedDef -> Type
+getTypedDefType :: TypedDef -> TypeCore
 getTypedDefType Def{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type def'args
     res  = ann'note $ unFix def'body
 
-liftTypedProg :: Monad m => (TypedExpr -> m TypedExpr) -> TypedProg -> m TypedProg
-liftTypedProg f (AnnProg combs) =  fmap AnnProg $ mapM liftComb combs
+liftTypedLamProg :: Monad m => (TypedExprLam -> m TypedExprLam) -> TypedLamProg -> m TypedLamProg
+liftTypedLamProg f (AnnLamProg combs) =  fmap AnnLamProg $ mapM liftComb combs
   where
     liftComb def = do
       body <- f $ def'body def

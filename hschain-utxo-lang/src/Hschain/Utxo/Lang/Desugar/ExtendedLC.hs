@@ -24,7 +24,7 @@ import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
-import Hschain.Utxo.Lang.Core.Data.Prim(Name)
+import Hschain.Utxo.Lang.Core.Data.Prim(Name, TypeCore)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -36,13 +36,13 @@ import qualified Language.HM as H
 
 -- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
-toExtendedLC :: MonadLang m => Module -> m CoreProg
+toExtendedLC :: MonadLang m => Module -> m LamProg
 toExtendedLC = toExtendedLC' <=< desugarModule
 
 
-toExtendedLC' :: MonadLang m => Module -> m CoreProg
+toExtendedLC' :: MonadLang m => Module -> m LamProg
 toExtendedLC' Module{..} =
-  fmap (removeTopLevelLambdas . CoreProg) $ mapM toDef module'binds
+  fmap (removeTopLevelLambdas . LamProg) $ mapM toDef module'binds
   where
     toDef bind = do
       body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
@@ -52,7 +52,7 @@ toExtendedLC' Module{..} =
         , def'body = body
         }
 
-exprToExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (Expr Text)
+exprToExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (ExprLam Text)
 exprToExtendedLC typeCtx = cataM $ \case
   Var loc v               -> fromVar loc v
   Apply loc a b           -> fromApply loc a b
@@ -257,7 +257,7 @@ getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
       Just info -> pure info
       Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
 
-fromType :: Type -> P.Type
+fromType :: Type -> TypeCore
 fromType = H.mapLoc (const ())
 
 desugarModule :: MonadLang m => Module -> m Module
@@ -307,8 +307,8 @@ substWildcards m = do
       lhs <- substPat $ caseExpr'lhs a
       return $ a { caseExpr'lhs = lhs }
 
-removeTopLevelLambdas :: CoreProg -> CoreProg
-removeTopLevelLambdas (CoreProg defs) = CoreProg $ fmap removeTopLevelLambdasDef defs
+removeTopLevelLambdas :: LamProg -> LamProg
+removeTopLevelLambdas (LamProg defs) = LamProg $ fmap removeTopLevelLambdasDef defs
 
 removeTopLevelLambdasDef :: Comb Name -> Comb Name
 removeTopLevelLambdasDef def@Def{..} =

@@ -16,10 +16,10 @@ import qualified Data.Set        as S
 
 -- | Gives name SC to all lambda-abstractions (short for supercombinator)
 -- and abstracts away all free variables in sub-expressions.
-abstract :: AnnProg (Set Name) Name -> CoreProg
-abstract = CoreProg . fmap (fmap abstractExpr) . unAnnProg
+abstract :: AnnLamProg (Set Name) Name -> LamProg
+abstract = LamProg . fmap (fmap abstractExpr) . unAnnLamProg
   where
-    abstractExpr :: AnnExpr (Set Name) Name -> Expr Name
+    abstractExpr :: AnnExprLam (Set Name) Name -> ExprLam Name
     abstractExpr = cata $ \Ann{..} -> case ann'value of
       ELam loc args body -> lam loc ann'note args body
       other              -> Fix other

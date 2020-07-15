@@ -15,7 +15,7 @@ import Data.Fix
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Type, Typed(..))
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, TypeCore, Typed(..))
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L
@@ -32,7 +32,7 @@ toName (VarName loc txt) = H.Ident loc $ T.unpack txt
 toQName :: VarName -> H.QName Loc
 toQName (VarName loc txt) = H.UnQual loc $ H.Ident loc $ T.unpack txt
 
-toType :: Loc -> Type -> H.Type Loc
+toType :: Loc -> TypeCore -> H.Type Loc
 toType loc ty = H.toHaskType $ H.mapLoc (const loc) ty
 
 toPat :: Loc -> Name -> H.Pat Loc

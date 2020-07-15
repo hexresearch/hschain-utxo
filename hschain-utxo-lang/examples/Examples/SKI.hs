@@ -18,7 +18,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 --
 -- > I :: a -> a
 -- > I x = x
-skiI :: Name -> Type -> Scomb
+skiI :: Name -> TypeCore -> Scomb
 skiI name ty = Scomb
   { scomb'name = "skiI." <> name
   , scomb'args = [Typed "x" ty]
@@ -29,7 +29,7 @@ skiI name ty = Scomb
 --
 -- > K :: a -> b -> a
 -- > K x y = x
-skiK :: Text -> Type -> Type -> Scomb
+skiK :: Text -> TypeCore -> TypeCore -> Scomb
 skiK name tyX tyY = Scomb
   { scomb'name = "skiK." <> name
   , scomb'args = [Typed "x" tyX, Typed "y" tyY]
@@ -40,7 +40,7 @@ skiK name tyX tyY = Scomb
 --
 -- > S :: (a -> b -> c) -> (a -> b) -> a -> c
 -- > S x y z = x z (y z)
-skiS :: Text -> Type -> Type -> Type -> Scomb
+skiS :: Text -> TypeCore -> TypeCore -> TypeCore -> Scomb
 skiS name tyA tyB tyC = Scomb
   { scomb'name = "skiS." <> name
   , scomb'args = [ Typed "x" (tyA `arrowT` (tyB `arrowT` tyC))
@@ -75,7 +75,7 @@ exampleSKK3 = CoreProg
 -- Helpers
 ----------------------------------------------------------------
 
-mkMain :: Typed Expr -> Scomb
+mkMain :: Typed ExprCore -> Scomb
 mkMain s = Scomb
   { scomb'name = "main"
   , scomb'args = mempty

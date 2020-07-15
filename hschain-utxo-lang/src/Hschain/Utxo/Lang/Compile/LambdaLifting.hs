@@ -25,7 +25,7 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting.Rename
 --
 -- It compiles program of extended lambda-calculus to the representation
 -- suitable for evaluation on G-machine.
-lambdaLifting :: CoreProg -> CoreProg
+lambdaLifting :: LamProg -> LamProg
 lambdaLifting = collect . rename . abstract . annotateFreeVars . fuseLams
 
 -- | Fusion for lambdas and arguments of combinators
@@ -37,8 +37,8 @@ lambdaLifting = collect . rename . abstract . annotateFreeVars . fuseLams
 -- fusion of sequential lambdas (accumulation of arguments)
 --
 -- > f = \x -> \y -> g x y ===> f = \x y -> g x y
-fuseLams :: CoreProg -> CoreProg
-fuseLams (CoreProg prog) = CoreProg $ fmap (fuseLamCombArgs . fmap fuseLamExpr) prog
+fuseLams :: LamProg -> LamProg
+fuseLams (LamProg prog) = LamProg $ fmap (fuseLamCombArgs . fmap fuseLamExpr) prog
 
 fuseLamCombArgs :: Comb Name -> Comb Name
 fuseLamCombArgs def@Def{..} =
@@ -49,7 +49,7 @@ fuseLamCombArgs def@Def{..} =
                          }
     _              -> def
 
-fuseLamExpr :: Expr Name -> Expr Name
+fuseLamExpr :: ExprLam Name -> ExprLam Name
 fuseLamExpr = cata $ \case
   ELam loc args1 (Fix (ELam _ args2 body)) -> Fix $ ELam loc (args1 ++ args2) body
   other                                    -> Fix other
