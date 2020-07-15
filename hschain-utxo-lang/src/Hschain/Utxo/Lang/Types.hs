@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types where
 
@@ -135,8 +134,6 @@ scriptToText = unScript
 
 $(deriveJSON dropPrefixOptions ''Tx)
 $(deriveJSON dropPrefixOptions ''TxArg)
-$(deriveJSON dropPrefixOptions ''Args)
-$(deriveJSON dropPrefixOptions ''Box)
 $(deriveJSON dropPrefixOptions ''Env)
 
 instance CryptoHashable Tx where

@@ -3,6 +3,7 @@
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
+import Hex.Common.Aeson
 import Hex.Common.Text
 
 import Control.Applicative
@@ -11,7 +12,6 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
-
 import Data.Fix
 import Data.Function (on)
 import Data.Foldable
@@ -871,3 +871,5 @@ instance CryptoHashable Box where
 instance CryptoHashable Args where
   hashStep = genericHashStep hashDomain
 
+$(deriveJSON dropPrefixOptions ''Args)
+$(deriveJSON dropPrefixOptions ''Box)
