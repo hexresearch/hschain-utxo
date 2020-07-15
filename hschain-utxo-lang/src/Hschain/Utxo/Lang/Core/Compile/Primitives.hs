@@ -86,8 +86,8 @@ primitives =
   -- text
   , op1 "lengthText" textT intT
   , op2 "<>" (textT, textT) textT
-  , op1 "hashBlake" textT textT
-  , op1 "hashSha" textT textT
+  , op1 "hashBlake" bytesT bytesT
+  , op1 "hashSha"   bytesT bytesT
 
   -- lists
   , nilComb
