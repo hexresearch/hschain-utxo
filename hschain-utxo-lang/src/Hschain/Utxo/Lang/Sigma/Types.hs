@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Sigma.Types where
 
 import qualified Codec.Serialise as CBOR
 import Control.DeepSeq (NFData)
+import Data.Aeson   (FromJSON,ToJSON)
 import Data.Coerce
 import GHC.Generics (Generic)
 
@@ -37,6 +38,8 @@ deriving newtype instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (Public
 deriving newtype instance NFData (ECPoint a) => NFData (PublicKey a)
 deriving newtype instance (CryptoHashable (ECPoint a)) => CryptoHashable (PublicKey a)
 deriving newtype instance ByteRepr (ECPoint a) => ByteRepr (PublicKey a)
+deriving newtype instance (ByteRepr (ECPoint a)) => ToJSON (PublicKey a)
+deriving newtype instance (ByteRepr (ECPoint a)) => FromJSON (PublicKey a)
 
 -- | Generate new private key.
 generateSecretKey :: EC a => IO (Secret a)
@@ -57,3 +60,5 @@ deriving instance Eq   (ECScalar a) => Eq   (Secret a)
 deriving instance Ord  (ECScalar a) => Ord  (Secret a)
 deriving newtype instance (CryptoHashable (ECScalar a)) => CryptoHashable (Secret a)
 deriving newtype instance (ByteRepr (ECScalar a)) => ByteRepr (Secret a)
+deriving newtype instance (ByteRepr (ECScalar a)) => ToJSON   (Secret a)
+deriving newtype instance (ByteRepr (ECScalar a)) => FromJSON (Secret a)

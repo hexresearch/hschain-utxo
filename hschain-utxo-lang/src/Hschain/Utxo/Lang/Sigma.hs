@@ -31,9 +31,7 @@ module Hschain.Utxo.Lang.Sigma(
 
 import Hex.Common.Serialise
 
-import Control.Monad
 import Control.DeepSeq (NFData)
-
 import Codec.Serialise
 
 import Data.Aeson
@@ -100,19 +98,13 @@ publicKeyToText = serialiseToText
 instance FromJSON Proof where
   parseJSON = serialiseFromJSON
 
-instance FromJSON PublicKey where
-  parseJSON = (maybe mzero pure . publicKeyFromText) <=< parseJSON
-
 instance ToJSON Proof where
   toJSON = serialiseToJSON
 
-instance ToJSON PublicKey where
-  toJSON = toJSON . publicKeyToText
-
-instance ToJSON (Sigma Proof) where
+instance Serialise a => ToJSON (Sigma a) where
   toJSON = serialiseToJSON
 
-instance FromJSON (Sigma Proof) where
+instance Serialise a => FromJSON (Sigma a) where
   parseJSON = serialiseFromJSON
 
 -- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
@@ -169,16 +161,6 @@ notSigma = cata $ \case
       | otherwise    = Right $ Fix $ SigmaAnd rs
       where
         (ls, rs) = partitionEithers xs
-
--- TODO: make human readable JSON instances for
--- usage with other languages, or provide tools to
--- work with haskell representation.
-
-instance FromJSON (Sigma PublicKey) where
-  parseJSON = serialiseFromJSON
-
-instance ToJSON (Sigma PublicKey) where
-  toJSON = serialiseToJSON
 
 fromSigmaExpr :: Sigma.SigmaE () a -> Sigma a
 fromSigmaExpr = \case
