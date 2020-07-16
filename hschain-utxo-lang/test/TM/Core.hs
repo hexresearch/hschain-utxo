@@ -21,21 +21,16 @@ import Examples.SKI
 tests :: TestTree
 tests = testGroup "core"
   [ testGroup "simple"
-    [ testCase "typecheck spend to key" $ do
-        Nothing @=? typeCheck preludeTypeContext progSpendToKey
-    , testCase "spend to key" $ do
-        Right [PrimSigma (Fix $ SigmaBool True)] @=? run progSpendToKey
-      --
-    , testCase "Typecheck addition" $ do
-        Nothing @=? typeCheck preludeTypeContext progAddition
-    , testCase "Addition" $ do
-        Right [PrimInt 101] @=? run progAddition
-      --
-    , testCase "Typecheck SKK3" $ do
-        Nothing @=? typeCheck preludeTypeContext exampleSKK3
-    , testCase "SKK3" $ do
-        Right [PrimInt 3] @=? run exampleSKK3
+    [ testProgram "spend to key" progSpendToKey (PrimSigma (Fix $ SigmaBool True))
+    , testProgram "Addition"     progAddition   (PrimInt 101)
+    , testProgram "SKK3"         exampleSKK3    (PrimInt 3)
     ]
+  ]
+
+testProgram :: String -> CoreProg -> Prim -> TestTree
+testProgram nm prog res = testGroup nm
+  [ testCase "typecheck" $ Nothing     @=? typeCheck preludeTypeContext prog
+  , testCase "eval"      $ Right [res] @=? run prog
   ]
 
 
