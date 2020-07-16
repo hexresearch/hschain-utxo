@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Compile.Infer(
 import Hex.Common.Text
 
 import Data.Fix
+import Data.Foldable
 import Data.String
 import qualified Data.Map.Strict as M
 
@@ -20,7 +21,7 @@ import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, TypeContext(..))
 
 import qualified Language.HM as H
-
+import qualified Data.Sequence as S
 
 
 -- | We need this type for type-inference algorithm
@@ -69,14 +70,21 @@ annotateTypes =
       (combT, combTyped) <- typeDef ctx comb
       return (H.insertContext (VarTag $ varName'name $ def'name comb) combT ctx, combTyped : prog)
 
-    typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, AnnComb TypeCore (Typed Name))
+    typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, TypedDef)
     typeDef ctx comb = do
       (combT, term) <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
       body <- fromInferExpr term
+      let (bodyExpr, args) = collectArgs S.empty body
       return $ (combT, comb
-        { def'args = []
-        , def'body = body
+        { def'args = args
+        , def'body = bodyExpr
         })
+
+    collectArgs res (Fix expr) = case expr of
+      Ann _ e -> case e of
+        ELam _ args a -> collectArgs (res <> S.fromList args) a
+        _            -> (Fix expr, toList res)
+
 
     fromErr = Left . TypeError . fmap fromTag
 

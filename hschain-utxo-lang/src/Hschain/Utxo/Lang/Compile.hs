@@ -15,14 +15,12 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore)
 import Hschain.Utxo.Lang.Monad
 
 import qualified Data.Vector as V
 
-
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore)
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
-
 
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m CoreProg

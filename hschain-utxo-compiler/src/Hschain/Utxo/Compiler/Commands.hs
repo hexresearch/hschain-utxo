@@ -54,9 +54,9 @@ compile input output = do
 
     mkScript m = do
       coreProg <- runInferM $ C.compile m
-      if isSigmaScript coreProg
-        then return $ (encode . Script . coreProgToText) coreProg
-        else Left "Script is not a sigma-script."
+      case isSigmaScript coreProg of
+        Just err -> Left err
+        Nothing  -> Right $ (encode . Script . coreProgToText) coreProg
 
 checkType :: Module -> Maybe Error
 checkType = checkMainModule langTypeContext

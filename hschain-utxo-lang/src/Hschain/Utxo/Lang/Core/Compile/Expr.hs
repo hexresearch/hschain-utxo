@@ -9,6 +9,8 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , CompiledScomb(..)
   , coreProgToText
   , coreProgFromText
+  , coreProgToHumanText
+  , coreProgFromHumanText
 ) where
 
 import Hex.Common.Serialise
@@ -28,13 +30,21 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
-  deriving newtype (Generic, Semigroup, Monoid)
+  deriving newtype (Generic, Semigroup, Monoid, Show)
 
 coreProgToText :: CoreProg -> Text
 coreProgToText = serialiseToText
 
 coreProgFromText :: Text -> Maybe CoreProg
 coreProgFromText = serialiseFromText
+
+-- | TODO: it would be useful for testing to
+-- have human readable versions of to/from script functions
+coreProgToHumanText :: CoreProg -> Text
+coreProgToHumanText = undefined -- renderText
+
+coreProgFromHumanText :: CoreProg -> Text
+coreProgFromHumanText = undefined -- renderText
 
 -- | Supercobinators do not contain free variables except for references to other supercombinators.
 --
