@@ -172,7 +172,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Box
                        TM.Core.List
                        Examples.SKI
-
+                       Examples.Simple
 
 benchmark hschain-utxo-lang-bench
   type:             exitcode-stdio-1.0
