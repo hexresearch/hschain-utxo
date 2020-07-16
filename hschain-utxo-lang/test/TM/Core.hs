@@ -47,6 +47,7 @@ testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
   [ testCase "typecheck" $ Nothing     @=? typeCheck preludeTypeContext prog
   , testCase "eval"      $ Right [res] @=? run (prog <> CoreProg (environmentFunctions env))
+  , testCase "simple"    $ Just res    @=? evalProg prog
   ]
 
 
