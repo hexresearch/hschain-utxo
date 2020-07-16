@@ -25,6 +25,7 @@ import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Codec.Serialise as CBOR
+import qualified Data.Aeson      as JSON
 import Data.Foldable
 import Data.Maybe
 import Data.Monoid (All(..))
@@ -81,10 +82,10 @@ data Proof a = Proof
   , proof'tree          :: ProvenTree a  -- ^ expression to prove
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a)
-         , CBOR.Serialise (ECScalar a)
-         , CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (Proof a)
+instance (EC a) => CBOR.Serialise (Proof a)
+instance (EC a) => JSON.FromJSON  (Proof a)
+instance (EC a) => JSON.ToJSON    (Proof a)
+
 instance ( CryptoHashable (ECPoint a)
          , CryptoHashable (ECScalar a)
          , CryptoHashable (Challenge a)
@@ -113,8 +114,9 @@ data ProvenTree a
       } -- ^ chalenges are calculated
   deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (ProvenTree a)
+instance (EC a) => CBOR.Serialise (ProvenTree a)
+instance (EC a) => JSON.FromJSON  (ProvenTree a)
+instance (EC a) => JSON.ToJSON    (ProvenTree a)
 
 instance ( CryptoHashable (ECScalar  a)
          , CryptoHashable (ECPoint   a)
@@ -133,10 +135,9 @@ data OrChild a = OrChild
   , orChild'tree      :: ProvenTree a
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a)
-         , CBOR.Serialise (ECScalar a)
-         , CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (OrChild a)
+instance (EC a) => CBOR.Serialise (OrChild a)
+instance (EC a) => JSON.FromJSON  (OrChild a)
+instance (EC a) => JSON.ToJSON    (OrChild a)
 
 instance ( CryptoHashable (ECScalar  a)
          , CryptoHashable (ECPoint   a)
