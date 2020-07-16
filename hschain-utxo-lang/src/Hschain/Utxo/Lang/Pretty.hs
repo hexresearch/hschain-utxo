@@ -186,9 +186,10 @@ instance Pretty Error where
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
     ExecError err         -> pretty err
     TypeError err         -> pretty err
-    PatError err      -> pretty err
+    PatError err          -> pretty err
     InternalError err     -> pretty err
     MonoError err         -> pretty err
+    CoreScriptError err   -> pretty err
 
 instance Pretty ExecError where
   pretty = \case
@@ -203,9 +204,7 @@ instance Pretty ExecError where
     NoField txt                    -> err "No field" txt
     Undefined loc                  -> hcat [pretty loc, ": undefined"]
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
-    NoMainFunction                 -> "Error: No main function is defined"
     NoSigmaScript                  -> "Error: Script does not contain main function or does not terminate"
-    ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
     FailedToDecodeScript           -> "Error: Failed to decode script"
     GmachineError e                -> pretty $ show e
     where
@@ -233,6 +232,14 @@ instance Pretty TypeError where
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
       inTicks x = hcat ["'", x, "'"]
+
+instance Pretty CoreScriptError where
+  pretty = \case
+    NoMainFunction                 -> "Error: No main function is defined"
+    ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
+    CoreTypeError                  -> "Error: Type of the core program is incorrect"
+    NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
+    RecursiveScript                -> "Error: Recursive script is not allowed"
 
 instance Pretty InternalError where
   pretty = \case

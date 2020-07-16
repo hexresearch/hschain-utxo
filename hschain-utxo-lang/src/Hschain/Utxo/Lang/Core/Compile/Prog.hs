@@ -7,6 +7,8 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
   , execScriptToSigma
 ) where
 
+import Control.Applicative
+
 import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.Compile.Env
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -39,13 +41,13 @@ import qualified Hschain.Utxo.Lang.Error as E
 -- returns sigma-expression. The script should be well-typed and
 -- contain no recursion.
 execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
-execScriptToSigma env prog
-  | isSigmaScript prog = either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
-  | otherwise          = Left $ E.ExecError $ E.NoSigmaScript
+execScriptToSigma env prog = case isSigmaScript prog of
+  Nothing  -> either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
+  Just err -> Left err
   where
     getSigmaOutput st = case Output.toList $ gmachine'output st of
       [PrimSigma sigma] -> Right sigma
-      _                 -> Left $ E.ExecError E.ResultIsNotSigma
+      _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
 
 addPrelude :: TxEnv -> CoreProg -> CoreProg
 addPrelude txEnv prog = preludeLib txEnv <> prog
@@ -60,10 +62,10 @@ removeDeadCode = id
 --
 -- * it terminates
 -- * main function returns sigma-expression
-isSigmaScript :: CoreProg -> Bool
+isSigmaScript :: CoreProg -> Maybe E.Error
 isSigmaScript prog =
-     coreProgTerminates prog
-  && mainIsSigma prog
+      coreProgTerminates prog
+  <|> mainIsSigma prog
 
 -- | Check that program terminates.
 --
@@ -71,17 +73,21 @@ isSigmaScript prog =
 --
 -- * be well typed
 -- * has no recursion
-coreProgTerminates :: CoreProg -> Bool
+coreProgTerminates :: CoreProg -> Maybe E.Error
 coreProgTerminates prog =
-     typeCheck preludeTypeContext prog
-  && recursionCheck prog
+      coreTypeError   (typeCheck preludeTypeContext prog)
+  <|> recursiveScript (recursionCheck prog)
+  where
+    coreTypeError   = E.wrapBoolError (E.CoreScriptError E.CoreTypeError)
+    recursiveScript = E.wrapBoolError (E.CoreScriptError E.RecursiveScript )
 
-mainIsSigma :: CoreProg -> Bool
+mainIsSigma :: CoreProg -> Maybe E.Error
 mainIsSigma (CoreProg prog) =
   case L.find (\sc -> scomb'name sc == "main") prog of
-    Just mainComb -> hasNoArgs mainComb && resultIsSigma mainComb
-    Nothing       -> False
+    Just mainComb -> resultIsNotSigma $ hasNoArgs mainComb && resultIsSigma mainComb
+    Nothing       -> Just $ E.CoreScriptError E.NoMainFunction
   where
+    resultIsNotSigma = E.wrapBoolError (E.CoreScriptError E.ResultIsNotSigma)
     hasNoArgs Scomb{..} = V.null scomb'args
     resultIsSigma Scomb{..} = sigmaT == typed'type scomb'body
 
