@@ -153,6 +153,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       PrimString _ -> textE
       PrimBool _   -> boolE
       PrimSigma _  -> sigmaE
+      PrimBS _     -> bytesE
 
     fromIf loc cond t e = app3 loc ifVar cond t e
 
@@ -348,17 +349,19 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, textE, boolE, sigmaE :: loc -> H.Term prim loc Text
+intE, textE, boolE, bytesE, sigmaE :: loc -> H.Term prim loc Text
 
 intE loc = varE loc intVar
 textE loc = varE loc textVar
+bytesE loc = varE loc bytesVar
 boolE loc = varE loc boolVar
 sigmaE loc = varE loc sigmaVar
 
-intVar, textVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
+intVar, textVar, bytesVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
 
 intVar = secretVar "Int"
 textVar = secretVar "Text"
+bytesVar = secretVar "Bytes"
 boolVar = secretVar "Bool"
 sigmaVar = secretVar "Sigma"
 boxVar = secretVar "Box"

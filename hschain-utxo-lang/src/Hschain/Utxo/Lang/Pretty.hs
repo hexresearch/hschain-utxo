@@ -22,6 +22,7 @@ import Hschain.Utxo.Lang.Infer.Pretty ()
 
 import qualified Data.Vector as V
 
+import HSChain.Crypto.Classes (encodeBase58)
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
@@ -154,6 +155,7 @@ instance Pretty Prim where
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
     PrimSigma    s -> pretty $ show s
+    PrimBS       s -> pretty $ encodeBase58 s
 
 instance Pretty a => Pretty (EnvId a) where
   pretty = prettyId . fmap pretty
