@@ -158,8 +158,11 @@ Test-suite hschain-utxo-lang-tests
   Ghc-options:         -Wall -threaded -rtsopts
   Default-Language:    Haskell2010
   Build-Depends:       base              >=4.9 && <5
-                     , data-fix
                      , hschain-utxo-lang
+                     , hschain-crypto
+                     , data-fix
+                     , bytestring
+                     , vector
                      , text
                      , tasty
                      , tasty-hunit
