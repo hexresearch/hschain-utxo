@@ -49,11 +49,13 @@ progAddition :: CoreProg
 progAddition = CoreProg
   [ mkMain $ Typed
     { typed'value = EAp
-                    (EAp (EVar "+") (EPrim (PrimInt 1)))
+                    (EAp (EVar (Typed "+" addT)) (EPrim (PrimInt 1)))
                     (EPrim (PrimInt 100))
     , typed'type  = intT
     }
   ]
+  where
+    addT = funT [intT, intT] intT
 
 run :: CoreProg -> Either Error [Prim]
 run

@@ -15,12 +15,13 @@ import qualified Hschain.Utxo.Lang.Core.Gmachine.Monad as G(Error)
 
 -- | errors for our language
 data Error
-  = ParseError Loc Text         -- ^ parse errors
-  | ExecError ExecError         -- ^ errors of execution
-  | TypeError TypeError         -- ^ type-errors
-  | PatError PatError       -- ^ pattern definition errors
-  | InternalError InternalError -- ^ errors of this type should not happen in production
-  | MonoError MonoError         -- ^ errors during monomorphizing
+  = ParseError Loc Text             -- ^ parse errors
+  | ExecError ExecError             -- ^ errors of execution
+  | TypeError TypeError             -- ^ type-errors
+  | PatError PatError               -- ^ pattern definition errors
+  | InternalError InternalError     -- ^ errors of this type should not happen in production
+  | MonoError MonoError             -- ^ errors during monomorphizing
+  | CoreScriptError CoreScriptError -- ^ errors of core scripts
   deriving (Show)
 
 -- | Execution errors
@@ -35,10 +36,8 @@ data ExecError
   | IllegalRecursion Lang
   | OutOfBound Lang
   | NoField VarName
-  | NoMainFunction
   | NonExaustiveCase Loc Lang
   | NoSigmaScript
-  | ResultIsNotSigma
   | GmachineError G.Error
   | FailedToDecodeScript
   deriving (Show)
@@ -67,8 +66,21 @@ data MonoError
   | CompareForNonPrim Loc
   deriving (Show)
 
+data CoreScriptError =
+    NoMainFunction
+  | ResultIsNotSigma
+  | CoreTypeError
+  | RecursiveScript
+  | NotMonomorphicTypes
+  deriving (Show)
+
 -- pretty message
 -- "There is no main expression defined in the module"
+
+wrapBoolError :: a -> Bool -> Maybe a
+wrapBoolError err b = case b of
+  True  -> Nothing
+  False -> Just err
 
 -- | Lift type-errors
 eitherTypeError :: Either TypeError a -> Either Error a

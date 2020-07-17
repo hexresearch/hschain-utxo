@@ -15,19 +15,17 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore)
 import Hschain.Utxo.Lang.Monad
 
 import qualified Data.Vector as V
 
-
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore)
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
-
 -- | Compilation to Core-lang program from the script-language.
-compile :: MonadLang m => Module -> m Core.CoreProg
+compile :: MonadLang m => Module -> m CoreProg
 compile =
-      toCoreProg <=< makeMonomorphic <=< specifyCompareOps
+      toCoreProg <=< {- makeMonomorphic <=< -} specifyCompareOps
   <=< annotateTypes . lambdaLifting <=< toExtendedLC
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
@@ -48,7 +46,7 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
       where
         convert (Ann exprTy val) = case val of
-          EVar _ name          -> pure $ Core.EVar name
+          EVar _ name          -> pure $ Core.EVar $ Typed name exprTy
           EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
           EAp _  f a           -> pure $ Core.EAp f a
           ELet _ binds e       -> pure $ Core.ELet binds e
