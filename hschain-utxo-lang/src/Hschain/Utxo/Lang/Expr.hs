@@ -235,6 +235,30 @@ instance Semigroup Args where
 instance Monoid Args where
   mempty = Args mempty mempty mempty
 
+-- | Construct args that contain only integers
+intArgs :: [Int64] -> Args
+intArgs xs = Args
+  { args'ints  = V.fromList xs
+  , args'bools = mempty
+  , args'texts = mempty
+  }
+
+-- | Construct args that contain only booleans
+boolArgs :: [Bool] -> Args
+boolArgs xs = Args
+  { args'ints  = mempty
+  , args'bools = V.fromList xs
+  , args'texts = mempty
+  }
+
+-- | Construct args that contain only texts
+textArgs :: [Text] -> Args
+textArgs xs = Args
+  { args'ints  = mempty
+  , args'bools = mempty
+  , args'texts = V.fromList xs
+  }
+
 -- | Identifier of the box. Box holds value protected by the script.
 newtype BoxId = BoxId { unBoxId :: Text }
   deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)

@@ -231,11 +231,7 @@ xorGameRound Scene{..} game@Game{..} = do
                   , box'args   = mempty
                   }
 
-            makeArgs height = Args
-              { args'ints  = V.fromList [guess, height + 35]
-              , args'texts = V.fromList [publicKeyToText $ getWalletPublicKey wallet]
-              , args'bools = V.empty
-              }
+            makeArgs height = intArgs [guess, height + 35] <> textArgs [publicKeyToText $ getWalletPublicKey wallet]
 
     triesToWin isSuccess name wallet gameBox aliceSecret aliceGuess = do
       winAddr <- allocAddress wallet
@@ -253,11 +249,7 @@ xorGameRound Scene{..} game@Game{..} = do
             , tx'args    = args
             }) $ getOwnerProofUnsafe wallet
       where
-        args = Args
-          { args'texts = V.fromList [aliceSecret]
-          , args'ints  = V.fromList [aliceGuess]
-          , args'bools = V.empty
-          }
+        args = textArgs [aliceSecret] <> intArgs [aliceGuess]
 
         outBox = Box
           { box'id      = winAddr

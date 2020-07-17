@@ -182,11 +182,7 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
       { box'id     = sendDelayed'to
       , box'value  = sendDelayed'amount
       , box'script = toScript $ receiverScript ||* refundScript
-      , box'args   = Args
-          { args'ints  = V.fromList [height]
-          , args'texts = V.empty
-          , args'bools = V.empty
-          }
+      , box'args   = intArgs [height]
       }
 
     getSpendHeight = vecAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
