@@ -48,6 +48,10 @@ import Data.Maybe
 
 import Data.Text (Text)
 
+import qualified Data.Vector as V
+
+import Data.Word
+
 import GHC.Generics
 
 import Servant.API
@@ -252,30 +256,44 @@ data ProfitTx = PTx
   deriving (Eq, Ord, Show)
 
 data UTXONodeState = UTXONodeState
-  { unsTransactions :: !(Set.Set ProfitTx)
-  , unsUTXOSet      :: !(Set.Set Box)
+  { unsTransactions   :: !(Set.Set ProfitTx)
+  , unsUTXOSet        :: !(Set.Set Box)
+  , unsUTXORandomness :: !BS.ByteString
+  , unsUTXOIndex      :: !Word64
   }
   deriving (Eq, Ord, Show)
 
 -- |Run the PoW node.
-runNode :: String -> IO ()
-runNode cfgConfigPath =
-  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep getBlockToMine (UTXONodeState Set.empty Set.empty)
+runNode :: String -> String -> IO ()
+runNode secretNodeName cfgConfigPath =
+  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep getBlockToMine (UTXONodeState Set.empty Set.empty (getHashBytes (hash secretNodeName :: Hash SHA256)) 0)
   where
+    getHashBytes :: Hash a -> BS.ByteString
+    getHashBytes (Hash bytes) = bytes
     getBlockToMine bh st@(UTXONodeState{..}) = (POWTypes.GBlock
-      { blockHeight = succ $ POWTypes.bhHeight bh
+      { blockHeight = blockHeight
       , blockTime   = POWTypes.Time 0
       , prevBlock   = Just $! POWTypes.bhBID bh
       , blockData   = UTXOBlock {
                            ubNonce = BS.empty
                          , ubProper = UTXOBlockProper
                               { ubpPrevious   = POWTypes.bhBID bh
-                              , ubpData       = merkled []
+                              , ubpData       = merkled $ miningTx : []
                               , ubpTarget     = POWTypes.retarget bh
                               , ubpTime       = POWTypes.Time 0
                               }
                       }
       }, st)
+      where
+        blockHeight = succ $ POWTypes.bhHeight bh
+        currentSecret = getHashBytes (hash (unsUTXORandomness, blockHeight) :: Hash SHA256) -- ^ currentSecret depends on height and randomness and can be computed knowing both. Height is open to wide world, randomness is not.
+        currentSecretHash = getHashBytes (hash currentSecret :: Hash SHA256) -- ^This is what will be put into open world.
+        miningTx = Tx
+                   { tx'inputs  = V.empty   -- ^ List of identifiers of input boxes in blockchain 
+                   , tx'outputs = V.empty     -- ^ List of outputs 
+                   , tx'proof   = Nothing    -- ^ Proof of the resulting sigma expression 
+                   , tx'args    = Map.empty            -- ^ Arguments for the scripts 
+                   } 
 
     optNodeName = error "optnodename"
     optMine = True

@@ -43,6 +43,7 @@ library
                      , text
                      , transformers
                      , transformers-base
+                     , vector
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
