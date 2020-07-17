@@ -171,8 +171,8 @@ compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
   ELet es e -> compileLet env (fmap stripLetType es) e
   EIf a b c                         -> compileIf a b c
-  EAp (EAp (EVar op) a) b           -> compileDiadic op a b
-  EAp (EVar op) a                   -> compileUnary op a
+  EAp (EAp (EVar op) a) b           -> compileDiadic (typed'value op) a b
+  EAp (EVar op) a                   -> compileUnary (typed'value op) a
   ECase e alts -> compileCase env (typed'value e) alts
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   --
@@ -201,9 +201,9 @@ compileCase env e alts = compileE e env <> Code.singleton (CaseJump $ compileAlt
 -- | Compile expression in lazy context
 compileC :: ExprCore -> Env -> Code
 compileC expr env = case expr of
-  EVar v  -> Code.singleton $ case lookupEnv v env of
+  EVar v  -> Code.singleton $ case lookupEnv (typed'value v) env of
                Just n  -> Push n
-               Nothing -> PushGlobal (GlobalName v)
+               Nothing -> PushGlobal (GlobalName $ typed'value v)
   EPrim n             -> Code.singleton $ PushPrim n
   EAp a b             -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
   ELet es e           -> compileLet env (fmap stripLetType es) e
@@ -265,8 +265,8 @@ compileB expr env = case expr of
   EPrim n                           -> Code.singleton $ PushBasic n
   ELet es e                         -> compileLetB env (fmap stripLetType es) e
   EIf a b c                         -> compileIf a b c
-  EAp (EAp (EVar op) a) b           -> compileDiadic op a b
-  EAp (EVar op) a                   -> compileUnary op a
+  EAp (EAp (EVar op) a) b           -> compileDiadic (typed'value op) a b
+  EAp (EVar op) a                   -> compileUnary (typed'value op) a
   _                                 -> defaultCase
   where
     compileIf a b c =

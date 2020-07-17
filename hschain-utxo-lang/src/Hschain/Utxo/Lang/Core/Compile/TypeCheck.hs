@@ -27,8 +27,10 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
 import Control.Monad.Reader
 
 import Data.Fix
+import Data.Either
 import Data.Map.Strict (Map)
 import Data.Maybe
+import Data.Text.Prettyprint.Doc
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -41,8 +43,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
-
-import Data.Text.Prettyprint.Doc
 
 {- for debug
 import Debug.Trace
@@ -134,8 +134,14 @@ inferExpr = \case
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
-inferVar :: Name -> Check MonoType
-inferVar name = fmap MonoType $ getType name
+inferVar :: Typed Name -> Check MonoType
+inferVar (Typed name ty) = do
+  guard $ isMonoType (MonoType ty)
+  globalTy <- getType name
+  if isMonoType (MonoType globalTy)
+    then guard $ ty == globalTy
+    else guard $ isRight $ ty `H.subtypeOf` globalTy
+  return $ MonoType ty
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p

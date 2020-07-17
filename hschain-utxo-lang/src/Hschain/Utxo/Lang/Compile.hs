@@ -46,7 +46,7 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
       where
         convert (Ann exprTy val) = case val of
-          EVar _ name          -> pure $ Core.EVar name
+          EVar _ name          -> pure $ Core.EVar $ Typed name exprTy
           EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
           EAp _  f a           -> pure $ Core.EAp f a
           ELet _ binds e       -> pure $ Core.ELet binds e

@@ -17,7 +17,6 @@ import Hex.Common.Serialise
 
 import Codec.Serialise
 
-import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -57,7 +56,7 @@ data Scomb = Scomb
 
 -- | Expressions of the Core-language
 data ExprCore
-  = EVar !Name
+  = EVar !(Typed Name)
   -- ^ variables
   | EPrim !Prim
   -- ^ constant primitive
@@ -101,7 +100,4 @@ instance Serialise CaseAlt
 instance Serialise ExprCore
 instance Serialise Scomb
 instance Serialise CoreProg
-
-instance IsString ExprCore where
-  fromString = EVar . fromString
 

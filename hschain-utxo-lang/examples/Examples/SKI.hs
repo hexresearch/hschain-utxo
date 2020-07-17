@@ -22,7 +22,7 @@ skiI :: Name -> TypeCore -> Scomb
 skiI name ty = Scomb
   { scomb'name = "skiI." <> name
   , scomb'args = [Typed "x" ty]
-  , scomb'body = Typed (EVar "x") ty
+  , scomb'body = Typed (EVar (Typed "x" ty)) ty
   }
 
 -- | K combinator
@@ -33,7 +33,7 @@ skiK :: Text -> TypeCore -> TypeCore -> Scomb
 skiK name tyX tyY = Scomb
   { scomb'name = "skiK." <> name
   , scomb'args = [Typed "x" tyX, Typed "y" tyY]
-  , scomb'body = Typed (EVar "x") tyX
+  , scomb'body = Typed (EVar (Typed "x" tyX)) tyX
   }
 
 -- | S combinator
@@ -43,14 +43,18 @@ skiK name tyX tyY = Scomb
 skiS :: Text -> TypeCore -> TypeCore -> TypeCore -> Scomb
 skiS name tyA tyB tyC = Scomb
   { scomb'name = "skiS." <> name
-  , scomb'args = [ Typed "x" (tyA `arrowT` (tyB `arrowT` tyC))
-                 , Typed "y" (tyA `arrowT` tyB)
-                 , Typed "z" tyA
+  , scomb'args = [ Typed "x" tyX
+                 , Typed "y" tyY
+                 , Typed "z" tyZ
                  ]
   , scomb'body = Typed
-                 ((EAp (EVar "x") (EVar "z")) `EAp` (EAp (EVar "y") (EVar "z")))
+                 ((EAp (EVar (Typed "x" tyX)) (EVar (Typed "z" tyZ))) `EAp` (EAp (EVar (Typed "y" tyY)) (EVar (Typed "z" tyZ))))
                  tyC
   }
+  where
+    tyX = tyA `arrowT` (tyB `arrowT` tyC)
+    tyY = tyA `arrowT` tyB
+    tyZ = tyA
 
 
 ----------------------------------------------------------------
@@ -66,9 +70,17 @@ exampleSKK3 = CoreProg
   , skiK "funT" intT (intT `arrowT` intT)
   , skiS ""     intT (intT `arrowT` intT) intT
   , mkMain $ Typed
-    (((EVar "skiS." `EAp` EVar "skiK.funT") `EAp` EVar "skiK.intT") `EAp` EPrim (PrimInt 3))
+    (((EVar (Typed "skiS." tySkiS) `EAp` EVar (Typed "skiK.funT" tySkiK_funT)) `EAp` EVar (Typed "skiK.intT" tySkiK_intT)) `EAp` EPrim (PrimInt 3))
     intT
   ]
+  where
+    tySkiK_intT = funT [intT, intT] intT
+    tySkiK_funT = funT [intT, intT `arrowT` intT] intT
+    tySkiS      = funT [a `arrowT` (b `arrowT` c), a `arrowT` b, a] c
+      where
+        a = intT
+        b = intT `arrowT` intT
+        c = intT
 
 
 ----------------------------------------------------------------

@@ -134,7 +134,7 @@ op1 :: Name -> TypeCore -> TypeCore -> Scomb
 op1 name argT resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList $ [Typed "x" argT]
-  , scomb'body = Typed (EAp (EVar name) (EVar "x")) resT
+  , scomb'body = Typed (EAp (EVar $ Typed name (arrowT argT resT)) (EVar $ Typed "x" argT)) resT
   }
 
 intOp2 :: Name -> Scomb
@@ -154,7 +154,7 @@ op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
 op2 name (xT, yT) resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT]
-  , scomb'body = Typed (ap2 (EVar name) (EVar "x") (EVar "y")) resT
+  , scomb'body = Typed (ap2 (EVar $ Typed name (funT [xT, yT] resT)) (EVar $ Typed "x" xT) (EVar $ Typed "y" yT)) resT
   }
 
 ------------------------------------------------------------
@@ -173,18 +173,18 @@ boxCons :: Scomb
 boxCons = Scomb
   { scomb'name = "Box"
   , scomb'args = V.fromList boxArgs
-  , scomb'body = Typed (ap (EConstr consTy 0 4) $ fmap (EVar . typed'value) boxArgs) boxT
+  , scomb'body = Typed (ap (EConstr consTy 0 4) $ fmap EVar boxArgs) boxT
   }
   where
     consTy = funT (fmap typed'type boxArgs) boxT
 
-getBoxField :: Name -> Name -> TypeCore -> Scomb
+getBoxField :: Name -> Typed Name -> TypeCore -> Scomb
 getBoxField name field resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [Typed "box" boxT]
   , scomb'body =
       Typed
-        (ECase (Typed "box" boxT) [CaseAlt 0 boxArgs (EVar field)])
+        (ECase (Typed (EVar $ Typed "box" boxT) boxT) [CaseAlt 0 boxArgs (EVar field)])
         resT
   }
   where
@@ -198,13 +198,13 @@ boxArgs =
   ]
 
 getBoxName :: Scomb
-getBoxName = getBoxField Const.getBoxName "name" textT
+getBoxName = getBoxField Const.getBoxName (Typed "name" textT) textT
 
 getBoxScript :: Scomb
-getBoxScript = getBoxField Const.getBoxScript "script" textT
+getBoxScript = getBoxField Const.getBoxScript (Typed "script" textT) textT
 
 getBoxValue :: Scomb
-getBoxValue = getBoxField Const.getBoxValue "value" intT
+getBoxValue = getBoxField Const.getBoxValue (Typed "value" intT) intT
 
 getBoxArgs :: [Scomb]
 getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
@@ -217,8 +217,8 @@ getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
       { scomb'name = Const.getBoxArgs $ argTypeName typeTag
       , scomb'args = V.fromList [Typed "x" argT]
       , scomb'body = Typed
-          (ECase (Typed (EVar "x") argT)
-            [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] (EVar resVar)])
+          (ECase (Typed (EVar $ Typed "x" argT) argT)
+            [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] (EVar $ Typed resVar resType)])
           (listT resType)
       }
 
