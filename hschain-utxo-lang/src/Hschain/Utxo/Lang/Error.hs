@@ -7,6 +7,7 @@ import Data.String
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore)
 
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Parser as H
@@ -69,10 +70,30 @@ data MonoError
 data CoreScriptError =
     NoMainFunction
   | ResultIsNotSigma
-  | CoreTypeError
+  | TypeCoreError TypeCoreError
   | RecursiveScript
   | NotMonomorphicTypes
   deriving (Show)
+
+-- | Errors for core language type-checker.
+data TypeCoreError
+  = NotMonomorphicType Text TypeCore
+  | VarIsNotDefined Text
+  | ArrowTypeExpected TypeCore
+  | TypeCoreMismatch TypeCore TypeCore
+  | SubtypeError TypeCore TypeCore
+  | EmptyCaseExpression
+  deriving (Show, Eq)
+
+notMonomorphicType :: MonadError TypeCoreError m => Text -> TypeCore -> m a
+notMonomorphicType name ty = throwError $ NotMonomorphicType name ty
+
+typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
+typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb
+
+subtypeError :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
+subtypeError ta tb = throwError $ SubtypeError ta tb
+
 
 -- pretty message
 -- "There is no main expression defined in the module"

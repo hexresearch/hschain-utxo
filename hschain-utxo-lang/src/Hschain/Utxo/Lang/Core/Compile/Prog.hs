@@ -78,7 +78,7 @@ coreProgTerminates prog =
       coreTypeError   (typeCheck preludeTypeContext prog)
   <|> recursiveScript (recursionCheck prog)
   where
-    coreTypeError   = E.wrapBoolError (E.CoreScriptError E.CoreTypeError)
+    coreTypeError   = fmap (E.CoreScriptError . E.TypeCoreError)
     recursiveScript = E.wrapBoolError (E.CoreScriptError E.RecursiveScript )
 
 mainIsSigma :: CoreProg -> Maybe E.Error
