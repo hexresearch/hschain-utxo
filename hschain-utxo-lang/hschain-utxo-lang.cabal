@@ -37,6 +37,7 @@ library
       Hschain.Utxo.Lang.Compile.LambdaLifting.FreeVars
       Hschain.Utxo.Lang.Compile.LambdaLifting.Rename
       Hschain.Utxo.Lang.Core.Compile
+      Hschain.Utxo.Lang.Core.Compile.Build
       Hschain.Utxo.Lang.Core.Compile.Env
       Hschain.Utxo.Lang.Core.Compile.Expr
       Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -165,6 +166,7 @@ Test-suite hschain-utxo-lang-tests
   hs-source-dirs:      test examples
   Main-is:             Main.hs
   Other-modules:       TM.Core
+                       TM.Core.List
                        Examples.SKI
 
 
