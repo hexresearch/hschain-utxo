@@ -47,6 +47,7 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 environmentFunctions :: TxEnv -> [Scomb]
 environmentFunctions TxEnv{..} =
   [ getHeight txEnv'height
+  , getSelf txEnv'self
   , getInputs txEnv'inputs
   , getOutputs txEnv'outputs
   ] ++ getArgs txEnv'args
@@ -54,6 +55,7 @@ environmentFunctions TxEnv{..} =
 environmentTypes :: TypeContext
 environmentTypes = TypeContext $ M.fromList $
   [ (Const.getHeight,  intT)
+  , (Const.getSelf,    boxT)
   , (Const.getInputs,  listT boxT)
   , (Const.getOutputs, listT boxT)
   ] ++ getArgsTypes
@@ -237,6 +239,9 @@ argsTypes = [listT intT, listT textT, listT boolT]
 getHeight :: Int64 -> Scomb
 getHeight height = constant Const.getHeight (PrimInt height)
 
+getSelf :: Box -> Scomb
+getSelf b = constantComb "getSelf" boxT $ toBox b
+
 getInputs :: Vector Box -> Scomb
 getInputs = getBoxes Const.getInputs
 
@@ -244,13 +249,7 @@ getOutputs :: Vector Box -> Scomb
 getOutputs = getBoxes Const.getOutputs
 
 getBoxes :: Text -> Vector Box -> Scomb
-getBoxes name boxes = Scomb
-  { scomb'name = name
-  , scomb'args = V.empty
-  , scomb'body = Typed
-      (toVec boxT $ fmap toBox boxes)
-      (listT boxT)
-  }
+getBoxes name boxes = constantComb name (listT boxT) (toVec boxT $ fmap toBox boxes)
 
 toVec :: TypeCore -> Vector ExprCore -> ExprCore
 toVec t vs = V.foldr cons nil vs
@@ -267,25 +266,13 @@ getArgs Args{..} =
   , argComb PrimBool boolT BoolArg args'bools
   ]
   where
-    argComb cons ty tyTag vals = Scomb
-      { scomb'name = Const.getArgs $ argTypeName tyTag
-      , scomb'args = V.empty
-      , scomb'body = Typed
-          (toVec ty $ fmap (EPrim . cons) vals)
-          (listT ty)
-      }
+    argComb cons ty tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
 
 ------------------------------------------------------------
 -- lists
 
 nilComb :: Scomb
-nilComb = Scomb
-  { scomb'name = "nil"
-  , scomb'args = V.empty
-  , scomb'body = Typed
-      (EConstr nilTy 0 0)
-      nilTy
-  }
+nilComb = constantComb "nil" nilTy (EConstr nilTy 0 0)
   where
     nilTy = listT (varT "a")
 

@@ -1,6 +1,7 @@
 -- | Smartconstructors for core lang
 module Hschain.Utxo.Lang.Core.Compile.Build(
     constant
+  , constantComb
   , ap
   , ap2
   , intOp2
@@ -33,10 +34,13 @@ ap2 :: ExprCore -> ExprCore -> ExprCore -> ExprCore
 ap2 f a b = EAp (EAp f a) b
 
 constant :: Name -> Prim -> Scomb
-constant name val = Scomb
+constant name val = constantComb name (primToType val) (EPrim val)
+
+constantComb :: Name -> TypeCore -> ExprCore -> Scomb
+constantComb name ty val = Scomb
   { scomb'name = name
   , scomb'args = V.empty
-  , scomb'body = Typed (EPrim val) (primToType val)
+  , scomb'body = Typed val ty
   }
 
 op1 :: Name -> TypeCore -> TypeCore -> Scomb
