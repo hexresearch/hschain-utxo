@@ -12,7 +12,13 @@ or slash-lambda. Like in haskell we have ``if-then-else`` and ``let-in`` express
   > addTwo 2
    4
 
-Like in Haskell we have tuples. They are accessed with operator ``tuple !! int``.
+Like in Haskell we have tuples. They are accessed with case-expressions::
+
+   getThird (_, _, third) = third
+
+   case pair of
+      (a, b) -> a + b
+
 Also we have vectors with usual operators ``map`` (map over), ``fold`` (left fold), ``length`` (size of the vector), 
 ``++`` (concatenation). 
 
@@ -49,7 +55,7 @@ Here is the simple script to protect Bob's values::
   pk "bob-key"
 
 In this line ``bob-key`` is a public key of the user. It protects the funds
-from spending by other parties. Bu where do we get our keys?
+from spending by other parties. But where do we get our keys?
 We get public key from secret key. 
 
 Secret and public keys
@@ -109,7 +115,7 @@ Let's look at how transaction is executed. Transaction has several components:
 **Args**
    Key-value pairs of primitive values. 
 
-User post transaction in three steps. 
+User posts transaction in three steps. 
 
 * User creates transaction with empty proof and calls API method ``api/tx-sigma/get``. This
   method produces sigma-expression that is the result of evaluation of transaction in 
@@ -126,11 +132,12 @@ If all input scripts are valid in the current context of transaction and blockch
 then transaction is valid and we destroy input UTXOs and add output UTXOs to the
 blockchain.
 
-Beside check of proof there are other conditions:
+Beside the check of proof there are other conditions:
 
-* Sum of inputs should equal to sum of outputs.
+* The sum of inputs should equal to the sum of outputs.
 
-* Outputs should contain valid scripts, that are evaluated to Bool.
+* Outputs should contain valid scripts, that are evaluated to ``Bool``.
+   They have function main with no arguments that is produces ``Bool``. 
 
 In the following sections we are going to look at several examples. 
 
@@ -140,7 +147,11 @@ Simple money exchange script
 Let's look at the very simple scenario. Alice gives 2 coins to Bob.
 And Bob gives 5 to Alice. Let's see how it can be implemented.
 
-Suppose that Alice has UTXO with 10 coins that is protected by the script::
+.. image:: ../images/lang-quick-start/alice-tx.png
+   :width: 700
+   :alt: Alice Tx
+
+Suppose that Alice has UTXO with 10 coins named ``alice-utxo-1`` that is protected by the script::
 
   pk alice
 
@@ -165,7 +176,7 @@ after TX confirmation. So we have TX such as::
            , "script": "pk bob",
            , "args": {} 
            }
-         , { "id": "alice-utxo-1",
+         , { "id": "alice-utxo-2",
            , "value": 8,
            , "script": "pk alice",
            , "args": {}
@@ -180,11 +191,17 @@ TX is a json-object that contains the fields: "inputs", "outputs", "proof" and "
 The outputs is a list of UTXOs, each of them has fields "id", "value", "script" and "args".
 
 To make real transaction we also need to compile the script. But here for simplicity of
-explanation it's written in stright form 
+explanation it's written in stright form.
 
 Now suppose that Bob has UTXO with 4 coins. And he wants to give 5 coins back to Alice.
 But also alice just gave him 2 coins, so he can use two UTXOs as inputs and create
-2 UTXOs as outputs for Alice and cashback for himself::
+2 UTXOs as outputs for Alice and cashback for himself:
+
+.. image:: ../images/lang-quick-start/bob-tx.png
+   :width: 700
+   :alt: Bob Tx
+
+Let's look at the code for transaction::
 
    {
       "inputs": ["bob-utxo-0", "bob-utxo-1"],
@@ -194,7 +211,7 @@ But also alice just gave him 2 coins, so he can use two UTXOs as inputs and crea
            , "script": "pk bob",
            , "args": {} 
            }
-         , { "id": "alice-utxo-2",
+         , { "id": "alice-utxo-3",
            , "value": 5,
            , "script": "pk alice",
            , "args": {}
@@ -224,8 +241,7 @@ This command expects three inputs:
 
 * ``--sigma-expr.txt`` the file that contains the ouptut of the API call to tx-sigma method.
 
-* ``--signed-sigma.txt`` the file to dump the output, i.e. signed sigma expression 
-     or proof of the ownership.
+* ``--signed-sigma.txt`` the file to dump the output, i.e. signed sigma expression or proof of the ownership.
 
 
 

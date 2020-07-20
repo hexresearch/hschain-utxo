@@ -1,17 +1,17 @@
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
 
+import Hex.Common.Aeson
 import Hex.Common.Text
 
 import Control.Applicative
 import Control.DeepSeq (NFData)
-import Control.Monad
 
 import Codec.Serialise
 
 import Data.Aeson
-
 import Data.Fix
 import Data.Function (on)
 import Data.Foldable
@@ -28,15 +28,18 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 
 import qualified Language.HM as H
-import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
+
+import qualified Hschain.Utxo.Lang.Const as Const
 
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
@@ -71,15 +74,19 @@ setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'typ
     getConsInfoMap = foldMap getConsInfo . M.elems
 
     getConsInfo :: UserType -> Map ConsName ConsInfo
-    getConsInfo UserType{..} = M.fromList $ fmap (toInfo userType'name userType'args) $ zip [0..] $ M.toList userType'cases
+    getConsInfo ut@UserType{..} = M.fromList $ fmap (toInfo ut) $ zip [0..] $ M.toList userType'cases
 
-    toInfo :: VarName -> [VarName] -> (Int, (ConsName, ConsDef)) -> (ConsName, ConsInfo)
-    toInfo ty tyArgs (tagId, (name, def)) = (name, info)
+    toInfo :: UserType -> (Int, (ConsName, ConsDef)) -> (ConsName, ConsInfo)
+    toInfo userT (tagId, (name, def)) = (name, info)
       where
+        ty = userType'name userT
+        tyArgs = userType'args userT
+
         info = ConsInfo
                 { consInfo'tagId = tagId
                 , consInfo'arity = arity
                 , consInfo'type  = consTy
+                , consInfo'def   = userT
                 }
 
         arity = V.length consArgs
@@ -93,6 +100,9 @@ setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'typ
 
     toResultType :: VarName -> [VarName] -> Type
     toResultType name args = H.conT noLoc (varName'name name) (fmap (H.varT noLoc . varName'name) args)
+
+getConsDefArity :: ConsDef -> Int
+getConsDefArity = V.length . getConsTypes
 
 setupUserRecords :: UserTypeCtx -> UserTypeCtx
 setupUserRecords = setupRecFields . setupRecConstrs
@@ -147,9 +157,10 @@ data RecordField = RecordField
 -- We need to know it's type, arity and integer tag that is unique within
 -- its group of constructor for a given type (global uniqueness is not needed)
 data ConsInfo = ConsInfo
-  { consInfo'type  :: Type  -- ^ type of the constructor as a function
-  , consInfo'tagId :: !Int  -- ^ unique integer identifier (within the type scope)
-  , consInfo'arity :: !Int  -- ^ arity of constructor
+  { consInfo'type  :: !Type      -- ^ type of the constructor as a function
+  , consInfo'tagId :: !Int       -- ^ unique integer identifier (within the type scope)
+  , consInfo'arity :: !Int       -- ^ arity of constructor
+  , consInfo'def   :: !UserType  -- ^ definition where constructor is defined
   } deriving (Show, Eq)
 
 -- | Order of names in the record constructor.
@@ -182,12 +193,14 @@ data VarName = VarName
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
+{-
 instance H.IsVar Text where
   intToVar n = mappend "$$" (showt n)
   prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
 instance H.HasPrefix Text where
   getFixity = const Nothing
+-}
 
 -- | Name of the constructor
 data ConsName = ConsName
@@ -209,7 +222,42 @@ varToConsName VarName{..} = ConsName varName'loc varName'name
 -- | Argument for script in the transaction
 --
 -- It's Key-Value map from argument-names to primitive constant values.
-type Args = Map Text Prim
+data Args = Args
+  { args'ints  :: Vector Int64
+  , args'bools :: Vector Bool
+  , args'texts :: Vector Text
+  } deriving (Show, Eq, Ord, Generic, NFData, Serialise)
+
+instance Semigroup Args where
+  (Args intsA boolsA textsA) <> (Args intsB boolsB textsB) =
+    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB)
+
+instance Monoid Args where
+  mempty = Args mempty mempty mempty
+
+-- | Construct args that contain only integers
+intArgs :: [Int64] -> Args
+intArgs xs = Args
+  { args'ints  = V.fromList xs
+  , args'bools = mempty
+  , args'texts = mempty
+  }
+
+-- | Construct args that contain only booleans
+boolArgs :: [Bool] -> Args
+boolArgs xs = Args
+  { args'ints  = mempty
+  , args'bools = V.fromList xs
+  , args'texts = mempty
+  }
+
+-- | Construct args that contain only texts
+textArgs :: [Text] -> Args
+textArgs xs = Args
+  { args'ints  = mempty
+  , args'bools = mempty
+  , args'texts = V.fromList xs
+  }
 
 -- | Identifier of the box. Box holds value protected by the script.
 newtype BoxId = BoxId { unBoxId :: Text }
@@ -381,9 +429,6 @@ data E a
   -- logic
   | If Loc a a a
   -- ^ if-expressions (@if cond then a else b@)
-  | Pk Loc a
-  -- ^ private key ownership (@pk publicKey@)
-  -- tuples
   | Tuple Loc (Vector a)
   -- ^ Tuple constructor with list of arguments (@(a, b, c)@)
   -- operations
@@ -395,6 +440,8 @@ data E a
   | GetEnv Loc (EnvId a)
   -- ^ query some item by id in blockchain environment (@getEnvField@)
   -- vectors
+  | SigmaE Loc (SigmaExpr a)
+  -- ^ Sigma-expressions
   | VecE Loc (VecExpr a)
   -- ^ Vector expression
   -- text
@@ -453,9 +500,42 @@ data BoxField a
   -- ^ Get box value (or money)
   | BoxFieldScript
   -- ^ Get box script
-  | BoxFieldArg a
-  -- ^ Get box argument by name (it can be sub-expression not just constant text)
+  | BoxFieldArgList ArgType
+  -- ^ Get box argument. It should be primitive value stored in the vector.
+  -- We get the vector of primitive values stored by primitive-value tag.
   deriving (Show, Eq, Functor, Foldable, Traversable)
+
+-- | Types that we can store as arguments in transactions.
+-- We store lists of them.
+data ArgType = IntArg | TextArg | BoolArg
+  deriving (Show, Eq)
+
+argTypes :: [ArgType]
+argTypes = [IntArg, TextArg, BoolArg]
+
+argTagToType :: ArgType -> Type
+argTagToType = \case
+  IntArg  -> intT
+  TextArg -> textT
+  BoolArg -> boolT
+
+getBoxArgVar :: ArgType -> Text
+getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
+
+-- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
+secretVar :: Text -> Text
+secretVar = flip mappend "___"
+
+-- | Type tag for type-safe construction
+data SigmaBool
+
+-- | Sigma-expressions
+data SigmaExpr a
+  = Pk Loc a         -- ^ key ownership
+  | SAnd Loc a a     -- ^ sigma and
+  | SOr Loc a a      -- ^ sigma or
+  | SPrimBool Loc a  -- ^ constant bool
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Expressions that operate on vectors
 data VecExpr a
@@ -487,7 +567,7 @@ data TextTypeTag
 data TextExpr a
   = TextAppend Loc a a
   -- ^ Append text values (@a <> b@)
-  | ConvertToText TextTypeTag Loc
+  | ConvertToText Loc TextTypeTag
   -- ^ Convert some value to text (@showType a@)
   | TextLength Loc
   -- ^ Get textlength (@lengthText a@)
@@ -528,9 +608,18 @@ data EnvId a
   -- ^ Get list of all input boxes
   | Outputs Loc
   -- ^ Get list of all output boxes
-  | GetVar Loc a
+  | GetVar Loc ArgType
   -- ^ Get argument of the transaction by name
   deriving (Show, Eq, Functor, Foldable, Traversable)
+
+getEnvVarName :: ArgType -> Text
+getEnvVarName ty = Const.getArgs $ argTypeName ty
+
+argTypeName :: ArgType -> Text
+argTypeName = \case
+  IntArg  -> "Int"
+  TextArg -> "Text"
+  BoolArg -> "Bool"
 
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
@@ -551,13 +640,14 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT :: Type
+intT, boolT, boxT, scriptT, textT, sigmaT :: Type
 
 intT = intT' noLoc
 boolT = boolT' noLoc
 boxT  = boxT' noLoc
 scriptT = scriptT' noLoc
 textT = textT' noLoc
+sigmaT = sigmaT' noLoc
 
 constType :: Text -> Loc -> Type
 constType name loc = H.conT loc name []
@@ -573,6 +663,9 @@ intT' = constType "Int"
 
 boolT' :: Loc -> Type
 boolT' = constType "Bool"
+
+sigmaT' :: Loc -> Type
+sigmaT' = constType "Sigma"
 
 scriptT' :: Loc -> Type
 scriptT' = constType "Script"
@@ -635,7 +728,6 @@ instance Show a => H.HasLoc (E a) where
     PrimE loc _ -> loc
     -- logic
     If loc _ _ _ -> loc
-    Pk loc _ -> loc
     -- tuples
     Tuple loc _ -> loc
     -- operations
@@ -643,6 +735,8 @@ instance Show a => H.HasLoc (E a) where
     BinOpE loc _ _ _ -> loc
     -- environment
     GetEnv loc _ -> loc
+    -- sigmas
+    SigmaE loc _ -> loc
     -- vectors
     VecE loc _ -> loc
     -- text
@@ -711,11 +805,11 @@ freeVars = cata $ \case
   RecUpdate _ a ts -> mconcat $ a : fmap snd ts
   PrimE _ _        -> Set.empty
   If _ a b c       -> mconcat [a, b, c]
-  Pk _ a           -> a
   Tuple _ vs       -> fold $ V.toList vs
   UnOpE _ _ a      -> a
   BinOpE _ _ a b   -> mconcat [a, b]
   GetEnv _ env     -> fold env
+  SigmaE _ sigma   -> fold sigma
   VecE _ vec       -> fold vec
   TextE _ txt      -> fold txt
   BoxE _ box       -> fold box
@@ -779,6 +873,27 @@ $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
 $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
+$(deriveShow1 ''SigmaExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
 
+instance (forall k. CryptoHashable k => CryptoHashable (f k)) => CryptoHashable (Fix f) where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Prim where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Script where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxId where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Box where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Args where
+  hashStep = genericHashStep hashDomain
+
+$(deriveJSON dropPrefixOptions ''Args)
+$(deriveJSON dropPrefixOptions ''Box)

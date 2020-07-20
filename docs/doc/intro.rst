@@ -13,20 +13,66 @@ The framework consists of several parts:
 * service to run blockchain
 * client to post transactions and query useful information with API
 
+Language of smart contracts
+----------------------------------------------
 
-The structure of the project
-------------------------------------------
+Language of smartcontracts is staticly typed higher-order functional programming language
+with predictable time of exectuion and zero-knowledge prooves of the ownership
+of the values. It adapts powerful functional programming paradigm to the reuirements of the safe, fast and predictable
+execution of the scripts on the blockchain. 
 
-The modules are separated for the parts:
+Main features of the language:
 
-* ``hschain-utxo-lang`` defines language of smartcontracts and model of execution and key terms
-* ``hschain-utxo-compiler`` utility to compile scripts and prove ownership of the transaction
-* ``hschain-utxo-state`` defines blockchain and rules to commit the blocks and transactions
-* ``hschain-utxo-service`` is service to run a node
-* ``hschain-utxo-api`` is API to interact with blockchain
-* ``hschain-utxo-repl`` interpreter for the language 
-* ``hschain-utxo-test`` test scripts to verify that everything works fine. 
-* ``hschain-utxo`` main application and utility tools (to generate genesis for instance)
+* Language operates on the flexible UTXO-model which excludes double spending. 
+  The scripts protect values from being spent and execution of transaction 
+  that proves ownership of the values creates new protected inputs.
+
+* Ownership of the values is bases on Sigma-protocols. Sigma-protocols allow the
+  user to create intricate conditional rules for proving the ownership. Instead
+  of fixed model of ownership we can devise our own rules. Rules are arbitrary boolean expresisons.
+  It makes system flexible and provides the user with tools to create rules suitable 
+  for a specific task.
+
+* Rules of the ownership are zero-knowledge prooves of the private-key ownership. 
+  The proove validation does not compromise the owner of the key and the key itself.
+
+* Ownership prooves can depend on the current state of the blockchain. It provides the
+  user with means to create rules that dpeend on time of execution and create time-bounded contracts.
+
+* To make termination predictable we prohibit usage of recursion. 
+  User can not create recursive functions and recursive types. 
+  It restricts the language but nonetheless intricate behaviours can be achieved with
+  sequence of transactions. It solves the problem of termination without the need
+  to follow more intricate models like GAS-usage or artificial restriction on 
+  the number of executed instructions which are not obvious for the user.
+
+* Scriping language is a high level functional programming language.
+  For fast execution it is compiled to low-level language.
+
+* Language is staticly typed with automatic type-inference and type-checking. It protects user from 
+  many posible errors and increases the safety level. 
+
+
+Smart contracts are used to protect UTXOs from illegal spending. 
+To define what is legal we have a language. It encodes conditions for protection of the values in UTXOs.
+Our language is based on ErgoScript. For now it's typed lambda-calculus with 
+support for sigma-protocols. Sigma-protocols define a way to protect the values
+with cryptographic algorithms. Sigma-protocols let us prove that user owns private key 
+without exposure of the private key itself.
+
+Let's look at example of the simplest script::
+
+   pk alice
+
+``pk`` is a function that evaluates to true only if user can prove that he or she
+is owner of the alice secret key.
+
+Also we can use conditions and boolean operators::
+
+   pk alice || (pk bob && getHeight > 100)
+
+In this transaction Alice can grab the value or Bob can have it if 
+the height of the blockchain is greater than 100.
 
 
 UTXO-model and smartcontracts
@@ -44,6 +90,42 @@ If Alice wants to send 10 coins to Bob she can use her UTXO as input and
 create another UTXO for Bob that will contain 10 coins. The UTXO is often protected
 by the user signature. So in order to spend the transaction we need to prove that
 we hold the value for this output. 
+
+Here is the state of the Blockchain prior to transaction:
+
+.. image:: ../images/intro/intro-before-tx.png
+   :width: 700
+   :alt: Blockchain state prior to transaction
+
+We can see that Alice has two boxes with values and Bob has only one. 
+Each box has unique identifier, value and script that protects the value
+The ownership by the user is encoded with the script. In the system we have 
+no users such as Alice or Bob. We have only keys and prooves of ownership.
+
+Let's suppose that Alice wants to send 10 coins to Bob. Bob sends his public key to Alice.
+She creates a transaction with her ``Y`` box as input and creates two boxes as output. 
+One box for Bob wich holds 10 coins and protects them with Bob's public key. 
+The second box is for Alice to send back the remainder of the value from the original Box.
+By the rule sum of the inputs should be equal to the some of the outputs,
+otherwise transaction is considered to be invalid. Let's look at the Alice's transaction:
+
+.. image:: ../images/intro/intro-alice-tx.png
+   :width: 700
+   :alt: Alice sends 10 to Bob and 5 to herself.
+
+After that Alice prooves with her key that she holds the Box ``Y``. The TX is 
+validated and commited and as a result it destroys the Box ``Y`` and creates
+two new Boxes ``F`` and ``G`` that now can be used as inputs to other transactions.
+Alice sends the identifier of the box ``F`` to Bob so that he can use it.
+Also Bob prior to transaction can send this identifier to Alice, so that she nows
+how to name the Bob's box. In this example scripts are very simple but they 
+can be programs on their own to encode more complex scenarios. 
+Let's look at the state of blockchain after TX was approved:
+
+.. image:: ../images/intro/intro-after-tx.png
+   :width: 700
+   :alt: Blockchain state after transaction
+
 
 Once UTXO is spent it is destroyed and in place of it we have new UTXOs.
 That's how smartcontracts work. We use UTXOs in the blockchain as inputs
@@ -66,37 +148,41 @@ inputs and substitute them with outputs.
 
 **Block**
    Contains a list of transactions. It can be though of as execution of transaction in batch mode.
-   If all transactions in the block are valid it is executed on the blockchain and it
-   sayed to be *commited*.
+   If all transactions in the block are valid it is executed on the blockchain and it is
+   said to be *commited*.
 
 **Blockchain**
    For UTXO-model blockchain is a set of UTXOs that can be spent and global time
    of execution which corresponds to the number of commited blocks.
 
 
-Language of smart contracts
-----------------------------------------------
+The structure of the project
+------------------------------------------
 
-Smart contracts are used to protect UTXOs from illegal spending. 
-To define what is legal we have a language. It encodes conditions for protection of the values in UTXOs.
-Our language is based on ErgoScript. For now it's typed lambda-calculus with 
-support for sigma-protocols. Sigma-protocols define a way to protect the values
-with cryptographic algorithms. Sigma-protocols let us prove that user owns private key 
-without exposure of the private key itself.
+The modules are separated for the parts:
 
-Let's look at example of the simplest script::
+* ``hschain-utxo-lang`` defines language of smartcontracts and model of execution and key terms
+* ``hschain-utxo-compiler`` utility to compile scripts and prove ownership of the transaction
+* ``hschain-utxo-state`` defines blockchain and rules to commit the blocks and transactions
+* ``hschain-utxo-service`` is service to run a node
+* ``hschain-utxo-api`` is API to interact with blockchain
+* ``hschain-utxo-repl`` interpreter for the language 
+* ``hschain-utxo-test`` test scripts to verify that everything works fine. 
+* ``hschain-utxo`` main application and utility tools (to generate genesis for instance)
 
-   pk alice
+Let's look at the scheme of project structure
 
-``pk`` is a function that evaluates to true only if user can prove that he or she
-is owner of the alice secret key.
+.. image:: ../images/intro/intro-project-structure.png
+   :width: 1200
+   :alt: Project structure.
 
-Also we can use conditions and boolean operators::
+User creates TXs with hschain-utxo-compiler. User compiles script language that is defined
+in the package hschain-utxo-lang. He can use repl (hschain-utxo-repl) to try out ideas. 
+User sends transactions to web-service (hschain-utxo-service) over API (hschain-utxo-api).
+The service runs on top of hschain which handles transactions and manages state transactions.
+State itself and the way to react to TXs is described in the package hschain-utxo-state.
 
-   pk alice || (pk bob && getHeight > 100)
 
-In this transaction Alice can grab the value or Bob can have it if 
-the height of the blockchain is greater than 100.
 
 Blockchain node
 ------------------------------------------------

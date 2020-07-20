@@ -21,8 +21,16 @@ library
   exposed-modules:
       Hschain.Utxo.Lang
       Hschain.Utxo.Lang.Build
-      Hschain.Utxo.Lang.Compile.Expr
+      Hschain.Utxo.Lang.Compile
       Hschain.Utxo.Lang.Compile.Build
+      Hschain.Utxo.Lang.Compile.Dependencies
+      Hschain.Utxo.Lang.Compile.Expr
+      Hschain.Utxo.Lang.Compile.Infer
+      Hschain.Utxo.Lang.Compile.Monomorphize
+      Hschain.Utxo.Lang.Compile.Pretty
+      Hschain.Utxo.Lang.Compile.Hask.ToHask
+      Hschain.Utxo.Lang.Compile.Hask.TypedToHask
+      Hschain.Utxo.Lang.Compile.Hask.Utils
       Hschain.Utxo.Lang.Compile.LambdaLifting
       Hschain.Utxo.Lang.Compile.LambdaLifting.Abstract
       Hschain.Utxo.Lang.Compile.LambdaLifting.Collect
@@ -44,6 +52,7 @@ library
       Hschain.Utxo.Lang.Core.Data.Stack
       Hschain.Utxo.Lang.Core.Data.Stat
       Hschain.Utxo.Lang.Core.Data.Vstack
+      Hschain.Utxo.Lang.Core.Eval
       Hschain.Utxo.Lang.Core.Gmachine
       Hschain.Utxo.Lang.Core.Gmachine.Eval
       Hschain.Utxo.Lang.Core.Gmachine.Eval.Dump
@@ -53,6 +62,7 @@ library
       Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
       Hschain.Utxo.Lang.Core.Gmachine.Monad
       Hschain.Utxo.Lang.Desugar
+      Hschain.Utxo.Lang.Desugar.Case
       Hschain.Utxo.Lang.Desugar.ExtendedLC
       Hschain.Utxo.Lang.Desugar.FreshVar
       Hschain.Utxo.Lang.Desugar.Guard
@@ -64,6 +74,7 @@ library
       Hschain.Utxo.Lang.Exec.Module
       Hschain.Utxo.Lang.Exec.Subst
       Hschain.Utxo.Lang.Expr
+      Hschain.Utxo.Lang.Const
       Hschain.Utxo.Lang.Infer
       Hschain.Utxo.Lang.Infer.Pretty
       Hschain.Utxo.Lang.Lib.Base
@@ -84,6 +95,7 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , hschain-crypto
                      , aeson
                      , array
                      , Boolean
@@ -139,3 +151,30 @@ library
     TypeFamilies
     UndecidableInstances
 
+
+Test-suite hschain-utxo-lang-tests
+  Type:                exitcode-stdio-1.0
+  Ghc-options:         -Wall -threaded -rtsopts
+  Default-Language:    Haskell2010
+  Build-Depends:       base              >=4.9 && <5
+                     , data-fix
+                     , hschain-utxo-lang
+                     , text
+                     , tasty
+                     , tasty-hunit
+  hs-source-dirs:      test examples
+  Main-is:             Main.hs
+  Other-modules:       TM.Core
+                       Examples.SKI
+
+
+benchmark hschain-utxo-lang-bench
+  type:             exitcode-stdio-1.0
+  default-language: Haskell2010
+  hs-source-dirs:   bench examples
+  main-is:          Main.hs
+  other-modules:    Examples.SKI
+  build-depends: base               -any
+               , hschain-utxo-lang
+               , gauge              >=0.2.5
+               , text

@@ -145,18 +145,27 @@ fixity op = maybe FixNone opFix'fixity $ getFixityEnv op
 
 ---------------------------------------
 
-instance (HasPrefix v, PrintCons v, Pretty v) => Pretty (Term loc v) where
+instance (HasPrefix v, PrintCons v, Pretty v, Pretty prim) => Pretty (Term prim loc v) where
   pretty (Term x) = cata prettyTermF x
     where
       prettyTermF = \case
-        Var _ v       -> pretty v
-        App _ a b     -> parens $ hsep [a, b]
-        Lam _ v a     -> parens $ hsep [hcat ["\\", pretty v], "->", a]
-        Let _ vs a    -> onLet vs a
-        LetRec _ vs a -> onLet vs a
+        Var _ v            -> pretty v
+        Prim _ p           -> pretty p
+        App _ a b          -> parens $ hsep [a, b]
+        Lam _ v a          -> parens $ hsep [hcat ["\\", pretty v], "->", a]
+        Let _ vs a         -> onLet vs a
+        LetRec _ vs a      -> onLet vs a
         AssertType _ r sig -> parens $ hsep [r, "::", pretty sig]
+        Constr _ _ tag _   -> pretty tag
+        Case _ e alts      -> vcat [ hsep ["case", e, "of"], indent 4 $ vcat $ fmap onAlt alts]
+        Bottom _           -> "_|_"
         where
           onLet vs body =
             vcat [ hsep ["let", indent 4 $ vcat $ fmap (\Bind{..} -> hsep [pretty bind'lhs, "=", bind'rhs]) vs]
                  , hsep ["in ", body]]
+
+          onAlt CaseAlt{..} = hsep
+            [ pretty caseAlt'tag, hsep $ fmap (pretty . snd . typed'value) caseAlt'args
+            , "->"
+            , caseAlt'rhs ]
 

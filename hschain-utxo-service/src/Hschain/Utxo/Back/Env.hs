@@ -1,14 +1,10 @@
 -- | Defines state of the node service
 module Hschain.Utxo.Back.Env where
 
-import Control.Concurrent.STM
-import Control.Monad
 import Control.Monad.Cont
 import Control.Monad.Catch
 
-import Data.Text (Text)
 import Data.Maybe                (fromMaybe)
-import Data.Time.Clock           (getCurrentTime)
 import Data.String
 
 import System.FilePath
@@ -18,17 +14,13 @@ import HSChain.Store
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Back.Config
-import Hschain.Utxo.State.React
-import Hschain.Utxo.State.Types
 import Hschain.Utxo.Blockchain
 
-import GHC.Generics (Generic)
 import Katip
 import qualified Data.Text as T
 
 import HSChain.Logger
 
-import Hschain.Utxo.Back.Config (LogSpec(..))
 
 -- | Application environment
 data AppEnv = AppEnv

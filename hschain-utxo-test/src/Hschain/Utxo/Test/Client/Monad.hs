@@ -28,10 +28,9 @@ import Control.Concurrent.STM
 
 import Control.Monad
 import Control.Monad.Except
-import Control.Monad.IO.Class
 import Control.Monad.Reader
 
-import Data.Fix
+import Data.Int
 import Data.Sequence (Seq)
 import Data.Text (Text)
 
@@ -45,7 +44,6 @@ import Hschain.Utxo.Back.Config
 
 import qualified Hschain.Utxo.API.Client as C
 
-import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -89,12 +87,12 @@ runTest TestSpec{..} masterSecret app = do
     Left  err -> test { test'cases =  mappend (test'cases test) (pure (TestCase err False)) }
     Right _   -> test
   where
-    env tv logTv masterSecret = TestEnv
+    env tv logTv masterPrivateKey = TestEnv
         { testEnv'client = testSpec'client
         , testEnv'verbose = testSpec'verbose
         , testEnv'log = logTv
         , testEnv'test = tv
-        , testEnv'masterSecret = masterSecret
+        , testEnv'masterSecret = masterPrivateKey
         }
 
     emptyTest = Test "" mempty
@@ -135,7 +133,7 @@ call act = join $ fmap liftEither $ (\env -> C.call (testEnv'client env) act) =<
 postTx :: Tx -> App PostTxResponse
 postTx = call . C.postTx
 
-getHeight :: App Integer
+getHeight :: App Int64
 getHeight = call C.getHeight
 
 getBoxBalance :: BoxId -> App (Maybe Money)
@@ -150,10 +148,11 @@ getBoxChainEnv = fmap unGetEnvResponse $ call C.getEnv
 getTxSigma :: Tx -> App (Either Text (Sigma PublicKey))
 getTxSigma tx = do
   resp <- call $ C.getTxSigma tx
+  logTest $ T.unlines ["PRE TX SIGMA:", showt resp]
   case sigmaTxResponse'value resp of
     Right boolRes -> return $ case boolRes of
-      SigmaBool sigma -> Right sigma
-      ConstBool b     -> Left $ mconcat ["Not a sigma-expression from result, got ", showt b]
+      SigmaResult sigma -> Right sigma
+      ConstBool b       -> Left $ mconcat ["Not a sigma-expression from result, got ", showt b]
     Left err -> return $ Left err
 
 -------------------------
@@ -172,13 +171,12 @@ initGenesis :: Secret -> Genesis
 initGenesis secret = [tx]
   where
     publicKey = getPublicKey secret
-    env = proofEnvFromKeys [getKeyPair secret]
 
     box = Box
       { box'id     = initMasterBox
       , box'value  = initMoney
       , box'script = toScript $ pk' publicKey
-      , box'args   = M.empty
+      , box'args   = mempty
       }
 
     tx = Tx

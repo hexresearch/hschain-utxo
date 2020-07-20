@@ -18,12 +18,14 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Codec.Serialise as CBOR
+import qualified Data.Aeson      as JSON
 import Data.Foldable
 import Data.Maybe
 import Data.Monoid (All(..))
@@ -80,8 +82,15 @@ data Proof a = Proof
   , proof'tree          :: ProvenTree a  -- ^ expression to prove
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (Proof a)
+instance (EC a) => CBOR.Serialise (Proof a)
+instance (EC a) => JSON.FromJSON  (Proof a)
+instance (EC a) => JSON.ToJSON    (Proof a)
+
+instance ( CryptoHashable (ECPoint a)
+         , CryptoHashable (ECScalar a)
+         , CryptoHashable (Challenge a)
+         ) => CryptoHashable (Proof a) where
+  hashStep = genericHashStep hashDomain
 
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (Proof a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (Proof a)
@@ -105,8 +114,15 @@ data ProvenTree a
       } -- ^ chalenges are calculated
   deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (ProvenTree a)
+instance (EC a) => CBOR.Serialise (ProvenTree a)
+instance (EC a) => JSON.FromJSON  (ProvenTree a)
+instance (EC a) => JSON.ToJSON    (ProvenTree a)
+
+instance ( CryptoHashable (ECScalar  a)
+         , CryptoHashable (ECPoint   a)
+         , CryptoHashable (Challenge a)
+         ) => CryptoHashable (ProvenTree a) where
+  hashStep = genericHashStep hashDomain
 
 deriving stock   instance (Show (ECPoint a), Show (ECScalar a), Show (Challenge a)) => Show (ProvenTree a)
 deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge a)) => Eq   (ProvenTree a)
@@ -119,8 +135,16 @@ data OrChild a = OrChild
   , orChild'tree      :: ProvenTree a
   } deriving (Generic)
 
-instance ( CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a), CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (OrChild a)
+instance (EC a) => CBOR.Serialise (OrChild a)
+instance (EC a) => JSON.FromJSON  (OrChild a)
+instance (EC a) => JSON.ToJSON    (OrChild a)
+
+instance ( CryptoHashable (ECScalar  a)
+         , CryptoHashable (ECPoint   a)
+         , CryptoHashable (Challenge a)
+         ) => CryptoHashable (OrChild a) where
+  hashStep = genericHashStep hashDomain
+
 
 deriving stock    instance (Show   (ECPoint a), Show   (ECScalar a), Show   (Challenge a)) => Show   (OrChild a)
 deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Challenge a)) => Eq     (OrChild a)
@@ -359,4 +383,3 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
 traceMsg :: Show a => String -> a -> a
 traceMsg msg a = trace (mconcat [msg, ": ", ppShow a]) a
 -}
-

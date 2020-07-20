@@ -2,13 +2,10 @@ module Main where
 
 import Hex.Common.Delay
 
-import Control.Monad
-
 import Options.Applicative
 
 import Hschain.Utxo.Back.App
 import Hschain.Utxo.Back.Config
-import Hschain.Utxo.Back.Env
 
 data Options = Options
   { configPath  :: FilePath
@@ -42,7 +39,7 @@ main = do
       <> header "hschain-utxo-service - service to run utxo blockchain model" )
 
 app :: Options -> IO ()
-app opt@Options{..} = do
+app Options{..} = do
   cfg <- loadConfig configPath
   mGenesis <- loadGenesis  genesisPath
   putStrLn $ mconcat ["Starts hschain-utxo server on port ", show $ serverConfig'port $ config'server cfg]

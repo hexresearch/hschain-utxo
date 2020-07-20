@@ -16,8 +16,10 @@ module Hschain.Utxo.Lang.Core.Data.Code(
 
 import Prelude hiding (null, init)
 
+import Control.DeepSeq
 import Data.IntMap (IntMap)
 import Data.Sequence (Seq, ViewR(..))
+import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Core.Data.Prim
 
@@ -26,7 +28,7 @@ import qualified Data.Sequence as S
 
 -- | Code to feed to machine
 newtype Code = Code { unCode :: Seq Instr }
-  deriving newtype (Semigroup, Monoid, Show, Eq)
+  deriving newtype (Semigroup, Monoid, Show, Eq, NFData)
 
 -- | Get the last insttruction and remaining of the sequence. Executed in O(1)
 splitLastInstr :: Code -> (Maybe Instr, Code)
@@ -82,20 +84,24 @@ data Instr
   -- ^ Comparison operations
   | And | Or | Not | Xor
   -- ^ boolean operators
-  | SAnd | SOr | Pk | SBool
+  | SigAnd | SigOr | SigPk | SigBool
   -- ^ sigma operators
   | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
   -- ^ text operators
-  deriving (Show, Eq)
+  | Bottom
+  -- ^ Failed termination
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
 
 type CaseMap = IntMap Code
 
 data GlobalName
   = GlobalName !Name
   -- ^ name of the global supercombinator
-  | ConstrName Int Int
+  | ConstrName !Int !Int
   -- ^ name of the global constructor (int tag, arity)
-  deriving (Show, Eq, Ord)
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (NFData)
 
 getCaseCode :: Int -> CaseMap -> Maybe Code
 getCaseCode tagId caseMap =

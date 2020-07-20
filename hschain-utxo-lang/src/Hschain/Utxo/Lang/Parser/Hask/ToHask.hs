@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Parser.Hask.ToHask(
     toHaskExp
   , toHaskModule
+  , toHaskType
 ) where
 
 import Hex.Common.Text
@@ -11,7 +12,6 @@ import Data.Fix
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 
-import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -39,7 +39,6 @@ toHaskExp (Fix expr) = case expr of
   PrimE loc p -> toLiteral loc p
   -- logic
   If loc a b c -> H.If loc (rec a) (rec b) (rec c)
-  Pk loc a -> ap (VarName loc "pk") a
   -- tuples
   Tuple loc ts -> H.Tuple loc H.Boxed (fmap rec $ V.toList ts)
   -- operations
@@ -47,6 +46,8 @@ toHaskExp (Fix expr) = case expr of
   BinOpE loc op a b -> fromBimOp loc op a b
   -- environment
   GetEnv loc env -> fromEnv loc env
+  -- sigmas
+  SigmaE loc sigma -> fromSigma loc sigma
   -- vectors
   VecE loc vec -> fromVec loc vec
   -- text
@@ -102,7 +103,14 @@ toHaskExp (Fix expr) = case expr of
       Self loc      -> toVar loc (VarName loc "getSelf")
       Inputs loc    -> toVar loc (VarName loc "getInputs")
       Outputs loc   -> toVar loc (VarName loc "getOutputs")
-      GetVar loc a  -> ap (VarName loc "getVar") a
+      GetVar loc ty -> toVar loc (VarName loc $ getEnvVarName ty)
+
+    fromSigma _ = \case
+      Pk loc a        -> ap (VarName loc "pk") a
+      SOr loc a b     -> ap2 (VarName loc "sigmaOr") a b
+      SAnd loc a b    -> ap2 (VarName loc "sigmaAnd") a b
+      SPrimBool loc a -> ap (VarName loc "toSigma") a
+
 
     fromVec _ = \case
       NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
@@ -113,10 +121,10 @@ toHaskExp (Fix expr) = case expr of
       VecFold loc       -> toVar loc (VarName loc "fold")
 
     fromText _ = \case
-      TextAppend loc a b  -> op2 loc "<>" (rec a) (rec b)
-      ConvertToText tag loc   -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
-      TextLength loc      -> toVar loc (VarName loc "lengthText")
-      TextHash loc algo   -> case algo of
+      TextAppend loc a b    -> op2 loc "<>" (rec a) (rec b)
+      ConvertToText loc tag -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
+      TextLength loc        -> toVar loc (VarName loc "lengthText")
+      TextHash loc algo     -> case algo of
         Sha256     -> toVar loc (VarName loc "sha256")
         Blake2b256 -> toVar loc (VarName loc "blake2b256")
       where
@@ -133,19 +141,26 @@ toHaskExp (Fix expr) = case expr of
       [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
       , field "box'value"  $ prim $ PrimInt  $ box'value
       , field "box'script" $ prim $ PrimString $ unScript box'script
-      , field "box'args"   $ Fix $ VecE loc $ NewVec loc (V.fromList $ fmap (\(a, b) -> Fix $ Tuple loc (V.fromList [a, b])) args)
+      , field "box'args"   $ args
       ]
       where
         qname a = toQName $ VarName loc a
         field name a = H.FieldUpdate loc (qname name) (rec a)
         prim = Fix . PrimE loc
-        args = fmap (\(txt, val) -> (Fix $ PrimE loc $ PrimString txt, Fix $ PrimE loc val)) $ M.toList box'args
+        args = Fix $ Tuple loc $ V.fromList
+          [ toArgField PrimInt    $ args'ints  box'args
+          , toArgField PrimString $ args'texts box'args
+          , toArgField PrimBool   $ args'bools box'args
+          ]
+
+        toArgField :: (a -> Prim) -> V.Vector a -> Lang
+        toArgField primCons as = Fix $ VecE loc $ NewVec loc $ fmap (prim . primCons) as
 
     fromBoxField loc a = \case
       BoxFieldId          -> get "getBoxId"
       BoxFieldValue       -> get "getBoxValue"
       BoxFieldScript      -> get "getBoxScript"
-      BoxFieldArg b       -> ap2 (VarName loc "getBoxArg") b a
+      BoxFieldArgList ty  -> get (getBoxArgVar ty)
       where
         get name = ap (VarName loc name) a
 
@@ -161,19 +176,20 @@ toLiteral loc = \case
   PrimSigma x -> sigma loc x
   where
     lit = H.Lit loc
-    bool src x = H.UnQual src $ H.Ident loc $ show x
 
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma src x = cata go x
       where
-        go :: SigmaExpr PublicKey (H.Exp Loc) -> H.Exp Loc
+        go :: SigmaF PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
           SigmaPk pkey -> let keyTxt = publicKeyToText pkey
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (op2 src "&&") as
-          SigmaOr  as  -> foldl1 (op2 src "||") as
+          SigmaAnd as  -> foldl1 (ap2 (VarName src "sigmaAnd")) as
+          SigmaOr  as  -> foldl1 (ap2 (VarName src "sigmaOr")) as
+          SigmaBool b  -> H.Con src $ bool src b
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
+        ap2 f a b = H.App src (H.App src (toVar src f) a) b
 
 -- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc
@@ -236,8 +252,10 @@ toPat pat = case pat of
 
     toPVar var = H.PVar (varName'loc var) (toIdentName var)
 
-    bool loc x = H.UnQual loc $ H.Ident loc $ show x
     lit loc = H.PLit loc (H.Signless loc)
+
+bool :: Loc -> Bool -> H.QName Loc
+bool loc x = H.UnQual loc $ H.Ident loc $ show x
 
 toIdentName :: VarName -> H.Name Loc
 toIdentName (VarName loc name) = H.Ident loc (T.unpack name)
@@ -248,7 +266,7 @@ toSymbolName VarName{..} = H.Symbol varName'loc (T.unpack varName'name)
 
 toType :: Signature -> H.Type Loc
 toType x = case splitToPreds x of
-  (_, ty) -> singleType ty
+  (_, ty) -> toHaskType ty
   where
     splitToPreds = cata go . HM.unSignature
       where
@@ -256,18 +274,18 @@ toType x = case splitToPreds x of
           HM.MonoT ty                  -> ([], ty)
           HM.ForAllT _ name (xs, ty) -> (name : xs, ty)
 
-    singleType :: Type -> H.Type Loc
-    singleType = cata go . HM.unType
-      where
-        go = \case
-          HM.VarT loc var      -> H.TyVar loc (toIdentName $ VarName loc var)
-          HM.ConT loc con args -> fromTyCon loc con args
-          HM.ArrowT loc a b    -> H.TyFun loc a b
-          HM.ListT loc a       -> H.TyList loc a
-          HM.TupleT loc as     -> H.TyTuple loc H.Boxed as
+toHaskType :: Type -> H.Type Loc
+toHaskType = cata go . HM.unType
+  where
+    go = \case
+      HM.VarT loc var      -> H.TyVar loc (toIdentName $ VarName loc var)
+      HM.ConT loc con args -> fromTyCon loc con args
+      HM.ArrowT loc a b    -> H.TyFun loc a b
+      HM.ListT loc a       -> H.TyList loc a
+      HM.TupleT loc as     -> H.TyTuple loc H.Boxed as
 
-        fromTyCon loc con args =
-          foldl (\a b -> H.TyApp loc a b) (H.TyCon loc (toQName $ VarName loc con)) args
+    fromTyCon loc con args =
+      foldl (\a b -> H.TyApp loc a b) (H.TyCon loc (toQName $ VarName loc con)) args
 
 toQName :: VarName -> H.QName Loc
 toQName x = H.UnQual (HM.getLoc x) $ toIdentName x

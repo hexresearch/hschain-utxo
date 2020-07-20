@@ -1,36 +1,36 @@
 module Hschain.Utxo.Test.Client.Scripts.ReversibleAddress(
-
+  reversibleAddressScript
 ) where
 
 import Prelude hiding ((<*))
 
-import Data.Int
-import Data.Fix
-import Data.Fixed
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-bobDeadline :: Text
-bobDeadline = "bob-deadline"
+-- | Bob's id for deadline in the list of ints
+bobDeadlineId :: Expr Int
+bobDeadlineId = int 0
 
-bobPubKey :: Text
-bobPubKey = "bob-public-key"
+-- | Bob's id for public key in the list of text args
+bobPubKeyId :: Expr Int
+bobPubKeyId = int 0
 
-getBobDeadline :: Expr Box -> Expr Int64
-getBobDeadline box = getBoxArg box (text bobDeadline)
+getBobDeadline :: Expr Box -> Expr Int
+getBobDeadline box = vecAt (getBoxIntArgList box) bobDeadlineId
 
 getBobPubKey :: Expr Box -> Expr Text
-getBobPubKey box = getBoxArg box (text bobPubKey)
+getBobPubKey box = vecAt (getBoxTextArgList box) bobPubKeyId
 
-withdrawScript :: Expr Text -> Expr Bool
+withdrawScript :: Expr Text -> Expr SigmaBool
 withdrawScript carol =
   "bob"         =: getBobPubKey getSelf    $ \bob         ->
   "bobDeadline" =: getBobDeadline getSelf  $ \bobDeadline ->
-  (pk bob &&* getHeight >* bobDeadline) ||* (pk carol &&* getHeight <=* bobDeadline)
+  (pk bob &&* toSigma (getHeight >* bobDeadline)) ||* (pk carol &&* (toSigma $ getHeight <=* bobDeadline))
 
 
+reversibleAddressScript :: Expr Int -> Expr Text -> Expr SigmaBool -> Expr Int -> Expr SigmaBool
 reversibleAddressScript blocksIn24h carol feeProposition maxFee =
   "isChange"   =: (lam "out" $ \out -> getBoxScript out ==* getBoxScript getSelf) $ \isChange ->
   "isWithdraw" =: (lam "out" $ \out ->
@@ -44,7 +44,7 @@ reversibleAddressScript blocksIn24h carol feeProposition maxFee =
                         app isChange out ||* app isWithdraw out ||* app isFee out
                       ) $ \isValid ->
   "totalFee"   =: (foldVec (lam2 "x" "b" $ \x b -> ifB (app isFee b) (x + getBoxValue b) x) 0 getOutputs) $ \totalFee ->
-  pk "alice" &&* allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee)
+  pk "alice" &&* (toSigma $ allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee))
 
 
 

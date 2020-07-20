@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines type-inference utilities.
 module Hschain.Utxo.Lang.Infer(
     InferM(..)
@@ -18,6 +19,7 @@ import Control.Monad.State.Strict
 
 import Data.Fix hiding ((~>))
 
+import Data.String
 import Data.Text (Text)
 
 import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, arrowT, stripSignature)
@@ -32,7 +34,17 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
-type Term = H.Term Loc Text
+instance H.IsVar Text where
+  intToVar n = mappend "$$" (showt n)
+  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+
+data EmptyPrim = EmptyPrim
+  deriving (Show)
+
+instance H.IsPrim EmptyPrim where
+  type PrimLoc EmptyPrim = Loc
+  type PrimVar EmptyPrim = Text
+  getPrimType EmptyPrim = H.conT noLoc "Unit" []
 
 -- | Monad for type-inference.
 newtype InferM a = InferM (FreshVar (Either Error) a)
@@ -60,11 +72,11 @@ inferExpr (InferCtx typeCtx userTypes) =
 
 -- | Convert expression of our language to term of simpler language
 -- that can be type-checked by the library.
-reduceExpr :: UserTypeCtx -> Lang -> InferM Term
+reduceExpr :: UserTypeCtx -> Lang -> InferM (H.Term EmptyPrim Loc Text)
 reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
-  Var _loc var               -> pure $ fromVarName var
+  Var _loc var              -> pure $ fromVarName var
   Apply loc a b             -> liftA2 (appE loc) (rec a) (rec b)
-  InfixApply loc a name b     -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
+  InfixApply loc a name b   -> liftA2 (\fa fb -> fromInfixApply loc fa name fb) (rec a) (rec b)
   Cons loc name args        -> fmap (fromCons loc name) (mapM rec $ V.toList args)
   Lam loc pat a             -> case pat of
                                   PVar src var -> fmap (lamE src $ varName'name var) (rec a)
@@ -79,11 +91,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Ascr loc a ty             -> fmap (\term -> fromAscr loc term $ stripSignature ty) (rec a)
   PrimE loc prim            -> pure $ fromPrim loc prim
   If loc cond t e           -> liftA3 (fromIf loc) (rec cond) (rec t) (rec e)
-  Pk loc a                  -> fmap (fromPk loc) (rec a)
   -- operations
   UnOpE loc unOp a          -> fmap (fromUnOp loc unOp) (rec a)
   BinOpE loc binOp a b      -> liftA2 (fromBinOp loc binOp) (rec a) (rec b)
   Tuple loc vs              -> fmap (fromTuple loc) $ mapM rec vs
+  -- sigmas
+  SigmaE loc sigma          -> fmap (fromSigma loc) $ mapM rec sigma
   -- vectors
   VecE loc v                -> fmap (fromVec loc) $ mapM rec v
   -- text
@@ -139,7 +152,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       PrimInt _    -> intE
       PrimString _ -> textE
       PrimBool _   -> boolE
-      PrimSigma _  -> boolE
+      PrimSigma _  -> sigmaE
 
     fromIf loc cond t e = app3 loc ifVar cond t e
 
@@ -174,6 +187,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       where
         size = V.length vs
 
+    fromSigma _ = \case
+      Pk loc a         -> fromPk loc a
+      SAnd loc a b     -> app2 loc sigmaAndVar a b
+      SOr loc a b      -> app2 loc sigmaOrVar a b
+      SPrimBool loc a  -> app1 loc toSigmaVar a
+
     fromVec _ = \case
       NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
       VecAppend loc a b  -> app2 loc appendVecVar a b
@@ -184,7 +203,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
 
     fromText _ = \case
       TextAppend loc a b            -> app2 loc appendTextVar a b
-      ConvertToText textTypeTag loc -> varE loc (convertToTextVar textTypeTag)
+      ConvertToText loc textTypeTag -> varE loc (convertToTextVar textTypeTag)
       TextLength loc                -> varE loc lengthTextVar
       TextHash loc hashAlgo         -> varE loc (textHashVar hashAlgo)
 
@@ -193,10 +212,10 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       BoxAt loc a field -> fromBoxField loc a field
 
     fromBoxField loc a field = case field of
-      BoxFieldId       -> app1 loc getBoxIdVar a
-      BoxFieldValue    -> app1 loc getBoxValueVar a
-      BoxFieldScript   -> app1 loc getBoxScriptVar a
-      BoxFieldArg arg  -> app2 loc getBoxArgVar a arg
+      BoxFieldId         -> app1 loc getBoxIdVar a
+      BoxFieldValue      -> app1 loc getBoxValueVar a
+      BoxFieldScript     -> app1 loc getBoxScriptVar a
+      BoxFieldArgList ty -> app1 loc (getBoxArgVar' ty) a
 
     fromTrace loc msg a = app2 loc traceVar msg a
 
@@ -207,7 +226,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       Self loc      -> varE loc selfVar
       Inputs loc    -> varE loc inputsVar
       Outputs loc   -> varE loc outputsVar
-      GetVar loc a  -> app1 loc getVarVar a
+      GetVar loc ty -> varE loc (getEnvVarName ty)
 
     app1 loc var a = appE loc (varE loc var) a
     app2 loc var a b = appE loc (appE loc (varE loc var) a) b
@@ -228,10 +247,11 @@ defaultContext = H.Context $ M.fromList $
   [ (intVar,    monoT intT)
   , (textVar,   monoT textT)
   , (boolVar,   monoT boolT)
+  , (sigmaVar,  monoT sigmaT)
   -- if
   , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
   -- pk
-  , (pkVar,     monoT $ textT `arr` boolT)
+  , (pkVar,     monoT $ textT `arr` sigmaT)
   -- operations
   --  unary
   , (notVar,    monoT $ boolT `arr` boolT)
@@ -249,6 +269,10 @@ defaultContext = H.Context $ M.fromList $
   , (greaterThanVar, cmpOp2)
   , (lessThanEqualsVar, cmpOp2)
   , (greaterThanEqualsVar, cmpOp2)
+  -- sigma expressions
+  , (sigmaOrVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
+  , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
+  , (toSigmaVar, monoT $ boolT `arr` sigmaT)
   -- vec expressions
   , (nilVecVar, forA $ monoT $ vectorT a)
   , (consVecVar, forA $ monoT $ a `arr` (vectorT a `arr` vectorT a))
@@ -260,7 +284,6 @@ defaultContext = H.Context $ M.fromList $
   , (getBoxIdVar, monoT $ boxT `arr` textT)
   , (getBoxValueVar, monoT $ boxT `arr` intT)
   , (getBoxScriptVar, monoT $ boxT `arr` scriptT)
-  , (getBoxArgVar, forA $ monoT $ boxT `arr` (textT `arr` a))
   , (undefVar, forA $ monoT a)
   , (traceVar, forA $ monoT $ textT `arr` (a `arr` a))
   , (heightVar, monoT intT)
@@ -272,8 +295,11 @@ defaultContext = H.Context $ M.fromList $
   , (getVarVar, forA $ monoT $ intT `arr` a)
   , (altVar, forA $ monoT $ a `arr` (a `arr` a))
   , (failCaseVar, forA $ monoT a)
-  ] ++ tupleConVars ++ tupleAtVars ++ textExprVars
+  ] ++ tupleConVars ++ tupleAtVars ++ textExprVars ++ getBoxArgVars
   where
+    getBoxArgVars =
+      fmap (\ty -> (getBoxArgVar' ty, monoT $ boxT `arr` (vectorT $ argTagToType ty))) argTypes
+
     forA = forAllT noLoc "a"
     forAB = forA . forAllT noLoc "b"
     a = varT noLoc "a"
@@ -322,17 +348,19 @@ defaultContext = H.Context $ M.fromList $
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
 
-intE, textE, boolE :: Loc -> Term
+intE, textE, boolE, sigmaE :: loc -> H.Term prim loc Text
 
 intE loc = varE loc intVar
 textE loc = varE loc textVar
 boolE loc = varE loc boolVar
+sigmaE loc = varE loc sigmaVar
 
-intVar, textVar, boolVar, notVar, negateVar, boxVar :: Text
+intVar, textVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
 
 intVar = secretVar "Int"
 textVar = secretVar "Text"
 boolVar = secretVar "Bool"
+sigmaVar = secretVar "Sigma"
 boxVar = secretVar "Box"
 notVar = secretVar "not"
 negateVar = secretVar "negate"
@@ -388,12 +416,11 @@ textHashVar :: HashAlgo -> Text
 textHashVar hashAlgo = secretVar $ mappend "textHash" (showt hashAlgo)
 
 
-getBoxIdVar, getBoxValueVar, getBoxScriptVar, getBoxArgVar :: Text
+getBoxIdVar, getBoxValueVar, getBoxScriptVar :: Text
 
 getBoxIdVar = secretVar "getBoxId"
 getBoxValueVar = secretVar "getBoxValue"
 getBoxScriptVar = secretVar "getBoxScript"
-getBoxArgVar = secretVar "getBoxArg"
 
 undefVar :: Text
 undefVar = secretVar "undefined"
@@ -415,6 +442,12 @@ altVar, failCaseVar :: Text
 
 altVar = secretVar "altCases"
 failCaseVar = secretVar "failCase"
+
+sigmaAndVar, sigmaOrVar, toSigmaVar :: Text
+
+sigmaAndVar = "sigmaAnd"
+sigmaOrVar  = "sigmaOr"
+toSigmaVar  = "toSigma"
 
 ---------------------------------------------------------
 
@@ -485,4 +518,7 @@ selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", s
 
 recordUpdateVar :: VarName -> Text
 recordUpdateVar field = secretVar $ mconcat ["update_", varName'name field]
+
+getBoxArgVar' :: ArgType -> Text
+getBoxArgVar' = secretVar . getBoxArgVar
 

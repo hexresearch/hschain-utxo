@@ -40,11 +40,11 @@ import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText, eliminateSigmaBool)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -52,19 +52,25 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Language.HM as H
 
+import qualified Hschain.Utxo.Lang.Sigma as S
+
 {- for debug
 import Debug.Trace
+import Hschain.Utxo.Lang.Pretty
 import Text.Show.Pretty (ppShow)
 
 trace' :: Show a => a -> a
 trace' x = trace (ppShow x) x
+
+trace2 :: Lang -> a -> a
+trace2 expr x = trace (T.unpack $ renderText expr) x
 -}
 
 -- | Context of execution
 data Ctx = Ctx
   { ctx'vars       :: !(Map VarName Lang)  -- ^ global bindings (outer scope)
   , ctx'userArgs   :: !Args                -- ^ list user arguments for transaction
-  , ctx'height     :: !Integer             -- ^ height of blockchain
+  , ctx'height     :: !Int64               -- ^ height of blockchain
   , ctx'inputs     :: !(Vector Box)        -- ^ vector of input boxes
   , ctx'outputs    :: !(Vector Box)        -- ^ vector of ouptut boxes
   , ctx'debug      :: !Text                -- ^ debug log for executed expression
@@ -84,8 +90,8 @@ instance Alternative Exec where
             Right res -> return res
             Left _    -> runStateT stB s
 
-getHeight :: Exec Int
-getHeight = fmap (fromInteger . ctx'height) get
+getHeight :: Exec Int64
+getHeight = fmap ctx'height get
 
 getInputs :: Exec (Vector Box)
 getInputs = fmap ctx'inputs get
@@ -111,7 +117,7 @@ saveTrace msg =
   modify' $ \st -> st { ctx'debug = T.unlines [ctx'debug st, msg] }
 
 -- | Run execution monad.
-runExec :: ExecCtx -> Args -> Integer -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
+runExec :: ExecCtx -> Args -> Int64 -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
 runExec (ExecCtx binds) args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
@@ -144,10 +150,10 @@ execLang (Fix topExpr) = case topExpr of
     PrimLet _ _ _ -> error "Undefined exec for PrimLet case"
     -- logic
     If loc a b c -> fromIf loc a b c
-    Pk loc a -> fromPk loc a
     -- environment
     GetEnv loc idx -> fromEnv loc idx
     BoxE loc box -> fromBoxExpr loc box
+    SigmaE loc sigma -> fromSigma loc sigma
     VecE loc vec -> fromVec loc vec
     TextE loc txt -> fromText loc txt
     Trace loc str a -> fromTrace loc str a
@@ -273,7 +279,7 @@ execLang (Fix topExpr) = case topExpr of
             then return (Fix x')
             else prim locX1 $ PrimBool False
         (PrimE _ (PrimSigma a), PrimE _ (PrimSigma b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaAnd [a, b]
+          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaAnd [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     -- todo: maybe it's worth to make it lazy
@@ -290,7 +296,7 @@ execLang (Fix topExpr) = case topExpr of
             then prim locX1 $ PrimBool True
             else return (Fix x')
         (PrimE _ (PrimSigma a), PrimE _ (PrimSigma b)) ->
-          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaOr [a, b]
+          return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaOr [a, b]
         _                 -> thisShouldNotHappen $ Fix $ BinOpE loc And x y
 
     fromPlus  loc = fromNumOp2 loc Plus  (NumOp2 (+))
@@ -398,7 +404,7 @@ execLang (Fix topExpr) = case topExpr of
       case x' of
         PrimE _ (PrimString pkeyTxt) ->
           case publicKeyFromText pkeyTxt of
-            Just pkey  -> return $ Fix $ PrimE loc $ PrimSigma $ Fix $ SigmaPk pkey
+            Just pkey  -> return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaPk pkey
             Nothing    -> parseError loc $ mconcat ["Failed to convert parse public key from string: ", pkeyTxt]
         _                                    -> thisShouldNotHappen x
 
@@ -483,12 +489,13 @@ execLang (Fix topExpr) = case topExpr of
         Output loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getOutputs
         Inputs loc1  -> fmap (toBoxes loc1) getInputs
         Outputs loc1 -> fmap (toBoxes loc1) getOutputs
-        GetVar _ (Fix (PrimE _ (PrimString argName))) -> do
+        GetVar varLoc argType -> do
           args <- getUserArgs
-          case M.lookup argName args of
-            Just value -> prim loc value
-            _          -> noField (VarName loc argName)
-        _      -> return $ Fix $ GetEnv loc idx
+          return $ case argType of
+            IntArg  -> toArgField varLoc PrimInt  $ args'ints args
+            TextArg -> toArgField varLoc PrimString $ args'texts args
+            BoolArg -> toArgField varLoc PrimBool $ args'bools args
+        _ -> thisShouldNotHappen $ Fix $ GetEnv loc idx
       where
         toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? (fromIntegral n)
         toBoxes loc1 vs = Fix $ VecE loc $ NewVec loc $ fmap (Fix . BoxE loc1 . PrimBox loc1) vs
@@ -501,14 +508,35 @@ execLang (Fix topExpr) = case topExpr of
         BoxAt loc1 (Fix (BoxE _ (PrimBox _ box))) field -> getBoxField loc1 box field
         _ -> thisShouldNotHappen $ Fix $ BoxE loc x
 
+    toArgField :: Loc -> (a -> Prim) -> V.Vector a -> Lang
+    toArgField loc primCons as = Fix $ VecE loc $ NewVec loc $ fmap (Fix . PrimE loc . primCons) as
+
     getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
-      BoxFieldId      -> prim loc $ PrimString $ unBoxId box'id
-      BoxFieldValue   -> prim loc $ PrimInt $ box'value
-      BoxFieldScript  -> prim loc $ PrimString $ unScript $ box'script
-      BoxFieldArg txt -> case txt of
-        Fix (PrimE loc1 (PrimString t)) -> maybe (noField $ VarName loc1 t) (prim loc1) $ M.lookup t box'args
-        _                               -> thisShouldNotHappen txt
+      BoxFieldId         -> prim loc $ PrimString $ unBoxId box'id
+      BoxFieldValue      -> prim loc $ PrimInt $ box'value
+      BoxFieldScript     -> prim loc $ PrimString $ unScript $ box'script
+      BoxFieldArgList ty -> return $ case ty of
+        IntArg  -> toArgField loc PrimInt    $ args'ints box'args
+        TextArg -> toArgField loc PrimString $ args'texts box'args
+        BoolArg -> toArgField loc PrimBool   $ args'bools box'args
+
+    fromSigma _ x = do
+      x' <- mapM rec x
+      case x' of
+        Pk loc a         -> fromPk loc a
+        SAnd loc a b     -> fromSigmaOp S.SigmaAnd loc a b
+        SOr loc a b      -> fromSigmaOp S.SigmaOr loc a b
+        SPrimBool loc a  -> fromSigmaBool loc a
+
+    fromSigmaOp cons loc a b = do
+      a' <- getPrimSigmaOrFail =<< rec a
+      b' <- getPrimSigmaOrFail =<< rec b
+      return $ Fix $ PrimE loc $ PrimSigma $ Fix $ cons [a', b']
+
+    fromSigmaBool loc a = do
+      a' <- getPrimBoolOrFail =<< rec a
+      return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaBool a'
 
     fromVec loc x = do
       x' <- mapM rec x
@@ -585,11 +613,8 @@ prim loc p = return $ Fix $ PrimE loc p
 toError :: ExecError -> Exec a
 toError = throwError . ExecError
 
-thisShouldNotHappen :: Lang -> Exec Lang
+thisShouldNotHappen :: Lang -> Exec a
 thisShouldNotHappen = toError . ThisShouldNotHappen
-
-noField :: VarName -> Exec Lang
-noField = toError . NoField
 
 outOfBound :: Lang -> Exec Lang
 outOfBound = toError . OutOfBound
@@ -636,6 +661,28 @@ txPreservesValue tx@TxArg{..}
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
+getPrim :: Lang -> Maybe (Loc, Prim)
+getPrim (Fix a) = case a of
+  PrimE loc p -> Just (loc, p)
+  _           -> Nothing
+
+getPrimSigma :: Prim -> Maybe (Sigma PublicKey)
+getPrimSigma = \case
+  PrimSigma p -> Just p
+  _           -> Nothing
+
+getPrimBool :: Prim -> Maybe Bool
+getPrimBool = \case
+  PrimBool b -> Just b
+  _          -> Nothing
+
+getPrimSigmaOrFail :: Lang -> Exec (Sigma PublicKey)
+getPrimSigmaOrFail x = maybe (thisShouldNotHappen x) pure $
+  getPrim x >>= (\(_, p) -> getPrimSigma p)
+
+getPrimBoolOrFail :: Lang -> Exec Bool
+getPrimBoolOrFail x = maybe (thisShouldNotHappen x) pure $
+  getPrim x >>= (\(_, p) -> getPrimBool p)
 
 {- for debug
 traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
@@ -649,7 +696,9 @@ traceFun name f x =
 exec :: ExecCtx -> TxArg -> (Bool, Text)
 exec ctx tx
   | txPreservesValue tx = case res of
-        Right (SigmaBool sigma) -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
+        Right (SigmaResult sigmaWithBools) -> case eliminateSigmaBool sigmaWithBools of
+          Right sigma -> maybe (False, "No proof submitted") (\proof -> (S.equalSigmaProof sigma proof && S.verifyProof proof, debug)) mProof
+          Left bool   -> (bool, "")
         Right (ConstBool bool)  -> (bool, "")
         Left err    -> (False, err)
   | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
@@ -661,18 +710,18 @@ exec ctx tx
 -- that user have to prove.
 data BoolExprResult
   = ConstBool Bool
-  | SigmaBool (Sigma PublicKey)
+  | SigmaResult (Sigma PublicKey)
   deriving (Show, Eq)
 
 instance ToJSON BoolExprResult where
   toJSON = \case
     ConstBool b -> object ["bool"  .= b]
-    SigmaBool s -> object ["sigma" .= s]
+    SigmaResult s -> object ["sigma" .= s]
 
 instance FromJSON BoolExprResult where
   parseJSON = withObject "BoolExprResult" $ \obj ->
         (ConstBool <$> obj .: "bool")
-    <|> (SigmaBool <$> obj .: "sigma")
+    <|> (SigmaResult <$> obj .: "sigma")
 
 
 -- | Executes expression to sigma-expression
@@ -681,7 +730,9 @@ execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
   where
     execExpr (Expr x) =
       case runExec ctx txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> (Right $ SigmaBool b, msg)
+        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> case eliminateSigmaBool b of
+          Left bool                               -> (Right $ ConstBool bool, msg)
+          Right sigma                             -> (Right $ SigmaResult sigma, msg)
         Right (Fix (PrimE _ (PrimBool b)), msg)   -> (Right $ ConstBool b, msg)
         Right _                                   -> (Left noSigmaExpr, noSigmaExpr)
         Left err                                  -> (Left (showt err), showt err)

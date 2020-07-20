@@ -21,13 +21,8 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Build
 
-import qualified Hschain.Utxo.API.Client as C
-
-import qualified Data.Map.Strict as M
-import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 import qualified Hschain.Utxo.Test.Client.Monad as M
 
@@ -44,23 +39,23 @@ payForCofeeBob = do
   testTitle "Pay with delay: Bob gets his money."
   Scene{..} <- initUsers
   let (User alice  aliceBox1)  = scene'alice
-      (User bob    bobBox1)    = scene'bob
-      (User john   johnBox1)   = scene'john
+      (User bob    _bobBox1)    = scene'bob
+      (User john   _johnBox1)   = scene'john
       (User master masterBox1) = scene'master
   mSendDelAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
-  forM_ (mSendDelAlice) $ \(SendRes aliceBox2 aliceOrBobBox _) -> do
-      SendResult bobBox3 johnBox2 _  <- debugSend False
+  forM_ (mSendDelAlice) $ \(SendRes _aliceBox2 aliceOrBobBox _) -> do
+      SendResult _bobBox3 _johnBox2 _  <- debugSend False
             "Bob tries to send 2 coins to john (it should fail on delayed condition)"
             bob aliceOrBobBox john 2
-      SendResult masterBox2 johnBox3 _ <- debugSend True
+      SendResult masterBox2 _johnBox3 _ <- debugSend True
             "Master sends to john 1 coin"
             master masterBox1 john 1
-      SendResult masterBox3 johnBox4 _ <- debugSend True
+      SendResult _masterBox3 _johnBox4 _ <- debugSend True
             "Master sends to john 1 coin"
             master masterBox2 john 1
-      SendResult bobBox4 johnBox6 _ <- debugSend True
+      SendResult _bobBox4 _johnBox6 _ <- debugSend True
             "Bob tries to send 1 coins to john (it should proceed, condition is ok now)"
             bob aliceOrBobBox john 1
       return ()
@@ -72,23 +67,23 @@ payForCofeeAlice = do
   testTitle "Pay with delay: Alice gets her money back."
   Scene{..} <- initUsers
   let (User alice  aliceBox1)  = scene'alice
-      (User bob    bobBox1)    = scene'bob
-      (User john   johnBox1)   = scene'john
+      (User bob   _bobBox1)    = scene'bob
+      (User john  _johnBox1)   = scene'john
       (User master masterBox1) = scene'master
   mDelSendAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
-  forM_ mDelSendAlice $ \(SendRes aliceBox2 aliceOrBobBox _) -> do
-    SendResult bobBox3 johnBox2 _ <- debugSend False
+  forM_ mDelSendAlice $ \(SendRes _aliceBox2 aliceOrBobBox _) -> do
+    SendResult _bobBox3 _johnBox2 _ <- debugSend False
           "Bob tries to send 2 coins to john (it should fail on delayed condition)"
           bob aliceOrBobBox john 2
-    SendResult masterBox2 johnBox3 _ <- debugSend True
+    SendResult _masterBox2 _johnBox3 _ <- debugSend True
           "Master sends to john 1 coin"
           master masterBox1 john 1
-    SendResult masterBox2 johnBox4 _ <- debugSend True
+    SendResult _masterBox2 _johnBox4 _ <- debugSend True
           "Alice sends to john 2 coins. It should proceed."
           alice aliceOrBobBox john 2
-    SendResult bobBox4 johnBox6 _ <- debugSend False
+    SendResult _bobBox4 _johnBox6 _ <- debugSend False
           "Bob tries to send 1 coins to john (it should fail, Alice already taken the money)"
           bob aliceOrBobBox john 1
     return ()
@@ -138,16 +133,16 @@ sendTxDelayed from fromBox to delayDiff amount = do
   toBox     <- allocAddress to
   backBox   <- allocAddress from
   refundBox <- allocAddress from
-  currentHeight <- fmap fromInteger $ M.getHeight
+  currentHeight <- M.getHeight
   totalAmount <- fmap (fromMaybe 0) $ M.getBoxBalance fromBox
-  let send = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
-      preTx = toSendTxDelayed from send Nothing
+  let sendTx = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
+      preTx = toSendTxDelayed from sendTx Nothing
       proofEnv = getProofEnv from
   eSigma <- getTxSigma preTx
   eProof <- fmap join $ mapM (liftIO . newProof proofEnv) eSigma
   case eProof of
     Right proof -> do
-      let tx = toSendTxDelayed from send (Just proof)
+      let tx = toSendTxDelayed from sendTx (Just proof)
       logTest $ renderText tx
       txResp <- M.postTx tx
       logTest $ fromString $ ppShow txResp
@@ -160,13 +155,13 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
       { tx'inputs   = V.fromList [inputBox]
       , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       , tx'proof    = mProof
-      , tx'args     = M.empty
+      , tx'args     = mempty
       }
   where
     inputBox = sendDelayed'from
     height = sendDelayed'height
 
-    spendHeight = "spend-height"
+    spendHeightId = 0
 
     senderPk = pk' $ getWalletPublicKey wallet
 
@@ -175,7 +170,7 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
                 { box'id     = sendDelayed'back
                 , box'value  = sendDelayed'remain
                 , box'script = toScript backScript
-                , box'args   = M.empty
+                , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
@@ -187,16 +182,18 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
       { box'id     = sendDelayed'to
       , box'value  = sendDelayed'amount
       , box'script = toScript $ receiverScript ||* refundScript
-      , box'args   = M.fromList [(spendHeight, PrimInt height)]
+      , box'args   = intArgs [height]
       }
+
+    getSpendHeight = vecAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
 
     -- receiver can get money only hieght is greater than specified limit
     receiverScript =
             pk' (getWalletPublicKey sendDelayed'recepientWallet)
-        &&* getBoxArg (getInput (int 0)) (text spendHeight) <* getHeight
+        &&* toSigma (getSpendHeight <* getHeight)
 
     -- sender can get money back if hieght is less or equals to specified limit
     refundScript =
             senderPk
-        &&* getBoxArg (getInput (int 0)) (text spendHeight) >=* getHeight
+        &&* toSigma (getSpendHeight >=* getHeight)
 

@@ -1,30 +1,35 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Common primitive type definitions
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
-  , Type
+  , TypeCore
   , Typed(..)
   , Addr
   , Prim(..)
-  , SigmaExpr(..)
   , getPrimInt
   , getPrimText
   , getPrimBool
   , getPrimSigma
 ) where
 
-import Hschain.Utxo.Lang.Sigma (PublicKey)
+import Codec.Serialise
+import Control.DeepSeq
 
+import Data.Fix
 import Data.Int
 import Data.Text (Text)
 import qualified Language.HM as H
+import GHC.Generics (Generic)
 
-type Type = H.Type () Name
+import Hschain.Utxo.Lang.Sigma
+
+type TypeCore = H.Type () Name
 
 -- | Type tags for values
 data Typed a = Typed
   { typed'value :: a
-  , typed'type  :: Type
-  } deriving (Show, Eq, Functor, Foldable, Traversable)
+  , typed'type  :: TypeCore
+  } deriving (Show, Eq, Functor, Foldable, Traversable, Generic)
 
 -- | Name identifiers for variables or global functions
 type Name = Text
@@ -37,17 +42,9 @@ data Prim
   = PrimInt   !Int64
   | PrimText  !Text
   | PrimBool  !Bool
-  | PrimSigma !SigmaExpr
-  deriving (Show, Eq, Ord)
-
--- | Boolean expressions
--- that include Sigma-expressions
-data SigmaExpr
-  = SigmaBool Bool         -- ^ constant values
-  | SigmaAnd  [SigmaExpr]  -- ^ boolean AND
-  | SigmaOr   [SigmaExpr]  -- ^ boolean OR
-  | SigmaPk   PublicKey    -- ^ public key ownership
-  deriving (Show, Eq, Ord)
+  | PrimSigma !(Sigma PublicKey)
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (NFData)
 
 -- | Extract integer primitive
 getPrimInt :: Prim -> Maybe Int64
@@ -68,8 +65,20 @@ getPrimText = \case
   _          -> Nothing
 
 -- | Extract textual primitive
-getPrimSigma :: Prim -> Maybe SigmaExpr
+getPrimSigma :: Prim -> Maybe (Sigma PublicKey)
 getPrimSigma = \case
   PrimSigma t -> Just t
   _           -> Nothing
+
+-----------------------------------------------------
+-- instnaces
+
+instance Serialise (Fix (H.TypeF () Text))
+instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
+instance Serialise TypeCore
+--  encode = encode . toTypeSer
+--  decode = fmap fromTypeSer decode
+
+instance Serialise Prim
+instance Serialise a => Serialise (Typed a)
 

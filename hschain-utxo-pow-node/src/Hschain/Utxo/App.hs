@@ -293,7 +293,8 @@ runNode secretNodeName cfgConfigPath =
                    , tx'outputs = V.empty     -- ^ List of outputs 
                    , tx'proof   = Nothing    -- ^ Proof of the resulting sigma expression 
                    , tx'args    = Map.empty            -- ^ Arguments for the scripts 
-                   } 
+                   }
+         
 
     optNodeName = error "optnodename"
     optMine = True

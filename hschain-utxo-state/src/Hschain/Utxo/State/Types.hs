@@ -4,13 +4,16 @@ module Hschain.Utxo.State.Types where
 import Hex.Common.Aeson
 
 import Codec.Serialise (Serialise)
-import Control.Monad
 
+import Data.Int
 import Data.Text (Text)
 import Data.Map.Strict (Map)
+import Data.Text.Prettyprint.Doc
 
 import GHC.Generics
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang
 
 import qualified Data.Map.Strict as M
@@ -19,7 +22,7 @@ import qualified Data.Map.Strict as M
 -- each box contains value and script that protects value from spending.
 data BoxChain = BoxChain
   { boxChain'boxes  :: !(Map BoxId Box)  -- ^ collection of boxes
-  , boxChain'height :: !Integer          -- ^ height of blockchain
+  , boxChain'height :: !Int64            -- ^ height of blockchain
   } deriving (Show, Eq, Generic, Serialise)
 
 -- | Empty initial blockchain state.
@@ -28,6 +31,10 @@ emptyBoxChain = BoxChain
   { boxChain'boxes  = M.empty
   , boxChain'height = 0
   }
+
+instance CryptoHashable BoxChain where
+  hashStep = genericHashStep hashDomain
+
 
 -- | Tx referes to input boxes by identifiers and
 -- contains functions to read blockchain environment.
@@ -56,3 +63,7 @@ getEnv BoxChain{..} = Env { env'height = boxChain'height }
 
 $(deriveJSON dropPrefixOptions ''BoxChain)
 
+instance Pretty BoxChain where
+  pretty BoxChain{..} = prettyRecord "BoxChain"
+    [ ("height", pretty boxChain'height)
+    , ("boxes",  vsep $ fmap pretty $ M.elems boxChain'boxes )]

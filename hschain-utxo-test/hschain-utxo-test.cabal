@@ -16,6 +16,7 @@ build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Test.Client.Monad
                        Hschain.Utxo.Test.Client.Proc
                        Hschain.Utxo.Test.Client.Scripts.PayForCofee
@@ -69,7 +70,9 @@ library
     TemplateHaskell
 
 
-executable hschain-utxo-test
+test-suite hschain-utxo-test
+  Ghc-options:         -Wall
+  Type:                exitcode-stdio-1.0
   main-is:             Main.hs
   hs-source-dirs:      app
   -- other-modules:

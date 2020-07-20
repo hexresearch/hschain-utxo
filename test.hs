@@ -24,6 +24,7 @@ colToNum x = case x of
   Green -> 2
   Blue -> 3
   Gen r g b -> 100 * r + 10 * g + b
+  _ -> 5
 
 double f x = f (f x)
 
@@ -51,22 +52,25 @@ q x = p x + 2
 p :: Int -> Int
 p x = x
 
-xor :: Bool -> Bool -> Bool
-xor True  True   = True
-xor False False  = True
-xor True  False  = False
-xor False True   = False
-{-
+xorC :: Bool -> Bool -> Bool
+xorC x y = case (x, y) of
+  (True, True)   -> True
+  (False, False) -> True
+  (True,  False) -> False
+  (False, True)  -> False
+
+
 xorCol :: Color -> Color -> Bool
 xorCol Red Red = True
 xorCol Green Green = True
 xorCol _ _ = False
 -- xorCol Red Green = False
 -- xorCol Green Red = False
--}
+
 twistedSucc :: Int -> Int
 twistedSucc 1 = 1
 twistedSucc n = n + 1
+
 
 data User = User
   { user'name  :: Text
@@ -86,5 +90,4 @@ john = User { user'name = "john", user'age = 23, user'goods = Goods 1 2 }
 setName :: Text -> User -> User
 setName name user = user { user'name = name }
 
--- sumPair (a, b) = a + b
-
+sumPair (a, b) = a + b

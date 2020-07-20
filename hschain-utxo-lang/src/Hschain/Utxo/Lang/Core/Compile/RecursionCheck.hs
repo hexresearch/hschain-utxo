@@ -15,7 +15,7 @@ import qualified Data.Set   as S
 -- | Check that program has no recursion
 -- We should check all top level bindings and let-expressions.
 recursionCheck :: CoreProg -> Bool
-recursionCheck prog =
+recursionCheck (CoreProg prog) =
      (depIsAcyclic $ fmap scombToDep prog)
   && (all checkLets prog)
 
@@ -33,15 +33,16 @@ depIsAcyclic deps = all isAcyclic $ G.stronglyConnComp depGraph
       G.CyclicSCC _  -> False
 
 -- | Find free variables for expression.
-freeVars :: Expr -> Set Name
+freeVars :: ExprCore -> Set Name
 freeVars = \case
-  EVar name     -> S.singleton name
+  EVar name     -> S.singleton $ typed'value name
   EPrim _       -> S.empty
   EAp f a       -> freeVars f <> freeVars a
   ELet binds e  -> freeLetVars binds e
   EIf a b c     -> freeVars a <> freeVars b <> freeVars c
   ECase e alts  -> freeVars (typed'value e) <> foldMap freeAltVars alts
   EConstr _ _ _ -> S.empty
+  EBottom       -> S.empty
   where
     freeAltVars CaseAlt{..} =
       freeVars caseAlt'rhs S.\\ (S.fromList $ fmap typed'value caseAlt'args)
@@ -66,7 +67,7 @@ checkLets :: Scomb -> Bool
 checkLets = checkLetExpr . typed'value . scomb'body
 
 -- | Check all subexpressions that let'bindings are acyclic.
-checkLetExpr :: Expr -> Bool
+checkLetExpr :: ExprCore -> Bool
 checkLetExpr = \case
   EAp f a       -> checkLetExpr f && checkLetExpr a
   ELet binds e  -> checkBinds binds e
@@ -75,6 +76,7 @@ checkLetExpr = \case
   EConstr _ _ _ -> True
   EVar _        -> True
   EPrim _       -> True
+  EBottom       -> True
   where
     checkBinds binds e = checkLetExpr e && all (checkLetExpr . snd) binds && check binds
       where

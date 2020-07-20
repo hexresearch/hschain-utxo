@@ -219,7 +219,7 @@ prog9 = [main, length', length1, cons, nil] ++ prelude
 -- > main = fac 10
 prog10 = [main, fac]
   where
-    fac  = scomb "fac"  ["n"] (EIf (ap2 "==" "n" 0) 1 ("n" * (EAp "fac" ("n" - 1))) ) [intT] intT
+    fac  = scomb "fac"  ["n"] (EIf (ap2 "Int.equals" "n" 0) 1 ("n" * (EAp "fac" ("n" - 1))) ) [intT] intT
     main = scomb "main" [] (EAp "fac" 10) [] intT
 
 -- > gcd a b = if (a == b)
@@ -231,10 +231,10 @@ prog10 = [main, fac]
 prog11 = [main, gcd]
   where
     gcd  = scomb "gcd"  ["a", "b"] (EIf
-                                          (ap2 "==" "a" "b")
+                                          (ap2 "Int.equals" "a" "b")
                                           "a"
                                           (EIf
-                                                (ap2 "<" "a" "b")
+                                                (ap2 "Int.lessThan" "a" "b")
                                                 (ap2 "gcd" "b" "a")
                                                 (ap2 "gcd" "b" (ap2 "-" "a" "b")) ))
                  [intT, intT]
@@ -248,7 +248,7 @@ prog11 = [main, gcd]
 prog12 = [main, nfib]
   where
     nfib = scomb "nfib" ["n"] (EIf
-                                   (ap2 "<=" "n" 0)
+                                   (ap2 "Int.lessThanEquals" "n" 0)
                                    1
                                    (1 +
                                          ( (EAp "nfib" ("n" - 1))
@@ -285,7 +285,7 @@ prog13 = [main, downfrom] ++ preludeInt
     main = scomb "main" [] (EAp "downfrom" 5) [] (listT intT)
     downfrom = scomb "downfrom" ["n"]
         (EIf
-              (ap2 "==" "n" 0)
+              (ap2 "Int.equals" "n" 0)
               "nil"
               (ap2 "cons" "n" (EAp "downfrom" (ap2 "-" "n" 1)))
         )
@@ -310,7 +310,7 @@ prog14 = [main, take', from] ++ preludeInt
     main = scomb "main" [] (ap2 "take" 5 (EAp "from" 0)) [] (listT intT)
     take' = scomb "take" ["n", "xs"]
       (EIf
-           (ap2 "<=" "n" 0)
+           (ap2 "Int.lessThanEquals" "n" 0)
            "nil"
            (ECase (Typed "xs" (listT intT))
                        [ CaseAlt 1 [] "nil"
@@ -352,12 +352,12 @@ prog15 = [main, take', from, sieve, filter', nonMultiple] ++ preludeInt
   where
     main = scomb "main" [] (ap2 "take" 5 (EAp "sieve" (EAp "from" 2))) [] (listT intT)
 
-    nonMultiple = scomb "nonMultiple" ["p", "n"] (ap2 "/=" (ap2 "*" (ap2 "/" "n" "p") "p") "n")
+    nonMultiple = scomb "nonMultiple" ["p", "n"] (ap2 "Int.notEquals" (ap2 "*" (ap2 "/" "n" "p") "p") "n")
                         [intT, intT] boolT
 
     take' = scomb "take" ["n", "xs"]
       (EIf
-           (ap2 "<=" "n" 0)
+           (ap2 "Int.lessThanEquals" "n" 0)
            "nil"
            (ECase (Typed "xs" (listT intT))
                        [ CaseAlt 1 [] "nil"

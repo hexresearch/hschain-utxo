@@ -12,6 +12,7 @@ import Language.HM.Type
 
 -- | Substitutions of type variables for monomorphic types.
 newtype Subst loc v = Subst { unSubst :: M.Map v (Type loc v) }
+  deriving (Eq, Ord)
 
 instance Ord v => Semigroup (Subst loc v) where
   Subst s1 <> Subst s2 =

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types where
 
@@ -13,13 +12,16 @@ import Codec.Serialise
 import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
+import Data.Int
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import GHC.Generics
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Parser.Hask
 
 import qualified Crypto.Hash as C
@@ -81,9 +83,18 @@ data TxArg = TxArg
 
 -- | Blockchain environment variables.
 data Env = Env
-  { env'height   :: !Integer  -- ^ blockchain height
+  { env'height   :: !Int64    -- ^ blockchain height
   } deriving (Show, Eq)
 
+-- | Transaction environment. All values that user can read
+-- from the script
+data TxEnv = TxEnv
+  { txEnv'height   :: !Int64
+  , txEnv'self     :: !Box
+  , txEnv'inputs   :: !(Vector Box)
+  , txEnv'outputs  :: !(Vector Box)
+  , txEnv'args     :: !Args
+  }
 
 --------------------------------------------
 
@@ -99,7 +110,7 @@ fromScript :: Script -> Either Text (Expr Bool)
 fromScript (Script txt) = parseScript txt
 
 -- | Convert boolean expression to script.
-toScript :: Expr Bool -> Script
+toScript :: Expr SigmaBool -> Script
 toScript (Expr expr) = Script $ T.pack $ prettyExp expr
 
 encodeScript :: ExecCtx -> Lang -> Text
@@ -123,6 +134,8 @@ scriptToText = unScript
 
 $(deriveJSON dropPrefixOptions ''Tx)
 $(deriveJSON dropPrefixOptions ''TxArg)
-$(deriveJSON dropPrefixOptions ''Box)
 $(deriveJSON dropPrefixOptions ''Env)
+
+instance CryptoHashable Tx where
+  hashStep = genericHashStep hashDomain
 

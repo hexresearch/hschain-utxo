@@ -21,13 +21,16 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , listT
   , tupleT
   , arrowT
+  , funT
 ) where
 
 import Control.Monad.Reader
 
 import Data.Fix
+import Data.Either
 import Data.Map.Strict (Map)
 import Data.Maybe
+import Data.Text.Prettyprint.Doc
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -41,8 +44,6 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
-import Data.Text.Prettyprint.Doc
-
 {- for debug
 import Debug.Trace
 import Text.Show.Pretty hiding (Name)
@@ -53,6 +54,17 @@ trace' a = trace (ppShow a) a
 traceT :: Type -> Type
 traceT ty = trace (show $ pretty ty) ty
 -}
+
+data MonoType
+  = MonoType TypeCore  -- ^ simple case when we know the type
+  | AnyType            -- ^ type that can be anything
+                       --    we use it for bottoms
+
+unifyMonoType :: MonoType -> MonoType -> Maybe MonoType
+unifyMonoType a b = case (a, b) of
+  (MonoType ta, MonoType tb) -> if (ta == tb) then Just a else Nothing
+  (AnyType, tb) -> Just tb
+  (ta, AnyType) -> Just ta
 
 instance IsVar Name where
   intToVar = stringIntToVar
@@ -76,15 +88,15 @@ runCheck :: TypeContext -> Check a -> Maybe a
 runCheck ctx m = runReaderT m ctx
 
 typeCheckM :: CoreProg -> Check Bool
-typeCheckM prog = fmap and $ mapM typeCheckScomb  prog
+typeCheckM (CoreProg prog) = fmap and $ mapM typeCheckScomb  prog
 
-getType :: Name -> Check Type
+getType :: Name -> Check TypeCore
 getType name = do
   TypeContext ctx <- ask
   lift $ M.lookup name ctx
 
 -- | Reads  type signature of supercombinator
-getScombType :: Scomb -> Type
+getScombType :: Scomb -> TypeCore
 getScombType Scomb{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type $ V.toList scomb'args
@@ -96,97 +108,117 @@ typeCheckScomb Scomb{..} =
   local (loadArgs (V.toList scomb'args)) $
     typeCheckExpr scomb'body
 
-typeCheckExpr :: Typed Expr -> Check Bool
+typeCheckExpr :: Typed ExprCore -> Check Bool
 typeCheckExpr Typed{..} =
-  fmap (== typed'type) $ inferExpr typed'value
+  fmap (hasType (MonoType typed'type)) $ inferExpr typed'value
 
-inferExpr :: Expr -> Check Type
+hasType :: MonoType -> MonoType -> Bool
+hasType a b = maybe False isMonoType $ unifyMonoType a b
+
+fromMonoType :: MonoType -> Maybe TypeCore
+fromMonoType = \case
+  MonoType a -> Just a
+  AnyType    -> Nothing
+
+isMonoType :: MonoType -> Bool
+isMonoType x = isJust $ fromMonoType x
+
+inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
     EPrim prim     -> inferPrim prim
     EAp  f a       -> inferAp f a
     ELet es e      -> inferLet es e
     ECase e alts   -> inferCase e alts
-    EConstr ty _ _ -> pure ty
+    EConstr ty _ _ -> pure $ MonoType ty
     EIf c t e      -> inferIf c t e
+    EBottom        -> pure AnyType
 
-inferVar :: Name -> Check Type
-inferVar = getType
+inferVar :: Typed Name -> Check MonoType
+inferVar (Typed name ty) = do
+  guard $ isMonoType (MonoType ty)
+  globalTy <- getType name
+  if isMonoType (MonoType globalTy)
+    then guard $ ty == globalTy
+    else guard $ isRight $ ty `H.subtypeOf` globalTy
+  return $ MonoType ty
 
-inferPrim :: Prim -> Check Type
-inferPrim p = return $ primToType p
+inferPrim :: Prim -> Check MonoType
+inferPrim p = return $ MonoType $ primToType p
 
-inferAp :: Expr -> Expr -> Check Type
+inferAp :: ExprCore -> ExprCore -> Check MonoType
 inferAp f a = do
   fT <- inferExpr f
   aT <- inferExpr a
   lift $ getApTy fT aT
   where
-    getApTy :: Type -> Type -> Maybe Type
+    getApTy :: MonoType -> MonoType -> Maybe MonoType
     getApTy fT aT = do
       (farg, fres) <- getArrowTypes fT
-      guard $ farg == aT
+      guard $ hasType farg aT
       return fres
 
-    getArrowTypes :: Type -> Maybe (Type, Type)
-    getArrowTypes (H.Type (Fix t)) =
-      case t of
-        H.ArrowT () arg res -> Just (H.Type arg, H.Type res)
-        _                   -> Nothing
+    getArrowTypes :: MonoType -> Maybe (MonoType, MonoType)
+    getArrowTypes ty = case ty of
+      AnyType -> Just (AnyType, AnyType)
+      MonoType (H.Type (Fix t)) ->
+        case t of
+          H.ArrowT () arg res -> Just (MonoType $ H.Type arg, MonoType $ H.Type res)
+          _                   -> Nothing
 
-inferLet :: [(Typed Name, Expr)] -> Expr -> Check Type
+inferLet :: [(Typed Name, ExprCore)] -> ExprCore -> Check MonoType
 inferLet binds body = local (loadArgs (fmap fst binds)) $ do
   mapM_ (uncurry checkBind) binds
   inferExpr body
   where
-    checkBind :: Typed Name -> Expr -> Check ()
+    checkBind :: Typed Name -> ExprCore -> Check ()
     checkBind Typed{..} expr = do
       ty <- inferExpr expr
-      lift $ guard $ ty == typed'type
+      guard $ hasType ty (MonoType typed'type)
 
-inferCase :: Typed Expr -> [CaseAlt] -> Check Type
+inferCase :: Typed ExprCore -> [CaseAlt] -> Check MonoType
 inferCase e alts = do
   checkTop e
   getResultType =<< mapM inferAlt alts
   where
-    checkTop :: Typed Expr -> Check ()
+    checkTop :: Typed ExprCore -> Check ()
     checkTop Typed{..} = do
       ty <- inferExpr typed'value
-      guard $ ty == typed'type
+      guard $ hasType ty (MonoType typed'type)
 
-    getResultType :: [Type] -> Check Type
+    getResultType :: [MonoType] -> Check MonoType
     getResultType = \case
       []   -> lift Nothing
       t:ts -> do
-        guard $ all (== t) ts
-        return t
+        lift $ L.foldl' (\a b -> unifyMonoType b =<< a) (Just t) ts
 
-inferAlt :: CaseAlt -> Check Type
+inferAlt :: CaseAlt -> Check MonoType
 inferAlt CaseAlt{..} =
   local (loadArgs caseAlt'args) $
     inferExpr caseAlt'rhs
 
-inferIf :: Expr -> Expr -> Expr -> Check Type
+inferIf :: ExprCore -> ExprCore -> ExprCore -> Check MonoType
 inferIf c t e = do
   cT <- inferExpr c
   tT <- inferExpr t
   eT <- inferExpr e
-  guard $ cT == boolT
-  guard $ tT == eT
-  return tT
+  guard $ hasType cT (MonoType boolT)
+  lift $ unifyMonoType tT eT
 
 -------------------------------------------------------
 -- type inference context
 
 -- | Type context of the known signatures
-newtype TypeContext = TypeContext (Map Name Type)
+newtype TypeContext = TypeContext (Map Name TypeCore)
+  deriving newtype (Semigroup, Monoid)
+
 
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext -> TypeContext
-loadContext defs ctx =
+loadContext (CoreProg defs) ctx =
   L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) ctx defs
 
-insertSignature :: Name -> Type -> TypeContext -> TypeContext
+insertSignature :: Name -> TypeCore -> TypeContext -> TypeContext
 insertSignature name ty (TypeContext m) =
   TypeContext $ M.insert name ty m
 
@@ -200,43 +232,45 @@ loadName Typed{..} = insertSignature typed'value typed'type
 -------------------------------------------------------
 -- constants
 
-primToType :: Prim -> Type
+primToType :: Prim -> TypeCore
 primToType = \case
   PrimInt   _ -> intT
   PrimText  _ -> textT
   PrimBool  _ -> boolT
   PrimSigma _ -> sigmaT
 
-intT :: Type
+intT :: TypeCore
 intT = primT "Int"
 
-textT :: Type
+textT :: TypeCore
 textT = primT "Text"
 
-boolT :: Type
+boolT :: TypeCore
 boolT = primT "Bool"
 
-sigmaT :: Type
+sigmaT :: TypeCore
 sigmaT = primT "Sigma"
 
-boxT :: Type
+boxT :: TypeCore
 boxT = primT "Box"
 
-envT :: Type
+envT :: TypeCore
 envT = primT "Environment"
 
-primT :: Name -> Type
+primT :: Name -> TypeCore
 primT name = H.conT () name []
 
-varT :: Name -> Type
+varT :: Name -> TypeCore
 varT name = H.varT () name
 
-listT :: Type -> Type
+listT :: TypeCore -> TypeCore
 listT ty = H.listT () ty
 
-tupleT :: [Type] -> Type
+tupleT :: [TypeCore] -> TypeCore
 tupleT ts = H.tupleT () ts
 
-arrowT :: Type -> Type -> Type
+arrowT :: TypeCore -> TypeCore -> TypeCore
 arrowT a b = H.arrowT () a b
 
+funT :: [TypeCore] -> TypeCore -> TypeCore
+funT args resT = foldr arrowT resT args

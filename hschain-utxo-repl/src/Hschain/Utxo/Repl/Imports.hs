@@ -74,7 +74,7 @@ load file imp0 = liftIO $ do
           let typeCtx = inferCtx'binds $ moduleCtx'types $ imports'current imp
           case evalModule typeCtx m of
             Right modCtx   -> return $ Right $ loadCtx file modCtx imp
-            Left typeError -> return $ Left $ ImportTypeError typeError
+            Left tyErr -> return $ Left $ ImportTypeError tyErr
         P.ParseFailed loc err -> return $ Left $ ImportParseError loc err
     Left _ -> return $ Left $ ImportFileMissing file
 

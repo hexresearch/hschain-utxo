@@ -14,21 +14,25 @@ import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Infer.Pretty ()
 
-import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
 import qualified Language.HM as H
+import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
+
+instance H.HasPrefix Text where
+  getFixity = const Nothing
 
 -- | Convenience function to render pretty-printable value to text.
 renderText :: Pretty a => a -> Text
@@ -66,9 +70,11 @@ prettyRecord name fields = vcat [name <> colon, indent 2 (vsep $ fmap ppField fi
     ppField (field, val) = hsep [hcat [pretty field, colon], val ]
 
 prettyArgs :: Args -> Doc ann
-prettyArgs m = hsep $ punctuate comma $ fmap phi $ M.toList m
-    where
-      phi (uid, pk) = hsep [pretty uid, "->", pretty pk]
+prettyArgs Args{..} = prettyRecord "Args"
+  [ ("args'ints",  pretty $ V.toList args'ints)
+  , ("args'texts", pretty $ V.toList args'texts)
+  , ("args'bools", pretty $ V.toList args'bools)
+  ]
 
 instance Pretty TxHash where
   pretty (TxHash bs) = pretty $ serialiseToText bs
@@ -160,7 +166,7 @@ prettyId = \case
     Inputs _         -> "INPUTS"
     Outputs _        -> "OUTPUTS"
     Self _           -> hcat ["SELF"]
-    GetVar _ a       -> op1 "getVar" a
+    GetVar _ ty      -> pretty $ getEnvVarName ty
 
 prettyVec :: Doc ann -> Doc ann -> Doc ann
 prettyVec name n = hcat [name, brackets n]
@@ -173,20 +179,22 @@ prettyBoxField = \case
     BoxFieldId      -> "id"
     BoxFieldValue   -> "value"
     BoxFieldScript  -> "script"
-    BoxFieldArg txt -> txt
+    BoxFieldArgList tag -> pretty $ getBoxArgVar tag
 
 instance Pretty Error where
   pretty = \case
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
     ExecError err         -> pretty err
     TypeError err         -> pretty err
-    PatternError err      -> pretty err
+    PatError err          -> pretty err
     InternalError err     -> pretty err
+    MonoError err         -> pretty err
+    CoreScriptError err   -> pretty err
 
 instance Pretty ExecError where
   pretty = \case
     AppliedNonFunction lang        -> err "Applied non-function" lang
-    UnboundVariables vars          -> hsep ["Unbound variables:", hsep $ punctuate comma $ fmap pretty vars]
+    UnboundVariables vars          -> vcat $ fmap unboundedVar vars
     UndefinedRecordCons loc cons   -> hcat [pretty loc, ": undefined record constructor ", pretty cons]
     UndefinedReocrdField loc cons field
                                    -> hcat [pretty loc, ": undefined record field ", pretty field, " for constructor ", pretty cons]
@@ -196,9 +204,12 @@ instance Pretty ExecError where
     NoField txt                    -> err "No field" txt
     Undefined loc                  -> hcat [pretty loc, ": undefined"]
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
-    NoMainFunction                 -> "Error: No main function is defined"
+    NoSigmaScript                  -> "Error: Script does not contain main function or does not terminate"
+    FailedToDecodeScript           -> "Error: Failed to decode script"
+    GmachineError e                -> pretty $ show e
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
+      unboundedVar VarName{..} = hsep [hcat [pretty varName'loc, ":"], "Unbound variable:", pretty varName'name]
 
 instance Pretty PatError where
   pretty = \case
@@ -206,6 +217,10 @@ instance Pretty PatError where
     NoVarFound        -> "Var not found in the pattern"
     NoSameArgsNumber  -> "Patterns do not have the same number of arguments for a function"
     EmptyArgument     -> "Pattern has no arguments"
+    WrongPatPrimMixture loc -> err loc "Wrong pattern mixture. Primitive is mixed with constructors"
+    WrongPatConsMixture loc -> err loc "Wrong pattern mixture. Tuple is mixed with user-constructors"
+    where
+      err src msg = hsep [hcat [pretty src, ":"], msg]
 
 instance Pretty TypeError where
   pretty = \case
@@ -213,13 +228,31 @@ instance Pretty TypeError where
     H.UnifyErr src tyA tyB   -> err src $ hsep ["Type mismatch got", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     H.SubtypeErr src tyA tyB -> err src $ hsep ["Subtype error", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
+    H.EmptyCaseExpr src      -> err src $ "Case-expression should have at least one alternative case"
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
       inTicks x = hcat ["'", x, "'"]
 
+instance Pretty CoreScriptError where
+  pretty = \case
+    NoMainFunction                 -> "Error: No main function is defined"
+    ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
+    CoreTypeError                  -> "Error: Type of the core program is incorrect"
+    NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
+    RecursiveScript                -> "Error: Recursive script is not allowed"
+
 instance Pretty InternalError where
   pretty = \case
-    FailedToEliminate txt -> hsep ["Failed to eliminate expression: ", pretty txt]
+    FailedToEliminate txt -> hsep ["Failed to eliminate expression:", pretty txt]
+    NonIntegerConstrTag txt -> hsep ["Non-integer constr tag after type inference", pretty txt]
+    NonLamType -> "Not a lambda argument type"
+
+instance Pretty MonoError where
+  pretty = \case
+    FailedToFindMonoType loc name -> err loc $ hsep ["Failed to find monomorphic type for", pretty name]
+    CompareForNonPrim loc         -> err loc "Compare operator expects primitive type as input."
+    where
+      err src msg = hsep [hcat [pretty src, ":"], msg]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x

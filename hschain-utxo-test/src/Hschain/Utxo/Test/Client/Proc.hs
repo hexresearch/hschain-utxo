@@ -4,23 +4,16 @@ module Hschain.Utxo.Test.Client.Proc(
   runTestProc
 ) where
 
-import Hex.Common.Control
-import Hex.Common.Aeson
 import Hex.Common.Yaml
 
 import Control.Concurrent
 
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Timeout
 
 import Data.Maybe
-import Data.Ord
-import Data.UUID
 
 import System.Directory
 import System.FilePath
-import System.Random
 import Test.Hspec
 
 import HSChain.Logger
@@ -28,7 +21,6 @@ import HSChain.Logger
 import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Back.App
 import Hschain.Utxo.Back.Config
-import Hschain.Utxo.Back.Env
 import Hschain.Utxo.Lang.Sigma (newSecret)
 import Hschain.Utxo.Test.Client.Monad(App, runTest, toHspec, TestSpec(..), initGenesis)
 
@@ -82,7 +74,7 @@ defaultServiceOptions = Options
 defaultTestSpec :: TestSpec
 defaultTestSpec = TestSpec
   { testSpec'client  = C.ClientSpec "127.0.0.1" 8080 False
-  , testSpec'verbose = False
+  , testSpec'verbose = True
   }
 
 app :: Options -> Genesis -> IO Resource
@@ -129,10 +121,10 @@ app opt genesisTx = do
       }
 
     substDir dir path
-      | isAbsolute path = path
-      | otherwise       = dir </> path
+      | isAbsolutePath path = path
+      | otherwise           = dir </> path
       where
-        isAbsolute = L.isPrefixOf "/"
+        isAbsolutePath = L.isPrefixOf "/"
 
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do
@@ -147,26 +139,15 @@ runTestProc testApp = do
     wait = sleep 1
 
 withTestDir :: Options -> (FilePath -> IO a) -> IO a
-withTestDir Options{..} cont = do
+withTestDir Options{..} nextAct = do
   createDirectoryIfMissing True testDir
-  withFixedDirectory testDir "test" cont
+  withFixedDirectory testDir "test" nextAct
   where
     withFixedDirectory dir name cont = do
       let resDir = dir </> name
       putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
       createDirectory resDir
       cont resDir
-
-    withTempDirectory dir name cont = do
-      tempDir <- getTempDirName name
-      let resDir= dir </> tempDir
-      putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
-      createDirectory resDir
-      cont resDir
-      where
-        getTempDirName name = do
-          suffix :: UUID <- randomIO
-          return $ mconcat [name, "-", show suffix]
 
 clearDb :: FilePath -> IO ()
 clearDb path = removeFile path

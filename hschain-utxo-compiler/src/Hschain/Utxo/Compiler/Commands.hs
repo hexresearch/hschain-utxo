@@ -8,30 +8,27 @@ module Hschain.Utxo.Compiler.Commands(
 
 import Data.Aeson
 import Data.Maybe
-import Data.String
 
 import Data.ByteString.Lazy (ByteString)
 import Hschain.Utxo.Lang.Parser.Hask
 
+import Hschain.Utxo.Lang.Core.Compile (coreProgToText, isSigmaScript)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Exec
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
-import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base
-import Hschain.Utxo.Lang.Parser.Hask
 
 import qualified Hschain.Utxo.Lang.Sigma as Sigma
 
 import qualified Codec.Serialise as S
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as C
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
+import qualified Hschain.Utxo.Lang.Compile as C
 
 -- compile
 
@@ -47,13 +44,19 @@ compile input output = do
 
     go :: String -> Either String ByteString
     go res =
-      fromErr $ (fromParseError $ parseModule (Just input) res) >>= (\lang ->
-          case checkType lang of
-            Nothing  -> fmap (encode . toScript . Expr) $ runInferM $ moduleToMainExpr langTypeContext lang
+      fromErr $ (fromParseError $ parseModule (Just input) res) >>= (\langModule ->
+          case checkType langModule of
+            Nothing  -> mkScript langModule
             Just err -> Left err
           )
 
     fromErr = either (Left . T.unpack . renderText) Right
+
+    mkScript m = do
+      coreProg <- runInferM $ C.compile m
+      case isSigmaScript coreProg of
+        Just err -> Left err
+        Nothing  -> Right $ (encode . Script . coreProgToText) coreProg
 
 checkType :: Module -> Maybe Error
 checkType = checkMainModule langTypeContext
@@ -99,8 +102,8 @@ signSigma secretFile input output = do
   secret <- readSecret
   expr   <- readInput
   case expr of
-    ConstBool _     -> errorExpressionIsConst
-    SigmaBool sigma -> do
+    ConstBool _       -> errorExpressionIsConst
+    SigmaResult sigma -> do
       let env = Sigma.proofEnvFromKeys [Sigma.getKeyPair secret]
       signedSigma <- Sigma.newProof env sigma
       saveSigma signedSigma

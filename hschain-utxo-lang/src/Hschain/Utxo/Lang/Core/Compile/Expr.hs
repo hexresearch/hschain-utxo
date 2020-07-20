@@ -1,15 +1,26 @@
 -- | Types for core language and its compiled form.
 module Hschain.Utxo.Lang.Core.Compile.Expr(
-    CoreProg
+    CoreProg(..)
   , Scomb(..)
   , Typed(..)
-  , Type
-  , Expr(..)
+  , TypeCore
+  , ExprCore(..)
   , CaseAlt(..)
   , CompiledScomb(..)
+  , coreProgToText
+  , coreProgFromText
+  , coreProgToHumanText
+  , coreProgFromHumanText
 ) where
 
+import Hex.Common.Serialise
+
+import Codec.Serialise
+
+import Data.Text (Text)
 import Data.Vector (Vector)
+
+import GHC.Generics
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -17,36 +28,52 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 -- | core program is a sequence of supercombinator definitions
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
-type CoreProg = [Scomb]
+newtype CoreProg = CoreProg [Scomb]
+  deriving newtype (Generic, Semigroup, Monoid, Show)
 
+coreProgToText :: CoreProg -> Text
+coreProgToText = serialiseToText
 
--- | Supercobinators do not contain free variables.
+coreProgFromText :: Text -> Maybe CoreProg
+coreProgFromText = serialiseFromText
+
+-- | TODO: it would be useful for testing to
+-- have human readable versions of to/from script functions
+coreProgToHumanText :: CoreProg -> Text
+coreProgToHumanText = undefined -- renderText
+
+coreProgFromHumanText :: CoreProg -> Text
+coreProgFromHumanText = undefined -- renderText
+
+-- | Supercobinators do not contain free variables except for references to other supercombinators.
 --
 -- > S a1 a2 a3 = expr
 data Scomb = Scomb
   { scomb'name :: Name                 -- ^ name of supercombinator
   , scomb'args :: Vector (Typed Name)  -- ^ list of arguments
-  , scomb'body :: Typed Expr           -- ^ body
-  } deriving (Show, Eq)
+  , scomb'body :: Typed ExprCore       -- ^ body
+  } deriving (Show, Eq, Generic)
 
 -- | Expressions of the Core-language
-data Expr
-  = EVar !Name
+data ExprCore
+  = EVar !(Typed Name)
   -- ^ variables
   | EPrim !Prim
   -- ^ constant primitive
-  | EAp  Expr Expr
+  | EAp  ExprCore ExprCore
   -- ^ application
-  | ELet [(Typed Name, Expr)] Expr
+  | ELet [(Typed Name, ExprCore)] ExprCore
   -- ^ lent bindings
-  | EIf Expr Expr Expr
+  | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
-  | ECase !(Typed Expr) [CaseAlt]
+  | ECase !(Typed ExprCore) [CaseAlt]
   -- ^ case alternatives
-  | EConstr Type !Int !Int
+  | EConstr TypeCore !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
-  deriving (Show, Eq)
+  | EBottom
+  -- ^ failed termination for the program
+  deriving (Show, Eq, Generic)
 
 -- | Case alternatives
 data CaseAlt = CaseAlt
@@ -55,9 +82,9 @@ data CaseAlt = CaseAlt
   -- (integer substitution for the name of constructor)
   , caseAlt'args  :: [Typed Name]
   -- ^ arguments of the pattern matching
-  , caseAlt'rhs   :: Expr
+  , caseAlt'rhs   :: ExprCore
   -- ^ right-hand side of the case-alternative
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 -- | Compiled supercombinator
 data CompiledScomb = CompiledScomb
@@ -65,4 +92,12 @@ data CompiledScomb = CompiledScomb
   , compiledScomb'arity :: Int    -- ^ size of argument list
   , compiledScomb'code  :: Code   -- ^ code to instantiate combinator
   } deriving (Show, Eq)
+
+---------------------------------------------
+-- instances
+
+instance Serialise CaseAlt
+instance Serialise ExprCore
+instance Serialise Scomb
+instance Serialise CoreProg
 

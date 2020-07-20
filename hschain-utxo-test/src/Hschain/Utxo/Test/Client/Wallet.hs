@@ -9,6 +9,7 @@ module Hschain.Utxo.Test.Client.Wallet(
   , getBoxBalance
   , newSendTx
   , Send(..)
+  , getSigmaForProof
   , getOwnerProof
   , getOwnerProofUnsafe
   , getProofEnv
@@ -31,8 +32,6 @@ import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Monad
 
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -45,9 +44,9 @@ data Wallet = Wallet
 
 -- | Allocate new wallet
 newWallet :: MonadIO io => UserId -> Secret -> io Wallet
-newWallet userId pk = liftIO $ do
+newWallet userId pubKey = liftIO $ do
   utxos <- newTVarIO []
-  return $ Wallet userId pk utxos
+  return $ Wallet userId pubKey utxos
 
 -- | Read public key
 getWalletPublicKey :: Wallet -> PublicKey
@@ -74,7 +73,7 @@ newAddress Wallet{..} = liftIO $ do
 
 -- | Query the user balance.
 getBalance :: Wallet -> App Money
-getBalance wallet@Wallet{..} = do
+getBalance Wallet{..} = do
   xs <- liftIO $ readTVarIO wallet'utxos
   fmap (sum . catMaybes) $ mapM getBoxBalance xs
 
@@ -145,7 +144,7 @@ toSendTx wallet Send{..} SendBack{..} mProof = do
         { tx'inputs   = V.fromList [inputBox]
         , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
         , tx'proof    = mProof
-        , tx'args     = M.empty
+        , tx'args     = mempty
         }
   where
     inputBox = send'from
@@ -155,7 +154,7 @@ toSendTx wallet Send{..} SendBack{..} mProof = do
                 { box'id     = sendBack'backBox
                 , box'value  = sendBack'totalAmount - send'amount
                 , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
-                , box'args   = M.empty
+                , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
@@ -163,6 +162,6 @@ toSendTx wallet Send{..} SendBack{..} mProof = do
       { box'id     = send'to
       , box'value  = send'amount
       , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
-      , box'args   = M.empty
+      , box'args   = mempty
       }
 

@@ -8,20 +8,21 @@ import Data.Fix
 import Data.Foldable
 import Data.Sequence (Seq)
 
+import Hschain.Utxo.Lang.Expr (VarName(..))
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.Sequence   as Seq
 
 -- | Collects all lambdas to top-level supercombinators.
-collect :: CoreProg -> CoreProg
-collect prog = scs <> prog'
+collect :: LamProg -> LamProg
+collect (LamProg prog) = LamProg $ scs <> prog'
   where
     (prog', scs) = runCollectM $ mapM collectDef $ fmap (fmap fuseSingleLet) prog
 
 type CollectM a = Writer (Seq (Comb Name)) a
 
-runCollectM :: CollectM a -> (a, CoreProg)
+runCollectM :: CollectM a -> (a, [Comb Name])
 runCollectM a = (res, toList combs)
   where
     (res, combs) = runWriter a
@@ -29,32 +30,32 @@ runCollectM a = (res, toList combs)
 collectDef :: Comb Name -> CollectM (Comb Name)
 collectDef def@Def{..} =
   case unFix def'body of
-    ELam args body -> collectDef $ def
+    ELam _ args body -> collectDef $ def
                                 { def'args = def'args ++ args
                                 , def'body = body
                                 }
-    ELet [(var1, body)] (Fix (EVar var2)) | var1 == var2
+    ELet _ [(var1, body)] (Fix (EVar _ var2)) | var1 == var2
                   -> collectDef $ def { def'body = body }
     _ -> mapM collectExpr def
 
-collectExpr :: Expr Name -> CollectM (Expr Name)
+collectExpr :: ExprLam Name -> CollectM (ExprLam Name)
 collectExpr = cataM $ \case
-  ELet binds body -> letExpr binds body
+  ELet loc binds body -> letExpr loc binds body
   other           -> pure $ Fix other
   where
-    letExpr binds body = do
+    letExpr loc binds body = do
       tell (Seq.fromList scs)
       return $
         if null nonScs
           then body
-          else Fix $ ELet nonScs body
+          else Fix $ ELet loc nonScs body
       where
         (scs, nonScs) = partitionBy  getSc binds
 
-    getSc :: (Name, Expr Name) -> Maybe (Comb Name)
+    getSc :: (Name, ExprLam Name) -> Maybe (Comb Name)
     getSc (name, Fix x) = case x of
-      ELam args body -> Just $ Def name args body
-      _              -> Nothing
+      ELam loc args body -> Just $ Def (VarName loc name) args body
+      _                  -> Nothing
 
 
 partitionBy :: (a -> Maybe b) -> [a] -> ([b], [a])
@@ -77,13 +78,13 @@ partitionBy f xs = case xs of
 -- > in ...
 --
 -- It reduces the number of trivial let-bindings
-fuseSingleLet :: Expr Name -> Expr Name
+fuseSingleLet :: ExprLam Name -> ExprLam Name
 fuseSingleLet = cata $ \case
-  ELet binds body -> Fix $ ELet (fmap procBinds binds) body
+  ELet loc binds body -> Fix $ ELet loc (fmap procBinds binds) body
   other           -> Fix other
   where
     procBinds (var, expr) = case unFix expr of
-      ELet [(v2, expr2)] (Fix (EVar v3)) | v2 == v3 -> (var, expr2)
+      ELet _ [(v2, expr2)] (Fix (EVar _ v3)) | v2 == v3 -> (var, expr2)
       _                                             -> (var, expr)
 
 

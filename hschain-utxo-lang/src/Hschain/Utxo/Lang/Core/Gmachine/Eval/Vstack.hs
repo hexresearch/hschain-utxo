@@ -19,6 +19,8 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack(
 import Data.Int
 import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Sigma
+
 import Hschain.Utxo.Lang.Core.Data.Node
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
@@ -67,10 +69,10 @@ popBool = popVstackBy getPrimBool
 putBool :: Bool-> Exec ()
 putBool = putVstackBy PrimBool
 
-popSigma :: Exec SigmaExpr
+popSigma :: Exec (Sigma PublicKey)
 popSigma = popVstackBy getPrimSigma
 
-putSigma :: SigmaExpr -> Exec ()
+putSigma :: Sigma PublicKey -> Exec ()
 putSigma = putVstackBy PrimSigma
 
 popVstack :: Exec Prim

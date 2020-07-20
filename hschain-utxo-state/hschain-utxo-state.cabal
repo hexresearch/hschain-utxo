@@ -13,8 +13,8 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.State
-                       Hschain.Utxo.State.Pretty
                        Hschain.Utxo.State.Query
                        Hschain.Utxo.State.React
                        Hschain.Utxo.State.Types
@@ -22,6 +22,7 @@ library
   -- other-extensions:
   build-depends:       base >=4.11 && <5
                      , hex-common
+                     , hschain-crypto
                      , hschain-utxo-lang
                      , data-fix
                      , bytestring

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | It defines types and functions for Sigma-expressions.
 -- Sigma-expressions are used to sign scripts without providing
 -- the information on who signed the script.
@@ -12,7 +11,7 @@ module Hschain.Utxo.Lang.Sigma(
   , ProofEnv
   , Proof
   , Sigma
-  , SigmaExpr(..)
+  , SigmaF(..)
   , newProof
   , verifyProof
   , notSigma
@@ -26,13 +25,12 @@ module Hschain.Utxo.Lang.Sigma(
   , toProofEnv
   , equalSigmaExpr
   , equalSigmaProof
+  , eliminateSigmaBool
   ) where
 
 import Hex.Common.Serialise
 
-import Control.Monad
 import Control.DeepSeq (NFData)
-
 import Codec.Serialise
 
 import Data.Aeson
@@ -44,6 +42,7 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
@@ -95,45 +94,43 @@ publicKeyFromText = serialiseFromText
 publicKeyToText :: PublicKey -> Text
 publicKeyToText = serialiseToText
 
-instance FromJSON Proof where
-  parseJSON = serialiseFromJSON
-
-instance FromJSON PublicKey where
-  parseJSON = (maybe mzero pure . publicKeyFromText) <=< parseJSON
-
-instance ToJSON Proof where
+instance Serialise a => ToJSON (Sigma a) where
   toJSON = serialiseToJSON
 
-instance ToJSON PublicKey where
-  toJSON = toJSON . publicKeyToText
-
-instance ToJSON (Sigma Proof) where
-  toJSON = serialiseToJSON
-
-instance FromJSON (Sigma Proof) where
+instance Serialise a => FromJSON (Sigma a) where
   parseJSON = serialiseFromJSON
 
 -- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
 newProof :: ProofEnv -> Sigma PublicKey -> IO (Either Text Proof)
-newProof env = Sigma.newProof env . toSigmaExpr
+newProof env expr =
+  case toSigmaExpr expr of
+    Right sigma -> Sigma.newProof env sigma
+    Left  _     -> return catchBoolean
+  where
+    catchBoolean = Left "Expression is constant boolean. It is not  a sigma-expression"
 
 -- | Verify the proof.
 verifyProof :: Proof -> Bool
 verifyProof = Sigma.verifyProof
 
-type Sigma k = Fix (SigmaExpr k)
+type Sigma k = Fix (SigmaF k)
 
 deriving anyclass instance NFData k => NFData (Sigma k)
 
 -- | Sigma-expression
-data SigmaExpr k a =
+data SigmaF k a =
     SigmaPk k      -- ownership of the key (contains public key)
   | SigmaAnd [a]   -- and-expression
   | SigmaOr  [a]   -- or-expression
+  | SigmaBool Bool -- wraps boolean constants
   deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData)
 
 instance Serialise k => Serialise (Sigma k)
-instance (Serialise k, Serialise a) => Serialise (SigmaExpr k a)
+instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
+
+instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
+  hashStep = genericHashStep Sigma.hashDomain
+
 
 -- | Not for sigma expressions.
 --  Warning: assumption
@@ -144,6 +141,7 @@ notSigma = cata $ \case
       SigmaPk  _   -> Left False
       SigmaAnd as  -> orTag as
       SigmaOr  as  -> andTag as
+      SigmaBool b  -> Left $ not b
   where
     orTag xs
       | or ls     = Left True
@@ -157,16 +155,6 @@ notSigma = cata $ \case
       where
         (ls, rs) = partitionEithers xs
 
--- TODO: make human readable JSON instances for
--- usage with other languages, or provide tools to
--- work with haskell representation.
-
-instance FromJSON (Sigma PublicKey) where
-  parseJSON = serialiseFromJSON
-
-instance ToJSON (Sigma PublicKey) where
-  toJSON = serialiseToJSON
-
 fromSigmaExpr :: Sigma.SigmaE () a -> Sigma a
 fromSigmaExpr = \case
   Sigma.Leaf _ k -> Fix $ SigmaPk k
@@ -175,11 +163,43 @@ fromSigmaExpr = \case
   where
     rec  = fromSigmaExpr
 
-toSigmaExpr :: Sigma a -> Sigma.SigmaE () a
-toSigmaExpr = cata $ \case
-  SigmaPk k    -> Sigma.Leaf () k
-  SigmaAnd as  -> Sigma.AND () as
-  SigmaOr  as  -> Sigma.OR  () as
+-- | Tries to remove all boolean constants.
+-- returns Left boolean if it's not possible
+-- to eliminate boolean constants.
+eliminateSigmaBool :: Sigma a -> Either Bool (Sigma a)
+eliminateSigmaBool = cata $ \case
+  SigmaBool b -> Left b
+  SigmaPk pk  -> Right $ Fix $ SigmaPk pk
+  SigmaAnd as ->
+    let (bools, sigmas) = partitionEithers as
+        boolRes = and bools
+    in  if boolRes
+          then
+              case sigmas of
+                []      -> Left True
+                [sigma] -> Right sigma
+                _       -> Right $ Fix $ SigmaAnd sigmas
+          else Left False
+  SigmaOr as ->
+    let (bools, sigmas) = partitionEithers as
+        boolRes = or bools
+    in  if boolRes
+          then Left True
+          else
+               case sigmas of
+                 []      -> Left False
+                 [sigma] -> Right sigma
+                 _       -> Right $ Fix $ SigmaOr sigmas
+
+toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
+toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
+
+toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
+toPrimSigmaExpr = cata $ \case
+  SigmaPk k    -> Just $ Sigma.Leaf () k
+  SigmaAnd as  -> fmap (Sigma.AND ()) $ sequence as
+  SigmaOr  as  -> fmap (Sigma.OR  ()) $ sequence as
+  SigmaBool _  -> Nothing
 
 -- | Empty proof environment. It holds no keys.
 emptyProofEnv :: ProofEnv
@@ -210,4 +230,4 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
                         else False
       _ -> False
 
-$(deriveShow1 ''SigmaExpr)
+$(deriveShow1 ''SigmaF)

@@ -3,6 +3,8 @@
 module Hschain.Utxo.Lang.Desugar.PatternCompiler(
     PatError
   , altGroupToExpr
+  , altGroupToTupleExpr
+  , altGroupToTupleModule
   , altToExpr
 ) where
 
@@ -27,6 +29,58 @@ import Hschain.Utxo.Lang.Monad
 import qualified Data.List   as L
 import qualified Data.Vector as V
 
+import qualified Language.HM as H
+
+altGroupToTupleModule :: MonadLang m => Module -> m Module
+altGroupToTupleModule m@Module{..} = do
+  binds <- mapM procBind module'binds
+  return $ m { module'binds = binds }
+  where
+    procBind b@Bind{..} = do
+      expr <- altGroupToTupleExpr bind'alts
+      return $ b { bind'alts = [Alt [] (UnguardedRhs expr) Nothing] }
+
+altGroupToTupleExpr :: MonadLang m => [Alt Lang] -> m Lang
+altGroupToTupleExpr xs = case xs of
+  [a] -> do
+      let rhs = addWhere whereExprs $ fromGuardedRhs $ alt'expr a
+      return $
+        if (null $ alt'pats a)
+          then rhs
+          else Fix $ LamList (H.getLoc $ alt'expr a) (alt'pats a) rhs
+  []  -> noCasesLeft
+  as  -> do
+    let loc = H.getLoc $ alt'expr $ head as
+        ps = alt'pats $ head as
+    vs <- mapM (getFreshVar . H.getLoc) ps
+    case vs of
+      []  -> emptyArgument
+      [v] -> fmap (\alts -> Fix $ Lam loc (patToVar v) $ Fix $ CaseOf loc (toVarArg v) alts) $ extractAlts as
+      _   -> fmap (\alts -> Fix $ LamList loc (fmap patToVar vs) $ Fix $ CaseOf loc (toTupleArg vs) alts) $ extractAlts as
+  where
+    patToVar v = PVar (H.getLoc v) v
+    toTupleArg vs = Fix $ Tuple (H.getLoc $ head vs) $ fmap toVarArg $ V.fromList vs
+    toVarArg v = Fix $ Var (H.getLoc v) v
+
+    whereExprs = concat $ mapMaybe alt'where xs
+
+    extractAlts alts
+      | sameArgLength  = mapM toCaseExpr alts
+      | otherwise      = noSameArgsNumber
+      where
+        sameArgLength = length (L.nub $ fmap (length . alt'pats) xs) == 1
+
+        toCaseExpr Alt{..} = fmap (\ps -> CaseExpr ps rhs) $ fromPats alt'pats
+          where
+            rhs = addSingleWhere alt'where $ fromGuardedRhs alt'expr
+
+        fromPats ps = case ps of
+          []  -> emptyArgument
+          [p] -> return p
+          a:_ -> return $ PTuple (H.getLoc a) ps
+
+
+
 -- | Converts list of function definitions with pattern matching to single
 -- expression with case-expression.
 altGroupToExpr :: MonadLang m => [Alt Lang] -> m Lang
@@ -44,7 +98,7 @@ toPatternInput alts = case getSimpleBind alts of
   Nothing  -> fmap Right $
     if checkArgs alts
       then getPattern
-      else throwError $ PatternError NoSameArgsNumber
+      else throwError $ PatError NoSameArgsNumber
   where
     getSimpleBind xs = case xs of
       [x] -> case alt'pats x of
@@ -66,17 +120,17 @@ toPatternInput alts = case getSimpleBind alts of
 
     getFirstLocs = \case
       a:_ -> return $ fmap getLoc $ alt'pats a
-      []  -> throwError $ PatternError EmptyArgument
+      []  -> throwError $ PatError EmptyArgument
 
     failCase = Fix $ FailCase noLoc
 
 -- | Converts single function definition with pattern-matching
 -- to expression with case-expression
 altToExpr :: Alt Lang -> Lang
-altToExpr Alt{..} = foldr toArg (addWhere $ fromGuardedRhs alt'expr) alt'pats
+altToExpr Alt{..} = foldr toArg (addSingleWhere alt'where $ fromGuardedRhs alt'expr) alt'pats
   where
     toArg pat body = Fix $ Lam (getLoc pat) pat body
-    addWhere = maybe id (\x -> Fix . Let noLoc x) alt'where
+
 
 data Pattern = Pattern
   { pattern'args  :: Vector VarName
@@ -91,15 +145,18 @@ data PatCase = PatCase
 
 toCaseLam :: forall m . MonadLang m => BindGroup Lang -> Pattern -> m Lang
 toCaseLam whereExprs p = case args of
-  [] -> fmap addWhere $ toCaseBody p
-  _  -> fmap ((\body -> Fix $ LamList noLoc args body) . addWhere) $ toCaseBody p
+  [] -> fmap (addWhere whereExprs) $ toCaseBody p
+  _  -> fmap ((\body -> Fix $ LamList noLoc args body) . addWhere whereExprs) $ toCaseBody p
   where
     args = fmap (\x -> PVar (getLoc x) x) $ V.toList $ pattern'args p
 
-    addWhere = case whereExprs of
-      [] -> id
-      _  -> Fix . Let noLoc whereExprs
+addWhere ::  BindGroup Lang -> Lang -> Lang
+addWhere whereExprs = case whereExprs of
+  [] -> id
+  _  -> Fix . Let noLoc whereExprs
 
+addSingleWhere :: Maybe (BindGroup Lang) -> Lang -> Lang
+addSingleWhere mWhere = maybe id (\x -> Fix . Let noLoc x) mWhere
 
 
 toCaseBody :: forall m . MonadLang m => Pattern -> m Lang
@@ -160,7 +217,7 @@ toCaseBody pattern@Pattern{..}
         getHeadPat p@PatCase{..} = fmap (, p) $ checkNoCases $ V.headM patCase'lhs
 
 checkMaybe :: MonadLang m => PatError -> Maybe a -> m a
-checkMaybe err = maybe (throwError $ PatternError err) pure
+checkMaybe err = maybe (throwError $ PatError err) pure
 
 checkNoCases, checkNoVarFound :: MonadLang m => Maybe a -> m a
 
@@ -251,13 +308,13 @@ fromGroupCons headArgs errorCase GroupCons{..} = do
     toExprWithError err cases = toExpr $ cases ++ [CaseExpr (PWildCard noLoc) err ]
 
     fromPrim other ((loc, p), body) = case body of
-      [] -> throwError $ PatternError NoCasesLeft
+      [] -> throwError $ PatError NoCasesLeft
       xs ->
         fmap (CaseExpr (PPrim loc p)) $
           toCaseBody $ Pattern headArgs (toPatCases $ fmap ([], ) xs) other
 
     fromCons other (cons, xs) = case xs of
-      []   -> throwError $ PatternError NoCasesLeft
+      []   -> throwError $ PatError NoCasesLeft
       a:_ -> do
         vars <- mapM (getFreshVar . getLoc) $ fst a
         let pvars = fmap toPVar vars
@@ -273,7 +330,7 @@ fromGroupCons headArgs errorCase GroupCons{..} = do
 
 
     fromTuple other (loc, xs) = fmap (toExpr . pure) $ case xs of
-      []  -> throwError $ PatternError NoCasesLeft
+      []  -> throwError $ PatError NoCasesLeft
       a:_ -> do
         vars <- mapM (getFreshVar . getLoc) $ fst a
         let pvars = fmap toPVar vars

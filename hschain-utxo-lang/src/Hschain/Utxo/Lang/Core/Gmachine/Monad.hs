@@ -46,6 +46,8 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
 
 import Control.Monad.State.Strict
 import Control.Monad.Except        as X
+import Control.DeepSeq
+import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Dump (Dump)
@@ -67,7 +69,9 @@ data Gmachine = Gmachine
   , gmachine'vstack  :: Vstack     -- ^ stack for integer operations
                                    -- we place arguments here to save heap allocations
   , gmachine'output  :: Output     -- ^ output of the execution
-  } deriving (Show, Eq)
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
 
 -- | Errors of execution
 data Error
@@ -78,7 +82,9 @@ data Error
   | VstackIsEmpty   -- ^ Need to read element from Vstack but it is empty
   | DumpIsEmpty     -- ^ Attempt to read empty dump
   | MissingCase     -- ^ missing case-alternative
-  deriving (Show, Eq)
+  | BottomTerm      -- ^ Bottom termination
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
 
 badType :: Exec a
 badType = throwError BadType

@@ -16,6 +16,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
+  Ghc-options:        -Wall
   exposed-modules:    Hschain.Utxo.API.Rest
 
   -- other-modules:

@@ -29,8 +29,8 @@ runRenameM a = evalState a 0
 -- | Rename all local variables in the functions.
 -- We allocate new names for all top-level argument variables,
 -- let bindings, case-bindings, lambda expression arguments
-rename :: CoreProg -> CoreProg
-rename prog = runRenameM $ mapM renameComb prog
+rename :: LamProg -> LamProg
+rename (LamProg prog) = LamProg $ runRenameM $ mapM renameComb prog
 
 renameComb :: Comb Name -> RenameM (Comb Name)
 renameComb def@Def{..} = do
@@ -41,58 +41,63 @@ renameComb def@Def{..} = do
     , def'body = body'
     }
 
-renameExpr :: Map Name Name -> Expr Name -> RenameM (Expr Name)
+renameExpr :: Map Name Name -> ExprLam Name -> RenameM (ExprLam Name)
 renameExpr env (Fix expr) =
   case expr of
-    EVar v         -> var v
-    EPrim p        -> prim p
-    EAp f a        -> app f a
-    EIf a b c      -> iff a b c
-    ELam args e    -> lam args e
-    ELet binds e   -> letExpr binds e
-    EConstr ty m n -> constr ty m n
-    ECase e alts   -> caseExpr e alts
-    EBottom        -> pure $ Fix $ EBottom
+    EVar loc v          -> var loc v
+    EPrim loc p         -> prim loc p
+    EAp loc f a         -> app loc f a
+    EIf loc a b c       -> iff loc a b c
+    ELam loc args e     -> lam loc args e
+    ELet loc binds e    -> letExpr loc binds e
+    EConstr loc ty m n  -> constr loc ty m n
+    ECase loc e alts    -> caseExpr loc e alts
+    EAssertType loc e t -> assertType loc e t
+    EBottom loc         -> pure $ Fix $ EBottom loc
   where
-    var v = return $ Fix $ EVar $ fromMaybe v $ M.lookup v env
+    var loc v = return $ Fix $ EVar loc $ fromMaybe v $ M.lookup v env
 
-    prim p = return $ Fix $ EPrim p
+    prim loc p = return $ Fix $ EPrim loc p
 
-    app f a = do
+    app loc f a = do
       f' <- renameExpr env f
       a' <- renameExpr env a
-      return $ Fix $ EAp f' a'
+      return $ Fix $ EAp loc f' a'
 
-    iff a b c = do
+    iff loc a b c = do
       a' <- renameExpr env a
       b' <- renameExpr env b
       c' <- renameExpr env c
-      return $ Fix $ EIf a' b' c'
+      return $ Fix $ EIf loc a' b' c'
 
-    lam args body = do
+    lam loc args body = do
       (args', env') <- allocNames args
       body' <- renameExpr (env' <> env) body
-      return $ Fix $ ELam args' body'
+      return $ Fix $ ELam loc args' body'
 
-    letExpr binds body = do
+    letExpr loc binds body = do
       (bindNames', env') <- allocNames $ fmap fst binds
       let bodyEnv = env' <> env
       body' <- renameExpr bodyEnv body
       rhss' <- mapM (renameExpr bodyEnv . snd) binds
-      return $ Fix $ ELet (zip bindNames' rhss') body'
+      return $ Fix $ ELet loc (zip bindNames' rhss') body'
 
-    constr ty m n = return $ Fix $ EConstr ty m n
+    assertType loc e t = do
+      e' <- renameExpr env e
+      return $ Fix $ EAssertType loc e' t
 
-    caseExpr e alts = do
+    constr loc ty m n = return $ Fix $ EConstr loc ty m n
+
+    caseExpr loc e alts = do
       e'    <- renameExpr env e
       alts' <- mapM (renameCaseAlts env) alts
-      return $ Fix $ ECase e' alts'
+      return $ Fix $ ECase loc e' alts'
 
-renameCaseAlts :: Map Name Name -> CaseAlt (Expr Name) -> RenameM (CaseAlt (Expr Name))
+renameCaseAlts :: Map Name Name -> CaseAlt Name (ExprLam Name) -> RenameM (CaseAlt Name (ExprLam Name))
 renameCaseAlts env CaseAlt{..} = do
-  (args', env') <- allocNames caseAlt'args
+  (args', env') <- allocTypedNames caseAlt'args
   rhs' <- renameExpr (env' <> env) caseAlt'rhs
-  return $ CaseAlt caseAlt'tag args' rhs'
+  return $ CaseAlt caseAlt'loc caseAlt'tag args' caseAlt'constrType rhs'
 
 allocNames :: [Name] -> RenameM ([Name], Map Name Name)
 allocNames oldNames = do
@@ -108,4 +113,11 @@ allocNames oldNames = do
 
     toNewName freshId = mappend "$v" (showt freshId)
 
+allocTypedNames :: [Typed Name] -> RenameM ([Typed Name], Map Name Name)
+allocTypedNames tyNames = do
+  (newNames, env) <- allocNames names
+  return (zipWith Typed newNames tys, env)
+  where
+    tys   = fmap typed'type  tyNames
+    names = fmap typed'value tyNames
 

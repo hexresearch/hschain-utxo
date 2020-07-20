@@ -14,8 +14,6 @@ import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Monad
 import Hschain.Utxo.Blockchain
 
-import qualified Data.Text as T
-
 import qualified Hschain.Utxo.State.Query as S
 
 -- | Server implementation for 'UtxoAPI'

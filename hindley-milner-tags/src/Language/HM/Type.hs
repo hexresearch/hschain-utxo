@@ -12,6 +12,8 @@ module Language.HM.Type (
     arrowT,
     tupleT,
     listT,
+    -- * Typed values
+    Typed(..),
 
     -- * Polymorphic types.
     SignatureF(..),
@@ -29,7 +31,11 @@ module Language.HM.Type (
 
     HasTypeVars(..),
     LocFunctor(..),
-    setLoc
+    setLoc,
+    TypeFunctor(..),
+
+    extractFunType,
+    extractArrow
 ) where
 
 --------------------------------------------------------------------------------
@@ -43,6 +49,8 @@ import Data.Function (on)
 import Data.Map.Strict (Map)
 import Data.String
 import Data.Tuple (swap)
+
+import GHC.Generics
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
@@ -66,6 +74,12 @@ class (Show v, Ord v) => IsVar v where
 
   -- | Canonical leters for pretty output
   prettyLetters :: [v]
+
+-- | Values that are tagged explicitly with their type.
+data Typed loc v a = Typed
+  { typed'type  :: Type loc v
+  , typed'value :: a
+  } deriving (Show, Eq, Functor, Foldable, Traversable)
 
 
 stringIntToVar :: IsString a => Int -> a
@@ -109,11 +123,11 @@ data TypeF loc var r
     | ArrowT loc r r    -- ^ Special case of ConT that is rendered as ->
     | TupleT loc [r]    -- ^ Special case of ConT that is rendered as (,,,)
     | ListT loc r       -- ^ Special case of ConT that is rendered as [a]
-    deriving (Eq, Ord, Show, Functor)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 -- | Monomorphic types.
 newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
 
 -- | 'varT' @loc x@ constructs a type variable named @x@ with source code at @loc@.
 varT :: loc -> var -> Type loc var
@@ -190,6 +204,13 @@ instance LocFunctor Signature where
       go = \case
         ForAllT loc var a -> Fix $ ForAllT (f loc) var a
         MonoT ty          -> Fix $ MonoT $ mapLoc f ty
+
+-- | Mapps over all types that are contained in the value
+class TypeFunctor f where
+  mapType :: (Type loc var -> Type loc var) -> f loc var -> f loc var
+
+instance TypeFunctor Type where
+  mapType f = f
 
 -- | 'forAllT' @x t@ universally quantifies @x@ in @t@.
 forAllT :: loc -> v -> Signature loc v -> Signature loc v
@@ -288,9 +309,26 @@ stripSignature = cata go . unSignature
       ForAllT _ _ r -> r
       MonoT ty -> ty
 
+extractFunType :: Type loc var -> ([Type loc var], Type loc var)
+extractFunType ty = case extractArrow ty of
+  Just (lhs, rhs) ->
+    let (args, rhs') = extractFunType rhs
+    in  (lhs : args, rhs')
+  Nothing         -> ([], ty)
+
+extractArrow :: Type loc var -> Maybe (Type loc var, Type loc var)
+extractArrow (Type (Fix x)) = case x of
+  ArrowT _ a b -> Just (Type a, Type b)
+  _            -> Nothing
+
+------------------------------------
+-- instances
+
 $(deriveShow1 ''TypeF)
 $(deriveShow1 ''SignatureF)
 $(deriveEq1 ''TypeF)
 $(deriveEq1 ''SignatureF)
 $(deriveOrd1 ''TypeF)
 $(deriveOrd1 ''SignatureF)
+
+
