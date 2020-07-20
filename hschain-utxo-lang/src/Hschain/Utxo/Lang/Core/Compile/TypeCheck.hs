@@ -18,6 +18,7 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , boxT
   , envT
   , primToType
+  , primopToType
   , varT
   , listT
   , argsT
@@ -129,6 +130,7 @@ inferExpr = \case
     EVar var       -> inferVar var
     EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
+    EPrimOp op     -> pure $ MonoType $ primopToType op
     EAp  f a       -> inferAp f a
     ELet nm e body -> inferLet nm e body
     ECase e alts   -> inferCase e alts
@@ -255,6 +257,10 @@ primToType = \case
   PrimBool  _ -> boolT
   PrimSigma _ -> sigmaT
   PrimBytes _ -> bytesT
+
+primopToType :: PrimOp -> TypeCore
+primopToType = \case
+  OpAdd -> funT [intT,intT] intT
 
 intT :: TypeCore
 intT = primT "Int"

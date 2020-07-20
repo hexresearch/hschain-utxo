@@ -100,7 +100,8 @@ evalExpr genv = recur
     recur lenv = \case
       EVar     x   -> evalVar lenv x
       EPolyVar x _ -> evalVar lenv x
-      EPrim p -> ValP p
+      EPrim p      -> ValP p
+      EPrimOp op   -> evalPrimOp op
       EAp f x -> case recur lenv f of
                    ValF  valF  -> valF $ recur lenv x
                    Val2F valF  -> ValF $ valF $ recur lenv x
@@ -205,6 +206,10 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
       Sha256      -> lift1 $ \bs -> let Hash h = hashBlob @SHA256 bs in h
       ShowInt     -> lift1 (T.pack . show @Int64)
       ShowBool    -> lift1 (T.pack . show @Bool)
+
+evalPrimOp :: PrimOp -> Val
+evalPrimOp = \case
+  OpAdd -> lift2 ((+) @Int64)
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList

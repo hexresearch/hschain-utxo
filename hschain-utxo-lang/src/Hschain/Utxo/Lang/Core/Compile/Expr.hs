@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Core.Compile.Expr(
     CoreProg(..)
   , Scomb(..)
+  , PrimOp(..)
   , Typed(..)
   , TypeCore
   , ExprCore(..)
@@ -50,6 +51,11 @@ data Scomb = Scomb
 instance IsString ExprCore where
   fromString = EVar . fromString
 
+data PrimOp
+  = OpAdd
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (Serialise)
+
 -- | Expressions of the Core-language
 data ExprCore
   = EVar !Name
@@ -58,6 +64,8 @@ data ExprCore
   -- ^ polymorphic variables which require explicit instantioation of type variables
   | EPrim !Prim
   -- ^ constant primitive
+  | EPrimOp !PrimOp
+  -- ^ Primitive operation
   | EAp  ExprCore ExprCore
   -- ^ application
   | ELet Name ExprCore ExprCore
