@@ -97,10 +97,21 @@ primitives =
   , filterComb
   , foldlComb
   , lengthComb
+  , sumComb
+  , productComb
+  , andComb
+  , orComb
+  , sigmaAndComb
+  , sigmaOrComb
+-- TODO:
+--  , allComb
+--  , anyComb
+--  , sigmaAllComb
+--  , sigmaAnyComb
 
   -- sigma-expressions
-  , sigmaOp2 "&"
-  , sigmaOp2 "|"
+  , sigmaOp2 "&&&"
+  , sigmaOp2 "|||"
   , op1 "pk" textT sigmaT
   , op1 "toSigma" boolT sigmaT
 
@@ -263,6 +274,7 @@ getArgs Args{..} =
           (toVec ty $ fmap (EPrim . cons) vals)
           (listT ty)
       }
+
 ------------------------------------------------------------
 -- lists
 
@@ -364,7 +376,7 @@ mapComb = Scomb
         [ CaseAlt 0 [] (EConstr nilT 0 0)
         , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) [EAp fv xv, ap mapv [fv, xsv]])
         ])
-      bT
+      bsT
   }
   where
     f      = Typed "f" fT
@@ -524,6 +536,57 @@ foldlComb = Scomb
     bT = varT "b"
 
 
+genFoldrComb :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
+genFoldrComb aT bT f z name = Scomb
+  { scomb'name = name
+  , scomb'args = V.fromList [as]
+  , scomb'body = Typed
+      (ap foldrV [f, z, asV])
+      bT
+  }
+  where
+    as = Typed "as" (listT aT)
+    asV = EVar as
+    fT = funT [aT, bT] bT
+    foldrV = EVar $ Typed "foldr" foldrT
+    foldrT = funT [fT, bT, listT aT] bT
+
+sumComb :: Scomb
+sumComb = genFoldrComb intT intT addV zero "sum"
+  where
+    addV = EVar $ Typed "+" addT
+    addT = funT [intT, intT] intT
+
+productComb :: Scomb
+productComb = genFoldrComb intT intT mulV one "product"
+  where
+    mulV = EVar $ Typed "*" mulT
+    mulT = funT [intT, intT] intT
+
+orComb :: Scomb
+orComb = genFoldrComb boolT boolT orV (bool False) "or"
+  where
+    orV = EVar $ Typed "||" orT
+    orT = funT [boolT, boolT] boolT
+
+andComb :: Scomb
+andComb = genFoldrComb boolT boolT andV (bool True) "and"
+  where
+    andV = EVar $ Typed "&&" andT
+    andT = funT [boolT, boolT] boolT
+
+sigmaOrComb :: Scomb
+sigmaOrComb = genFoldrComb sigmaT sigmaT sigmaOrV (sigmaBool False) "sigmaOr"
+  where
+    sigmaOrV = EVar $ Typed "|||" sigmaOrT
+    sigmaOrT = funT [sigmaT, sigmaT] sigmaT
+
+sigmaAndComb :: Scomb
+sigmaAndComb = genFoldrComb sigmaT sigmaT sigmaAndV (sigmaBool False) "sigmaAnd"
+  where
+    sigmaAndV = EVar $ Typed "&&&" sigmaAndT
+    sigmaAndT = funT [sigmaT, sigmaT] sigmaT
+
 one :: ExprCore
 one = EPrim $ PrimInt 1
 
@@ -565,8 +628,8 @@ builtInDiadic = M.fromList $
   , ("&&", And)
   , ("||", Or)
   , ("^^", Xor)
-  , ("&", SigAnd)
-  , ("|", SigOr)
+  , ("&&&", SigAnd)
+  , ("|||", SigOr)
   , ("<>", TextAppend)
   ] ++ (compareNames =<< [intT, boolT, textT])
   where

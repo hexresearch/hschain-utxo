@@ -10,13 +10,17 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , op1
   , op2
   , int
+  , bool
+  , sigmaBool
 ) where
 
 import Data.Int
+import Data.Fix
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L
 import qualified Data.Vector as V
@@ -64,4 +68,10 @@ op2 name (xT, yT) resT = Scomb
 
 int :: Int64 -> ExprCore
 int n = EPrim $ PrimInt n
+
+bool :: Bool -> ExprCore
+bool b = EPrim $ PrimBool b
+
+sigmaBool :: Bool -> ExprCore
+sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
 
