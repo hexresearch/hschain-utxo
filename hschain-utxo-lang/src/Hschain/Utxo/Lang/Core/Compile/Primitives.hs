@@ -198,14 +198,13 @@ getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
 
     getBoxArgsBy typeTag resType resVar = Scomb
       { scomb'name = Const.getBoxArgs $ argTypeName typeTag
-      , scomb'args = V.fromList [Typed "x" argT]
+      , scomb'args = V.fromList [Typed "x" argsT]
       , scomb'body = Typed
-          (ECase (Typed (EVar $ Typed "x" argT) argT)
+          (ECase (Typed (EVar $ Typed "x" argsT) argsT)
             [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] (EVar $ Typed resVar resType)])
           (listT resType)
       }
 
-    argT = tupleT argsTypes
 
 boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
 boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]
@@ -228,9 +227,6 @@ toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
     ints   = toVec intT  $ fmap (EPrim . PrimInt)  args'ints
     texts  = toVec textT $ fmap (EPrim . PrimText) args'texts
     bools  = toVec boolT $ fmap (EPrim . PrimBool) args'bools
-
-argsTypes :: [TypeCore]
-argsTypes = [listT intT, listT textT, listT boolT]
 
 
 ------------------------------------------------------------

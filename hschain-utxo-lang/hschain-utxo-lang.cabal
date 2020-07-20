@@ -166,6 +166,7 @@ Test-suite hschain-utxo-lang-tests
   hs-source-dirs:      test examples
   Main-is:             Main.hs
   Other-modules:       TM.Core
+                       TM.Core.Box
                        TM.Core.List
                        Examples.SKI
 
