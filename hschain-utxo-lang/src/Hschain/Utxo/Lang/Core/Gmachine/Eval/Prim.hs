@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 -- | primitive operators
 module Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim(
     primOp1
@@ -28,7 +29,7 @@ import Data.Text (Text)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
-
+import Hschain.Utxo.Lang.Core.Data.Prim
 import qualified Data.Text as T
 
 -- generic functions
@@ -53,8 +54,16 @@ negOp = primOp1 popInt putInt negate
 
 -- comparison
 
-compareOp :: (Int64 -> Int64 -> Bool) -> Exec ()
-compareOp = primOp2 popInt popInt putBool
+compareOp :: (forall a. Ord a => a -> a -> Bool) -> Exec ()
+compareOp (#) = do
+  pa <- popVstack
+  pb <- popVstack
+  case (pa,pb) of
+    (PrimInt   a, PrimInt   b) -> putBool $ a # b
+    (PrimBool  a, PrimBool  b) -> putBool $ a # b
+    (PrimText  a, PrimText  b) -> putBool $ a # b
+    (PrimSigma a, PrimSigma b) -> putBool $ a # b
+    _                          -> throwError BadType
 
 -- boolean operators
 
