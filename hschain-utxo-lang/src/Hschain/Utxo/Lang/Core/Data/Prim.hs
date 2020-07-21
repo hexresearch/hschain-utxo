@@ -31,7 +31,9 @@ type TypeCore = H.Type () Name
 data Typed a = Typed
   { typed'value :: a
   , typed'type  :: TypeCore
-  } deriving (Show, Eq, Functor, Foldable, Traversable, Generic)
+  }
+  deriving stock    (Show, Eq, Functor, Foldable, Traversable, Generic)
+  deriving anyclass (Serialise)
 
 -- | Name identifiers for variables or global functions
 type Name = Text
@@ -47,7 +49,7 @@ data Prim
   | PrimBool  !Bool
   | PrimSigma !(Sigma PublicKey)
   deriving stock    (Show, Eq, Ord, Generic)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData, Serialise)
 
 -- | Extract integer primitive
 getPrimInt :: Prim -> Maybe Int64
@@ -87,7 +89,3 @@ instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc v
 instance Serialise TypeCore
 --  encode = encode . toTypeSer
 --  decode = fmap fromTypeSer decode
-
-instance Serialise Prim
-instance Serialise a => Serialise (Typed a)
-
