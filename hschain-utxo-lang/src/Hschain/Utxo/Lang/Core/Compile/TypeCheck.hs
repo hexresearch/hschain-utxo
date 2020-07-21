@@ -19,6 +19,8 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , primToType
   , varT
   , listT
+  , argsT
+  , argsTypes
   , tupleT
   , arrowT
   , funT
@@ -294,3 +296,9 @@ arrowT a b = H.arrowT () a b
 
 funT :: [TypeCore] -> TypeCore -> TypeCore
 funT args resT = foldr arrowT resT args
+
+argsT :: TypeCore
+argsT = tupleT argsTypes
+
+argsTypes :: [TypeCore]
+argsTypes = [listT intT, listT textT, listT boolT]

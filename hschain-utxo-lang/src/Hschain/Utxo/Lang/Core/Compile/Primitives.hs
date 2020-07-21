@@ -47,6 +47,7 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 environmentFunctions :: TxEnv -> [Scomb]
 environmentFunctions TxEnv{..} =
   [ getHeight txEnv'height
+  , getSelf txEnv'self
   , getInputs txEnv'inputs
   , getOutputs txEnv'outputs
   ] ++ getArgs txEnv'args
@@ -54,6 +55,7 @@ environmentFunctions TxEnv{..} =
 environmentTypes :: TypeContext
 environmentTypes = TypeContext $ M.fromList $
   [ (Const.getHeight,  intT)
+  , (Const.getSelf,    boxT)
   , (Const.getInputs,  listT boxT)
   , (Const.getOutputs, listT boxT)
   ] ++ getArgsTypes
@@ -117,7 +119,7 @@ primitives =
 
   -- boxes
   , boxCons
-  , getBoxName
+  , getBoxId
   , getBoxScript
   , getBoxValue
   ]
@@ -175,11 +177,11 @@ boxArgs =
   [ Typed "name"   textT
   , Typed "script" textT
   , Typed "value"  intT
-  , Typed "args"   (tupleT argsTypes)
+  , Typed "args"   argsT
   ]
 
-getBoxName :: Scomb
-getBoxName = getBoxField Const.getBoxName (Typed "name" textT) textT
+getBoxId :: Scomb
+getBoxId = getBoxField Const.getBoxId (Typed "name" textT) textT
 
 getBoxScript :: Scomb
 getBoxScript = getBoxField Const.getBoxScript (Typed "script" textT) textT
@@ -190,20 +192,27 @@ getBoxValue = getBoxField Const.getBoxValue (Typed "value" intT) intT
 getBoxArgs :: [Scomb]
 getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
   where
-    getBoxIntArgs  = getBoxArgsBy IntArg  intT  "ints"
-    getBoxTextArgs = getBoxArgsBy TextArg textT "texts"
-    getBoxBoolArgs = getBoxArgsBy BoolArg boolT "bools"
+    getBoxIntArgs  = getBoxArgsBy IntArg  "ints"
+    getBoxTextArgs = getBoxArgsBy TextArg "texts"
+    getBoxBoolArgs = getBoxArgsBy BoolArg "bools"
 
-    getBoxArgsBy typeTag resType resVar = Scomb
+    getBoxArgsBy typeTag resVar = Scomb
       { scomb'name = Const.getBoxArgs $ argTypeName typeTag
-      , scomb'args = V.fromList [Typed "x" argT]
+      , scomb'args = V.fromList [x]
       , scomb'body = Typed
-          (ECase (Typed (EVar $ Typed "x" argT) argT)
-            [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] (EVar $ Typed resVar resType)])
+          (onBox $ onArgs $ EVar $ Typed resVar resType)
           (listT resType)
       }
+      where
+        resType = fromArgType typeTag
+        onBox e  = ECase (Typed xv boxT) [CaseAlt 0 boxArgs e]
+        onArgs e = ECase (Typed argFieldV argsT) [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] e]
+        argField = Typed "args" argsT
+        argFieldV = EVar argField
 
-    argT = tupleT argsTypes
+        x = Typed "x" boxT
+        xv = EVar x
+
 
 boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
 boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]
@@ -227,15 +236,15 @@ toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
     texts  = toVec textT $ fmap (EPrim . PrimText) args'texts
     bools  = toVec boolT $ fmap (EPrim . PrimBool) args'bools
 
-argsTypes :: [TypeCore]
-argsTypes = [listT intT, listT textT, listT boolT]
-
 
 ------------------------------------------------------------
 -- environment
 
 getHeight :: Int64 -> Scomb
 getHeight height = constant Const.getHeight (PrimInt height)
+
+getSelf :: Box -> Scomb
+getSelf b = constantComb "getSelf" boxT $ toBox b
 
 getInputs :: Vector Box -> Scomb
 getInputs = getBoxes Const.getInputs
@@ -244,13 +253,7 @@ getOutputs :: Vector Box -> Scomb
 getOutputs = getBoxes Const.getOutputs
 
 getBoxes :: Text -> Vector Box -> Scomb
-getBoxes name boxes = Scomb
-  { scomb'name = name
-  , scomb'args = V.empty
-  , scomb'body = Typed
-      (toVec boxT $ fmap toBox boxes)
-      (listT boxT)
-  }
+getBoxes name boxes = constantComb name (listT boxT) (toVec boxT $ fmap toBox boxes)
 
 toVec :: TypeCore -> Vector ExprCore -> ExprCore
 toVec t vs = V.foldr cons nil vs
@@ -267,25 +270,13 @@ getArgs Args{..} =
   , argComb PrimBool boolT BoolArg args'bools
   ]
   where
-    argComb cons ty tyTag vals = Scomb
-      { scomb'name = Const.getArgs $ argTypeName tyTag
-      , scomb'args = V.empty
-      , scomb'body = Typed
-          (toVec ty $ fmap (EPrim . cons) vals)
-          (listT ty)
-      }
+    argComb cons ty tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
 
 ------------------------------------------------------------
 -- lists
 
 nilComb :: Scomb
-nilComb = Scomb
-  { scomb'name = "nil"
-  , scomb'args = V.empty
-  , scomb'body = Typed
-      (EConstr nilTy 0 0)
-      nilTy
-  }
+nilComb = constantComb "nil" nilTy (EConstr nilTy 0 0)
   where
     nilTy = listT (varT "a")
 

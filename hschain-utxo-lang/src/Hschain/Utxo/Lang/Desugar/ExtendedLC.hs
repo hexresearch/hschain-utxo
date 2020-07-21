@@ -231,7 +231,7 @@ exprToExtendedLC typeCtx = cataM $ \case
       BoxAt loc a field   -> fromBoxField loc a field
       where
         fromBoxField loc a field = (\f -> ap1 loc f a) $ case field of
-          BoxFieldId         -> var loc Const.getBoxName
+          BoxFieldId         -> var loc Const.getBoxId
           BoxFieldValue      -> var loc Const.getBoxValue
           BoxFieldScript     -> var loc Const.getBoxScript
           BoxFieldArgList ty -> var loc $ Const.getBoxArgs $ argTypeName ty
