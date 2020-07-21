@@ -106,10 +106,10 @@ primitives =
   , sigmaAndComb
   , sigmaOrComb
 -- TODO:
---  , allComb
---  , anyComb
---  , sigmaAllComb
---  , sigmaAnyComb
+  , allComb
+  , anyComb
+  , sigmaAllComb
+  , sigmaAnyComb
 
   -- sigma-expressions
   , sigmaOp2 "&&&"
@@ -556,27 +556,75 @@ productComb = genFoldrComb intT intT mulV one "product"
 
 orComb :: Scomb
 orComb = genFoldrComb boolT boolT orV (bool False) "or"
+
+orV :: ExprCore
+orV = EVar $ Typed "||" orT
   where
-    orV = EVar $ Typed "||" orT
     orT = funT [boolT, boolT] boolT
 
 andComb :: Scomb
 andComb = genFoldrComb boolT boolT andV (bool True) "and"
+
+andV :: ExprCore
+andV = EVar $ Typed "&&" andT
   where
-    andV = EVar $ Typed "&&" andT
     andT = funT [boolT, boolT] boolT
 
 sigmaOrComb :: Scomb
 sigmaOrComb = genFoldrComb sigmaT sigmaT sigmaOrV (sigmaBool False) "sigmaOr"
+
+sigmaOrV :: ExprCore
+sigmaOrV = EVar $ Typed "|||" sigmaOrT
   where
-    sigmaOrV = EVar $ Typed "|||" sigmaOrT
     sigmaOrT = funT [sigmaT, sigmaT] sigmaT
 
 sigmaAndComb :: Scomb
 sigmaAndComb = genFoldrComb sigmaT sigmaT sigmaAndV (sigmaBool False) "sigmaAnd"
+
+sigmaAndV :: ExprCore
+sigmaAndV = EVar $ Typed "&&&" sigmaAndT
   where
-    sigmaAndV = EVar $ Typed "&&&" sigmaAndT
     sigmaAndT = funT [sigmaT, sigmaT] sigmaT
+
+genFoldrMapComb :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
+genFoldrMapComb aT bT append z name = Scomb
+  { scomb'name = name
+  , scomb'args = V.fromList [f, as]
+  , scomb'body = Typed
+      (ECase (Typed asv asT)
+        [ CaseAlt 0 [] z
+        , CaseAlt 1 [x, xs] (ap append [EAp fv xv, ap nameV [fv, xsv]])
+        ])
+      bT
+  }
+  where
+    f = Typed "f" fT
+    as = Typed "as" asT
+    x = Typed "x" aT
+    xs = Typed "xs" asT
+
+    fv     = EVar f
+    asv    = EVar as
+    xv     = EVar x
+    xsv    = EVar xs
+
+    nameV  = EVar $ Typed name nameT
+    nameT  = funT [fT, asT] bT
+
+    fT = aT `arrowT` bT
+    asT = listT aT
+
+allComb :: Scomb
+allComb = genFoldrMapComb (varT "a") boolT andV (bool True) "all"
+
+anyComb :: Scomb
+anyComb = genFoldrMapComb (varT "a") boolT orV (bool False) "any"
+
+sigmaAllComb :: Scomb
+sigmaAllComb = genFoldrMapComb (varT "a") boolT sigmaAndV (sigmaBool True) "sigmaAll"
+
+sigmaAnyComb :: Scomb
+sigmaAnyComb = genFoldrMapComb (varT "a") boolT sigmaOrV (sigmaBool False) "sigmaAny"
 
 one :: ExprCore
 one = EPrim $ PrimInt 1
