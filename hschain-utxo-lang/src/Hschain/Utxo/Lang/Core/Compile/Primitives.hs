@@ -105,7 +105,6 @@ primitives =
   , orComb
   , sigmaAndComb
   , sigmaOrComb
--- TODO:
   , allComb
   , anyComb
   , sigmaAllComb
