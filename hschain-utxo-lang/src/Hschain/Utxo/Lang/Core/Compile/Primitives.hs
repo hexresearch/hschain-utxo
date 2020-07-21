@@ -268,7 +268,7 @@ getArgs Args{..} =
   [ argComb PrimInt   intT   IntArg  args'ints
   , argComb PrimText  textT  TextArg args'texts
   , argComb PrimBool  boolT  BoolArg args'bools
-  , argComb PrimBS    bytesT BoolArg args'bytes
+  , argComb PrimBytes bytesT BoolArg args'bytes
   ]
   where
     argComb cons ty tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)

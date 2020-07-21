@@ -609,7 +609,7 @@ data Prim
   -- ^ Booleans
   | PrimSigma   (Sigma PublicKey)
   -- ^ Sigma-expressions
-  | PrimBS ByteString
+  | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 -- | Environment fields. Info that we can query from blockchain state
@@ -647,7 +647,7 @@ instance ToJSON Prim where
     PrimString txt -> "text"   .= txt
     PrimBool b     -> "bool"   .= b
     PrimSigma s    -> "sigma"  .= toJSON s
-    PrimBS    s    -> "bytes"  .= toJSON (ViaBase58 s)
+    PrimBytes s    -> "bytes"  .= toJSON (ViaBase58 s)
 
 -- todo: rewrite this instance
 -- to distinguish between numeric types of int, double and money
@@ -655,7 +655,7 @@ instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
         fmap PrimInt    (v .: "int")
     <|> fmap PrimString (v .: "text")
-    <|> fmap (\(ViaBase58 s :: ViaBase58 "Prim" ByteString) -> PrimBS s) (v .: "bytes")
+    <|> fmap (\(ViaBase58 s :: ViaBase58 "Prim" ByteString) -> PrimBytes s) (v .: "bytes")
     <|> fmap PrimBool   (v .: "bool")
     <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))
 

@@ -64,7 +64,7 @@ compareOp (#) = do
     (PrimInt   a, PrimInt   b) -> putBool $ a # b
     (PrimBool  a, PrimBool  b) -> putBool $ a # b
     (PrimText  a, PrimText  b) -> putBool $ a # b
-    (PrimBS    a, PrimBS    b) -> putBool $ a # b
+    (PrimBytes a, PrimBytes b) -> putBool $ a # b
     (PrimSigma a, PrimSigma b) -> putBool $ a # b
     _                          -> throwError BadType
 

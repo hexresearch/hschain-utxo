@@ -153,7 +153,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       PrimString _ -> textE
       PrimBool _   -> boolE
       PrimSigma _  -> sigmaE
-      PrimBS _     -> bytesE
+      PrimBytes _  -> bytesE
 
     fromIf loc cond t e = app3 loc ifVar cond t e
 

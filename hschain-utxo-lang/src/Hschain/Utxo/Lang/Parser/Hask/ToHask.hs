@@ -175,7 +175,7 @@ toLiteral loc = \case
   PrimString x -> toText x
   PrimBool x -> H.Con loc $ bool loc x
   PrimSigma x -> sigma loc x
-  PrimBS x -> H.App loc (H.Var loc $ toQName $ VarName loc "pack58") (toText (encodeBase58 x))
+  PrimBytes x -> H.App loc (H.Var loc $ toQName $ VarName loc "pack58") (toText (encodeBase58 x))
   where
     toText x = lit $ H.String loc (T.unpack x) (T.unpack x)
     lit = H.Lit loc

@@ -67,10 +67,10 @@ putText :: Text -> Exec ()
 putText = putVstackBy PrimText
 
 popBS :: Exec ByteString
-popBS = popVstackBy getPrimBS
+popBS = popVstackBy getPrimBytes
 
 putBS :: ByteString -> Exec ()
-putBS = putVstackBy PrimBS
+putBS = putVstackBy PrimBytes
 
 popBool :: Exec Bool
 popBool = popVstackBy getPrimBool

@@ -155,7 +155,7 @@ instance Pretty Prim where
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
     PrimSigma    s -> pretty $ show s
-    PrimBS       s -> pretty $ encodeBase58 s
+    PrimBytes    s -> pretty $ encodeBase58 s
 
 instance Pretty a => Pretty (EnvId a) where
   pretty = prettyId . fmap pretty

@@ -9,7 +9,7 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
   , getPrimInt
   , getPrimText
   , getPrimBool
-  , getPrimBS
+  , getPrimBytes
   , getPrimSigma
 ) where
 
@@ -43,7 +43,7 @@ type Addr = Int
 data Prim
   = PrimInt   !Int64
   | PrimText  !Text
-  | PrimBS    !ByteString
+  | PrimBytes !ByteString
   | PrimBool  !Bool
   | PrimSigma !(Sigma PublicKey)
   deriving stock    (Show, Eq, Ord, Generic)
@@ -68,10 +68,10 @@ getPrimText = \case
   _          -> Nothing
 
 -- | Extract textual primitive
-getPrimBS :: Prim -> Maybe ByteString
-getPrimBS = \case
-  PrimBS t -> Just t
-  _        -> Nothing
+getPrimBytes :: Prim -> Maybe ByteString
+getPrimBytes = \case
+  PrimBytes t -> Just t
+  _           -> Nothing
 
 -- | Extract textual primitive
 getPrimSigma :: Prim -> Maybe (Sigma PublicKey)

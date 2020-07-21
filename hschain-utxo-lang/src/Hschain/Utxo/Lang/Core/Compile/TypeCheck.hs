@@ -261,7 +261,7 @@ primToType = \case
   PrimText  _ -> textT
   PrimBool  _ -> boolT
   PrimSigma _ -> sigmaT
-  PrimBS    _ -> bytesT
+  PrimBytes _ -> bytesT
 
 intT :: TypeCore
 intT = primT "Int"
