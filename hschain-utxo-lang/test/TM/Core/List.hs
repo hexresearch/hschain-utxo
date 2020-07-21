@@ -29,36 +29,28 @@ import qualified Data.Text.IO as T
 tests :: TestTree
 tests = testGroup "core-lists"
   [ testGroup "list-functions"
-    -- List at
-    [ testTypeCheckCase "Typecheck listAt 0" $ progListAt 0
-    , testCase "listAt 0" $ do
-        Right [PrimInt 1] @=? (run $ progListAt 0)
-    , testCase "listAt 1" $ do
-        Right [PrimInt 2] @=? (run $ progListAt 1)
-    , testCase "listAt out of bound" $ do
-        Left BottomTerm @=? (run $ progListAt 4)
-    -- Concat
-    , testTypeCheckCase "Typecheck concat lists" progConcatList
-    , testCase "Concat lists" $ do
-        Right (fmap PrimInt [1..6]) @=? run progConcatList
-    -- Map
-    , testTypeCheckCase "Typecheck map lists" progMapList
-    , testCase "Map lists" $ do
-        Right (fmap PrimInt [10, 20, 30]) @=? run progMapList
-    -- Sum
-    , testTypeCheckCase "Typecheck sum lists" progSumList
-    , testCase "Sum lists" $ do
-        Right [PrimInt 21] @=? run progSumList
-    -- Or
-    , testTypeCheckCase "Typecheck or lists" $ progOrList 2
-    , testCase "Or lists" $ do
-        Right [PrimBool True] @=? run (progOrList 2)
-    , testCase "Or lists is false" $ do
-        Right [PrimBool False] @=? run (progOrList (-2))
-
+    [ testProgram     "listAt 0"               (progListAt 0) [PrimInt 1]
+    , testProgram     "listAt 1"               (progListAt 1) [PrimInt 2]
+    , testProgramFail "listAt out of bound"    (progListAt 4) BottomTerm
+    , testProgram     "Typecheck concat lists" progConcatList (fmap PrimInt [1..6])
+    , testProgram     "Typecheck map lists"    progMapList (fmap PrimInt [10, 20, 30])
+    , testProgram     "Typecheck sum lists"    progSumList [PrimInt 21]
+    , testProgram     "Typecheck or lists"     (progOrList 2) [PrimBool True]
+    , testProgram     "Or lists is false"      (progOrList (-2)) [PrimBool False]
     ]
   ]
 
+testProgram :: String -> CoreProg -> [Prim] -> TestTree
+testProgram nm prog res = testProgramBy nm prog (Right res)
+
+testProgramFail :: String -> CoreProg -> Error -> TestTree
+testProgramFail nm prog res = testProgramBy nm prog (Left res)
+
+testProgramBy :: String -> CoreProg -> Either Error [Prim] -> TestTree
+testProgramBy nm prog res = testGroup nm
+  [ testTypeCheckCase "typecheck" prog
+  , testCase "eval" $ res      @=? run prog
+  ]
 
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
