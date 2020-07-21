@@ -48,7 +48,7 @@ txEnv = TxEnv
       { box'id     = BoxId "box-2"
       , box'value  = 2
       , box'script = Script "in2"
-      , box'args   = intArgs [6,7]
+      , box'args   = intArgs [6,7] <> textArgs ["john", "neil"]
       }
 
     out1 = Box
@@ -60,13 +60,14 @@ txEnv = TxEnv
 
 tests :: TestTree
 tests = testGroup "core-boxes"
-    [ testProg "get height"      [PrimInt blockChainHeight] progGetHeight
-    , testProg "get self id"     [PrimText "box-2"] progGetSelfId
-    , testProg "get self script" [PrimText "in2"]   progGetSelfScript
-    , testProg "get tx arg"      [PrimInt 2]        progGetTxArg
-    , testProg "get input id"    [PrimText "box-1"] progGetInputId
-    , testProg "get output id"   [PrimText "box-3"] progGetOutputId
-    , testProg "get output arg"  [PrimInt 9] progGetOutputLastIntArg
+    [ testProg "get height"         [PrimInt blockChainHeight] progGetHeight
+    , testProg "get self id"        [PrimText "box-2"] progGetSelfId
+    , testProg "get self script"    [PrimText "in2"]   progGetSelfScript
+    , testProg "get tx arg"         [PrimInt 2]        progGetTxArg
+    , testProg "get input id"       [PrimText "box-1"] progGetInputId
+    , testProg "get output id"      [PrimText "box-3"] progGetOutputId
+    , testProg "get output arg"     [PrimInt 9] progGetOutputLastIntArg
+    , testProg "get input text arg" [PrimText "neil"] progGetInputLastTextArg
     ]
 
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
@@ -120,6 +121,12 @@ progGetOutputLastIntArg = CoreProg [ mkMain expr ]
   where
     expr = Typed (ap (listAtV intT) [int 1, ap getBoxArgsV [ap (listAtV boxT) [int 0, getOutputsV]]]) intT
     getBoxArgsV = EVar $ Typed (Const.getBoxArgs "Int") (arrowT boxT (listT intT))
+
+progGetInputLastTextArg :: CoreProg
+progGetInputLastTextArg = CoreProg [ mkMain expr ]
+  where
+    expr = Typed (ap (listAtV textT) [int 1, ap getBoxArgsV [ap (listAtV boxT) [int 1, getInputsV]]]) textT
+    getBoxArgsV = EVar $ Typed (Const.getBoxArgs "Text") (arrowT boxT (listT textT))
 
 getInputsV :: ExprCore
 getInputsV  = EVar $ Typed "getInputs" (listT boxT)

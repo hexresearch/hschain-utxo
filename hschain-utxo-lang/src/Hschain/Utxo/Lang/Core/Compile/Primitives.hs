@@ -177,7 +177,7 @@ boxArgs =
   [ Typed "name"   textT
   , Typed "script" textT
   , Typed "value"  intT
-  , Typed "args"   (tupleT argsTypes)
+  , Typed "args"   argsT
   ]
 
 getBoxName :: Scomb
@@ -192,18 +192,26 @@ getBoxValue = getBoxField Const.getBoxValue (Typed "value" intT) intT
 getBoxArgs :: [Scomb]
 getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
   where
-    getBoxIntArgs  = getBoxArgsBy IntArg  intT  "ints"
-    getBoxTextArgs = getBoxArgsBy TextArg textT "texts"
-    getBoxBoolArgs = getBoxArgsBy BoolArg boolT "bools"
+    getBoxIntArgs  = getBoxArgsBy IntArg  "ints"
+    getBoxTextArgs = getBoxArgsBy TextArg "texts"
+    getBoxBoolArgs = getBoxArgsBy BoolArg "bools"
 
-    getBoxArgsBy typeTag resType resVar = Scomb
+    getBoxArgsBy typeTag resVar = Scomb
       { scomb'name = Const.getBoxArgs $ argTypeName typeTag
-      , scomb'args = V.fromList [Typed "x" argsT]
+      , scomb'args = V.fromList [x]
       , scomb'body = Typed
-          (ECase (Typed (EVar $ Typed "x" argsT) argsT)
-            [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] (EVar $ Typed resVar resType)])
+          (onBox $ onArgs $ EVar $ Typed resVar resType)
           (listT resType)
       }
+      where
+        resType = fromArgType typeTag
+        onBox e  = ECase (Typed xv boxT) [CaseAlt 0 boxArgs e]
+        onArgs e = ECase (Typed argFieldV argsT) [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] e]
+        argField = Typed "args" argsT
+        argFieldV = EVar argField
+
+        x = Typed "x" boxT
+        xv = EVar x
 
 
 boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
