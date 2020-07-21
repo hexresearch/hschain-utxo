@@ -6,9 +6,6 @@ module Hschain.Utxo.Lang.Lib.Base(
   , baseModuleCtx
 ) where
 
-
-import Hex.Common.Text
-
 import qualified Prelude as P
 import Prelude ((.))
 import Prelude (($))
@@ -109,7 +106,7 @@ baseFuns =
   , snd
   , otherwise
   , undefined
-  ] P.++ tupleFuns P.++ getBoxArgListFuns P.++ getVars
+  ] P.++ getBoxArgListFuns P.++ getVars
   where
     getBoxArgListFuns = fmap getBoxArgList argTypes
     getVars = fmap getVarBy argTypes
@@ -177,16 +174,10 @@ baseNames =
   , "snd"
   , "otherwise"
   , "undefined"
-  ] P.++ tupleNames P.++ getVarNames
+  ] P.++ getVarNames
 
 getVarNames :: [Text]
 getVarNames = fmap getEnvVarName argTypes
-
-tupleNames :: [Text]
-tupleNames = P.fmap (P.uncurry toTupleName) tupleIndices
-
-toTupleName :: P.Int -> P.Int -> Text
-toTupleName size idx = P.mconcat ["tupleAt", showt size, "_", showt idx]
 
 (~>) :: Type -> Type -> Type
 (~>) a b = H.arrowT noLoc a b
@@ -260,34 +251,17 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "snd" (forAB $ tupleT [aT, bT] ~> bT)
   , assumpType "otherwise" (monoT boolT)
   , assumpType "undefined" $ forA aT
-  ] P.++ tupleTypes P.++ getBoxArgListTypes P.++ getEnvVarTypes
+  ] P.++ getBoxArgListTypes P.++ getEnvVarTypes
   where
     forA = forAllT' "a" . monoT
     forAB = forAllT' "a" . forAllT' "b" . monoT
     forABC = forAllT' "a" . forAllT' "b" . forAllT' "c" . monoT
-
-    tupleTypes = P.fmap (P.uncurry toTupleType) tupleIndices
-      where
-        toTupleType size idx = assumpType (toTupleName size idx) (tupleAtType size idx)
-
-        tupleAtType :: P.Int -> P.Int -> Signature
-        tupleAtType size idx = pred $ monoT $ (tupleCon size) ~> (varT $ v idx)
-          where
-            pred :: Signature -> Signature
-            pred = P.foldr (.) P.id $ P.fmap (\n -> forAllT' (v n)) [0 .. size P.- 1]
-
-        tupleCon size = tupleT $ P.fmap (varT . v) [0..size P.- 1]
-
-        v n = P.mappend "a" (showt n)
 
     getBoxArgListTypes =
       fmap (\ty -> assumpType (getBoxArgVar ty) (monoT $ boxT ~> vectorT (argTagToType ty))) argTypes
 
     getEnvVarTypes =
       fmap (\ty -> assumpType (getEnvVarName ty) (monoT $ vectorT (argTagToType ty))) argTypes
-
-tupleIndices :: [(P.Int, P.Int)]
-tupleIndices = [ (size, idx) | size <- [2 .. maxTupleSize], idx <- [0 .. size P.- 1] ]
 
 all :: Bind Lang
 all = bind "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
@@ -498,11 +472,6 @@ otherwise = bind "otherwise" (Fix $ PrimE noLoc $ PrimBool P.True)
 
 undefined :: Bind Lang
 undefined = bind "undefined" (Fix $ FailCase noLoc)
-
-tupleFuns :: [Bind Lang]
-tupleFuns = P.fmap (P.uncurry toFun) tupleIndices
-  where
-    toFun size idx = bind (toTupleName size idx) $ lam' "x"  $ Fix $ UnOpE noLoc (TupleAt size idx) (var' "x")
 
 lam' :: Text -> Lang -> Lang
 lam' name expr = Fix $ Lam noLoc (PVar noLoc $ VarName noLoc name) expr
