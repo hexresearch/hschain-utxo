@@ -91,48 +91,6 @@ import Hschain.Utxo.API.Rest
 -------------------------------------------------------------------------------
 -- Instances.
 
-instance Crypto.CryptoHashable Tx where
-  hashStep = Crypto.genericHashStep "transaction"
-
-instance Crypto.CryptoHashable BoxChain where
-  hashStep = genericHashStep "boxchain"
-
-instance Crypto.CryptoHashable BoxId where
-  hashStep = genericHashStep "boxid"
-
-instance Crypto.CryptoHashable Prim where
-  hashStep = genericHashStep "prim"
-
-instance Crypto.CryptoHashable Script where
-  hashStep = genericHashStep "script"
-
-instance Crypto.CryptoHashable Box where
-  hashStep = genericHashStep "box"
-
-instance Crypto.CryptoHashable (Sigma PublicKey) where
-  hashStep = genericHashStep "sugma pubkey"
-
-instance Crypto.CryptoHashable Proof where
-  hashStep = genericHashStep "proof"
-
-instance Crypto.CryptoHashable (Sigma.ProvenTree CryptoAlg) where
-  hashStep = genericHashStep "proven tree cryptoalg"
-
-instance Crypto.CryptoHashable (SigmaExpr PublicKey (Fix (SigmaExpr PublicKey))) where
-  hashStep = genericHashStep "sigma expr pubkey"
-
-instance Crypto.CryptoHashable (Sigma.OrChild CryptoAlg) where
-  hashStep = genericHashStep "orchild"
-
-instance Crypto.CryptoHashable (Sigma.Challenge CryptoAlg) where
-  hashStep = genericHashStep "challenge"
-
-instance Crypto.CryptoHashable (Sigma.ECScalar CryptoAlg) where
-  hashStep = genericHashStep "ecscalar"
-
-instance Crypto.CryptoHashable (Sigma.ECPoint CryptoAlg) where
-  hashStep = genericHashStep "ecpoint"
-
 instance Crypto.CryptoHashable PublicKey where
   hashStep = genericHashStep "public key"
 
@@ -290,9 +248,9 @@ runNode secretNodeName cfgConfigPath =
         currentSecretHash = getHashBytes (hash currentSecret :: Hash SHA256) -- ^This is what will be put into open world.
         miningTx = Tx
                    { tx'inputs  = V.empty   -- ^ List of identifiers of input boxes in blockchain 
-                   , tx'outputs = V.empty     -- ^ List of outputs 
+                   , tx'outputs = V.fromList []    -- ^ List of outputs 
                    , tx'proof   = Nothing    -- ^ Proof of the resulting sigma expression 
-                   , tx'args    = Map.empty            -- ^ Arguments for the scripts 
+                   , tx'args    = mempty            -- ^ Arguments for the scripts 
                    }
          
 

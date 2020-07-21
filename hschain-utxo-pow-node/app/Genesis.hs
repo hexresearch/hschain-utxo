@@ -32,7 +32,7 @@ singleOwnerGenesis = withSecret =<< newSecret
           { box'id     = BoxId "master:box-0"
           , box'value  = initMoney
           , box'script = toScript $ pk' publicKey
-          , box'args   = M.empty
+          , box'args   = mempty
           }
 
         tx proof = Tx
