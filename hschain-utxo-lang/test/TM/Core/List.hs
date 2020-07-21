@@ -11,12 +11,10 @@ module TM.Core.List(
 ) where
 
 import Data.Int
-import Data.Fix
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -41,7 +39,7 @@ tests = testGroup "core-lists"
     , testProgram     "Or lists is false"      (progOrList (-2)) [PrimBool False]
     , testProgram     "Any list"               (progAnyList 2) [PrimBool True]
     , testProgram     "All list"               (progAllList 2) [PrimBool False]
-    , testProgram     "All sigma list"         progSigmaAllList [PrimSigma $ Fix $ SigmaBool False]
+    , testProgram     "All sigma list"         progSigmaAllList [PrimBool False]
     ]
   ]
 

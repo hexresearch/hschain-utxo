@@ -22,7 +22,7 @@ import Examples.SKI
 tests :: TestTree
 tests = testGroup "core"
   [ testGroup "simple"
-    [ testProgram "spend to key" progSpendToKey (PrimSigma (Fix $ SigmaBool True))
+    [ testProgram "spend to key" progSpendToKey (PrimBool True)
     , testProgram "Addition"     progAddition   (PrimInt 101)
     , testProgram "SKK3"         exampleSKK3    (PrimInt 3)
     ]
