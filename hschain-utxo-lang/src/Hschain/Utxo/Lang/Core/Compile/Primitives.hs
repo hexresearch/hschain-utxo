@@ -621,10 +621,10 @@ anyComb :: Scomb
 anyComb = genFoldrMapComb (varT "a") boolT orV (bool False) "any"
 
 sigmaAllComb :: Scomb
-sigmaAllComb = genFoldrMapComb (varT "a") boolT sigmaAndV (sigmaBool True) "sigmaAll"
+sigmaAllComb = genFoldrMapComb (varT "a") sigmaT sigmaAndV (sigmaBool True) "sigmaAll"
 
 sigmaAnyComb :: Scomb
-sigmaAnyComb = genFoldrMapComb (varT "a") boolT sigmaOrV (sigmaBool False) "sigmaAny"
+sigmaAnyComb = genFoldrMapComb (varT "a") sigmaT sigmaOrV (sigmaBool False) "sigmaAny"
 
 one :: ExprCore
 one = EPrim $ PrimInt 1

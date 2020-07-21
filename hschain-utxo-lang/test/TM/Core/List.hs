@@ -11,10 +11,12 @@ module TM.Core.List(
 ) where
 
 import Data.Int
+import Data.Fix
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -37,6 +39,9 @@ tests = testGroup "core-lists"
     , testProgram     "Typecheck sum lists"    progSumList [PrimInt 21]
     , testProgram     "Typecheck or lists"     (progOrList 2) [PrimBool True]
     , testProgram     "Or lists is false"      (progOrList (-2)) [PrimBool False]
+    , testProgram     "Any list"               (progAnyList 2) [PrimBool True]
+    , testProgram     "All list"               (progAllList 2) [PrimBool False]
+    , testProgram     "All sigma list"         progSigmaAllList [PrimSigma $ Fix $ SigmaBool False]
     ]
   ]
 
@@ -77,15 +82,18 @@ listToExpr ty = foldr cons nil
 
 listConsts :: CoreProg
 listConsts = CoreProg
-  [ nums "xs" xs
-  , nums "ys" ys
-  , nums "zs" zs
+  [ nums "xs"  xs
+  , nums "ys"  ys
+  , nums "zs"  zs
+  , bools "bs" bs
   ]
   where
-    nums name values = primComb name (listT intT) $ listToExpr intT $ fmap (EPrim . PrimInt) values
+    nums  name values  = primComb name (listT intT)  $ listToExpr intT $ fmap (EPrim . PrimInt) values
+    bools name values = primComb name (listT boolT) $ listToExpr boolT $ fmap (EPrim . PrimBool) values
     xs = [1,2,3]
     ys = [4,5,6]
     zs = xs ++ ys
+    bs = [True, False, True]
 
 
 xsV :: ExprCore
@@ -96,6 +104,9 @@ ysV = EVar $ Typed "ys" (listT intT)
 
 zsV :: ExprCore
 zsV = EVar $ Typed "zs" (listT intT)
+
+bsV :: ExprCore
+bsV = EVar $ Typed "bs" (listT boolT)
 
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
@@ -142,16 +153,39 @@ progOrList :: Int64 -> CoreProg
 progOrList n = listConsts <>
   CoreProg [mkMain orExpr]
   where
-    orExpr = Typed (ap orV [ap mapV [isTwoV, zsV]]) boolT
+    orExpr = Typed (ap orV [ap mapV [isIntV n, zsV]]) boolT
     orV = EVar $ Typed "or" orT
     orT = arrowT (listT boolT) boolT
 
-    isTwoV = EAp intEqV (int n)
-
-    intEqV = EVar $ Typed "Int.equals" (funT [intT, intT] boolT)
-
     mapV = EVar $ Typed "map" mapT
     mapT = funT [arrowT intT boolT, listT intT] (listT boolT)
+
+isIntV :: Int64 -> ExprCore
+isIntV n = EAp intEqV (int n)
+
+intEqV :: ExprCore
+intEqV = EVar $ Typed "Int.equals" (funT [intT, intT] boolT)
+
+progAnyList :: Int64 -> CoreProg
+progAnyList n = listConsts <> CoreProg [mkMain anyExpr]
+  where
+    anyExpr = Typed (ap anyV [isIntV n, xsV]) boolT
+    anyV = EVar $ Typed "any" anyT
+    anyT = funT [arrowT intT boolT, listT intT] boolT
+
+progAllList :: Int64 -> CoreProg
+progAllList n = listConsts <> CoreProg [mkMain allExpr]
+  where
+    allExpr = Typed (ap allV [isIntV n, xsV]) boolT
+    allV = EVar $ Typed "all" allT
+    allT = funT [arrowT intT boolT, listT intT] boolT
+
+progSigmaAllList :: CoreProg
+progSigmaAllList = listConsts <> CoreProg [mkMain allExpr]
+  where
+    allExpr   = Typed (ap sigmaAllV [toSigmaV, bsV]) sigmaT
+    sigmaAllV = EVar $ Typed "sigmaAll" (funT [boolT `arrowT` sigmaT, listT boolT] sigmaT)
+    toSigmaV  = EVar $ Typed "toSigma" (boolT `arrowT` sigmaT)
 
 run :: CoreProg -> Either Error [Prim]
 run
