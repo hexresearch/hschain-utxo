@@ -92,7 +92,7 @@ progGetHeight = CoreProg [ mkMain getHeightExpr ]
 progGetSelfId :: CoreProg
 progGetSelfId = CoreProg [ mkMain expr ]
   where
-    expr = Typed (EAp getBoxNameV getSelfV) textT
+    expr = Typed (EAp getBoxIdV getSelfV) textT
 
 progGetSelfScript :: CoreProg
 progGetSelfScript = CoreProg [ mkMain expr ]
@@ -109,12 +109,12 @@ progGetTxArg = CoreProg [ mkMain expr ]
 progGetInputId :: CoreProg
 progGetInputId = CoreProg [ mkMain expr ]
   where
-    expr = Typed (ap getBoxNameV [ap (listAtV boxT) [int 0, getInputsV]]) textT
+    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [int 0, getInputsV]]) textT
 
 progGetOutputId :: CoreProg
 progGetOutputId = CoreProg [ mkMain expr ]
   where
-    expr = Typed (ap getBoxNameV [ap (listAtV boxT) [int 0, getOutputsV]]) textT
+    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [int 0, getOutputsV]]) textT
 
 progGetOutputLastIntArg :: CoreProg
 progGetOutputLastIntArg = CoreProg [ mkMain expr ]
@@ -134,8 +134,8 @@ getInputsV  = EVar $ Typed "getInputs" (listT boxT)
 getOutputsV :: ExprCore
 getOutputsV  = EVar $ Typed "getOutputs" (listT boxT)
 
-getBoxNameV :: ExprCore
-getBoxNameV = EVar $ Typed "getBoxName" (arrowT boxT textT)
+getBoxIdV :: ExprCore
+getBoxIdV = EVar $ Typed "getBoxId" (arrowT boxT textT)
 
 getSelfV :: ExprCore
 getSelfV  = EVar $ Typed "getSelf" boxT

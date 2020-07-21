@@ -9,7 +9,7 @@ module Hschain.Utxo.Lang.Const(
   , getArgs
   -- * Boxes
   , getBoxArgs
-  , getBoxName
+  , getBoxId
   , getBoxScript
   , getBoxValue
 ) where
@@ -43,9 +43,9 @@ getArgs typeName = mconcat ["get", typeName, "Args"]
 getBoxArgs :: Text -> Text
 getBoxArgs typeName = mconcat ["getBox", typeName, "Args"]
 
-getBoxName, getBoxScript, getBoxValue :: Text
+getBoxId, getBoxScript, getBoxValue :: Text
 
-getBoxName   = "getBoxName"
+getBoxId     = "getBoxId"
 getBoxScript = "getBoxScript"
 getBoxValue  = "getBoxValue"
 

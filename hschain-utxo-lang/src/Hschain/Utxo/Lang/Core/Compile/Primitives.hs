@@ -119,7 +119,7 @@ primitives =
 
   -- boxes
   , boxCons
-  , getBoxName
+  , getBoxId
   , getBoxScript
   , getBoxValue
   ]
@@ -180,8 +180,8 @@ boxArgs =
   , Typed "args"   argsT
   ]
 
-getBoxName :: Scomb
-getBoxName = getBoxField Const.getBoxName (Typed "name" textT) textT
+getBoxId :: Scomb
+getBoxId = getBoxField Const.getBoxId (Typed "name" textT) textT
 
 getBoxScript :: Scomb
 getBoxScript = getBoxField Const.getBoxScript (Typed "script" textT) textT
