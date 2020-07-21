@@ -29,36 +29,31 @@ import qualified Data.Text.IO as T
 tests :: TestTree
 tests = testGroup "core-lists"
   [ testGroup "list-functions"
-    -- List at
-    [ testTypeCheckCase "Typecheck listAt 0" $ progListAt 0
-    , testCase "listAt 0" $ do
-        Right [PrimInt 1] @=? (run $ progListAt 0)
-    , testCase "listAt 1" $ do
-        Right [PrimInt 2] @=? (run $ progListAt 1)
-    , testCase "listAt out of bound" $ do
-        Left BottomTerm @=? (run $ progListAt 4)
-    -- Concat
-    , testTypeCheckCase "Typecheck concat lists" progConcatList
-    , testCase "Concat lists" $ do
-        Right (fmap PrimInt [1..6]) @=? run progConcatList
-    -- Map
-    , testTypeCheckCase "Typecheck map lists" progMapList
-    , testCase "Map lists" $ do
-        Right (fmap PrimInt [10, 20, 30]) @=? run progMapList
-    -- Sum
-    , testTypeCheckCase "Typecheck sum lists" progSumList
-    , testCase "Sum lists" $ do
-        Right [PrimInt 21] @=? run progSumList
-    -- Or
-    , testTypeCheckCase "Typecheck or lists" $ progOrList 2
-    , testCase "Or lists" $ do
-        Right [PrimBool True] @=? run (progOrList 2)
-    , testCase "Or lists is false" $ do
-        Right [PrimBool False] @=? run (progOrList (-2))
-
+    [ testProgram     "listAt 0"               (progListAt 0) [PrimInt 1]
+    , testProgram     "listAt 1"               (progListAt 1) [PrimInt 2]
+    , testProgramFail "listAt out of bound"    (progListAt 4) BottomTerm
+    , testProgram     "Typecheck concat lists" progConcatList (fmap PrimInt [1..6])
+    , testProgram     "Typecheck map lists"    progMapList (fmap PrimInt [10, 20, 30])
+    , testProgram     "Typecheck sum lists"    progSumList [PrimInt 21]
+    , testProgram     "Typecheck or lists"     (progOrList 2) [PrimBool True]
+    , testProgram     "Or lists is false"      (progOrList (-2)) [PrimBool False]
+    , testProgram     "Any list"               (progAnyList 2) [PrimBool True]
+    , testProgram     "All list"               (progAllList 2) [PrimBool False]
+    , testProgram     "All sigma list"         progSigmaAllList [PrimBool False]
     ]
   ]
 
+testProgram :: String -> CoreProg -> [Prim] -> TestTree
+testProgram nm prog res = testProgramBy nm prog (Right res)
+
+testProgramFail :: String -> CoreProg -> Error -> TestTree
+testProgramFail nm prog res = testProgramBy nm prog (Left res)
+
+testProgramBy :: String -> CoreProg -> Either Error [Prim] -> TestTree
+testProgramBy nm prog res = testGroup nm
+  [ testTypeCheckCase "typecheck" prog
+  , testCase "eval" $ res      @=? run prog
+  ]
 
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
@@ -85,15 +80,18 @@ listToExpr ty = foldr cons nil
 
 listConsts :: CoreProg
 listConsts = CoreProg
-  [ nums "xs" xs
-  , nums "ys" ys
-  , nums "zs" zs
+  [ nums "xs"  xs
+  , nums "ys"  ys
+  , nums "zs"  zs
+  , bools "bs" bs
   ]
   where
-    nums name values = primComb name (listT intT) $ listToExpr intT $ fmap (EPrim . PrimInt) values
+    nums  name values  = primComb name (listT intT)  $ listToExpr intT $ fmap (EPrim . PrimInt) values
+    bools name values = primComb name (listT boolT) $ listToExpr boolT $ fmap (EPrim . PrimBool) values
     xs = [1,2,3]
     ys = [4,5,6]
     zs = xs ++ ys
+    bs = [True, False, True]
 
 
 xsV :: ExprCore
@@ -104,6 +102,9 @@ ysV = EVar $ Typed "ys" (listT intT)
 
 zsV :: ExprCore
 zsV = EVar $ Typed "zs" (listT intT)
+
+bsV :: ExprCore
+bsV = EVar $ Typed "bs" (listT boolT)
 
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
@@ -150,16 +151,39 @@ progOrList :: Int64 -> CoreProg
 progOrList n = listConsts <>
   CoreProg [mkMain orExpr]
   where
-    orExpr = Typed (ap orV [ap mapV [isTwoV, zsV]]) boolT
+    orExpr = Typed (ap orV [ap mapV [isIntV n, zsV]]) boolT
     orV = EVar $ Typed "or" orT
     orT = arrowT (listT boolT) boolT
 
-    isTwoV = EAp intEqV (int n)
-
-    intEqV = EVar $ Typed "Int.equals" (funT [intT, intT] boolT)
-
     mapV = EVar $ Typed "map" mapT
     mapT = funT [arrowT intT boolT, listT intT] (listT boolT)
+
+isIntV :: Int64 -> ExprCore
+isIntV n = EAp intEqV (int n)
+
+intEqV :: ExprCore
+intEqV = EVar $ Typed "Int.equals" (funT [intT, intT] boolT)
+
+progAnyList :: Int64 -> CoreProg
+progAnyList n = listConsts <> CoreProg [mkMain anyExpr]
+  where
+    anyExpr = Typed (ap anyV [isIntV n, xsV]) boolT
+    anyV = EVar $ Typed "any" anyT
+    anyT = funT [arrowT intT boolT, listT intT] boolT
+
+progAllList :: Int64 -> CoreProg
+progAllList n = listConsts <> CoreProg [mkMain allExpr]
+  where
+    allExpr = Typed (ap allV [isIntV n, xsV]) boolT
+    allV = EVar $ Typed "all" allT
+    allT = funT [arrowT intT boolT, listT intT] boolT
+
+progSigmaAllList :: CoreProg
+progSigmaAllList = listConsts <> CoreProg [mkMain allExpr]
+  where
+    allExpr   = Typed (ap sigmaAllV [toSigmaV, bsV]) sigmaT
+    sigmaAllV = EVar $ Typed "sigmaAll" (funT [boolT `arrowT` sigmaT, listT boolT] sigmaT)
+    toSigmaV  = EVar $ Typed "toSigma" (boolT `arrowT` sigmaT)
 
 run :: CoreProg -> Either Error [Prim]
 run

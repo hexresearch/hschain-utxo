@@ -9,7 +9,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..),Args(..))
+import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (TxEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -22,7 +22,7 @@ import Examples.SKI
 tests :: TestTree
 tests = testGroup "core"
   [ testGroup "simple"
-    [ testProgram "spend to key" progSpendToKey (PrimSigma (Fix $ SigmaBool True))
+    [ testProgram "spend to key" progSpendToKey (PrimBool True)
     , testProgram "Addition"     progAddition   (PrimInt 101)
     , testProgram "SKK3"         exampleSKK3    (PrimInt 3)
     ]
@@ -102,13 +102,10 @@ env = TxEnv
     { box'id     = BoxId ""
     , box'value  = 100
     , box'script = Script ""
-    , box'args   = Args
-      { args'ints  = mempty
-      , args'bools = mempty
-      , args'texts = mempty
-      }
+    , box'args   = mempty
     }
   , txEnv'inputs   = mempty
   , txEnv'outputs  = mempty
   , txEnv'args     = mempty
   }
+
