@@ -9,7 +9,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..),Args(..))
+import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (TxEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -102,13 +102,10 @@ env = TxEnv
     { box'id     = BoxId ""
     , box'value  = 100
     , box'script = Script ""
-    , box'args   = Args
-      { args'ints  = mempty
-      , args'bools = mempty
-      , args'texts = mempty
-      }
+    , box'args   = mempty
     }
   , txEnv'inputs   = mempty
   , txEnv'outputs  = mempty
   , txEnv'args     = mempty
   }
+
