@@ -40,6 +40,7 @@ module Language.HM.Type (
 
 --------------------------------------------------------------------------------
 
+import Control.DeepSeq (NFData(..))
 import Control.Monad
 
 import Data.Eq.Deriving
@@ -128,6 +129,15 @@ data TypeF loc var r
 -- | Monomorphic types.
 newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
   deriving (Show, Eq, Ord, Generic)
+
+instance (NFData loc, NFData var) => NFData (Type loc var) where
+  rnf (Type m) = cata go m where
+    go = \case
+      VarT   l v   -> rnf l `seq` rnf v
+      ConT   l v x -> rnf l `seq` rnf v `seq` rnf x
+      ArrowT l a b -> rnf l `seq` rnf a `seq` rnf b
+      TupleT l x   -> rnf l `seq` rnf x
+      ListT  l x   -> rnf l `seq` rnf x
 
 -- | 'varT' @loc x@ constructs a type variable named @x@ with source code at @loc@.
 varT :: loc -> var -> Type loc var
