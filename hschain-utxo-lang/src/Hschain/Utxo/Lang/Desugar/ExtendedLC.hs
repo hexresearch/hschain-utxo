@@ -142,6 +142,7 @@ exprToExtendedLC typeCtx = cataM $ \case
       PrimString txt  -> P.PrimText txt
       PrimBool b      -> P.PrimBool b
       PrimSigma sigma -> P.PrimSigma sigma
+      PrimBytes bs    -> P.PrimBytes bs
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 

@@ -86,8 +86,8 @@ primitives =
   -- text
   , op1 "lengthText" textT intT
   , op2 "<>" (textT, textT) textT
-  , op1 "hashBlake" textT textT
-  , op1 "hashSha" textT textT
+  , op1 "hashBlake" bytesT bytesT
+  , op1 "hashSha"   bytesT bytesT
 
   -- lists
   , nilComb
@@ -189,12 +189,13 @@ getBoxValue :: Scomb
 getBoxValue = getBoxField Const.getBoxValue (Typed "value" intT) intT
 
 getBoxArgs :: [Scomb]
-getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
+getBoxArgs =
+  [ getBoxArgsBy IntArg   "ints"
+  , getBoxArgsBy TextArg  "texts"
+  , getBoxArgsBy BoolArg  "bools"
+  , getBoxArgsBy BytesArg "bytes"
+  ]
   where
-    getBoxIntArgs  = getBoxArgsBy IntArg  "ints"
-    getBoxTextArgs = getBoxArgsBy TextArg "texts"
-    getBoxBoolArgs = getBoxArgsBy BoolArg "bools"
-
     getBoxArgsBy typeTag resVar = Scomb
       { scomb'name = Const.getBoxArgs $ argTypeName typeTag
       , scomb'args = V.fromList [x]
@@ -264,9 +265,10 @@ toVec t vs = V.foldr cons nil vs
 
 getArgs :: Args -> [Scomb]
 getArgs Args{..} =
-  [ argComb PrimInt  intT  IntArg  args'ints
-  , argComb PrimText textT TextArg args'texts
-  , argComb PrimBool boolT BoolArg args'bools
+  [ argComb PrimInt   intT   IntArg  args'ints
+  , argComb PrimText  textT  TextArg args'texts
+  , argComb PrimBool  boolT  BoolArg args'bools
+  , argComb PrimBytes bytesT BoolArg args'bytes
   ]
   where
     argComb cons ty tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
@@ -650,9 +652,10 @@ lessThanEquals ty a b = ap lteV [a, b]
 
 fromArgType :: ArgType -> TypeCore
 fromArgType = \case
-  IntArg  -> intT
-  BoolArg -> boolT
-  TextArg -> textT
+  IntArg   -> intT
+  BoolArg  -> boolT
+  TextArg  -> textT
+  BytesArg -> bytesT
 
 ------------------------------------------------------------
 -- prim ops
@@ -669,7 +672,7 @@ builtInDiadic = M.fromList $
   , ("&&&", SigAnd)
   , ("|||", SigOr)
   , ("<>", TextAppend)
-  ] ++ (compareNames =<< [intT, boolT, textT])
+  ] ++ (compareNames =<< [intT, boolT, textT, bytesT])
   where
     compareNames ty =
       [ (toCompareName ty "equals", Eq)

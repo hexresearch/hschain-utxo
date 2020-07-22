@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
@@ -12,6 +13,8 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
+import Data.ByteString (ByteString)
+import Data.Coerce
 import Data.Fix
 import Data.Function (on)
 import Data.Foldable
@@ -28,6 +31,7 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
@@ -226,14 +230,15 @@ data Args = Args
   { args'ints  :: Vector Int64
   , args'bools :: Vector Bool
   , args'texts :: Vector Text
+  , args'bytes :: Vector ByteString
   } deriving (Show, Eq, Ord, Generic, NFData, Serialise)
 
 instance Semigroup Args where
-  (Args intsA boolsA textsA) <> (Args intsB boolsB textsB) =
-    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB)
+  (Args intsA boolsA textsA bytesA) <> (Args intsB boolsB textsB bytesB) =
+    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB) (bytesA <> bytesB)
 
 instance Monoid Args where
-  mempty = Args mempty mempty mempty
+  mempty = Args mempty mempty mempty mempty
 
 -- | Construct args that contain only integers
 intArgs :: [Int64] -> Args
@@ -241,6 +246,7 @@ intArgs xs = Args
   { args'ints  = V.fromList xs
   , args'bools = mempty
   , args'texts = mempty
+  , args'bytes = mempty
   }
 
 -- | Construct args that contain only booleans
@@ -249,6 +255,7 @@ boolArgs xs = Args
   { args'ints  = mempty
   , args'bools = V.fromList xs
   , args'texts = mempty
+  , args'bytes = mempty
   }
 
 -- | Construct args that contain only texts
@@ -257,6 +264,16 @@ textArgs xs = Args
   { args'ints  = mempty
   , args'bools = mempty
   , args'texts = V.fromList xs
+  , args'bytes = mempty
+  }
+
+-- | Construct args that contain only bytestrings
+byteArgs :: [ByteString] -> Args
+byteArgs xs = Args
+  { args'ints  = mempty
+  , args'bools = mempty
+  , args'texts = mempty
+  , args'bytes = V.fromList xs
   }
 
 -- | Identifier of the box. Box holds value protected by the script.
@@ -507,7 +524,7 @@ data BoxField a
 
 -- | Types that we can store as arguments in transactions.
 -- We store lists of them.
-data ArgType = IntArg | TextArg | BoolArg
+data ArgType = IntArg | TextArg | BoolArg | BytesArg
   deriving (Show, Eq)
 
 argTypes :: [ArgType]
@@ -515,9 +532,10 @@ argTypes = [IntArg, TextArg, BoolArg]
 
 argTagToType :: ArgType -> Type
 argTagToType = \case
-  IntArg  -> intT
-  TextArg -> textT
-  BoolArg -> boolT
+  IntArg   -> intT
+  TextArg  -> textT
+  BoolArg  -> boolT
+  BytesArg -> bytesT
 
 getBoxArgVar :: ArgType -> Text
 getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
@@ -591,6 +609,7 @@ data Prim
   -- ^ Booleans
   | PrimSigma   (Sigma PublicKey)
   -- ^ Sigma-expressions
+  | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 -- | Environment fields. Info that we can query from blockchain state
@@ -617,9 +636,10 @@ getEnvVarName ty = Const.getArgs $ argTypeName ty
 
 argTypeName :: ArgType -> Text
 argTypeName = \case
-  IntArg  -> "Int"
-  TextArg -> "Text"
-  BoolArg -> "Bool"
+  IntArg   -> "Int"
+  TextArg  -> "Text"
+  BoolArg  -> "Bool"
+  BytesArg -> "Bytes"
 
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
@@ -627,6 +647,7 @@ instance ToJSON Prim where
     PrimString txt -> "text"   .= txt
     PrimBool b     -> "bool"   .= b
     PrimSigma s    -> "sigma"  .= toJSON s
+    PrimBytes s    -> "bytes"  .= toJSON (ViaBase58 s)
 
 -- todo: rewrite this instance
 -- to distinguish between numeric types of int, double and money
@@ -634,16 +655,18 @@ instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
         fmap PrimInt    (v .: "int")
     <|> fmap PrimString (v .: "text")
+    <|> fmap (\(ViaBase58 s :: ViaBase58 "Prim" ByteString) -> PrimBytes s) (v .: "bytes")
     <|> fmap PrimBool   (v .: "bool")
     <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))
 
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT, sigmaT :: Type
+intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: Type
 
 intT = intT' noLoc
 boolT = boolT' noLoc
+bytesT = bytesT' noLoc
 boxT  = boxT' noLoc
 scriptT = scriptT' noLoc
 textT = textT' noLoc
@@ -657,6 +680,9 @@ boxT' = constType "Box"
 
 textT' :: Loc -> Type
 textT' = constType "Text"
+
+bytesT' :: Loc -> Type
+bytesT' = constType "Bytes"
 
 intT' :: Loc -> Type
 intT' = constType "Int"
@@ -895,5 +921,21 @@ instance CryptoHashable Box where
 instance CryptoHashable Args where
   hashStep = genericHashStep hashDomain
 
-$(deriveJSON dropPrefixOptions ''Args)
+instance FromJSON Args where
+  parseJSON = withObject "Args" $ \o -> do
+    args'ints  <- o .: "ints"
+    args'bools <- o .: "bools"
+    args'texts <- o .: "texts"
+    bytes      <- o .: "bytes"
+    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
+               , ..
+               }
+instance ToJSON Args where
+  toJSON Args{..} = object
+    [ "ints"  .= args'ints
+    , "bools" .= args'bools
+    , "texts" .= args'texts
+    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
+    ]
+
 $(deriveJSON dropPrefixOptions ''Box)

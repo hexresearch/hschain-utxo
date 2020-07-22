@@ -8,6 +8,8 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack(
   , putInt
   , popText
   , putText
+  , popBS
+  , putBS
   , popBool
   , putBool
   , popSigma
@@ -17,6 +19,7 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack(
 ) where
 
 import Data.Int
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Sigma
@@ -62,6 +65,12 @@ popText = popVstackBy getPrimText
 
 putText :: Text -> Exec ()
 putText = putVstackBy PrimText
+
+popBS :: Exec ByteString
+popBS = popVstackBy getPrimBytes
+
+putBS :: ByteString -> Exec ()
+putBS = putVstackBy PrimBytes
 
 popBool :: Exec Bool
 popBool = popVstackBy getPrimBool

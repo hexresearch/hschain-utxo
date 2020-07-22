@@ -492,9 +492,10 @@ execLang (Fix topExpr) = case topExpr of
         GetVar varLoc argType -> do
           args <- getUserArgs
           return $ case argType of
-            IntArg  -> toArgField varLoc PrimInt  $ args'ints args
-            TextArg -> toArgField varLoc PrimString $ args'texts args
-            BoolArg -> toArgField varLoc PrimBool $ args'bools args
+            IntArg   -> toArgField varLoc PrimInt  $ args'ints args
+            TextArg  -> toArgField varLoc PrimString $ args'texts args
+            BoolArg  -> toArgField varLoc PrimBool $ args'bools args
+            BytesArg -> toArgField varLoc PrimBytes $ args'bytes args
         _ -> thisShouldNotHappen $ Fix $ GetEnv loc idx
       where
         toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? (fromIntegral n)
@@ -517,9 +518,10 @@ execLang (Fix topExpr) = case topExpr of
       BoxFieldValue      -> prim loc $ PrimInt $ box'value
       BoxFieldScript     -> prim loc $ PrimString $ unScript $ box'script
       BoxFieldArgList ty -> return $ case ty of
-        IntArg  -> toArgField loc PrimInt    $ args'ints box'args
-        TextArg -> toArgField loc PrimString $ args'texts box'args
-        BoolArg -> toArgField loc PrimBool   $ args'bools box'args
+        IntArg   -> toArgField loc PrimInt    $ args'ints box'args
+        TextArg  -> toArgField loc PrimString $ args'texts box'args
+        BoolArg  -> toArgField loc PrimBool   $ args'bools box'args
+        BytesArg -> toArgField loc PrimBytes  $ args'bytes box'args
 
     fromSigma _ x = do
       x' <- mapM rec x
@@ -593,7 +595,7 @@ execLang (Fix topExpr) = case topExpr of
           PrimString t    -> t
           PrimBool b      -> showt b
           PrimSigma s     -> showt s
-
+          PrimBytes bs    -> showt bs
     sha256 (Fix x) = case x of
       PrimE _ (PrimString t) -> Just $ hashText t
       _                        -> Nothing

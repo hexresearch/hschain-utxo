@@ -7,13 +7,16 @@ module Hschain.Utxo.Lang.Compile.Hask.Utils(
   , toSigma
   , toText
   , toBool
+  , toBytes
 ) where
 
 import Hex.Common.Text
 
 import Data.Fix
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 
+import HSChain.Crypto.Classes (encodeBase58)
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, TypeCore, Typed(..))
 import Hschain.Utxo.Lang.Sigma
@@ -50,6 +53,9 @@ toSigma loc = cata $ \case
   where
     sigmaOp op args = L.foldr1 (\a b -> H.InfixApp loc a (toQOp op) b) args
     toQOp op = H.QVarOp loc (toQName $ VarName loc op)
+
+toBytes :: Loc -> ByteString -> H.Exp Loc
+toBytes loc bs = H.App loc (H.Var loc $ toQName $ VarName loc "pack58") (toText loc (encodeBase58 bs))
 
 toText :: Loc -> Text -> H.Exp Loc
 toText loc txt = H.Lit loc $ H.String loc (T.unpack txt) (T.unpack txt)

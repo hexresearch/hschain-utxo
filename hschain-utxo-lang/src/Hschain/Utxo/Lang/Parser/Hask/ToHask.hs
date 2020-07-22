@@ -15,6 +15,7 @@ import Hschain.Utxo.Lang.Sigma
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import HSChain.Crypto.Classes (encodeBase58)
 import qualified Language.Haskell.Exts.Syntax as H
 
 import Language.HM.Type() -- import instances
@@ -171,10 +172,12 @@ op2 loc name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc 
 toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral loc = \case
   PrimInt x -> lit $ H.Int loc (fromIntegral x) (show x)
-  PrimString x -> lit $ H.String loc (T.unpack x) (T.unpack x)
+  PrimString x -> toText x
   PrimBool x -> H.Con loc $ bool loc x
   PrimSigma x -> sigma loc x
+  PrimBytes x -> H.App loc (H.Var loc $ toQName $ VarName loc "pack58") (toText (encodeBase58 x))
   where
+    toText x = lit $ H.String loc (T.unpack x) (T.unpack x)
     lit = H.Lit loc
 
     sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
