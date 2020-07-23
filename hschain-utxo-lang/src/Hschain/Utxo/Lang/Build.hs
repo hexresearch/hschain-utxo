@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Build(
   , bind
   , int
   , text
+  , bytes
   , pk
   , pk'
   , SigmaBool
@@ -40,6 +41,7 @@ module Hschain.Utxo.Lang.Build(
 ) where
 
 import Data.Boolean
+import Data.ByteString (ByteString)
 import Data.Fix
 import Data.String
 import Data.Text (Text)
@@ -72,6 +74,9 @@ int x = primExpr $ PrimInt $ fromIntegral x
 
 text :: Text -> Expr Text
 text x = primExpr $ PrimString x
+
+bytes :: ByteString -> Expr ByteString
+bytes x = primExpr $ PrimBytes x
 
 mkBool :: Bool -> Expr Bool
 mkBool x = primExpr $ PrimBool x
@@ -174,7 +179,7 @@ getBoxId (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldId
 getBoxValue :: Expr Box -> Expr Int
 getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
 
-getBoxScript :: Expr Box -> Expr Script
+getBoxScript :: Expr Box -> Expr ByteString
 getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScript
 
 getBoxIntArgList :: Expr Box -> Expr (Vector Int)
@@ -308,7 +313,7 @@ showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText no
 showScript :: Expr Script -> Expr Text
 showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) a
 
-sha256 :: Expr Text -> Expr Text
+sha256 :: Expr ByteString -> Expr ByteString
 sha256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) a
 
 blake2b256 :: Expr Text -> Expr Text

@@ -7,12 +7,12 @@ module Hschain.Utxo.State.React(
 
 import Control.Monad
 
-import Data.Either
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgFromScript)
 import Hschain.Utxo.State.Types
 
 import qualified Data.List as L
@@ -44,7 +44,7 @@ react tx bch
         (inputsAreValid, debugMsgInputs) = Core.evalProveTx txArg
         -- todo: check here that script evaluates to boolean with type checker.
         --       for now we check only that it parses
-        mInvalidOutput = L.find (isLeft . fromScript . box'script) $ checkOutputTxArg txArg
+        mInvalidOutput = L.find (isNothing . coreProgFromScript . box'script) $ checkOutputTxArg txArg
         mInvalidOutputId = fmap (unBoxId . box'id) mInvalidOutput
 
         outputsAreValid = isNothing mInvalidOutput

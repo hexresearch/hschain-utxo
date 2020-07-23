@@ -18,8 +18,6 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 
 import Data.Fix hiding ((~>))
-
-import Data.String
 import Data.Text (Text)
 
 import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, arrowT, stripSignature)
@@ -33,10 +31,6 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
-
-instance H.IsVar Text where
-  intToVar n = mappend "$$" (showt n)
-  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
 data EmptyPrim = EmptyPrim
   deriving (Show)

@@ -45,6 +45,9 @@ reversibleAddressScript blocksIn24h carol feeProposition maxFee =
                       ) $ \isValid ->
   "totalFee"   =: (foldVec (lam2 "x" "b" $ \x b -> ifB (app isFee b) (x + getBoxValue b) x) 0 getOutputs) $ \totalFee ->
   pk "alice" &&* (toSigma $ allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee))
+  where
+    -- TODO: find the analog for this script
+    toScriptBytes = undefined
 
 
 
