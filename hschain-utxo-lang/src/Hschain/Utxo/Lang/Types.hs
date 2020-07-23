@@ -3,7 +3,6 @@ module Hschain.Utxo.Lang.Types where
 
 import Hex.Common.Aeson
 import Hex.Common.Serialise
-import Hex.Common.Text
 import Control.DeepSeq (NFData)
 import Control.Monad
 
@@ -19,15 +18,12 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
+import HSChain.Crypto.Classes (encodeBase58)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
-import Hschain.Utxo.Lang.Parser.Hask
-
-import qualified Crypto.Hash as C
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Hschain.Utxo.Lang.Utils.Hash
 
 -- | User identifier.
 newtype UserId = UserId { unUserId :: Text }
@@ -109,30 +105,12 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 --------------------------------------------
 
--- | Parses script from text.
-parseScript :: Text -> Either Text (Expr Bool)
-parseScript txt =
-  case parseExp (Just "<parseSrcipt>") $ T.unpack txt of
-    ParseOk expr        -> Right $ Expr expr
-    ParseFailed loc msg -> Left $ mconcat ["Parse failed at ", showt loc, " with ", T.pack msg]
-
--- | Convert script to boolean expression.
-fromScript :: Script -> Either Text (Expr Bool)
-fromScript (Script txt) = parseScript txt
-
--- | Convert boolean expression to script.
-toScript :: Expr SigmaBool -> Script
-toScript (Expr expr) = Script $ T.pack $ prettyExp expr
-
 -- | Claculate the hash of the script.
-hashScript ::  C.HashAlgorithm a => a -> Script -> Text
-hashScript algo = hash . unScript
-  where
-    hash :: Text -> Text
-    hash txt = showt $ C.hashWith algo $ T.encodeUtf8 txt
+hashScript :: Script -> ByteString
+hashScript = getSha256 . unScript
 
 scriptToText :: Script -> Text
-scriptToText = unScript
+scriptToText = encodeBase58 . unScript
 
 --------------------------------------------
 -- JSON instnaces

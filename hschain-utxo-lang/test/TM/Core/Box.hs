@@ -62,7 +62,7 @@ tests :: TestTree
 tests = testGroup "core-boxes"
     [ testProg "get height"         [PrimInt blockChainHeight] progGetHeight
     , testProg "get self id"        [PrimText "box-2"] progGetSelfId
-    , testProg "get self script"    [PrimText "in2"]   progGetSelfScript
+    , testProg "get self script"    [PrimBytes "in2"]  progGetSelfScript
     , testProg "get tx arg"         [PrimInt 2]        progGetTxArg
     , testProg "get input id"       [PrimText "box-1"] progGetInputId
     , testProg "get output id"      [PrimText "box-3"] progGetOutputId

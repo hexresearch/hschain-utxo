@@ -23,7 +23,7 @@ evalToSigma :: TxArg -> Either Error BoolExprResult
 evalToSigma tx@TxArg{..} = fmap joinSigma $ mapM (evalBox tx) txArg'inputs
 
 evalBox  :: TxArg -> Box -> Either Error (Sigma PublicKey)
-evalBox tx box@Box{..} = case coreProgFromText $ unScript box'script of
+evalBox tx box@Box{..} = case coreProgFromScript box'script of
   Just prog -> execScriptToSigma (getScriptEnv tx box) prog
   Nothing   -> Left $ ExecError FailedToDecodeScript
 

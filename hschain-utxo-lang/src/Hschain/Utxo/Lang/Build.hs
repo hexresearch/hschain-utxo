@@ -25,7 +25,6 @@ module Hschain.Utxo.Lang.Build(
   , lam
   , lam2
   , app
-  , toScriptBytes
   , concatText
   , lengthText
   , showInt
@@ -50,7 +49,6 @@ import qualified Data.Vector as V
 
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
-import Hschain.Utxo.Lang.Types (toScript)
 
 import Hschain.Utxo.Lang.Expr
 
@@ -199,12 +197,6 @@ getBoolVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BoolArg
 
 getTextVars :: Expr (Vector Text)
 getTextVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc TextArg
-
-toScriptBytes :: Expr SigmaBool -> Expr Script
-toScriptBytes expr = unsafeCoerceExpr $ text $ unScript $ toScript expr
-
-unsafeCoerceExpr :: Expr a -> Expr b
-unsafeCoerceExpr (Expr a) = Expr a
 
 getInputs :: Expr (Vector Box)
 getInputs = Expr $ Fix $ GetEnv noLoc (Inputs noLoc)

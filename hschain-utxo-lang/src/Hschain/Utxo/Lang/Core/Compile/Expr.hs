@@ -7,13 +7,11 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , ExprCore(..)
   , CaseAlt(..)
   , CompiledScomb(..)
-  , coreProgToText
-  , coreProgFromText
+  , coreProgToScript
+  , coreProgFromScript
   , coreProgToHumanText
   , coreProgFromHumanText
 ) where
-
-import Hex.Common.Serialise
 
 import Codec.Serialise
 
@@ -25,17 +23,21 @@ import GHC.Generics
 import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
+import Hschain.Utxo.Lang.Expr (Script(..))
+
+import qualified Data.ByteString.Lazy as LB
+
 -- | core program is a sequence of supercombinator definitions
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
   deriving newtype (Generic, Semigroup, Monoid, Show)
 
-coreProgToText :: CoreProg -> Text
-coreProgToText = serialiseToText
+coreProgToScript :: CoreProg -> Script
+coreProgToScript = Script . LB.toStrict . serialise
 
-coreProgFromText :: Text -> Maybe CoreProg
-coreProgFromText = serialiseFromText
+coreProgFromScript :: Script -> Maybe CoreProg
+coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
 
 -- | TODO: it would be useful for testing to
 -- have human readable versions of to/from script functions

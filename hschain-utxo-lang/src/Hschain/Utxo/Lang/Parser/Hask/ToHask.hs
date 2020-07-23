@@ -141,7 +141,7 @@ toHaskExp (Fix expr) = case expr of
     fromPrimBox loc Box{..} = H.RecConstr loc (qname "Box")
       [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
       , field "box'value"  $ prim $ PrimInt  $ box'value
-      , field "box'script" $ prim $ PrimString $ unScript box'script
+      , field "box'script" $ prim $ PrimString $ encodeBase58 $ unScript box'script
       , field "box'args"   $ args
       ]
       where

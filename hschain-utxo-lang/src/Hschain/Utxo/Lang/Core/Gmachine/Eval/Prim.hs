@@ -30,8 +30,7 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 import Hschain.Utxo.Lang.Core.Data.Prim
-import HSChain.Crypto     (Hash(..), hashBlob)
-import HSChain.Crypto.SHA (SHA256)
+import Hschain.Utxo.Lang.Utils.Hash
 import qualified Data.Text as T
 
 -- generic functions
@@ -105,8 +104,6 @@ hashBlake = primOp1 popText putText getBlakeHash
 
 hashSha :: Exec ()
 hashSha = primOp1 popBS putBS getSha256
-  where
-    getSha256 bs = let Hash h = hashBlob @SHA256 bs in h
 
 showInt :: Exec ()
 showInt = primOp1 popText putText showt

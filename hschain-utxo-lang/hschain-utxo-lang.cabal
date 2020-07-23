@@ -93,6 +93,7 @@ library
       Hschain.Utxo.Lang.Sigma.Protocol
       Hschain.Utxo.Lang.Sigma.Types
       Hschain.Utxo.Lang.Types
+      Hschain.Utxo.Lang.Utils.Hash
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5

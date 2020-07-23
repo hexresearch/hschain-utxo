@@ -16,7 +16,7 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, coreProgToText)
+import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, coreProgToScript)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 
@@ -25,7 +25,7 @@ import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
 toCoreScript :: Module -> Either Error Script
-toCoreScript m = fmap (Script . coreProgToText) $ runInferM $ compile m
+toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m CoreProg

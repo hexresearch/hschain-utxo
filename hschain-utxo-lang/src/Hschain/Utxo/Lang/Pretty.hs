@@ -53,9 +53,7 @@ instance Pretty BoxId where
   pretty (BoxId txt) = pretty txt
 
 instance Pretty Script where
-  pretty = either err pretty . fromScript
-    where
-      err = pretty . mappend "Failed to parse script: "
+  pretty = pretty . scriptToText
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"

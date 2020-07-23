@@ -7,9 +7,7 @@
 -- For now it is done with simple algorithm of substitution of
 -- values (application of lambda abstractions and substitution of subexpressions).
 module Hschain.Utxo.Lang.Exec(
-    exec
-  , execLang
-  , execToSigma
+    execLang
   , evalModule
   , runExec
   , Error(..)
@@ -26,7 +24,6 @@ import Control.Monad.Extra (firstJustM)
 
 import Crypto.Hash
 
-import Data.Boolean
 import Data.Fix
 import Data.Int
 import Data.Map.Strict (Map)
@@ -38,11 +35,9 @@ import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
-import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText, eliminateSigmaBool)
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -120,9 +115,6 @@ runExec (ExecCtx binds) args height inputs outputs (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
     emptyCtx = Ctx binds args height inputs outputs mempty 0
-
-applyBase :: Expr a -> Expr a
-applyBase (Expr a) = Expr $ importBase a
 
 -- | Performs execution of expression.
 execLang :: Lang -> Exec Lang
@@ -514,7 +506,7 @@ execLang (Fix topExpr) = case topExpr of
     getBoxField loc Box{..} field = case field of
       BoxFieldId         -> prim loc $ PrimString $ unBoxId box'id
       BoxFieldValue      -> prim loc $ PrimInt $ box'value
-      BoxFieldScript     -> prim loc $ PrimString $ unScript $ box'script
+      BoxFieldScript     -> prim loc $ PrimBytes $ unScript $ box'script
       BoxFieldArgList ty -> return $ case ty of
         IntArg   -> toArgField loc PrimInt    $ args'ints box'args
         TextArg  -> toArgField loc PrimString $ args'texts box'args
@@ -631,25 +623,6 @@ data NumOp2 = NumOp2
   { numOp2'int    :: Mono2 Int64
   }
 
-getInputExpr :: TxArg -> Expr Bool
-getInputExpr tx@TxArg{..}
-  | V.null inputs = onEmptyInputs
-  | otherwise     = V.foldl1' (&&*) inputs
-  where
-    inputs = V.zipWith substSelfIndex (V.fromList [0..]) $ fmap (either (const false) applyBase . fromScript . box'script) txArg'inputs
-
-    onEmptyInputs
-      | isStartEpoch tx = true
-      | otherwise       = false
-
-substSelfIndex :: Int -> Expr a -> Expr a
-substSelfIndex selfId (Expr x) = Expr $ cata phi x
-  where
-    phi = \case
-      GetEnv loc idx -> Fix $ GetEnv loc $ case idx of
-        Self src -> Input src $ Fix $ PrimE src $ PrimInt $ fromIntegral selfId
-        _        -> idx
-      other  -> Fix other
 
 getPrim :: Lang -> Maybe (Loc, Prim)
 getPrim (Fix a) = case a of
@@ -679,7 +652,6 @@ traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
 traceFun name f x =
   let res = f x
   in  trace (mconcat ["\n\nTRACE: " , name, "(", show x, ") = ", show res]) (f x)
--}
 
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
@@ -712,4 +684,30 @@ execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
         Left err                                  -> (Left (showt err), showt err)
 
     noSigmaExpr = "Error: Script does not evaluate to sigma expression"
+
+getInputExpr :: TxArg -> Expr Bool
+getInputExpr tx@TxArg{..}
+  | V.null inputs = onEmptyInputs
+  | otherwise     = V.foldl1' (&&*) inputs
+  where
+    inputs = V.zipWith substSelfIndex (V.fromList [0..]) $ fmap (either (const false) applyBase . fromScript . box'script) txArg'inputs
+
+    onEmptyInputs
+      | isStartEpoch tx = true
+      | otherwise       = false
+
+
+applyBase :: Expr a -> Expr a
+applyBase (Expr a) = Expr $ importBase a
+
+substSelfIndex :: Int -> Expr a -> Expr a
+substSelfIndex selfId (Expr x) = Expr $ cata phi x
+  where
+    phi = \case
+      GetEnv loc idx -> Fix $ GetEnv loc $ case idx of
+        Self src -> Input src $ Fix $ PrimE src $ PrimInt $ fromIntegral selfId
+        _        -> idx
+      other  -> Fix other
+
+-}
 
