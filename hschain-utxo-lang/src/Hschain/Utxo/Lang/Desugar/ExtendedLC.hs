@@ -198,11 +198,11 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromVecExpr _ expr = pure $ case expr of
       NewVec loc args     -> newVec loc args
-      VecAppend loc a b   -> ap2 loc (var loc "++") a b
-      VecAt loc a b       -> ap2 loc (var loc "listAt") a b
-      VecLength loc       -> var loc "length"
-      VecMap loc          -> var loc "map"
-      VecFold loc         -> var loc "foldl"
+      VecAppend loc a b   -> ap2 loc (var loc Const.appendList) a b
+      VecAt loc a b       -> ap2 loc (var loc Const.listAt) a b
+      VecLength loc       -> var loc Const.length
+      VecMap loc          -> var loc Const.map
+      VecFold loc         -> var loc Const.foldl
       where
         newVec loc args = V.foldr (cons loc) (nil loc) args
 

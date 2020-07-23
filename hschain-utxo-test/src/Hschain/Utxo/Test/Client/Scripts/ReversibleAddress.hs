@@ -18,10 +18,10 @@ bobPubKeyId :: Expr Int
 bobPubKeyId = int 0
 
 getBobDeadline :: Expr Box -> Expr Int
-getBobDeadline box = vecAt (getBoxIntArgList box) bobDeadlineId
+getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineId
 
 getBobPubKey :: Expr Box -> Expr Text
-getBobPubKey box = vecAt (getBoxTextArgList box) bobPubKeyId
+getBobPubKey box = listAt (getBoxTextArgList box) bobPubKeyId
 
 withdrawScript :: Expr Text -> Expr SigmaBool
 withdrawScript carol =

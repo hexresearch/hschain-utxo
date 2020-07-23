@@ -24,6 +24,8 @@ import qualified Language.HM as H
 
 import qualified Data.Map as M
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
 infixr 6 ~>
 
 baseModuleCtx :: ModuleCtx
@@ -160,7 +162,7 @@ baseNames =
   , "toSigma"
   , "sigmaAnd"
   , "sigmaOr"
-  , "!"
+  , Const.listAt
   , "&&"
   , "||"
   , "not"
@@ -240,7 +242,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "map" (forAB $ (aT ~> bT) ~> vectorT aT ~> vectorT bT)
   , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
-  , assumpType "!" (forA $ vectorT aT ~> intT ~> aT)
+  , assumpType Const.listAt (forA $ vectorT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
   , assumpType "<" (forA $ aT ~> aT ~> boolT)
@@ -459,7 +461,7 @@ appendText :: Bind Lang
 appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
 
 atVec :: Bind Lang
-atVec = bind "!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
+atVec = bind Const.listAt (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
 
 fst :: Bind Lang
 fst = bind "fst" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 0) (var' "x"))

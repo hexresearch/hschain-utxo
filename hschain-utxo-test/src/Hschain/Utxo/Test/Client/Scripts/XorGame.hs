@@ -38,19 +38,19 @@ bobDeadlineFieldId = int 1
 bobPkFieldId = int 0
 
 getBobGuess :: Expr Box -> Expr Int
-getBobGuess box = vecAt (getBoxIntArgList box) bobGuessFieldId
+getBobGuess box = listAt (getBoxIntArgList box) bobGuessFieldId
 
 getBobDeadline :: Expr Box -> Expr Int
-getBobDeadline box = vecAt (getBoxIntArgList box) bobDeadlineFieldId
+getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineFieldId
 
 getBobPk :: Expr Box -> Expr Text
-getBobPk box = vecAt (getBoxTextArgList box) bobPkFieldId
+getBobPk box = listAt (getBoxTextArgList box) bobPkFieldId
 
 getS :: Expr Text
-getS = vecAt getTextVars sFieldId
+getS = listAt getTextVars sFieldId
 
 getA :: Expr Int
-getA = vecAt getIntVars aFieldId
+getA = listAt getIntVars aFieldId
 
 sFieldId, aFieldId :: Expr Int
 sFieldId = int 0

@@ -18,7 +18,7 @@ module Hschain.Utxo.Lang.Build(
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
   , getInputs, getOutputs
   , getIntVars, getBoolVars, getTextVars
-  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, vecAt
+  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
   , var
   , def
   , (=:)
@@ -215,8 +215,8 @@ getOutputs = Expr $ Fix $ GetEnv noLoc (Outputs noLoc)
 fromVec :: Vector (Expr a) -> Expr (Vector a)
 fromVec vs = Expr $ Fix $ VecE noLoc $ NewVec noLoc $ fmap (\(Expr a) -> a) vs
 
-vecAt :: Expr (Vector a) -> Expr Int -> Expr a
-vecAt (Expr vector) (Expr index) = Expr $ Fix $ VecE noLoc $ VecAt noLoc vector index
+listAt :: Expr (Vector a) -> Expr Int -> Expr a
+listAt (Expr vector) (Expr index) = Expr $ Fix $ VecE noLoc $ VecAt noLoc vector index
 
 mapVec :: Expr (a -> b) -> Expr (Vector a) -> Expr (Vector b)
 mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecMap noLoc)) f) v

@@ -103,29 +103,29 @@ progGetSelfScript = CoreProg [ mkMain expr ]
 progGetTxArg :: CoreProg
 progGetTxArg = CoreProg [ mkMain expr ]
   where
-    expr = Typed (ap (listAtV intT) [int 1, getIntArgsV]) intT
+    expr = Typed (ap (listAtV intT) [getIntArgsV, int 1]) intT
     getIntArgsV = EVar $ Typed (Const.getArgs "Int")  (listT intT)
 
 progGetInputId :: CoreProg
 progGetInputId = CoreProg [ mkMain expr ]
   where
-    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [int 0, getInputsV]]) textT
+    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [getInputsV, int 0]]) textT
 
 progGetOutputId :: CoreProg
 progGetOutputId = CoreProg [ mkMain expr ]
   where
-    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [int 0, getOutputsV]]) textT
+    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [getOutputsV, int 0]]) textT
 
 progGetOutputLastIntArg :: CoreProg
 progGetOutputLastIntArg = CoreProg [ mkMain expr ]
   where
-    expr = Typed (ap (listAtV intT) [int 1, ap getBoxArgsV [ap (listAtV boxT) [int 0, getOutputsV]]]) intT
+    expr = Typed (ap (listAtV intT) [ap getBoxArgsV [ap (listAtV boxT) [getOutputsV, int 0]], int 1]) intT
     getBoxArgsV = EVar $ Typed (Const.getBoxArgs "Int") (arrowT boxT (listT intT))
 
 progGetInputLastTextArg :: CoreProg
 progGetInputLastTextArg = CoreProg [ mkMain expr ]
   where
-    expr = Typed (ap (listAtV textT) [int 1, ap getBoxArgsV [ap (listAtV boxT) [int 1, getInputsV]]]) textT
+    expr = Typed (ap (listAtV textT) [ap getBoxArgsV [ap (listAtV boxT) [getInputsV, int 1]], int 1]) textT
     getBoxArgsV = EVar $ Typed (Const.getBoxArgs "Text") (arrowT boxT (listT textT))
 
 getInputsV :: ExprCore
@@ -141,7 +141,7 @@ getSelfV :: ExprCore
 getSelfV  = EVar $ Typed "getSelf" boxT
 
 listAtV :: TypeCore -> ExprCore
-listAtV t = EVar $ Typed "listAt" (funT [intT, listT t] t)
+listAtV t = EVar $ Typed Const.listAt (funT [listT t, intT] t)
 
 
 run :: CoreProg -> Either Error [Prim]

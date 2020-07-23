@@ -336,7 +336,7 @@ foldrComb = Scomb
 
 lengthComb :: Scomb
 lengthComb = Scomb
-  { scomb'name = "length"
+  { scomb'name = Const.length
   , scomb'args = V.fromList [Typed "as" (listT aT)]
   , scomb'body = Typed
       (ECase (Typed asv asT)
@@ -356,12 +356,12 @@ lengthComb = Scomb
     asv    = EVar as
     xsv    = EVar xs
 
-    lengthv = EVar $ Typed "length" lengthT
+    lengthv = EVar $ Typed Const.length lengthT
     length' = EAp lengthv
 
 mapComb :: Scomb
 mapComb = Scomb
-  { scomb'name = "map"
+  { scomb'name = Const.map
   , scomb'args = V.fromList [f, as]
   , scomb'body = Typed
       (ECase (Typed asv asT)
@@ -379,7 +379,7 @@ mapComb = Scomb
     fv     = EVar f
     asv    = EVar as
 
-    mapv   = EVar $ Typed "map" mapT
+    mapv   = EVar $ Typed Const.map mapT
     xv     = EVar x
     xsv    = EVar xs
 
@@ -395,13 +395,13 @@ mapComb = Scomb
 
 listAtComb :: Scomb
 listAtComb = Scomb
-  { scomb'name = "listAt"
-  , scomb'args = V.fromList [n, as]
+  { scomb'name = Const.listAt
+  , scomb'args = V.fromList [as, n]
   , scomb'body = Typed
 
       (ECase (Typed asv asT)
         [ CaseAlt 0 [] (EBottom )
-        , CaseAlt 1 [x, xs] (EIf (lessThanEquals intT nv zero) xv (ap listAtv [sub nv one, xsv]))
+        , CaseAlt 1 [x, xs] (EIf (lessThanEquals intT nv zero) xv (ap listAtv [xsv, sub nv one]))
         ])
       aT
   }
@@ -414,18 +414,18 @@ listAtComb = Scomb
     nv     = EVar n
     asv    = EVar as
 
-    listAtv = EVar $ Typed "listAt" listAtT
+    listAtv = EVar $ Typed Const.listAt listAtT
     xv     = EVar x
     xsv    = EVar xs
 
-    listAtT = funT [intT, asT] aT
+    listAtT = funT [asT, intT] aT
 
     asT = listT aT
     aT = varT "a"
 
 listAppendComb :: Scomb
 listAppendComb = Scomb
-  { scomb'name = "++"
+  { scomb'name = Const.appendList
   , scomb'args = V.fromList [as, bs]
   , scomb'body = Typed
       (ECase (Typed asv asT)
@@ -443,7 +443,7 @@ listAppendComb = Scomb
     asv    = EVar as
     bsv    = EVar bs
 
-    listAppendv   = EVar $ Typed "++" listAppendT
+    listAppendv   = EVar $ Typed Const.appendList listAppendT
     xv     = EVar x
     xsv    = EVar xs
 
@@ -456,7 +456,7 @@ listAppendComb = Scomb
 
 filterComb :: Scomb
 filterComb = Scomb
-  { scomb'name = "filter"
+  { scomb'name = Const.filter
   , scomb'args = V.fromList [f, as]
   , scomb'body = Typed
       (ECase (Typed asv asT)
@@ -480,7 +480,7 @@ filterComb = Scomb
     fv     = EVar f
     asv    = EVar as
 
-    filterv   = EVar $ Typed "filter" filterT
+    filterv   = EVar $ Typed Const.filter filterT
     xv     = EVar x
     xsv    = EVar xs
     ysv    = EVar ys
@@ -495,7 +495,7 @@ filterComb = Scomb
 
 foldlComb :: Scomb
 foldlComb = Scomb
-  { scomb'name = "foldl"
+  { scomb'name = Const.foldl
   , scomb'args = V.fromList [f, z, as]
   , scomb'body = Typed
       (ECase (Typed asv asT)
@@ -510,7 +510,7 @@ foldlComb = Scomb
     as = Typed "as" asT
     x  = Typed "x"  aT
     xs = Typed "xs" asT
-    foldlName = Typed "foldl" foldlT
+    foldlName = Typed Const.foldl foldlT
 
     fv  = EVar f
     zv  = EVar z

@@ -185,7 +185,7 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
       , box'args   = intArgs [height]
       }
 
-    getSpendHeight = vecAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
+    getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
 
     -- receiver can get money only hieght is greater than specified limit
     receiverScript =
