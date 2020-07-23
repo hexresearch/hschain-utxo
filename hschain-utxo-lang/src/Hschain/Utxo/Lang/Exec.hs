@@ -26,12 +26,10 @@ import Control.Monad.Extra (firstJustM)
 
 import Crypto.Hash
 
-import Data.Aeson
 import Data.Boolean
 import Data.Fix
 import Data.Int
 import Data.Map.Strict (Map)
-import Data.Monoid hiding (Alt)
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -653,16 +651,6 @@ substSelfIndex selfId (Expr x) = Expr $ cata phi x
         _        -> idx
       other  -> Fix other
 
-isStartEpoch :: TxArg -> Bool
-isStartEpoch TxArg{..} = env'height txArg'env == 0
-
-txPreservesValue :: TxArg -> Bool
-txPreservesValue tx@TxArg{..}
-  | isStartEpoch tx = True
-  | otherwise       = toSum txArg'inputs == toSum txArg'outputs
-  where
-    toSum xs = getSum $ foldMap (Sum . box'value) xs
-
 getPrim :: Lang -> Maybe (Loc, Prim)
 getPrim (Fix a) = case a of
   PrimE loc p -> Just (loc, p)
@@ -708,22 +696,6 @@ exec ctx tx
     (res, debug) = execToSigma ctx tx
     mProof = txArg'proof tx
 
--- | Result of the script can be boolean constant or sigma-expression
--- that user have to prove.
-data BoolExprResult
-  = ConstBool Bool
-  | SigmaResult (Sigma PublicKey)
-  deriving (Show, Eq)
-
-instance ToJSON BoolExprResult where
-  toJSON = \case
-    ConstBool b -> object ["bool"  .= b]
-    SigmaResult s -> object ["sigma" .= s]
-
-instance FromJSON BoolExprResult where
-  parseJSON = withObject "BoolExprResult" $ \obj ->
-        (ConstBool <$> obj .: "bool")
-    <|> (SigmaResult <$> obj .: "sigma")
 
 
 -- | Executes expression to sigma-expression

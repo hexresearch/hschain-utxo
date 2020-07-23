@@ -20,6 +20,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , toHspec
   , initMasterBox
   , initGenesis
+  , mainScriptUnsafe
 ) where
 
 import Hex.Common.Text
@@ -38,7 +39,7 @@ import Test.Hspec
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build (pk')
+import Hschain.Utxo.Lang.Build (pk', mainExprModule)
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Config
 
@@ -175,7 +176,7 @@ initGenesis secret = [tx]
     box = Box
       { box'id     = initMasterBox
       , box'value  = initMoney
-      , box'script = toScript $ pk' publicKey
+      , box'script = mainScriptUnsafe $ pk' publicKey
       , box'args   = mempty
       }
 
@@ -193,4 +194,8 @@ initGenesis secret = [tx]
 initMasterBox :: BoxId
 initMasterBox = BoxId "master:box-0"
 
+-- | Creates module  out of single main expression and ignores the errors of compilation.
+mainScriptUnsafe :: Expr SigmaBool -> Script
+mainScriptUnsafe expr =
+  either (error . T.unpack . renderText) id $ toCoreScript $ mainExprModule expr
 

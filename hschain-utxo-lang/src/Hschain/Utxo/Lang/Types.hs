@@ -13,6 +13,7 @@ import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
 import Data.Int
+import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -96,6 +97,16 @@ data TxEnv = TxEnv
   , txEnv'args     :: !Args
   }
 
+txPreservesValue :: TxArg -> Bool
+txPreservesValue tx@TxArg{..}
+  | isStartEpoch tx = True
+  | otherwise       = toSum txArg'inputs == toSum txArg'outputs
+  where
+    toSum xs = getSum $ foldMap (Sum . box'value) xs
+
+isStartEpoch :: TxArg -> Bool
+isStartEpoch TxArg{..} = env'height txArg'env == 0
+
 --------------------------------------------
 
 -- | Parses script from text.
@@ -112,12 +123,6 @@ fromScript (Script txt) = parseScript txt
 -- | Convert boolean expression to script.
 toScript :: Expr SigmaBool -> Script
 toScript (Expr expr) = Script $ T.pack $ prettyExp expr
-
-encodeScript :: ExecCtx -> Lang -> Text
-encodeScript = undefined
-
-decodeScript :: Text -> Either Text (ExecCtx, Lang)
-decodeScript = undefined
 
 -- | Claculate the hash of the script.
 hashScript ::  C.HashAlgorithm a => a -> Script -> Text

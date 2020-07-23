@@ -2,7 +2,10 @@
 -- | Functions to construct AST for our language programmatically (not parsed from the code).
 -- They are well-typed with usage of phantom type but under the hood they all use type Lang.
 module Hschain.Utxo.Lang.Build(
-    int
+    simpleModule
+  , mainExprModule
+  , bind
+  , int
   , text
   , pk
   , pk'
@@ -51,6 +54,14 @@ import Hschain.Utxo.Lang.Types (toScript)
 
 import Hschain.Utxo.Lang.Expr
 
+mainExprModule :: Expr SigmaBool -> Module
+mainExprModule expr = simpleModule [bind "main" expr]
+
+simpleModule :: [Bind Lang] -> Module
+simpleModule = Module noLoc mempty
+
+bind :: Text -> Expr a -> Bind Lang
+bind name (Expr expr) = simpleBind (VarName noLoc name) expr
 
 (=:) :: Text -> Expr a -> (Expr a -> Expr b) -> Expr b
 (=:) = def

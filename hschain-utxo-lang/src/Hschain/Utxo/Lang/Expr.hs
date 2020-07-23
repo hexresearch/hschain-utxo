@@ -324,13 +324,7 @@ type TypeContext = H.Context Loc Text
 -- | Context for execution (reduction) of expressions of the language
 newtype ExecCtx = ExecCtx
   { execCtx'vars  :: Map VarName Lang  -- ^ bindings for free variables, outer scope of the execution
-  } deriving newtype (Show, Eq)
-
-instance Semigroup ExecCtx where
-  ExecCtx a1 <> ExecCtx a2 = ExecCtx (a1 <> a2)
-
-instance Monoid ExecCtx where
-  mempty = ExecCtx mempty
+  } deriving newtype (Show, Eq, Semigroup, Monoid)
 
 -- | Type-inference context.
 data InferCtx = InferCtx
@@ -611,6 +605,24 @@ data Prim
   -- ^ Sigma-expressions
   | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Result of the script can be boolean constant or sigma-expression
+-- that user have to prove.
+data BoolExprResult
+  = ConstBool Bool
+  | SigmaResult (Sigma PublicKey)
+  deriving (Show, Eq)
+
+instance ToJSON BoolExprResult where
+  toJSON = \case
+    ConstBool b -> object ["bool"  .= b]
+    SigmaResult s -> object ["sigma" .= s]
+
+instance FromJSON BoolExprResult where
+  parseJSON = withObject "BoolExprResult" $ \obj ->
+        (ConstBool <$> obj .: "bool")
+    <|> (SigmaResult <$> obj .: "sigma")
+
 
 -- | Environment fields. Info that we can query from blockchain state
 data EnvId a

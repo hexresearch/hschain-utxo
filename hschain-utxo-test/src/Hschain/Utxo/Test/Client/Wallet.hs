@@ -153,7 +153,7 @@ toSendTx wallet Send{..} SendBack{..} mProof = do
       | sendBack'totalAmount > send'amount = Just $ Box
                 { box'id     = sendBack'backBox
                 , box'value  = sendBack'totalAmount - send'amount
-                , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+                , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
                 , box'args   = mempty
                 }
       | otherwise                 = Nothing
@@ -161,7 +161,7 @@ toSendTx wallet Send{..} SendBack{..} mProof = do
     receiverUtxo = Box
       { box'id     = send'to
       , box'value  = send'amount
-      , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
+      , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
       , box'args   = mempty
       }
 

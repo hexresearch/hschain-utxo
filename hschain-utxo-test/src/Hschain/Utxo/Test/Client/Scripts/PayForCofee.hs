@@ -169,7 +169,7 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
       | sendDelayed'remain > 0 = Just $ Box
                 { box'id     = sendDelayed'back
                 , box'value  = sendDelayed'remain
-                , box'script = toScript backScript
+                , box'script = mainScriptUnsafe backScript
                 , box'args   = mempty
                 }
       | otherwise                 = Nothing
@@ -181,7 +181,7 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
     receiverUtxo = Box
       { box'id     = sendDelayed'to
       , box'value  = sendDelayed'amount
-      , box'script = toScript $ receiverScript ||* refundScript
+      , box'script = mainScriptUnsafe $ receiverScript ||* refundScript
       , box'args   = intArgs [height]
       }
 
