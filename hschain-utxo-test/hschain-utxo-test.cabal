@@ -46,6 +46,7 @@ library
                      , filepath
                      , hspec
                      , immortal
+                     , serialise
                      , servant
                      , servant-client
                      , mtl

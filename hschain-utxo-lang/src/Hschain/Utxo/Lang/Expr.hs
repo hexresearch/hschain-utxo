@@ -459,6 +459,9 @@ data E a
   -- text
   | TextE Loc (TextExpr a)
   -- ^ Text expression
+  -- Bytes
+  | BytesE Loc (BytesExpr a)
+  -- ^ bytes expression
   -- boxes
   | BoxE Loc (BoxExpr a)
   -- ^ Box-expression
@@ -586,6 +589,15 @@ data TextExpr a
   -- ^ Get textlength (@lengthText a@)
   | TextHash Loc HashAlgo
   -- ^ Get hash-value of the given text (sevral algorithms are supported)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+data BytesExpr a
+  = BytesAppend Loc a a
+  -- ^ append bytes
+  | SerialiseToBytes Loc ArgType a
+  -- ^ serialise primitive types to bytes
+  | DeserialiseFromBytes Loc ArgType a
+  -- ^ deserialise values from bytes
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Hashing algorithm tag
@@ -780,6 +792,8 @@ instance Show a => H.HasLoc (E a) where
     VecE loc _ -> loc
     -- text
     TextE loc _ -> loc
+    -- bytes
+    BytesE loc _ -> loc
     -- boxes
     BoxE loc _ -> loc
     -- debug
@@ -851,6 +865,7 @@ freeVars = cata $ \case
   SigmaE _ sigma   -> fold sigma
   VecE _ vec       -> fold vec
   TextE _ txt      -> fold txt
+  BytesE _ bs      -> fold bs
   BoxE _ box       -> fold box
   Trace _ a b      -> mconcat [a, b]
   AltE _ a b       -> mappend a b
@@ -912,6 +927,7 @@ $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
 $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
+$(deriveShow1 ''BytesExpr)
 $(deriveShow1 ''SigmaExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)

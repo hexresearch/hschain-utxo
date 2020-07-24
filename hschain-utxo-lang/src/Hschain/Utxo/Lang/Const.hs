@@ -20,6 +20,10 @@ module Hschain.Utxo.Lang.Const(
   , foldl
   , length
   , appendList
+  -- * Bytes functions
+  , appendBytes
+  , serialiseBytes
+  , deserialiseBytes
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length)
@@ -71,4 +75,15 @@ foldl  = "foldl"
 length = "length"
 appendList = "++"
 
+-------------------------------------------------------------------
+-- bytes functions
+
+appendBytes :: Text
+appendBytes = "appendBytes"
+
+serialiseBytes :: Text -> Text
+serialiseBytes typeName = "serialise" <> typeName
+
+deserialiseBytes :: Text -> Text
+deserialiseBytes typeName = "deserialise" <> typeName
 

@@ -31,7 +31,6 @@ module Hschain.Utxo.Lang.Build(
   , showInt
   , showScript
   , sha256
-  , blake2b256
   , trace
   , pair
   , pairAt1
@@ -237,6 +236,7 @@ type instance BooleanOf (Expr Bool) = Expr Bool
 type instance BooleanOf (Expr Int) = Expr Bool
 type instance BooleanOf (Expr Text) = Expr Bool
 type instance BooleanOf (Expr Script) = Expr Bool
+type instance BooleanOf (Expr ByteString) = Expr Bool
 type instance BooleanOf (Expr (a, b)) = Expr Bool
 type instance BooleanOf (Expr (a, b, c)) = Expr Bool
 
@@ -247,6 +247,9 @@ instance IfB (Expr Bool) where
   ifB = ifExpr
 
 instance IfB (Expr Text) where
+  ifB = ifExpr
+
+instance IfB (Expr ByteString) where
   ifB = ifExpr
 
 instance IfB (Expr Script) where
@@ -286,6 +289,10 @@ instance EqB (Expr Text) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
+instance EqB (Expr ByteString) where
+  (==*) = op2 (BinOpE noLoc Equals)
+  (/=*) = op2 (BinOpE noLoc NotEquals)
+
 instance EqB (Expr Script) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
@@ -298,11 +305,17 @@ instance OrdB (Expr Int) where
 instance OrdB (Expr Text) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
+instance OrdB (Expr ByteString) where
+  (<*) = op2 (BinOpE noLoc LessThan)
+
 --------------------------
 -- text
 
 concatText :: Expr Text -> Expr Text -> Expr Text
 concatText (Expr a) (Expr b) = Expr $ Fix $ TextE noLoc $ TextAppend noLoc a b
+
+concatBytes :: Expr ByteString -> Expr ByteString -> Expr ByteString
+concatBytes (Expr a) (Expr b) = Expr $ Fix $ BytesE noLoc $ BytesAppend noLoc a b
 
 lengthText :: Expr Text -> Expr Int
 lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
@@ -316,14 +329,14 @@ showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText
 sha256 :: Expr ByteString -> Expr ByteString
 sha256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) a
 
-blake2b256 :: Expr Text -> Expr Text
-blake2b256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Blake2b256) a
-
 -------------------------------
 -- monoids
 
 instance Semigroup (Expr Text) where
   (<>) = concatText
+
+instance Semigroup (Expr ByteString) where
+  (<>) = concatBytes
 
 instance Monoid (Expr Text) where
   mempty = ""

@@ -71,6 +71,7 @@ exprToExtendedLC typeCtx = cataM $ \case
   SigmaE loc e            -> fromSigma loc e
   VecE loc e              -> fromVecExpr loc e
   TextE loc e             -> fromTextExpr loc e
+  BytesE loc e            -> fromBytesExpr loc e
   BoxE loc e              -> fromBoxExpr loc e
   Trace loc a b           -> fromTrace loc a b
   Ascr loc e t            -> fromAscr loc e t
@@ -226,6 +227,11 @@ exprToExtendedLC typeCtx = cataM $ \case
         fromHashAlgo = \case
           Sha256       -> "sha256"
           Blake2b256   -> "blake2b256"
+
+    fromBytesExpr _ expr = pure $ case expr of
+      BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
+      SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
+      DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
 
     fromBoxExpr _ expr = pure $ case expr of
       PrimBox loc box     -> fromPrimBox loc box

@@ -17,6 +17,8 @@ module Hschain.Utxo.Lang.Exec(
 import Hex.Common.Control
 import Hex.Common.Text
 
+import Codec.Serialise
+
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.State.Strict
@@ -24,6 +26,7 @@ import Control.Monad.Extra (firstJustM)
 
 import Crypto.Hash
 
+import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Int
 import Data.Map.Strict (Map)
@@ -39,6 +42,7 @@ import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
 import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText)
 
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -146,6 +150,7 @@ execLang (Fix topExpr) = case topExpr of
     SigmaE loc sigma -> fromSigma loc sigma
     VecE loc vec -> fromVec loc vec
     TextE loc txt -> fromText loc txt
+    BytesE loc bs -> fromBytes loc bs
     Trace loc str a -> fromTrace loc str a
     AltE loc a b -> rec a <|> rec b <|>  (throwError $ ExecError $ Undefined loc)
     FailCase loc -> throwError $ ExecError $ Undefined loc
@@ -567,6 +572,34 @@ execLang (Fix topExpr) = case topExpr of
         where
           returnText = return . Fix . TextE loc
 
+    fromBytes loc x = do
+      x' <- mapM rec x
+      case x' of
+        BytesAppend _ a b -> do
+          a' <- rec a
+          b' <- rec b
+          return $ Fix $ case (a', b') of
+            (Fix (PrimE _ (PrimBytes t1)), Fix (PrimE _ (PrimBytes t2))) -> PrimE loc $ PrimBytes $ mappend t1 t2
+            _                                                            -> BytesE loc $ BytesAppend loc a' b'
+        SerialiseToBytes src typeTag a -> fromSerialiseToBytes src typeTag a
+        DeserialiseFromBytes src typeTag a -> fromDeserialiseFromBytes src typeTag a
+
+    fromSerialiseToBytes src typeTag a =
+      case typeTag of
+        IntArg   -> serialiseBy getPrimIntOrFail
+        TextArg  -> serialiseBy getPrimTextOrFail
+        BoolArg  -> serialiseBy getPrimBoolOrFail
+        BytesArg -> serialiseBy getPrimBytesOrFail
+      where
+        serialiseBy :: Serialise a => (Lang -> Exec a) -> Exec Lang
+        serialiseBy getter = do
+          n <- getter =<< rec a
+          return $ Fix $ PrimE src $ PrimBytes $ LB.toStrict $ serialise n
+
+
+    fromDeserialiseFromBytes _loc _typeTag _a = undefined
+
+
     textSize (Fix x) = case x of
       PrimE _ (PrimString txt) -> Just $ T.length txt
       _                          -> Nothing
@@ -639,13 +672,42 @@ getPrimBool = \case
   PrimBool b -> Just b
   _          -> Nothing
 
+getPrimInt :: Prim -> Maybe Int64
+getPrimInt = \case
+  PrimInt b -> Just b
+  _         -> Nothing
+
+getPrimText :: Prim -> Maybe Text
+getPrimText = \case
+  PrimString b -> Just b
+  _            -> Nothing
+
+getPrimBytes :: Prim -> Maybe ByteString
+getPrimBytes = \case
+  PrimBytes b -> Just b
+  _           -> Nothing
+
 getPrimSigmaOrFail :: Lang -> Exec (Sigma PublicKey)
 getPrimSigmaOrFail x = maybe (thisShouldNotHappen x) pure $
   getPrim x >>= (\(_, p) -> getPrimSigma p)
 
+getPrimOrFailBy :: (Prim -> Maybe a) -> Lang -> Exec a
+getPrimOrFailBy getter x = maybe (thisShouldNotHappen x) pure $
+  getPrim x >>= (\(_, p) -> getter p)
+
 getPrimBoolOrFail :: Lang -> Exec Bool
-getPrimBoolOrFail x = maybe (thisShouldNotHappen x) pure $
-  getPrim x >>= (\(_, p) -> getPrimBool p)
+getPrimBoolOrFail = getPrimOrFailBy getPrimBool
+
+getPrimTextOrFail :: Lang -> Exec Text
+getPrimTextOrFail = getPrimOrFailBy getPrimText
+
+getPrimIntOrFail :: Lang -> Exec Int64
+getPrimIntOrFail = getPrimOrFailBy getPrimInt
+
+getPrimBytesOrFail :: Lang -> Exec ByteString
+getPrimBytesOrFail = getPrimOrFailBy getPrimBytes
+
+
 
 {- for debug
 traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b

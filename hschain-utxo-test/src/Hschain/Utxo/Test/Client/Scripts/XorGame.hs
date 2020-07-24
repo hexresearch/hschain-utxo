@@ -4,6 +4,8 @@ module Hschain.Utxo.Test.Client.Scripts.XorGame where
 import Prelude hiding ((<*))
 import Hex.Common.Text
 
+import Codec.Serialise
+
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Timeout
@@ -13,12 +15,14 @@ import Data.Int
 import Data.Maybe
 import Data.String
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import System.Random
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
+import Hschain.Utxo.Lang.Utils.Hash
 
 import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle, getTxSigma)
 import Hschain.Utxo.Test.Client.Wallet
@@ -27,6 +31,9 @@ import Hschain.Utxo.Test.Client.Scripts.Utils
 import qualified Hschain.Utxo.Test.Client.Monad as M
 
 import qualified Crypto.Hash as C
+
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
@@ -47,8 +54,8 @@ getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineFieldId
 getBobPk :: Expr Box -> Expr Text
 getBobPk box = listAt (getBoxTextArgList box) bobPkFieldId
 
-getS :: Expr Text
-getS = listAt getTextVars sFieldId
+getS :: Expr ByteString
+getS = listAt getBytesVars sFieldId
 
 getA :: Expr Int
 getA = listAt getIntVars aFieldId
@@ -70,18 +77,24 @@ halfGameScript fullGameScriptHash =
   &&* (bobDeadline >=* getHeight + 30)
   &&* (getBoxValue out >=* 2 * getBoxValue getSelf )
 
-fullGameScript :: Expr Text -> Expr Text -> Expr SigmaBool
+fullGameScript :: Expr ByteString -> Expr Text -> Expr SigmaBool
 fullGameScript k alice =
-  "s"              =: getS                               $ \(s :: Expr Text) ->
+  "s"              =: getS                               $ \(s :: Expr ByteString) ->
   "a"              =: getA                               $ \(a :: Expr Int) ->
   "b"              =: getBobGuess getSelf                $ \(b :: Expr Int) ->
   "bob"            =: getBobPk getSelf                   $ \bob ->
   "bobDeadline"    =: getBobDeadline getSelf             $ \bobDeadline ->
       (pk bob &&* (toSigma $ getHeight >* bobDeadline))
-  ||* (toSigma (blake2b256 (s <> showInt a) ==* k))
+  ||* (toSigma (sha256 (s <> serialiseInt a) ==* k))
         &&* (     pk alice &&* (toSigma (a ==* b))
               ||* pk bob   &&* (toSigma (a /=* b )))
 
+
+serialiseInt :: Expr Int -> Expr ByteString
+serialiseInt = undefined
+
+getBytesVars :: Expr (Vector ByteString)
+getBytesVars = undefined
 
 data Game = Game
   { game'guess   :: !Guess
@@ -130,8 +143,8 @@ xorGameRound Scene{..} game@Game{..} = do
   where
     getAliceScript guess wallet@Wallet{..} box = do
       (k, s) <- makeAliceSecret guess
-      let fullScriptHash = hashScript $ mainScriptUnsafe $ fullGameScript (text k) (text $ publicKeyToText $ getWalletPublicKey wallet)
-          aliceScript = halfGameScript $ text $ fullScriptHash
+      let fullScriptHash = hashScript $ mainScriptUnsafe $ fullGameScript (bytes k) (text $ publicKeyToText $ getWalletPublicKey wallet)
+          aliceScript = halfGameScript $ bytes $ fullScriptHash
       backAddr <- allocAddress wallet
       gameAddr <- allocAddress wallet
       preTx <- makeAliceTx game'amount aliceScript wallet box backAddr gameAddr Nothing
@@ -153,7 +166,7 @@ xorGameRound Scene{..} game@Game{..} = do
 
     makeAliceSecret guess = liftIO $ do
       s <- fmap fromString $ sequence $ replicate 64 randomIO
-      let k = blake256 $ s <> showt guess
+      let k = getSha256 $ s <> (LB.toStrict $ serialise guess)
       return (k, s)
 
     makeAliceTx amount script wallet inBox backAddr gameAddr mProof = do
@@ -219,7 +232,7 @@ xorGameRound Scene{..} game@Game{..} = do
               | otherwise           = Just $ Box
                   { box'id      = gameAddr
                   , box'value   = 2 * game'amount
-                  , box'script  =  mainScriptUnsafe $ fullGameScript (text alicePublicHash) (text alicePubKey)
+                  , box'script  =  mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (text alicePubKey)
                   , box'args    = makeArgs height
                   }
 
@@ -250,7 +263,7 @@ xorGameRound Scene{..} game@Game{..} = do
             , tx'args    = args
             }) $ getOwnerProofUnsafe wallet
       where
-        args = textArgs [aliceSecret] <> intArgs [aliceGuess]
+        args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
 
         outBox = Box
           { box'id      = winAddr
@@ -261,8 +274,6 @@ xorGameRound Scene{..} game@Game{..} = do
 
     blake256 :: Text -> Text
     blake256 txt = showt $ C.hashWith C.Blake2b_256 $ T.encodeUtf8 txt
-
-    scriptSha256 = hashScript
 
 postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
 postTxDebug isSuccess msg tx = do
