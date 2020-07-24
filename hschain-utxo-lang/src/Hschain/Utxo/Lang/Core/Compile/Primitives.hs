@@ -15,7 +15,7 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Hschain.Utxo.Lang.Expr (Box(..), BoxId(..), Script(..), Args(..), ArgType(..), argTypeName)
+import Hschain.Utxo.Lang.Expr (Box(..), BoxId(..), Script(..), Args(..), ArgType(..), argTypeName, argTypes)
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
@@ -124,6 +124,7 @@ primitives =
   ]
   ++ (comparePack =<< [intT, boolT, textT])
   ++ getBoxArgs
+  ++ byteCombs
 
 ------------------------------------------------------------
 -- generic utilities
@@ -272,6 +273,24 @@ getArgs Args{..} =
   ]
   where
     argComb cons ty tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
+
+------------------------------------------------------------
+-- bytes
+
+byteCombs :: [Scomb]
+byteCombs = appendByteComb : sha256 : (fmap toBytes argTypes ++ fmap fromBytes argTypes)
+
+appendByteComb :: Scomb
+appendByteComb = op2 Const.appendBytes (bytesT, bytesT) bytesT
+
+sha256 :: Scomb
+sha256 = op1 Const.sha256 bytesT bytesT
+
+toBytes :: ArgType -> Scomb
+toBytes tag = op1 (Const.serialiseBytes $ argTypeName tag) (fromArgType tag) bytesT
+
+fromBytes :: ArgType -> Scomb
+fromBytes tag = op1 (Const.deserialiseBytes $ argTypeName tag) bytesT (fromArgType tag)
 
 ------------------------------------------------------------
 -- lists
@@ -672,6 +691,7 @@ builtInDiadic = M.fromList $
   , ("&&&", SigAnd)
   , ("|||", SigOr)
   , ("<>", TextAppend)
+  , (Const.appendBytes, BytesAppend)
   ] ++ (compareNames =<< [intT, boolT, textT, bytesT])
   where
     compareNames ty =
@@ -684,7 +704,7 @@ builtInDiadic = M.fromList $
       ]
 
 builtInUnary :: Map Name Instr
-builtInUnary = M.fromList
+builtInUnary = M.fromList $
   [ ("negate", Neg)
   , ("not", Not)
   , ("pk", SigPk)
@@ -692,5 +712,7 @@ builtInUnary = M.fromList
   , ("lengthText", TextLength)
   , ("hashBlake", HashBlake)
   , ("hashSha", HashSha)
-  ]
+  , (Const.sha256, Sha256)]
+  ++ (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)
+  ++ (fmap (\tag -> (Const.deserialiseBytes $ argTypeName tag, FromBytes tag)) argTypes)
 

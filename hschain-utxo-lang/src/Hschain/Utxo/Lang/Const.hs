@@ -24,6 +24,7 @@ module Hschain.Utxo.Lang.Const(
   , appendBytes
   , serialiseBytes
   , deserialiseBytes
+  , sha256
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length)
@@ -86,4 +87,7 @@ serialiseBytes typeName = "serialise" <> typeName
 
 deserialiseBytes :: Text -> Text
 deserialiseBytes typeName = "deserialise" <> typeName
+
+sha256 :: Text
+sha256 = "sha256"
 

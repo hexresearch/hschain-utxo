@@ -82,6 +82,11 @@ dispatch = \case
   HashSha      -> hashSha
   ShowInt      -> showInt
   ShowBool     -> showBool
+  -- bytes
+  BytesAppend  -> binBytesOp mappend
+  ToBytes tag  -> serialiseToBytes tag
+  FromBytes tag -> deserialiseFromBytes tag
+  Sha256       -> hashSha
   -- sigma expressions
   SigAnd       -> binSigmaOp (\a b -> Fix $ SigmaAnd [a, b])
   SigOr        -> binSigmaOp (\a b -> Fix $ SigmaOr  [a, b])

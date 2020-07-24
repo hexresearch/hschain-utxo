@@ -23,7 +23,7 @@ import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
-import Hschain.Utxo.Lang.Utils.Hash
+import Hschain.Utxo.Lang.Utils.ByteString
 
 -- | User identifier.
 newtype UserId = UserId { unUserId :: Text }
