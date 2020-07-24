@@ -9,7 +9,6 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , environmentFunctions
 ) where
 
-import Data.Fix
 import Data.Int
 import Data.Map.Strict (Map)
 import Data.Text (Text)
@@ -26,8 +25,14 @@ import Hschain.Utxo.Lang.Types (TxEnv(..))
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-import qualified Language.HM as H
 import qualified Hschain.Utxo.Lang.Const as Const
+
+fromArgType :: ArgType -> TypeCore
+fromArgType = \case
+  IntArg   -> intT
+  BoolArg  -> boolT
+  TextArg  -> textT
+  BytesArg -> bytesT
 
 preludeLib :: TxEnv -> CoreProg
 preludeLib env = CoreProg $ environmentFunctions env ++ primitives
@@ -142,13 +147,6 @@ comparePack ty =
 
 ------------------------------------------------------------
 -- boxes
-
-toCompareName :: TypeCore -> Name -> Name
-toCompareName ty name = mconcat [primName ty, ".", name]
-  where
-    primName (H.Type (Fix x)) = case x of
-      H.ConT _ prim _ -> prim
-      _               -> error "Non-primitive type"
 
 -- | Low level representation of Box is a tuple of four elements:
 -- > (name, script, value, args)
@@ -668,13 +666,6 @@ lessThanEquals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
 lessThanEquals ty a b = ap lteV [a, b]
   where
     lteV = EVar $ Typed (toCompareName ty "lessThanEquals") (funT [ty, ty] boolT)
-
-fromArgType :: ArgType -> TypeCore
-fromArgType = \case
-  IntArg   -> intT
-  BoolArg  -> boolT
-  TextArg  -> textT
-  BytesArg -> bytesT
 
 ------------------------------------------------------------
 -- prim ops

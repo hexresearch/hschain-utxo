@@ -170,6 +170,7 @@ Test-suite hschain-utxo-lang-tests
   Main-is:             Main.hs
   Other-modules:       TM.Core
                        TM.Core.Box
+                       TM.Core.Bytes
                        TM.Core.List
                        Examples.SKI
 
