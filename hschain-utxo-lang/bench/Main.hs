@@ -2,13 +2,19 @@ import Gauge.Main
 
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Primitives
-import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Gmachine
 import Examples.SKI
+import Examples.Simple
 
 main :: IO ()
 main = defaultMain
-  [ bench "SKK3.typecheck" $ nf (typeCheck preludeTypeContext) exampleSKK3
-  , bench "SKK3.compile"   $ nf compile exampleSKK3
-  , bench "SKK3.eval"      $ nf (fmap gmachine'output . eval . compile) exampleSKK3
+  [ benchProgram "SKK3"    exampleSKK3
+  , benchProgram "Additon" progAddition
+  ]
+
+benchProgram :: String -> CoreProg -> Benchmark
+benchProgram name prog = bgroup name
+  [ bench "typeCheck"      $ nf (typeCheck preludeTypeContext) prog
+  , bench "compile"        $ nf compile prog
+  , bench "eval.GMachine"  $ nf (fmap gmachine'output . eval . compile) prog
   ]

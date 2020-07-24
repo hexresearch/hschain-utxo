@@ -17,6 +17,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Gmachine
 import qualified Hschain.Utxo.Lang.Core.Data.Output as O
 import Examples.SKI
+import Examples.Simple
 
 
 tests :: TestTree
@@ -72,19 +73,6 @@ progEquality p = CoreProg
     ty = primToType p
     eq = toCompareName ty "equals"
 
-
--- Addition of two integers
-progAddition :: CoreProg
-progAddition = CoreProg
-  [ mkMain $ Typed
-    { typed'value = EAp
-                    (EAp (EVar (Typed "+" addT)) (EPrim (PrimInt 1)))
-                    (EPrim (PrimInt 100))
-    , typed'type  = intT
-    }
-  ]
-  where
-    addT = funT [intT, intT] intT
 
 run :: CoreProg -> Either Error [Prim]
 run
