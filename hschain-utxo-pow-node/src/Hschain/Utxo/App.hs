@@ -73,8 +73,10 @@ import HSChain.Types
 import HSChain.Types.Merkle.Types
 
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.State.Types
+import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.State.React
+import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.State.Types
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
@@ -244,8 +246,30 @@ runNode secretNodeName cfgConfigPath =
       }, st)
       where
         blockHeight = succ $ POWTypes.bhHeight bh
+        withSecret secret = do
+          Right proof <- newProof env (Fix $ SigmaPk publicKey)
+          return $ [tx proof]
+          where
+            publicKey = getPublicKey secret
+            env = proofEnvFromKeys [getKeyPair secret]
+
+            box = Box
+                  { box'id     = BoxId "master:box-0"
+                  , box'value  = 1
+                  , box'script = toScript $ pk' publicKey
+                  , box'args   = mempty
+                  }
+
+            tx proof = Tx
+                       { tx'inputs  = V.empty
+                       , tx'outputs = V.fromList [box]
+                       , tx'proof   = Just proof
+                       , tx'args    = mempty
+                       }
+
         currentSecret = getHashBytes (hash (unsUTXORandomness, blockHeight) :: Hash SHA256) -- ^ currentSecret depends on height and randomness and can be computed knowing both. Height is open to wide world, randomness is not.
         currentSecretHash = getHashBytes (hash currentSecret :: Hash SHA256) -- ^This is what will be put into open world.
+        rewardBox = error "is not done"
         miningTx = Tx
                    { tx'inputs  = V.empty   -- ^ List of identifiers of input boxes in blockchain 
                    , tx'outputs = V.fromList []    -- ^ List of outputs 
