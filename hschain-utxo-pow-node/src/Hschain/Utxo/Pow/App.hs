@@ -12,7 +12,7 @@
 {-# OPTIONS  -Wno-orphans               #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE UndecidableInstances       #-}
-module Hschain.Utxo.App(
+module Hschain.Utxo.Pow.App(
   runApp
 ) where
 
