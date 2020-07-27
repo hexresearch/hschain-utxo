@@ -97,8 +97,8 @@ progGetSelfId = CoreProg [ mkMain expr ]
 progGetSelfScript :: CoreProg
 progGetSelfScript = CoreProg [ mkMain expr ]
   where
-    expr = Typed (EAp getBoxScriptV getSelfV) textT
-    getBoxScriptV = EVar $ Typed "getBoxScript" (arrowT boxT textT)
+    expr = Typed (EAp getBoxScriptV getSelfV) bytesT
+    getBoxScriptV = EVar $ Typed "getBoxScript" (arrowT boxT bytesT)
 
 progGetTxArg :: CoreProg
 progGetTxArg = CoreProg [ mkMain expr ]

@@ -127,7 +127,7 @@ primitives =
   , getBoxScript
   , getBoxValue
   ]
-  ++ (comparePack =<< [intT, boolT, textT])
+  ++ (comparePack =<< argTypes)
   ++ getBoxArgs
   ++ byteCombs
 
@@ -135,8 +135,8 @@ primitives =
 -- generic utilities
 
 -- | comparision operators per type
-comparePack :: TypeCore -> [Scomb]
-comparePack ty =
+comparePack :: ArgType -> [Scomb]
+comparePack tyTag =
   [ compareOp ty (toCompareName ty "equals")
   , compareOp ty (toCompareName ty "notEquals")
   , compareOp ty (toCompareName ty "greaterThan")
@@ -144,6 +144,8 @@ comparePack ty =
   , compareOp ty (toCompareName ty "lessThan")
   , compareOp ty (toCompareName ty "lessThanEquals")
   ]
+  where
+    ty = fromArgType tyTag
 
 ------------------------------------------------------------
 -- boxes
@@ -173,7 +175,7 @@ getBoxField name field resT = Scomb
 boxArgs :: [Typed Name]
 boxArgs =
   [ Typed "name"   textT
-  , Typed "script" textT
+  , Typed "script" bytesT
   , Typed "value"  intT
   , Typed "args"   argsT
   ]
@@ -182,7 +184,7 @@ getBoxId :: Scomb
 getBoxId = getBoxField Const.getBoxId (Typed "name" textT) textT
 
 getBoxScript :: Scomb
-getBoxScript = getBoxField Const.getBoxScript (Typed "script" textT) textT
+getBoxScript = getBoxField Const.getBoxScript (Typed "script" bytesT) bytesT
 
 getBoxValue :: Scomb
 getBoxValue = getBoxField Const.getBoxValue (Typed "value" intT) intT
@@ -264,13 +266,15 @@ toVec t vs = V.foldr cons nil vs
 
 getArgs :: Args -> [Scomb]
 getArgs Args{..} =
-  [ argComb PrimInt   intT   IntArg  args'ints
-  , argComb PrimText  textT  TextArg args'texts
-  , argComb PrimBool  boolT  BoolArg args'bools
-  , argComb PrimBytes bytesT BoolArg args'bytes
+  [ argComb PrimInt   IntArg   args'ints
+  , argComb PrimText  TextArg  args'texts
+  , argComb PrimBool  BoolArg  args'bools
+  , argComb PrimBytes BytesArg args'bytes
   ]
   where
-    argComb cons ty tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
+    argComb cons tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
+      where
+        ty = fromArgType tyTag
 
 ------------------------------------------------------------
 -- bytes

@@ -9,6 +9,8 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
 
 import Control.Applicative
 
+import Data.Fix
+
 import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.Compile.Env
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -47,6 +49,7 @@ execScriptToSigma env prog = case isSigmaScript prog of
   where
     getSigmaOutput st = case Output.toList $ gmachine'output st of
       [PrimSigma sigma] -> Right sigma
+      [PrimBool b]      -> Right $ Fix $ SigmaBool b
       _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
 
 addPrelude :: TxEnv -> CoreProg -> CoreProg
