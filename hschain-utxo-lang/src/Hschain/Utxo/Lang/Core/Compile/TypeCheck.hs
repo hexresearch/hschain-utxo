@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Type checker for core language.
 --
 -- Now it works only for monomorphic types.
@@ -35,14 +34,10 @@ import Control.Monad.Except
 import Data.Fix
 import Data.Either
 import Data.Map.Strict (Map)
-import Data.Text.Prettyprint.Doc
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-
-import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
-import Language.HM.Pretty (PrintCons(..), HasPrefix(..))
 
 import qualified Data.Map.Strict as M
 import qualified Data.List as L
@@ -71,16 +66,6 @@ unifyMonoType a b = case (a, b) of
   (MonoType ta, MonoType tb) -> if (ta == tb) then return a else throwError (TypeCoreMismatch ta tb)
   (AnyType, tb) -> return tb
   (ta, AnyType) -> return ta
-
-instance IsVar Name where
-  intToVar = stringIntToVar
-  prettyLetters = stringPrettyLetters
-
-instance HasPrefix Name where
-  getFixity = const Nothing
-
-instance PrintCons Name where
-  printCons name args = hsep $ pretty name : args
 
 -- | Check the types for core programm.
 typeCheck :: TypeContext -> CoreProg -> Maybe TypeCoreError

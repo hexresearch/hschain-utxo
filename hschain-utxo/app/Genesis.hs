@@ -27,7 +27,7 @@ singleOwnerGenesis = withSecret =<< newSecret
         box = Box
           { box'id     = BoxId "master:box-0"
           , box'value  = initMoney
-          , box'script = toScript $ pk' publicKey
+          , box'script = mainScriptUnsafe $ pk' publicKey
           , box'args   = mempty
           }
 

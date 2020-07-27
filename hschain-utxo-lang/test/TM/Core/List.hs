@@ -25,6 +25,7 @@ import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
 import qualified Data.Text.IO as T
+import qualified Hschain.Utxo.Lang.Const as Const
 
 tests :: TestTree
 tests = testGroup "core-lists"
@@ -113,11 +114,11 @@ progListAt :: Int64 -> CoreProg
 progListAt n = listConsts <>
   CoreProg [mkMain $ listAtExpr ]
   where
-    listAtExpr = Typed (ap listAtV [int n, xsV]) intT
+    listAtExpr = Typed (ap listAtV [xsV, int n]) intT
 
-    listAtV = EVar $ Typed "listAt" (listAtT intT)
+    listAtV = EVar $ Typed Const.listAt (listAtT intT)
 
-    listAtT ty = funT [intT, listT ty] ty
+    listAtT ty = funT [listT ty, intT] ty
 
 -- | Concatenation of two lists.
 progConcatList :: CoreProg
@@ -125,7 +126,7 @@ progConcatList = listConsts <>
   CoreProg [mkMain concatExpr]
   where
     concatExpr = Typed (ap concatV [xsV, ysV]) (listT intT)
-    concatV = EVar $ Typed "++" concatT
+    concatV = EVar $ Typed Const.appendList concatT
     concatT = funT [listT intT, listT intT] (listT intT)
 
 -- | Map over list
@@ -134,7 +135,7 @@ progMapList = listConsts <>
   CoreProg [mkMain mapExpr]
   where
     mapExpr = Typed (ap mapV [EAp mulV (int 10), xsV]) (listT intT)
-    mapV = EVar $ Typed "map" mapT
+    mapV = EVar $ Typed Const.map mapT
     mapT = funT [arrowT intT intT, listT intT] (listT intT)
     mulV = EVar $ Typed "*" mulT
     mulT = funT [intT, intT] intT

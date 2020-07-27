@@ -24,6 +24,8 @@ import qualified Language.HM as H
 
 import qualified Data.Map as M
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
 infixr 6 ~>
 
 baseModuleCtx :: ModuleCtx
@@ -69,7 +71,6 @@ baseFuns =
   , getBoxValue
   , getBoxScript
   , sha256
-  , blake2b256
   , trace
   , lengthVec
   , lengthText
@@ -85,6 +86,7 @@ baseFuns =
   , minusDouble
   , divisionDouble
   , appendText
+  , appendBytes
   , appendVec
   , mapVec
   , foldVec
@@ -152,6 +154,7 @@ baseNames =
   , "-."
   , "/."
   , "<>"
+  , "appendBytes"
   , "++"
   , "map"
   , "fold"
@@ -160,7 +163,7 @@ baseNames =
   , "toSigma"
   , "sigmaAnd"
   , "sigmaOr"
-  , "!"
+  , Const.listAt
   , "&&"
   , "||"
   , "not"
@@ -210,8 +213,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "getBoxId" (monoT $ boxT ~> textT)
   , assumpType "getBoxValue" (monoT $ boxT ~> intT)
   , assumpType "getBoxScript" (monoT $ boxT ~> scriptT)
-  , assumpType "sha256" (monoT $ textT ~> textT)
-  , assumpType "blake2b256" (monoT $ textT ~> textT)
+  , assumpType "sha256" (monoT $ bytesT ~> bytesT)
   , assumpType "getVar" (forA $ textT ~> aT)
   , assumpType "trace" (forA $ textT ~> aT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
@@ -237,10 +239,11 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "/." (monoT $ intT ~> intT ~> intT)
   , assumpType "++" (forA $ vectorT aT ~> vectorT aT ~> vectorT aT)
   , assumpType "<>" (monoT $ textT ~> textT ~> textT)
+  , assumpType "appendBytes" (monoT $ bytesT ~> bytesT ~> bytesT)
   , assumpType "map" (forAB $ (aT ~> bT) ~> vectorT aT ~> vectorT bT)
   , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
-  , assumpType "!" (forA $ vectorT aT ~> intT ~> aT)
+  , assumpType Const.listAt (forA $ vectorT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
   , assumpType "<" (forA $ aT ~> aT ~> boolT)
@@ -351,10 +354,7 @@ getBoxArgList :: ArgType -> Bind Lang
 getBoxArgList ty = bind (getBoxArgVar ty) (Fix $ Lam noLoc "box" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "box") (BoxFieldArgList ty))
 
 sha256 :: Bind Lang
-sha256 = bind "sha256" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) (Fix $ Var noLoc "x"))
-
-blake2b256 :: Bind Lang
-blake2b256 = bind "blake2b256" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Blake2b256) (Fix $ Var noLoc "x"))
+sha256 = bind "sha256" (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ BytesHash noLoc Sha256 (Fix $ Var noLoc "x"))
 
 getVarBy :: ArgType -> Bind Lang
 getVarBy ty = bind (getEnvVarName ty) (Fix $ GetEnv noLoc $ GetVar noLoc ty)
@@ -458,8 +458,11 @@ appendVec = bind "++" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAp
 appendText :: Bind Lang
 appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
 
+appendBytes :: Bind Lang
+appendBytes = bind "appendBytes" (Fix $ LamList noLoc ["x", "y"] $ Fix $ BytesE noLoc $ BytesAppend noLoc x y)
+
 atVec :: Bind Lang
-atVec = bind "!" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
+atVec = bind Const.listAt (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
 
 fst :: Bind Lang
 fst = bind "fst" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 0) (var' "x"))

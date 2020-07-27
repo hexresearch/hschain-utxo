@@ -11,6 +11,7 @@ module Hschain.Utxo.Lang.Core.Gmachine.Monad(
   , badAddr
   , dumpIsEmpty
   , missingCase
+  , failedToDeserialise
   , fromError
   -- * State proxies
   -- ** Globals
@@ -75,14 +76,15 @@ data Gmachine = Gmachine
 
 -- | Errors of execution
 data Error
-  = BadType         -- ^ encountered illegal application
-  | BadAddr Addr    -- ^ address is not defined on the heap
-  | NotFound Name   -- ^ can not find global name
-  | StackIsEmpty    -- ^ Need to read element from stack but it is empty
-  | VstackIsEmpty   -- ^ Need to read element from Vstack but it is empty
-  | DumpIsEmpty     -- ^ Attempt to read empty dump
-  | MissingCase     -- ^ missing case-alternative
-  | BottomTerm      -- ^ Bottom termination
+  = BadType             -- ^ encountered illegal application
+  | BadAddr Addr        -- ^ address is not defined on the heap
+  | NotFound Name       -- ^ can not find global name
+  | StackIsEmpty        -- ^ Need to read element from stack but it is empty
+  | VstackIsEmpty       -- ^ Need to read element from Vstack but it is empty
+  | DumpIsEmpty         -- ^ Attempt to read empty dump
+  | MissingCase         -- ^ missing case-alternative
+  | FailedToDeserialise -- ^ Failed todeserialise term
+  | BottomTerm          -- ^ Bottom termination
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (NFData)
 
@@ -103,6 +105,9 @@ dumpIsEmpty = throwError DumpIsEmpty
 
 missingCase :: Exec a
 missingCase = throwError MissingCase
+
+failedToDeserialise :: Exec a
+failedToDeserialise = throwError FailedToDeserialise
 
 -- | Monad for execution of Gmachine code
 newtype Exec a = Exec { unExec :: StateT Gmachine (Except Error) a }

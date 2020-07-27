@@ -12,7 +12,7 @@ import Data.Maybe
 import Data.ByteString.Lazy (ByteString)
 import Hschain.Utxo.Lang.Parser.Hask
 
-import Hschain.Utxo.Lang.Core.Compile (coreProgToText, isSigmaScript)
+import Hschain.Utxo.Lang.Core.Compile (coreProgToScript, isSigmaScript)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Exec
 import Hschain.Utxo.Lang.Error
@@ -56,7 +56,7 @@ compile input output = do
       coreProg <- runInferM $ C.compile m
       case isSigmaScript coreProg of
         Just err -> Left err
-        Nothing  -> Right $ (encode . Script . coreProgToText) coreProg
+        Nothing  -> Right $ (LB.fromStrict . unScript . coreProgToScript) coreProg
 
 checkType :: Module -> Maybe Error
 checkType = checkMainModule langTypeContext

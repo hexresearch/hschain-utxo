@@ -20,7 +20,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType, funT)
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
-import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..))
+import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..), argTypeName, argTypes)
 
 import Hschain.Utxo.Lang.Core.Compile.Primitives(toCompareName)
 
@@ -267,7 +267,7 @@ substExpr env (Fix (Ann ty expr)) =
 
     onLam loc args body
       | all (isMonoT . typed'type) args && (isMonoT $ getAnnType body) = do
-          let ctx' = (M.fromList $ zip argNames argTypes) <> (substCtx'types env)
+          let ctx' = (M.fromList $ zip argNames argTs) <> (substCtx'types env)
               locals' = S.fromList argNames <> (substCtx'locals env)
           (SubstResult bodyF bodyL bodyE) <- substExpr (SubstCtx locals' (substCtx'letBinds env) ctx') body
           return $ SubstResult bodyF bodyL (Fix $ Ann ty $ ELam loc args bodyE)
@@ -280,9 +280,9 @@ substExpr env (Fix (Ann ty expr)) =
           let argsE = zipWith Typed argNames lamArgsT
           return $ SubstResult bodyF bodyL (Fix $ Ann ty' $ ELam loc argsE bodyE)
           where
-            lamTy = funT (fmap typed'type args) (getAnnType body)
+            lamTy    = funT (fmap typed'type args) (getAnnType body)
             argNames = fmap typed'value args
-            argTypes = fmap typed'type args
+            argTs    = fmap typed'type args
 
     onIf loc c t e = do
       (SubstResult cF cL cE) <- rec $ setAnn (fromType boolT) c
@@ -462,7 +462,7 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
       H.ConT _ name [] -> isPrimTypeName name
       _                -> False
       where
-        isPrimTypeName name = name == "Bool" || name == "Int" || name == "Text"
+        isPrimTypeName name = any ((name ==) . argTypeName) argTypes
 
 
 

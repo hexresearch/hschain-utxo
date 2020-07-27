@@ -13,6 +13,7 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
+import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import Data.Coerce
 import Data.Fix
@@ -283,8 +284,8 @@ newtype BoxId = BoxId { unBoxId :: Text }
   deriving anyclass (Serialise)
 
 -- | Type for script that goes over the wire.
-newtype Script = Script { unScript :: Text }
-  deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+newtype Script = Script { unScript :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
 
@@ -324,13 +325,7 @@ type TypeContext = H.Context Loc Text
 -- | Context for execution (reduction) of expressions of the language
 newtype ExecCtx = ExecCtx
   { execCtx'vars  :: Map VarName Lang  -- ^ bindings for free variables, outer scope of the execution
-  } deriving newtype (Show, Eq)
-
-instance Semigroup ExecCtx where
-  ExecCtx a1 <> ExecCtx a2 = ExecCtx (a1 <> a2)
-
-instance Monoid ExecCtx where
-  mempty = ExecCtx mempty
+  } deriving newtype (Show, Eq, Semigroup, Monoid)
 
 -- | Type-inference context.
 data InferCtx = InferCtx
@@ -464,6 +459,9 @@ data E a
   -- text
   | TextE Loc (TextExpr a)
   -- ^ Text expression
+  -- Bytes
+  | BytesE Loc (BytesExpr a)
+  -- ^ bytes expression
   -- boxes
   | BoxE Loc (BoxExpr a)
   -- ^ Box-expression
@@ -525,10 +523,10 @@ data BoxField a
 -- | Types that we can store as arguments in transactions.
 -- We store lists of them.
 data ArgType = IntArg | TextArg | BoolArg | BytesArg
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, NFData)
 
 argTypes :: [ArgType]
-argTypes = [IntArg, TextArg, BoolArg]
+argTypes = [IntArg, TextArg, BoolArg, BytesArg]
 
 argTagToType :: ArgType -> Type
 argTagToType = \case
@@ -589,14 +587,22 @@ data TextExpr a
   -- ^ Convert some value to text (@showType a@)
   | TextLength Loc
   -- ^ Get textlength (@lengthText a@)
-  | TextHash Loc HashAlgo
-  -- ^ Get hash-value of the given text (sevral algorithms are supported)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+data BytesExpr a
+  = BytesAppend Loc a a
+  -- ^ append bytes
+  | SerialiseToBytes Loc ArgType a
+  -- ^ serialise primitive types to bytes
+  | DeserialiseFromBytes Loc ArgType a
+  -- ^ deserialise values from bytes
+  | BytesHash Loc HashAlgo a
+  -- ^ get hash for the given ByteString.
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Hashing algorithm tag
 data HashAlgo
   = Sha256
-  | Blake2b256
   deriving (Eq, Show)
 
 -- | Primitive values of the language (constants).
@@ -611,6 +617,24 @@ data Prim
   -- ^ Sigma-expressions
   | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Result of the script can be boolean constant or sigma-expression
+-- that user have to prove.
+data BoolExprResult
+  = ConstBool Bool
+  | SigmaResult (Sigma PublicKey)
+  deriving (Show, Eq)
+
+instance ToJSON BoolExprResult where
+  toJSON = \case
+    ConstBool b -> object ["bool"  .= b]
+    SigmaResult s -> object ["sigma" .= s]
+
+instance FromJSON BoolExprResult where
+  parseJSON = withObject "BoolExprResult" $ \obj ->
+        (ConstBool <$> obj .: "bool")
+    <|> (SigmaResult <$> obj .: "sigma")
+
 
 -- | Environment fields. Info that we can query from blockchain state
 data EnvId a
@@ -767,6 +791,8 @@ instance Show a => H.HasLoc (E a) where
     VecE loc _ -> loc
     -- text
     TextE loc _ -> loc
+    -- bytes
+    BytesE loc _ -> loc
     -- boxes
     BoxE loc _ -> loc
     -- debug
@@ -838,6 +864,7 @@ freeVars = cata $ \case
   SigmaE _ sigma   -> fold sigma
   VecE _ vec       -> fold vec
   TextE _ txt      -> fold txt
+  BytesE _ bs      -> fold bs
   BoxE _ box       -> fold box
   Trace _ a b      -> mconcat [a, b]
   AltE _ a b       -> mappend a b
@@ -899,6 +926,7 @@ $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
 $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
+$(deriveShow1 ''BytesExpr)
 $(deriveShow1 ''SigmaExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
@@ -937,5 +965,18 @@ instance ToJSON Args where
     , "texts" .= args'texts
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
+
+instance ToJSON Script where
+  toJSON (Script s) = toJSON (ViaBase58 s)
+
+instance FromJSON Script where
+  parseJSON = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) . parseJSON
+
+instance ToJSONKey Script where
+  toJSONKey = contramapToJSONKeyFunction (ViaBase58 . unScript) toJSONKey
+
+instance FromJSONKey Script where
+  fromJSONKey = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) fromJSONKey
+
 
 $(deriveJSON dropPrefixOptions ''Box)

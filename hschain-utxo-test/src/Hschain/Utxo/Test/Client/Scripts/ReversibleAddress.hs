@@ -18,10 +18,10 @@ bobPubKeyId :: Expr Int
 bobPubKeyId = int 0
 
 getBobDeadline :: Expr Box -> Expr Int
-getBobDeadline box = vecAt (getBoxIntArgList box) bobDeadlineId
+getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineId
 
 getBobPubKey :: Expr Box -> Expr Text
-getBobPubKey box = vecAt (getBoxTextArgList box) bobPubKeyId
+getBobPubKey box = listAt (getBoxTextArgList box) bobPubKeyId
 
 withdrawScript :: Expr Text -> Expr SigmaBool
 withdrawScript carol =
@@ -45,6 +45,9 @@ reversibleAddressScript blocksIn24h carol feeProposition maxFee =
                       ) $ \isValid ->
   "totalFee"   =: (foldVec (lam2 "x" "b" $ \x b -> ifB (app isFee b) (x + getBoxValue b) x) 0 getOutputs) $ \totalFee ->
   pk "alice" &&* (toSigma $ allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee))
+  where
+    -- TODO: find the analog for this script
+    toScriptBytes = undefined
 
 
 

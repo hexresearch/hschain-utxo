@@ -8,6 +8,7 @@ module Hschain.Utxo.Test.Client.Scripts.Utils(
   , User(..)
   , Scene(..)
   , getTxHash
+  , mainScriptUnsafe
 ) where
 
 import Control.Timeout

@@ -19,11 +19,15 @@ import Control.DeepSeq
 import Data.Fix
 import Data.Int
 import Data.ByteString (ByteString)
+import Data.Text.Prettyprint.Doc
 import Data.Text (Text)
 import qualified Language.HM as H
 import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Sigma
+
+import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
+import Language.HM.Pretty (PrintCons(..), HasPrefix(..))
 
 type TypeCore = H.Type () Name
 
@@ -83,6 +87,28 @@ getPrimSigma = \case
 
 -----------------------------------------------------
 -- instnaces
+
+instance IsVar Name where
+  intToVar = stringIntToVar
+  prettyLetters = stringPrettyLetters
+
+instance HasPrefix Name where
+  getFixity = const Nothing
+
+instance PrintCons Name where
+  printCons name args = hsep $ pretty name : args
+
+{-
+instance PrintCons Text where
+  printCons name args
+    | isTupleName name = parens $ hsep $ punctuate comma args
+    | otherwise        = hsep $ pretty name : args
+    where
+      isTupleName str = (pre == "Tuple") && isInt post
+        where
+          (pre, post) = T.splitAt 5 str
+          isInt = T.all isDigit
+-}
 
 instance Serialise (Fix (H.TypeF () Text))
 instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)

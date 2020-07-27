@@ -15,23 +15,32 @@ module Hschain.Utxo.Lang.Core.Gmachine.Eval.Prim(
   , textLength
   , hashBlake
   , hashSha
+  , binBytesOp
+  , serialiseToBytes
+  , deserialiseFromBytes
   , showInt
   , showBool
 ) where
 
 import Hex.Common.Text
 
+import Codec.Serialise
+
+import Data.ByteString (ByteString)
 import Data.Int
 import Data.Fix
 import Data.Maybe
 import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Expr (ArgType(..))
+
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Gmachine.Eval.Vstack
 import Hschain.Utxo.Lang.Core.Gmachine.Monad
 import Hschain.Utxo.Lang.Core.Data.Prim
-import HSChain.Crypto     (Hash(..), hashBlob)
-import HSChain.Crypto.SHA (SHA256)
+import Hschain.Utxo.Lang.Utils.ByteString
+
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 
 -- generic functions
@@ -103,10 +112,35 @@ hashBlake = primOp1 popText putText getBlakeHash
   where
     getBlakeHash = undefined
 
+-- bytes operators
+
+binBytesOp :: (ByteString -> ByteString -> ByteString) -> Exec ()
+binBytesOp = primOp2 popBS popBS putBS
+
+serialiseToBytesBy :: Serialise a => (Exec a) -> Exec ()
+serialiseToBytesBy popPrim = primOp1 popPrim putBS (LB.toStrict . serialise)
+
+deserialiseFromBytesBy :: Serialise a => (a -> Exec ()) -> Exec ()
+deserialiseFromBytesBy putPrim = primOp1 popBS putCatchFail (deserialiseOrFail . LB.fromStrict)
+  where
+    putCatchFail eRes = either (const failedToDeserialise) putPrim eRes
+
+serialiseToBytes :: ArgType -> Exec ()
+serialiseToBytes = \case
+  IntArg   -> serialiseToBytesBy popInt
+  TextArg  -> serialiseToBytesBy popText
+  BoolArg  -> serialiseToBytesBy popBool
+  BytesArg -> serialiseToBytesBy popBS
+
+deserialiseFromBytes :: ArgType -> Exec ()
+deserialiseFromBytes = \case
+  IntArg   -> deserialiseFromBytesBy putInt
+  TextArg  -> deserialiseFromBytesBy putText
+  BoolArg  -> deserialiseFromBytesBy putBool
+  BytesArg -> deserialiseFromBytesBy putBS
+
 hashSha :: Exec ()
 hashSha = primOp1 popBS putBS getSha256
-  where
-    getSha256 bs = let Hash h = hashBlob @SHA256 bs in h
 
 showInt :: Exec ()
 showInt = primOp1 popText putText showt

@@ -71,6 +71,7 @@ exprToExtendedLC typeCtx = cataM $ \case
   SigmaE loc e            -> fromSigma loc e
   VecE loc e              -> fromVecExpr loc e
   TextE loc e             -> fromTextExpr loc e
+  BytesE loc e            -> fromBytesExpr loc e
   BoxE loc e              -> fromBoxExpr loc e
   Trace loc a b           -> fromTrace loc a b
   Ascr loc e t            -> fromAscr loc e t
@@ -130,7 +131,6 @@ exprToExtendedLC typeCtx = cataM $ \case
         tupleArgsT   arity = vs arity
         tupleConstrT arity = H.tupleT () $ vs arity
         vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
-
 
 
     fromAlt _ _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
@@ -198,11 +198,11 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromVecExpr _ expr = pure $ case expr of
       NewVec loc args     -> newVec loc args
-      VecAppend loc a b   -> ap2 loc (var loc "++") a b
-      VecAt loc a b       -> ap2 loc (var loc "listAt") a b
-      VecLength loc       -> var loc "length"
-      VecMap loc          -> var loc "map"
-      VecFold loc         -> var loc "foldl"
+      VecAppend loc a b   -> ap2 loc (var loc Const.appendList) a b
+      VecAt loc a b       -> ap2 loc (var loc Const.listAt) a b
+      VecLength loc       -> var loc Const.length
+      VecMap loc          -> var loc Const.map
+      VecFold loc         -> var loc Const.foldl
       where
         newVec loc args = V.foldr (cons loc) (nil loc) args
 
@@ -216,16 +216,20 @@ exprToExtendedLC typeCtx = cataM $ \case
       TextAppend loc a b    -> ap2 loc (var loc "<>") a b
       ConvertToText loc tag -> var loc (mappend "show" $ fromTextTag tag)
       TextLength loc        -> var loc "lengthText"
-      TextHash loc algo     -> var loc (fromHashAlgo algo)
       where
         fromTextTag = \case
           IntToText    -> "Int"
           BoolToText   -> "Bool"
           ScriptToText -> "Script"  -- TODO: in low level language we don't have type for Script, or should we?
 
+    fromBytesExpr _ expr = pure $ case expr of
+      BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
+      SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
+      DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
+      BytesHash loc algo a           -> ap1 loc (var loc $ fromHashAlgo algo) a
+      where
         fromHashAlgo = \case
           Sha256       -> "sha256"
-          Blake2b256   -> "blake2b256"
 
     fromBoxExpr _ expr = pure $ case expr of
       PrimBox loc box     -> fromPrimBox loc box

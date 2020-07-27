@@ -36,6 +36,7 @@ subst (Fix body) varName sub = case body of
   SigmaE loc sigma                         -> Fix $ SigmaE loc $ fmap rec sigma
   VecE loc vec                             -> Fix $ VecE loc $ fmap rec vec
   TextE loc txt                            -> Fix $ TextE loc $ fmap rec txt
+  BytesE loc txt                           -> Fix $ BytesE loc $ fmap rec txt
   BoxE loc box                             -> Fix $ BoxE loc $ fmap rec box
   LamList loc vs a                         -> Fix $ LamList loc vs $ recBy (foldMap freeVarsPat vs) a
   Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)

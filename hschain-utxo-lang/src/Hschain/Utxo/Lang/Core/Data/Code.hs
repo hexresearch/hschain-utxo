@@ -21,6 +21,7 @@ import Data.IntMap (IntMap)
 import Data.Sequence (Seq, ViewR(..))
 import GHC.Generics (Generic)
 
+import Hschain.Utxo.Lang.Expr (ArgType)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
 import qualified Data.IntMap as IM
@@ -88,6 +89,8 @@ data Instr
   -- ^ sigma operators
   | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
   -- ^ text operators
+  | BytesAppend | ToBytes ArgType | FromBytes ArgType | Sha256
+  -- ^ bytes operations
   | Bottom
   -- ^ Failed termination
   deriving stock    (Show, Eq, Generic)

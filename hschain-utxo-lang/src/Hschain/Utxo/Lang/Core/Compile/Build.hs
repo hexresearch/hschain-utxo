@@ -12,11 +12,17 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , op2
   , int
   , bool
+  , text
+  , bytes
   , sigmaBool
+  , equals
+  , toCompareName
 ) where
 
+import Data.ByteString (ByteString)
 import Data.Int
 import Data.Fix
+import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
@@ -25,6 +31,8 @@ import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L
 import qualified Data.Vector as V
+
+import qualified Language.HM as H
 
 ap :: ExprCore -> [ExprCore] -> ExprCore
 ap f args = L.foldl' (\op a -> EAp op a) f args
@@ -76,6 +84,25 @@ int n = EPrim $ PrimInt n
 bool :: Bool -> ExprCore
 bool b = EPrim $ PrimBool b
 
+text :: Text -> ExprCore
+text txt = EPrim $ PrimText txt
+
+bytes :: ByteString -> ExprCore
+bytes b = EPrim $ PrimBytes b
+
 sigmaBool :: Bool -> ExprCore
 sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
+
+equals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
+equals t a b = ap eqV [a, b]
+  where
+    eqV = EVar $ Typed (toCompareName t "equals") (funT [t, t] boolT)
+
+toCompareName :: TypeCore -> Name -> Name
+toCompareName ty name = mconcat [primName ty, ".", name]
+  where
+    primName (H.Type (Fix x)) = case x of
+      H.ConT _ prim _ -> prim
+      _               -> error "Non-primitive type"
+
 

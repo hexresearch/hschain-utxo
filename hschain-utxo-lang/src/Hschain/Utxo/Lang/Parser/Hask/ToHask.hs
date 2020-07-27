@@ -22,6 +22,8 @@ import Language.HM.Type() -- import instances
 
 import qualified Language.HM as HM
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
 toHaskExp :: Lang -> H.Exp Loc
 toHaskExp (Fix expr) = case expr of
   Var loc name -> toVar loc name
@@ -53,6 +55,8 @@ toHaskExp (Fix expr) = case expr of
   VecE loc vec -> fromVec loc vec
   -- text
   TextE loc txt -> fromText loc txt
+  -- bytes
+  BytesE loc bs -> fromBytes loc bs
   -- boxes
   BoxE loc box -> fromBox loc box
   -- debug
@@ -95,7 +99,7 @@ toHaskExp (Fix expr) = case expr of
       LessThanEquals        -> op2' "<="
       GreaterThanEquals     -> op2' ">="
       where
-        op2' name a b = op2 loc name (rec a) (rec b)
+        op2' name a b = op2 loc name a b
 
     fromEnv _ = \case
       Height loc    -> toVar loc (VarName loc "getHeight")
@@ -108,31 +112,35 @@ toHaskExp (Fix expr) = case expr of
 
     fromSigma _ = \case
       Pk loc a        -> ap (VarName loc "pk") a
-      SOr loc a b     -> ap2 (VarName loc "sigmaOr") a b
-      SAnd loc a b    -> ap2 (VarName loc "sigmaAnd") a b
+      SOr loc a b     -> op2 loc "|||" a b
+      SAnd loc a b    -> op2 loc "&&&" a b
       SPrimBool loc a -> ap (VarName loc "toSigma") a
 
 
     fromVec _ = \case
       NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
-      VecAppend loc a b -> op2 loc "++" (rec a) (rec b)
-      VecAt loc a b     -> op2 loc "!" (rec a) (rec b)
+      VecAppend loc a b -> op2 loc "++" a b
+      VecAt loc a b     -> op2 loc "!" a b
       VecLength loc     -> toVar loc (VarName loc "length")
       VecMap loc        -> toVar loc (VarName loc "map")
       VecFold loc       -> toVar loc (VarName loc "fold")
 
     fromText _ = \case
-      TextAppend loc a b    -> op2 loc "<>" (rec a) (rec b)
+      TextAppend loc a b    -> op2 loc "<>" a b
       ConvertToText loc tag -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
       TextLength loc        -> toVar loc (VarName loc "lengthText")
-      TextHash loc algo     -> case algo of
-        Sha256     -> toVar loc (VarName loc "sha256")
-        Blake2b256 -> toVar loc (VarName loc "blake2b256")
       where
         fromTextTag = \case
           IntToText    -> "Int"
           ScriptToText -> "Script"
           BoolToText   -> "Bool"
+
+    fromBytes _ = \case
+      BytesAppend loc a b            -> ap2 (VarName loc Const.appendBytes) a b
+      SerialiseToBytes loc tag a     -> ap  (VarName loc $ Const.serialiseBytes $ argTypeName tag) a
+      DeserialiseFromBytes loc tag a -> ap  (VarName loc $ Const.deserialiseBytes $ argTypeName tag) a
+      BytesHash loc algo a           -> case algo of
+        Sha256     -> ap (VarName loc "sha256") a
 
     fromBox _ = \case
       PrimBox loc box     -> fromPrimBox loc box
@@ -141,7 +149,7 @@ toHaskExp (Fix expr) = case expr of
     fromPrimBox loc Box{..} = H.RecConstr loc (qname "Box")
       [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
       , field "box'value"  $ prim $ PrimInt  $ box'value
-      , field "box'script" $ prim $ PrimString $ unScript box'script
+      , field "box'script" $ prim $ PrimString $ encodeBase58 $ unScript box'script
       , field "box'args"   $ args
       ]
       where
@@ -165,8 +173,8 @@ toHaskExp (Fix expr) = case expr of
       where
         get name = ap (VarName loc name) a
 
-op2 :: Loc -> String -> H.Exp Loc -> H.Exp Loc -> H.Exp Loc
-op2 loc name a b = H.InfixApp loc a (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc name) b
+    op2 :: Loc -> String -> Lang -> Lang -> H.Exp Loc
+    op2 loc name a b = H.InfixApp loc (rec a) (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc name) (rec b)
 
 
 toLiteral :: Loc -> Prim -> H.Exp Loc
