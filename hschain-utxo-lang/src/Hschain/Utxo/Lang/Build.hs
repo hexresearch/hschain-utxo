@@ -4,6 +4,7 @@
 module Hschain.Utxo.Lang.Build(
     simpleModule
   , mainExprModule
+  , mainScriptUnsafe
   , bind
   , int
   , text
@@ -50,12 +51,20 @@ import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import qualified Data.Text   as T
 import qualified Data.Vector as V
 
+import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Desugar
+import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
 
 import Hschain.Utxo.Lang.Expr
+
+-- | Creates module  out of single main expression and ignores the errors of compilation.
+mainScriptUnsafe :: Expr SigmaBool -> Script
+mainScriptUnsafe expr =
+  either (error . T.unpack . renderText) id $ toCoreScript $ mainExprModule expr
 
 mainExprModule :: Expr SigmaBool -> Module
 mainExprModule expr = simpleModule [bind "main" expr]

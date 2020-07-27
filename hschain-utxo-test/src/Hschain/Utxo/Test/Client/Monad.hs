@@ -39,7 +39,7 @@ import Test.Hspec
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build (pk', mainExprModule)
+import Hschain.Utxo.Lang.Build (pk', mainScriptUnsafe)
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Config
 
@@ -193,9 +193,4 @@ initGenesis secret = [tx]
 -- All funds belong to master-user.
 initMasterBox :: BoxId
 initMasterBox = BoxId "master:box-0"
-
--- | Creates module  out of single main expression and ignores the errors of compilation.
-mainScriptUnsafe :: Expr SigmaBool -> Script
-mainScriptUnsafe expr =
-  either (error . T.unpack . renderText) id $ toCoreScript $ mainExprModule expr
 
