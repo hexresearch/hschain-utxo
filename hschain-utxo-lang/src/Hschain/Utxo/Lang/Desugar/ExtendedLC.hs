@@ -133,7 +133,6 @@ exprToExtendedLC typeCtx = cataM $ \case
         vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
 
 
-
     fromAlt _ _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
 
     fromFailCase loc = pure $ Fix $ EBottom loc

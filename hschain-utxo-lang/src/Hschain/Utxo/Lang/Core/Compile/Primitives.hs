@@ -65,7 +65,7 @@ environmentTypes = TypeContext $ M.fromList $
   , (Const.getOutputs, listT boxT)
   ] ++ getArgsTypes
   where
-    getArgsTypes = fmap toArgType [ IntArg, TextArg, BoolArg ]
+    getArgsTypes = fmap toArgType argTypes
 
     toArgType typeTag = (Const.getArgs $ argTypeName typeTag, listT $ fromArgType typeTag)
 

@@ -18,7 +18,7 @@ module Hschain.Utxo.Lang.Build(
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
   , getInputs, getOutputs
-  , getIntVars, getBoolVars, getTextVars
+  , getIntVars, getBoolVars, getTextVars, getBytesVars
   , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
   , var
   , def
@@ -31,6 +31,10 @@ module Hschain.Utxo.Lang.Build(
   , showInt
   , showScript
   , sha256
+  , serialiseInt
+  , serialiseBytes
+  , serialiseBool
+   ,serialiseText
   , trace
   , pair
   , pairAt1
@@ -202,6 +206,9 @@ getBoolVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BoolArg
 getTextVars :: Expr (Vector Text)
 getTextVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc TextArg
 
+getBytesVars :: Expr (Vector ByteString)
+getBytesVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BytesArg
+
 getInputs :: Expr (Vector Box)
 getInputs = Expr $ Fix $ GetEnv noLoc (Inputs noLoc)
 
@@ -328,6 +335,21 @@ showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText
 
 sha256 :: Expr ByteString -> Expr ByteString
 sha256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) a
+
+serialiseInt :: Expr Int -> Expr ByteString
+serialiseInt = serialiseBy IntArg
+
+serialiseText :: Expr Text -> Expr ByteString
+serialiseText = serialiseBy TextArg
+
+serialiseBytes :: Expr ByteString -> Expr ByteString
+serialiseBytes = serialiseBy BytesArg
+
+serialiseBool :: Expr Bool -> Expr ByteString
+serialiseBool = serialiseBy BoolArg
+
+serialiseBy :: ArgType -> Expr a -> Expr ByteString
+serialiseBy tag (Expr expr) = Expr $ Fix $ BytesE noLoc $ SerialiseToBytes noLoc tag expr
 
 -------------------------------
 -- monoids

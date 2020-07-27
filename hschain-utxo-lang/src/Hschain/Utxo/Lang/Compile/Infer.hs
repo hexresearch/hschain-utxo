@@ -102,7 +102,7 @@ annotateTypes =
       EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
       EBottom loc     -> H.bottomE loc
       EConstr loc ty tag arity -> H.constrE loc (eraseWith loc ty) (ConstrTag tag) arity
-      ELet loc bs e   -> H.letE loc (fmap (fromBind loc) bs) e
+      ELet loc bs e   -> foldr (\b rhs -> H.letE loc [fromBind loc b] rhs) e bs
       EAssertType loc e ty -> H.assertTypeE loc e (eraseWith loc ty)
       ECase loc e alts -> H.caseE loc e (fmap fromAlt alts)
 

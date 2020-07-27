@@ -2,9 +2,6 @@
 module Hschain.Utxo.Test.Client.Scripts.XorGame where
 
 import Prelude hiding ((<*))
-import Hex.Common.Text
-
-import Codec.Serialise
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -15,14 +12,12 @@ import Data.Int
 import Data.Maybe
 import Data.String
 import Data.Text (Text)
-import Data.Vector (Vector)
 
 import System.Random
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.Lang.Utils.Hash
 
 import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle, getTxSigma)
 import Hschain.Utxo.Test.Client.Wallet
@@ -30,14 +25,10 @@ import Hschain.Utxo.Test.Client.Scripts.Utils
 
 import qualified Hschain.Utxo.Test.Client.Monad as M
 
-import qualified Crypto.Hash as C
-
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text.IO as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 
+import qualified Hschain.Utxo.Lang.Utils.ByteString as B
 
 bobGuessFieldId, bobDeadlineFieldId, bobPkFieldId :: Expr Int
 
@@ -88,13 +79,6 @@ fullGameScript k alice =
   ||* (toSigma (sha256 (s <> serialiseInt a) ==* k))
         &&* (     pk alice &&* (toSigma (a ==* b))
               ||* pk bob   &&* (toSigma (a /=* b )))
-
-
-serialiseInt :: Expr Int -> Expr ByteString
-serialiseInt = undefined
-
-getBytesVars :: Expr (Vector ByteString)
-getBytesVars = undefined
 
 data Game = Game
   { game'guess   :: !Guess
@@ -163,11 +147,6 @@ xorGameRound Scene{..} game@Game{..} = do
           liftIO $ T.putStrLn err
           return Nothing
 
-
-    makeAliceSecret guess = liftIO $ do
-      s <- fmap fromString $ sequence $ replicate 64 randomIO
-      let k = getSha256 $ s <> (LB.toStrict $ serialise guess)
-      return (k, s)
 
     makeAliceTx amount script wallet inBox backAddr gameAddr mProof = do
       total <- fmap (fromMaybe 0) $ getBoxBalance inBox
@@ -272,8 +251,11 @@ xorGameRound Scene{..} game@Game{..} = do
           , box'args    = mempty
           }
 
-    blake256 :: Text -> Text
-    blake256 txt = showt $ C.hashWith C.Blake2b_256 $ T.encodeUtf8 txt
+makeAliceSecret :: MonadIO m => Int64 -> m (ByteString, ByteString)
+makeAliceSecret guess = liftIO $ do
+  s <- fmap fromString $ sequence $ replicate 64 randomIO
+  let k = B.getSha256 $ s <> (B.serialiseInt guess)
+  return (k, s)
 
 postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
 postTxDebug isSuccess msg tx = do

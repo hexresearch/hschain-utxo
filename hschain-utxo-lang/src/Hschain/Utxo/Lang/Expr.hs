@@ -526,7 +526,7 @@ data ArgType = IntArg | TextArg | BoolArg | BytesArg
   deriving (Show, Eq, Generic, NFData)
 
 argTypes :: [ArgType]
-argTypes = [IntArg, TextArg, BoolArg]
+argTypes = [IntArg, TextArg, BoolArg, BytesArg]
 
 argTagToType :: ArgType -> Type
 argTagToType = \case
