@@ -587,8 +587,6 @@ data TextExpr a
   -- ^ Convert some value to text (@showType a@)
   | TextLength Loc
   -- ^ Get textlength (@lengthText a@)
-  | TextHash Loc HashAlgo
-  -- ^ Get hash-value of the given text (sevral algorithms are supported)
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data BytesExpr a
@@ -598,12 +596,13 @@ data BytesExpr a
   -- ^ serialise primitive types to bytes
   | DeserialiseFromBytes Loc ArgType a
   -- ^ deserialise values from bytes
+  | BytesHash Loc HashAlgo a
+  -- ^ get hash for the given ByteString.
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Hashing algorithm tag
 data HashAlgo
   = Sha256
-  | Blake2b256
   deriving (Eq, Show)
 
 -- | Primitive values of the language (constants).

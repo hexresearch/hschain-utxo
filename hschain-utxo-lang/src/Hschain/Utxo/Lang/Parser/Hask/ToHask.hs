@@ -129,9 +129,6 @@ toHaskExp (Fix expr) = case expr of
       TextAppend loc a b    -> op2 loc "<>" a b
       ConvertToText loc tag -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
       TextLength loc        -> toVar loc (VarName loc "lengthText")
-      TextHash loc algo     -> case algo of
-        Sha256     -> toVar loc (VarName loc "sha256")
-        Blake2b256 -> toVar loc (VarName loc "blake2b256")
       where
         fromTextTag = \case
           IntToText    -> "Int"
@@ -142,6 +139,8 @@ toHaskExp (Fix expr) = case expr of
       BytesAppend loc a b            -> ap2 (VarName loc Const.appendBytes) a b
       SerialiseToBytes loc tag a     -> ap  (VarName loc $ Const.serialiseBytes $ argTypeName tag) a
       DeserialiseFromBytes loc tag a -> ap  (VarName loc $ Const.deserialiseBytes $ argTypeName tag) a
+      BytesHash loc algo a           -> case algo of
+        Sha256     -> ap (VarName loc "sha256") a
 
     fromBox _ = \case
       PrimBox loc box     -> fromPrimBox loc box

@@ -216,21 +216,20 @@ exprToExtendedLC typeCtx = cataM $ \case
       TextAppend loc a b    -> ap2 loc (var loc "<>") a b
       ConvertToText loc tag -> var loc (mappend "show" $ fromTextTag tag)
       TextLength loc        -> var loc "lengthText"
-      TextHash loc algo     -> var loc (fromHashAlgo algo)
       where
         fromTextTag = \case
           IntToText    -> "Int"
           BoolToText   -> "Bool"
           ScriptToText -> "Script"  -- TODO: in low level language we don't have type for Script, or should we?
 
-        fromHashAlgo = \case
-          Sha256       -> "sha256"
-          Blake2b256   -> "blake2b256"
-
     fromBytesExpr _ expr = pure $ case expr of
       BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
       SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
       DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
+      BytesHash loc algo a           -> ap1 loc (var loc $ fromHashAlgo algo) a
+      where
+        fromHashAlgo = \case
+          Sha256       -> "sha256"
 
     fromBoxExpr _ expr = pure $ case expr of
       PrimBox loc box     -> fromPrimBox loc box

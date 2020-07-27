@@ -334,7 +334,7 @@ showScript :: Expr Script -> Expr Text
 showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) a
 
 sha256 :: Expr ByteString -> Expr ByteString
-sha256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) a
+sha256 (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesHash noLoc Sha256 a
 
 serialiseInt :: Expr Int -> Expr ByteString
 serialiseInt = serialiseBy IntArg

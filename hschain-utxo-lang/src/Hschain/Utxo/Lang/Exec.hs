@@ -24,8 +24,6 @@ import Control.Arrow
 import Control.Monad.State.Strict
 import Control.Monad.Extra (firstJustM)
 
-import Crypto.Hash
-
 import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Int
@@ -41,11 +39,11 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
 import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText)
+import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Language.HM as H
 
@@ -430,12 +428,6 @@ execLang (Fix topExpr) = case topExpr of
       Fix (TextE _ (ConvertToText _ _)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ convertToText arg'
-      Fix (TextE _ (TextHash _ Sha256)) -> do
-        arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ sha256 arg'
-      Fix (TextE _ (TextHash _ Blake2b256)) -> do
-        arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ blake2b256 arg'
       Fix (Cons src name vs) -> rec $ Fix $ Cons src name (mappend vs $ V.singleton arg)
       _ -> do
         Fix fun' <- rec fun
@@ -568,7 +560,6 @@ execLang (Fix topExpr) = case topExpr of
             _                                                              -> TextE loc $ TextAppend loc a' b'
         ConvertToText loc1 tag  -> returnText $ ConvertToText loc1 tag
         TextLength loc1         -> returnText $ TextLength loc1
-        TextHash loc1 algo      -> returnText $ TextHash loc1 algo
         where
           returnText = return . Fix . TextE loc
 
@@ -583,6 +574,11 @@ execLang (Fix topExpr) = case topExpr of
             _                                                            -> BytesE loc $ BytesAppend loc a' b'
         SerialiseToBytes src typeTag a -> fromSerialiseToBytes src typeTag a
         DeserialiseFromBytes src typeTag a -> fromDeserialiseFromBytes src typeTag a
+        BytesHash src algo a -> case algo of
+          Sha256 -> do
+            bs <- getPrimBytesOrFail =<< rec a
+            return $ Fix $ PrimE src $ PrimBytes $ getSha256 bs
+
 
     fromSerialiseToBytes src typeTag a =
       case typeTag of
@@ -619,18 +615,6 @@ execLang (Fix topExpr) = case topExpr of
           PrimBool b      -> showt b
           PrimSigma s     -> showt s
           PrimBytes bs    -> showt bs
-    sha256 (Fix x) = case x of
-      PrimE _ (PrimString t) -> Just $ hashText t
-      _                        -> Nothing
-      where
-        hashText = showt . hashWith SHA256 . T.encodeUtf8
-
-    blake2b256 (Fix x) = case x of
-      PrimE _ (PrimString t) -> Just $ hashText t
-      _                        -> Nothing
-      where
-        hashText = showt . hashWith Blake2b_256 . T.encodeUtf8
-
 
 prim :: Loc -> Prim -> Exec Lang
 prim loc p = return $ Fix $ PrimE loc p

@@ -204,12 +204,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       TextAppend loc a b            -> app2 loc appendTextVar a b
       ConvertToText loc textTypeTag -> varE loc (convertToTextVar textTypeTag)
       TextLength loc                -> varE loc lengthTextVar
-      TextHash loc hashAlgo         -> varE loc (textHashVar hashAlgo)
 
     fromBytes _ = \case
       BytesAppend loc a b            -> app2 loc appendBytesVar a b
       SerialiseToBytes loc tag a     -> app1 loc (serialiseToBytesVar tag) a
       DeserialiseFromBytes loc tag a -> app1 loc (deserialiseToBytesVar tag) a
+      BytesHash loc hashAlgo a       -> app1 loc (bytesHashVar hashAlgo) a
 
     fromBox _ = \case
       PrimBox loc _     -> varE loc boxVar
@@ -348,7 +348,7 @@ defaultContext = H.Context $ M.fromList $
       , convertExpr IntToText intT
       , convertExpr BoolToText boolT
       , convertExpr ScriptToText scriptT
-      ] ++ (fmap (\alg -> (textHashVar alg, monoT $ textT `arr` textT)) [Sha256, Blake2b256])
+      ] ++ (fmap (\alg -> (bytesHashVar alg, monoT $ bytesT `arr` bytesT)) [Sha256])
       where
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
@@ -432,8 +432,8 @@ deserialiseToBytesVar tag = secretVar $ Const.deserialiseBytes (argTypeName tag)
 convertToTextVar :: TextTypeTag -> Text
 convertToTextVar tag = secretVar $ mappend "convertToText" (showt tag)
 
-textHashVar :: HashAlgo -> Text
-textHashVar hashAlgo = secretVar $ mappend "textHash" (showt hashAlgo)
+bytesHashVar :: HashAlgo -> Text
+bytesHashVar hashAlgo = secretVar $ mappend "bytesHash" (showt hashAlgo)
 
 
 getBoxIdVar, getBoxValueVar, getBoxScriptVar :: Text
