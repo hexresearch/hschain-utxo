@@ -113,7 +113,7 @@ instance Crypto.CryptoHashable Pico where
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
 data UTXOBlockProper f = UTXOBlockProper
-  { ubpPrevious   :: !(POWTypes.BlockID UTXOBlock)
+  { ubpPrevious   :: !(Maybe (POWTypes.BlockID UTXOBlock))
   -- ^Previous block.
   , ubpData       :: !(MerkleNode f SHA256 [Tx])
   -- ^ List of key-value pairs

@@ -88,6 +88,7 @@ executable hschain-utxo-pow-generate-genesis
                      , hschain-utxo-lang
                      , hschain-utxo-pow-node
                      , hschain-PoW
+                     , hschain-merkle
                      , vector
   hs-source-dirs:      app
   default-language:    Haskell2010
