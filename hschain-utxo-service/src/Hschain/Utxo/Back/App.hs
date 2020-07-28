@@ -21,7 +21,6 @@ import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Back.Monad
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Back.Server
-import Hschain.Utxo.Back.Env
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
