@@ -55,7 +55,7 @@ op1 :: Name -> TypeCore -> TypeCore -> Scomb
 op1 name argT resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList $ [Typed "x" argT]
-  , scomb'body = Typed (EAp (EVar $ Typed name (arrowT argT resT)) (EVar $ Typed "x" argT)) resT
+  , scomb'body = Typed (EAp (EVar name) (EVar "x" )) resT
   }
 
 intOp2 :: Name -> Scomb
@@ -75,7 +75,7 @@ op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
 op2 name (xT, yT) resT = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT]
-  , scomb'body = Typed (ap2 (EVar $ Typed name (funT [xT, yT] resT)) (EVar $ Typed "x" xT) (EVar $ Typed "y" yT)) resT
+  , scomb'body = Typed (ap2 (EVar name) (EVar "x") (EVar "y")) resT
   }
 
 int :: Int64 -> ExprCore
@@ -94,9 +94,7 @@ sigmaBool :: Bool -> ExprCore
 sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
 
 equals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-equals t a b = ap eqV [a, b]
-  where
-    eqV = EVar $ Typed (toCompareName t "equals") (funT [t, t] boolT)
+equals t a b = ap (EVar (toCompareName t "equals")) [a, b]
 
 toCompareName :: TypeCore -> Name -> Name
 toCompareName ty name = mconcat [primName ty, ".", name]

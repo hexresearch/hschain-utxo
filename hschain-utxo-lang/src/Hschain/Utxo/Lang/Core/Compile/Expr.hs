@@ -58,8 +58,10 @@ data Scomb = Scomb
 
 -- | Expressions of the Core-language
 data ExprCore
-  = EVar !(Typed Name)
+  = EVar !Name
   -- ^ variables
+  | EPolyVar Name [TypeCore]
+  -- ^ polymorphic variables which require explicit instantioation of type variables
   | EPrim !Prim
   -- ^ constant primitive
   | EAp  ExprCore ExprCore

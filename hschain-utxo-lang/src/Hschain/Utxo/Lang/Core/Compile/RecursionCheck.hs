@@ -35,7 +35,7 @@ depIsAcyclic deps = all isAcyclic $ G.stronglyConnComp depGraph
 -- | Find free variables for expression.
 freeVars :: ExprCore -> Set Name
 freeVars = \case
-  EVar name     -> S.singleton $ typed'value name
+  EVar name     -> S.singleton name
   EPrim _       -> S.empty
   EAp f a       -> freeVars f <> freeVars a
   ELet binds e  -> freeLetVars binds e

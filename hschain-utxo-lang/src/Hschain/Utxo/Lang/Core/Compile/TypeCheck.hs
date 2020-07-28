@@ -32,7 +32,6 @@ import Control.Monad.Reader
 import Control.Monad.Except
 
 import Data.Fix
-import Data.Either
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -133,6 +132,7 @@ isMono (H.Type t) = flip cata t $ \case
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
+    EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
     EAp  f a       -> inferAp f a
     ELet es e      -> inferLet es e
@@ -141,16 +141,23 @@ inferExpr = \case
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
-inferVar :: Typed Name -> Check MonoType
-inferVar (Typed name ty) =
+inferVar :: Name -> Check MonoType
+inferVar name = do
+  ty <- getType name
   if isMonoType (MonoType ty)
-    then do
-      globalTy <- getType name
-      if isMonoType (MonoType globalTy)
-        then when (ty /= globalTy) $ typeCoreMismatch ty globalTy
-        else when (isLeft $ ty `H.subtypeOf` globalTy) $ subtypeError ty globalTy
-      return $ MonoType ty
+    then return $ MonoType ty
     else notMonomorphicType name ty
+
+inferPolyVar :: Name -> [TypeCore] -> Check MonoType
+inferPolyVar name ts = do
+  ty <- getType name
+  let monoTy = instantiateType ts ty
+  if isMonoType (MonoType monoTy)
+    then return $ MonoType monoTy
+    else notMonomorphicType name monoTy
+
+instantiateType :: [TypeCore] -> TypeCore -> TypeCore
+instantiateType = undefined
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
