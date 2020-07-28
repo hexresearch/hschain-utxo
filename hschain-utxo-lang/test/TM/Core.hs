@@ -56,7 +56,7 @@ progSpendToKey = CoreProg
 progHeight :: CoreProg
 progHeight = CoreProg
   [ mkMain $ Typed
-    { typed'value = EVar (Typed "getHeight" intT)
+    { typed'value = EVar "getHeight"
     , typed'type  = intT
     }
   ]
@@ -65,7 +65,7 @@ progEquality :: Prim -> CoreProg
 progEquality p = CoreProg
   [ mkMain $ Typed
     { typed'value =
-        (EVar (Typed eq (funT [ty,ty] boolT)) `EAp` EPrim p) `EAp` EPrim p
+        (EVar eq `EAp` EPrim p) `EAp` EPrim p
     , typed'type  = boolT
     }
   ]

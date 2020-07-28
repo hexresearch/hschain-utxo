@@ -28,6 +28,7 @@ module Hschain.Utxo.Lang.Const(
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length)
+import Data.String
 import Data.Text (Text)
 
 -- TODO: define all names for primitive functions in this module.
@@ -66,7 +67,7 @@ getBoxValue  = "getBoxValue"
 -------------------------------------------------------------------
 -- list functions
 
-listAt, map, filter, foldr, foldl, length, appendList :: Text
+listAt, map, filter, foldr, foldl, length, appendList :: IsString a => a
 
 listAt = "listAt"
 map    = "map"

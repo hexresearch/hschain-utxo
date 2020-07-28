@@ -95,96 +95,43 @@ listConsts = CoreProg
     bs = [True, False, True]
 
 
-xsV :: ExprCore
-xsV = EVar $ Typed "xs" (listT intT)
-
-ysV :: ExprCore
-ysV = EVar $ Typed "ys" (listT intT)
-
-zsV :: ExprCore
-zsV = EVar $ Typed "zs" (listT intT)
-
-bsV :: ExprCore
-bsV = EVar $ Typed "bs" (listT boolT)
-
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
 -- Out of bound should terminate with BottomTerm.
 progListAt :: Int64 -> CoreProg
-progListAt n = listConsts <>
-  CoreProg [mkMain $ listAtExpr ]
-  where
-    listAtExpr = Typed (ap listAtV [xsV, int n]) intT
-
-    listAtV = EVar $ Typed Const.listAt (listAtT intT)
-
-    listAtT ty = funT [listT ty, intT] ty
+progListAt n = mainProg $ Typed (ap Const.listAt ["xs", int n]) intT
 
 -- | Concatenation of two lists.
 progConcatList :: CoreProg
-progConcatList = listConsts <>
-  CoreProg [mkMain concatExpr]
-  where
-    concatExpr = Typed (ap concatV [xsV, ysV]) (listT intT)
-    concatV = EVar $ Typed Const.appendList concatT
-    concatT = funT [listT intT, listT intT] (listT intT)
+progConcatList = mainProg $ Typed (ap Const.appendList ["xs", "ys"]) (listT intT)
 
 -- | Map over list
 progMapList :: CoreProg
-progMapList = listConsts <>
-  CoreProg [mkMain mapExpr]
-  where
-    mapExpr = Typed (ap mapV [EAp mulV (int 10), xsV]) (listT intT)
-    mapV = EVar $ Typed Const.map mapT
-    mapT = funT [arrowT intT intT, listT intT] (listT intT)
-    mulV = EVar $ Typed "*" mulT
-    mulT = funT [intT, intT] intT
+progMapList = mainProg $ Typed (ap Const.map [EAp "*" (int 10), "xs"]) (listT intT)
 
 progSumList :: CoreProg
-progSumList = listConsts <>
-  CoreProg [mkMain sumExpr]
-  where
-    sumExpr = Typed (ap sumV [zsV]) intT
-    sumV = EVar $ Typed "sum" sumT
-    sumT = arrowT (listT intT) intT
+progSumList = mainProg $ Typed (ap "sum" ["zs"]) intT
 
 progOrList :: Int64 -> CoreProg
 progOrList n = listConsts <>
   CoreProg [mkMain orExpr]
   where
-    orExpr = Typed (ap orV [ap mapV [isIntV n, zsV]]) boolT
-    orV = EVar $ Typed "or" orT
-    orT = arrowT (listT boolT) boolT
-
-    mapV = EVar $ Typed "map" mapT
-    mapT = funT [arrowT intT boolT, listT intT] (listT boolT)
+    orExpr = Typed (ap "or" [ap "map" [isIntV n, "zs"]]) boolT
 
 isIntV :: Int64 -> ExprCore
-isIntV n = EAp intEqV (int n)
-
-intEqV :: ExprCore
-intEqV = EVar $ Typed "Int.equals" (funT [intT, intT] boolT)
+isIntV n = EAp "Int.equals" (int n)
 
 progAnyList :: Int64 -> CoreProg
-progAnyList n = listConsts <> CoreProg [mkMain anyExpr]
-  where
-    anyExpr = Typed (ap anyV [isIntV n, xsV]) boolT
-    anyV = EVar $ Typed "any" anyT
-    anyT = funT [arrowT intT boolT, listT intT] boolT
+progAnyList n = mainProg $ Typed (ap "any" [isIntV n, "xs"]) boolT
 
 progAllList :: Int64 -> CoreProg
-progAllList n = listConsts <> CoreProg [mkMain allExpr]
-  where
-    allExpr = Typed (ap allV [isIntV n, xsV]) boolT
-    allV = EVar $ Typed "all" allT
-    allT = funT [arrowT intT boolT, listT intT] boolT
+progAllList n = mainProg $ Typed (ap "all" [isIntV n, "xs"]) boolT
 
 progSigmaAllList :: CoreProg
-progSigmaAllList = listConsts <> CoreProg [mkMain allExpr]
-  where
-    allExpr   = Typed (ap sigmaAllV [toSigmaV, bsV]) sigmaT
-    sigmaAllV = EVar $ Typed "sigmaAll" (funT [boolT `arrowT` sigmaT, listT boolT] sigmaT)
-    toSigmaV  = EVar $ Typed "toSigma" (boolT `arrowT` sigmaT)
+progSigmaAllList = mainProg $ Typed (ap "sigmaAll" ["toSigma", "bs"]) sigmaT
+
+mainProg :: Typed ExprCore -> CoreProg
+mainProg expr = listConsts <> CoreProg [mkMain expr]
 
 run :: CoreProg -> Either Error [Prim]
 run

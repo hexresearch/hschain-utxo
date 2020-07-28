@@ -167,7 +167,7 @@ getBoxField name field resT = Scomb
   , scomb'args = V.fromList [Typed "box" boxT]
   , scomb'body =
       Typed
-        (ECase (Typed (EVar "box") boxT) [CaseAlt 0 boxArgs (EVar field)])
+        (ECase (Typed "box" boxT) [CaseAlt 0 boxArgs (EVar field)])
         resT
   }
   where
@@ -206,8 +206,8 @@ getBoxArgs =
       }
       where
         resType = fromArgType typeTag
-        onBox e  = ECase (Typed (EVar "x") boxT) [CaseAlt 0 boxArgs e]
-        onArgs e = ECase (Typed (EVar "args") argsT) [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] e]
+        onBox e  = ECase (Typed "x" boxT) [CaseAlt 0 boxArgs e]
+        onArgs e = ECase (Typed "args" argsT) [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] e]
 
 boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
 boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]
@@ -301,7 +301,7 @@ consComb = Scomb
   { scomb'name = "cons"
   , scomb'args = V.fromList [x, xs]
   , scomb'body = Typed
-      (ap (EConstr consT 1 2) [EVar "x", EVar "xs"])
+      (ap (EConstr consT 1 2) ["x", "xs"])
       asT
   }
   where
@@ -317,9 +317,9 @@ foldrComb = Scomb
   { scomb'name = "foldr"
   , scomb'args = V.fromList [f, z, as]
   , scomb'body = Typed
-      (ECase (Typed (EVar "as") asT)
-        [ CaseAlt 0 [] (EVar "z")
-        , CaseAlt 1 [x, xs] (ap (EVar "f") [EVar "x", ap (EVar "foldr") [EVar "f", EVar "z", EVar "xs"]])
+      (ECase (Typed "as" asT)
+        [ CaseAlt 0 [] "z"
+        , CaseAlt 1 [x, xs] (ap "f" ["x", ap "foldr" ["f", "z", "xs"]])
         ])
       bT
   }
@@ -341,9 +341,9 @@ lengthComb = Scomb
   { scomb'name = Const.length
   , scomb'args = V.fromList [Typed "as" (listT aT)]
   , scomb'body = Typed
-      (ECase (Typed (EVar "as") asT)
+      (ECase (Typed "as" asT)
         [ CaseAlt 0 [] (EPrim $ PrimInt 0)
-        , CaseAlt 1 [x, xs] (add one (EAp (EVar Const.length) (EVar "xs")))
+        , CaseAlt 1 [x, xs] (add one (EAp (EVar Const.length) "xs"))
         ])
       intT
   }
@@ -359,9 +359,9 @@ mapComb = Scomb
   { scomb'name = Const.map
   , scomb'args = V.fromList [f, as]
   , scomb'body = Typed
-      (ECase (Typed (EVar "as") asT)
+      (ECase (Typed "as" asT)
         [ CaseAlt 0 [] (EConstr nilT 0 0)
-        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) [EAp (EVar "f") (EVar "x"), ap (EVar "map") [EVar "f", EVar "xs"]])
+        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) [EAp "f" "x", ap "map" ["f", "xs"]])
         ])
       bsT
   }
@@ -385,9 +385,9 @@ listAtComb = Scomb
   , scomb'args = V.fromList [as, n]
   , scomb'body = Typed
 
-      (ECase (Typed (EVar "as") asT)
+      (ECase (Typed "as" asT)
         [ CaseAlt 0 [] EBottom
-        , CaseAlt 1 [x, xs] (EIf (lessThanEquals intT (EVar "n") zero) (EVar "x") (ap (EVar Const.listAt) [EVar "xs", sub (EVar "n") one]))
+        , CaseAlt 1 [x, xs] (EIf (lessThanEquals intT "n" zero) "x" (ap (EVar Const.listAt) ["xs", sub "n" one]))
         ])
       aT
   }
@@ -405,9 +405,9 @@ listAppendComb = Scomb
   { scomb'name = Const.appendList
   , scomb'args = V.fromList [as, bs]
   , scomb'body = Typed
-      (ECase (Typed (EVar "as") asT)
-        [ CaseAlt 0 [] (EVar "bs")
-        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) [EVar "x", ap (EVar Const.appendList) [EVar "xs", EVar "bs"]])
+      (ECase (Typed "as" asT)
+        [ CaseAlt 0 [] "bs"
+        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) ["x", ap (EVar Const.appendList) ["xs", "bs"]])
         ])
       asT
   }
@@ -427,13 +427,13 @@ filterComb = Scomb
   { scomb'name = Const.filter
   , scomb'args = V.fromList [f, as]
   , scomb'body = Typed
-      (ECase (Typed (EVar "as") asT)
+      (ECase (Typed "as" asT)
         [ CaseAlt 0 [] (EConstr nilT 0 0)
         , CaseAlt 1 [x, xs]
-            (ELet [(ys, ap (EVar "filter") [EVar "f", EVar "xs"])]
-                  (EIf (EAp (EVar "f") (EVar "x"))
-                       (ap (EConstr consT 1 2) [EVar "x", EVar "ys"])
-                       (EVar "ys")
+            (ELet [(ys, ap "filter" ["f", "xs"])]
+                  (EIf (EAp "f" "x")
+                       (ap (EConstr consT 1 2) ["x", "ys"])
+                       "ys"
                   ))
         ])
       asT
@@ -456,9 +456,9 @@ foldlComb = Scomb
   { scomb'name = Const.foldl
   , scomb'args = V.fromList [f, z, as]
   , scomb'body = Typed
-      (ECase (Typed asv asT)
-        [ CaseAlt 0 [] zv
-        , CaseAlt 1 [x, xs] (ap foldlv [fv, ap fv [zv, xv], xsv])
+      (ECase (Typed "as" asT)
+        [ CaseAlt 0 [] "z"
+        , CaseAlt 1 [x, xs] (ap foldlv ["f", ap "f" ["z", "x"], "xs"])
         ])
       bT
   }
@@ -469,11 +469,6 @@ foldlComb = Scomb
     x  = Typed "x"  aT
     xs = Typed "xs" asT
 
-    fv  = EVar "f"
-    zv  = EVar "z"
-    asv = EVar "as"
-    xv  = EVar "x"
-    xsv = EVar "xs"
     foldlv = EVar Const.foldl
 
     asT = listT asT
@@ -489,46 +484,45 @@ genFoldrComb aT bT f z name = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [as]
   , scomb'body = Typed
-      (ap foldrV [f, z, asV])
+      (ap foldrV [f, z, "as"])
       bT
   }
   where
     as = Typed "as" (listT aT)
-    asV = EVar "as"
     foldrV = EVar Const.foldr
 
 sumComb :: Scomb
-sumComb = genFoldrComb intT intT (EVar "+") zero "sum"
+sumComb = genFoldrComb intT intT "+" zero "sum"
 
 productComb :: Scomb
-productComb = genFoldrComb intT intT (EVar "*") one "product"
+productComb = genFoldrComb intT intT "*" one "product"
 
 orComb :: Scomb
-orComb = genFoldrComb boolT boolT (EVar "||") (bool False) "or"
+orComb = genFoldrComb boolT boolT "||" (bool False) "or"
 
 andComb :: Scomb
-andComb = genFoldrComb boolT boolT (EVar "&&") (bool True) "and"
+andComb = genFoldrComb boolT boolT "&&" (bool True) "and"
 
 sigmaOrComb :: Scomb
 sigmaOrComb = genFoldrComb sigmaT sigmaT sigmaOrV (sigmaBool False) "sigmaOr"
 
 sigmaOrV :: ExprCore
-sigmaOrV = EVar "|||"
+sigmaOrV = "|||"
 
 sigmaAndComb :: Scomb
 sigmaAndComb = genFoldrComb sigmaT sigmaT sigmaAndV (sigmaBool False) "sigmaAnd"
 
 sigmaAndV :: ExprCore
-sigmaAndV = EVar "&&&"
+sigmaAndV = "&&&"
 
 genFoldrMapComb :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
 genFoldrMapComb aT bT append z name = Scomb
   { scomb'name = name
   , scomb'args = V.fromList [f, as]
   , scomb'body = Typed
-      (ECase (Typed asv asT)
+      (ECase (Typed "as" asT)
         [ CaseAlt 0 [] z
-        , CaseAlt 1 [x, xs] (ap append [EAp fv xv, ap nameV [fv, xsv]])
+        , CaseAlt 1 [x, xs] (ap append [EAp "f" "x", ap nameV ["f", "xs"]])
         ])
       bT
   }
@@ -538,21 +532,16 @@ genFoldrMapComb aT bT append z name = Scomb
     x = Typed "x" aT
     xs = Typed "xs" asT
 
-    fv     = EVar "f"
-    asv    = EVar "as"
-    xv     = EVar "x"
-    xsv    = EVar "xs"
-
     nameV  = EVar name
 
     fT = aT `arrowT` bT
     asT = listT aT
 
 allComb :: Scomb
-allComb = genFoldrMapComb (varT "a") boolT (EVar "&&") (bool True) "all"
+allComb = genFoldrMapComb (varT "a") boolT "&&" (bool True) "all"
 
 anyComb :: Scomb
-anyComb = genFoldrMapComb (varT "a") boolT (EVar "||") (bool False) "any"
+anyComb = genFoldrMapComb (varT "a") boolT "||" (bool False) "any"
 
 sigmaAllComb :: Scomb
 sigmaAllComb = genFoldrMapComb (varT "a") sigmaT sigmaAndV (sigmaBool True) "sigmaAll"
@@ -567,10 +556,10 @@ zero :: ExprCore
 zero = EPrim $ PrimInt 0
 
 add :: ExprCore -> ExprCore -> ExprCore
-add a b = ap (EVar "+") [a, b]
+add a b = ap "+" [a, b]
 
 sub :: ExprCore -> ExprCore -> ExprCore
-sub a b = ap (EVar "-") [a, b]
+sub a b = ap "-" [a, b]
 
 lessThanEquals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
 lessThanEquals ty a b = ap lteV [a, b]

@@ -15,6 +15,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
 
 import Codec.Serialise
 
+import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -55,6 +56,9 @@ data Scomb = Scomb
   , scomb'args :: Vector (Typed Name)  -- ^ list of arguments
   , scomb'body :: Typed ExprCore       -- ^ body
   } deriving (Show, Eq, Generic)
+
+instance IsString ExprCore where
+  fromString = EVar . fromString
 
 -- | Expressions of the Core-language
 data ExprCore

@@ -22,7 +22,7 @@ skiI :: Name -> TypeCore -> Scomb
 skiI name ty = Scomb
   { scomb'name = "skiI." <> name
   , scomb'args = [Typed "x" ty]
-  , scomb'body = Typed (EVar (Typed "x" ty)) ty
+  , scomb'body = Typed "x" ty
   }
 
 -- | K combinator
@@ -33,7 +33,7 @@ skiK :: Text -> TypeCore -> TypeCore -> Scomb
 skiK name tyX tyY = Scomb
   { scomb'name = "skiK." <> name
   , scomb'args = [Typed "x" tyX, Typed "y" tyY]
-  , scomb'body = Typed (EVar (Typed "x" tyX)) tyX
+  , scomb'body = Typed "x" tyX
   }
 
 -- | S combinator
@@ -48,7 +48,7 @@ skiS name tyA tyB tyC = Scomb
                  , Typed "z" tyZ
                  ]
   , scomb'body = Typed
-                 ((EAp (EVar (Typed "x" tyX)) (EVar (Typed "z" tyZ))) `EAp` (EAp (EVar (Typed "y" tyY)) (EVar (Typed "z" tyZ))))
+                 ((EAp "x" "z") `EAp` (EAp "y" "z"))
                  tyC
   }
   where
@@ -70,18 +70,9 @@ exampleSKK3 = CoreProg
   , skiK "funT" intT (intT `arrowT` intT)
   , skiS ""     intT (intT `arrowT` intT) intT
   , mkMain $ Typed
-    (((EVar (Typed "skiS." tySkiS) `EAp` EVar (Typed "skiK.funT" tySkiK_funT)) `EAp` EVar (Typed "skiK.intT" tySkiK_intT)) `EAp` EPrim (PrimInt 3))
+    ((("skiS." `EAp` "skiK.funT") `EAp` "skiK.intT") `EAp` EPrim (PrimInt 3))
     intT
   ]
-  where
-    tySkiK_intT = funT [intT, intT] intT
-    tySkiK_funT = funT [intT, intT `arrowT` intT] intT
-    tySkiS      = funT [a `arrowT` (b `arrowT` c), a `arrowT` b, a] c
-      where
-        a = intT
-        b = intT `arrowT` intT
-        c = intT
-
 
 ----------------------------------------------------------------
 -- Helpers

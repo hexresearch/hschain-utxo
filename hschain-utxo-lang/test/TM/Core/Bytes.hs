@@ -37,18 +37,18 @@ tests = testGroup "core-bytes"
     val = "hello bytes"
 
 sha256V :: ExprCore -> ExprCore
-sha256V = EAp (EVar $ Typed "sha256" (arrowT bytesT bytesT))
+sha256V = EAp "sha256"
 
 serialiseIntV :: ExprCore -> ExprCore
-serialiseIntV = EAp (EVar $ Typed "serialiseInt" (arrowT intT bytesT))
+serialiseIntV = EAp "serialiseInt"
 
 deserialiseIntV :: ExprCore -> ExprCore
-deserialiseIntV = EAp (EVar $ Typed "deserialiseInt" (arrowT bytesT intT))
+deserialiseIntV = EAp "deserialiseInt"
 
 appendBytesV :: ExprCore -> ExprCore -> ExprCore
 appendBytesV a b = ap name [a, b]
   where
-    name = EVar $ Typed Const.appendBytes (funT [bytesT, bytesT] bytesT)
+    name = EVar $ Const.appendBytes
 
 progHash :: ByteString -> CoreProg
 progHash bs = mainProg $
