@@ -15,16 +15,29 @@ import Data.ByteString.Char8 as LB
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
+import qualified HSChain.PoW.Types as POWTypes
+import Hschain.Utxo.Pow.App.Types
+
 main :: IO ()
 main = B.putStrLn . LB.toStrict . encodePretty =<< singleOwnerGenesis
 
-singleOwnerGenesis :: IO [Tx]
+singleOwnerGenesis :: IO (POWTypes.Block UTXOBlock)
 singleOwnerGenesis = withSecret =<< newSecret
   where
     withSecret secret = do
+      time <- getCurrentTime
       Right proof <- newProof env (Fix $ SigmaPk publicKey)
       return $ [tx proof]
       where
+        incorrectGenesisBlock = POWTypes.GBlock
+                                  { POWTypes.blockHeight = POWTypes.Height 0
+                                  , POWTypes.blockTime   = POWTypes.Time 0
+                                  , POWTypes.prevBlock   = Nothing
+                                  , POWTypes.blockData   = error "zuza"
+                                  , POWTypes.kvNonce = ""
+                                  , POWTypes.kvTarget = POWTypes.Target $ 2^(256 :: Int) - 1
+                                  }
+
         publicKey = getPublicKey secret
         env = proofEnvFromKeys [getKeyPair secret]
 

@@ -1,4 +1,4 @@
-module Hschain.Utxo.App.Options(
+module Hschain.Utxo.Pow.App.Options(
     Options(..)
   , readOptions
 ) where
@@ -14,27 +14,15 @@ readOptions = execParser opts
       <> header "hschain-utxo - utility to run webnodes and validators" )
 
 data Options
-  = RunWebNode
-      { runWebNode'config  :: FilePath
-      , runWebNode'genesis :: FilePath
-      }
-  | RunValidator
-      { runValidator'config  :: FilePath
-      , runValidator'genesis :: FilePath
+  = Options
+      { options'config   :: FilePath
+      , options'genesis  :: FilePath
+      , options'nodeName :: String
+      , options'mine     :: Bool
       }
 
 options :: Parser Options
-options = subparser
-  (  command "webnode"   webnodeParser
-  <> command "validator" validatorParser
-  )
-  where
-    webnodeParser   = configParser RunWebNode   "Run webnode"
-    validatorParser = configParser RunValidator "Run validator"
-
-    configParser cons msg = info parser (progDesc msg)
-      where
-        parser = cons
+options = Options
           <$> strOption
               (  metavar "CONFIG_FILE_PATH"
               <> long "config"
@@ -45,4 +33,14 @@ options = subparser
               <> long "genesis"
               <> short 'g'
               <> help "path to genesis")
+          <*> strOption
+              (  metavar "NODE_SECRET"
+              <> long "secret"
+              <> short 's'
+              <> help "secret of the node")
+          <*> switch
+              (  long "mine"
+              <> short 'm'
+              <> help "enables mining alongside full node functionality"
+              )
 

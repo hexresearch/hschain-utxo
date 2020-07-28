@@ -15,10 +15,12 @@ extra-source-files:  CHANGELOG.md
 
 library
   exposed-modules:     Hschain.Utxo.Pow.App
-                       --Hschain.Utxo.App.Options
+                     , Hschain.Utxo.Pow.App.Options
+                     , Hschain.Utxo.Pow.App.Types
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , aeson
                      , bytestring
                      , cryptonite
                      , data-fix
@@ -84,6 +86,8 @@ executable hschain-utxo-pow-generate-genesis
                      , data-default
                      , data-fix
                      , hschain-utxo-lang
+                     , hschain-utxo-pow-node
+                     , hschain-PoW
                      , vector
   hs-source-dirs:      app
   default-language:    Haskell2010

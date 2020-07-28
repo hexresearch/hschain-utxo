@@ -31,6 +31,8 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Maybe
 
+import qualified Data.Aeson as JSON
+
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
@@ -90,144 +92,22 @@ import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 
 import Hschain.Utxo.API.Rest
 
--------------------------------------------------------------------------------
--- Instances.
-
-instance Crypto.CryptoHashable PublicKey where
-  hashStep = genericHashStep "public key"
-
-instance Crypto.CryptoHashable Ed.Point where
-  hashStep x = hashStep (Ed.pointEncode x :: ByteString)
-
-instance Crypto.CryptoHashable Ed.Scalar where
-  hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
-
-instance Crypto.CryptoHashable Pico where
-  hashStep = hashStep . serialise
-
--------------------------------------------------------------------------------
--- The Block.
-
--- ^A block proper. It does not contain nonce to solve PoW puzzle
--- but it contains all information about block.
-data UTXOBlockProper f = UTXOBlockProper
-  { ubpPrevious   :: !(POWTypes.BlockID UTXOBlock)
-  -- ^Previous block.
-  , ubpData       :: !(MerkleNode f SHA256 [Tx])
-  -- ^ List of key-value pairs
-  , ubpTarget     :: !POWTypes.Target
-  -- ^ Current difficulty of mining. It means a complicated thing
-  -- right now.
-  , ubpTime       :: !POWTypes.Time
-  -- ^ Block creation time.
-  }
-  deriving stock (Generic)
-deriving stock instance (Show1 f)    => Show (UTXOBlockProper f)
-deriving stock instance (IsMerkle f) => Eq   (UTXOBlockProper f)
-instance Serialise (UTXOBlockProper Identity)
-instance Serialise (UTXOBlockProper Proxy)
-
-instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlockProper f) where
-  hashStep = Crypto.genericHashStep "block proper"
-
--- ^The block. Nonce (puzzle answer) is prepended to the header
--- as it is more secure - prevents selfish pool mining utilization.
--- When nonce is before block and answer is computed as a hash of nonce
--- and header, then each (pool) miner sees what is previous block
--- and can detect selfish mining and mining pool utilization for
--- currencies it does not support.
-data UTXOBlock f = UTXOBlock
-  { ubNonce       :: !ByteString
-  , ubProper      :: !(UTXOBlockProper f)
-  }
-  deriving stock (Generic)
-deriving stock instance (Show1 f)    => Show (UTXOBlock f)
-deriving stock instance (IsMerkle f) => Eq   (UTXOBlock f)
-instance Serialise (UTXOBlock Identity)
-instance Serialise (UTXOBlock Proxy)
-
-instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
-  hashStep = Crypto.genericHashStep "block proper"
-
-instance POWTypes.BlockData UTXOBlock where
-
-  newtype BlockID UTXOBlock = UB'BID { fromUBBID :: Crypto.Hash SHA256 }
-    deriving newtype
-      (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON)
-
-  type Tx UTXOBlock = Tx
-
-  blockID b = let Hashed h = hashed b in UB'BID h
-  validateHeader bh (POWTypes.Time now) header
-    | POWTypes.blockHeight header == 0 = return True -- skip genesis check.
-    | otherwise = do
-      answerIsGood <- error "no puzzle check right now"
-      return
-        $ and
-              [ answerIsGood
-              , ubpTarget (ubProper $ POWTypes.blockData header) == POWTypes.retarget bh
-              -- Time checks
-              , t <= now + (2*60*60*1000)
-              -- FIXME: Check that we're ahead of median time of N prev block
-              ]
-    where
-      POWTypes.Time t = POWTypes.blockTime header
-
-  validateBlock = const $ return True
-
-  blockWork b = POWTypes.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
-                              $ POWTypes.targetInteger $ ubpTarget $ ubProper
-                              $ POWTypes.blockData b
-
-  blockTargetThreshold b = POWTypes.Target $ POWTypes.targetInteger $
-                          ubpTarget $ ubProper $ POWTypes.blockData b
-
-
-instance MerkleMap UTXOBlock where
-  merkleMap f ub = ub
-                 { ubProper = (ubProper ub) { ubpData = mapMerkleNode f $ ubpData $ ubProper ub } }
-
-instance POWTypes.Mineable UTXOBlock where
-  adjustPuzzle b0@POWTypes.GBlock{..} = do
-    (maybeAnswer, hash) <- liftIO $ POWFunc.solve [LBS.toStrict $ serialise blockData] powCfg
-    let tgt = POWTypes.hash256AsTarget hash
-    return (fmap (\answer -> b0 { POWTypes.blockData = blockData { ubNonce = answer} }) maybeAnswer, tgt)
-    where
-      h0 = POWTypes.toHeader b0
-      powCfg = defaultPOWConfig
-                       { POWFunc.powCfgTarget = POWTypes.targetInteger tgt }
-      tgt = POWTypes.blockTargetThreshold b0
-      defaultPOWConfig = POWFunc.defaultPOWConfig
-
+import Hschain.Utxo.Pow.App.Options (Options(..), readOptions)
+import Hschain.Utxo.Pow.App.Types
 
 -------------------------------------------------------------------------------
 -- Executable part.
 
-newtype Profitability = Profitability Rational
-  deriving (Eq, Show)
-
-instance Ord Profitability where
-  compare (Profitability a) (Profitability b) = compare b a -- ^More profitable first.
-
-data ProfitTx = PTx
-  { ptxProfitability :: !Profitability
-  , ptxTx            :: !Tx
-  }
-  deriving (Eq, Ord, Show)
-
-data UTXONodeState = UTXONodeState
-  { unsTransactions   :: !(Set.Set ProfitTx)
-  , unsUTXOSet        :: !(Set.Set Box)
-  , unsUTXORandomness :: !BS.ByteString
-  , unsUTXOIndex      :: !Word64
-  }
-  deriving (Eq, Ord, Show)
-
 -- |Run the PoW node.
-runNode :: String -> String -> IO ()
-runNode secretNodeName cfgConfigPath =
-  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep getBlockToMine (UTXONodeState Set.empty Set.empty (getHashBytes (hash secretNodeName :: Hash SHA256)) 0)
+runNode :: Options -> IO ()
+runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine) = do
+  genesisBlock <- readGenesis pathToGenesis
+  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep getBlockToMine (UTXONodeState Set.empty Set.empty (getHashBytes (hash nodeSecret :: Hash SHA256)) 0)
   where
+    readGenesis :: FilePath -> IO (POWTypes.Block UTXOBlock)
+    readGenesis = fmap (fromMaybe err) . readJson
+      where
+        err = error "Error: failed to read genesis"
     getHashBytes :: Hash a -> BS.ByteString
     getHashBytes (Hash bytes) = bytes
     getBlockToMine bh st@(UTXONodeState{..}) = (POWTypes.GBlock
@@ -279,8 +159,6 @@ runNode secretNodeName cfgConfigPath =
          
 
     optNodeName = error "optnodename"
-    optMine = True
-    genesisBlock = undefined
     utxoViewStep :: POWTypes.Block UTXOBlock -> UTXONodeState -> Maybe UTXONodeState
     utxoViewStep b m
       | otherwise                               = error "utxo view step is not done"
@@ -288,7 +166,7 @@ runNode secretNodeName cfgConfigPath =
         txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
 
 runApp :: IO ()
-runApp = putStrLn "running the app!"
+runApp = readOptions >>= runNode
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM
