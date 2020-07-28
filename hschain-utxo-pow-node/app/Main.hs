@@ -1,7 +1,12 @@
 module Main where
 
+import System.IO
+
 import Hschain.Utxo.Pow.App
 
 main :: IO ()
-main = runApp
+main = do
+  hSetBuffering stdout NoBuffering
+  hSetBuffering stderr NoBuffering
+  runApp
 
