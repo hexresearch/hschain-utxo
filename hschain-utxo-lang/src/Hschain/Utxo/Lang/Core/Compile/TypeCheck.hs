@@ -6,7 +6,7 @@
 module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
     typeCheck
   , TypeContext(..)
-  , getScombType
+  , getScombSignature
   -- * primitive types
   , intT
   , boolT
@@ -43,6 +43,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
+import qualified Language.HM.Subst as H
 
 {- for debug
 import Debug.Trace
@@ -82,8 +83,8 @@ runCheck ctx (Check m) = runReaderT m ctx
 typeCheckM :: CoreProg -> Check ()
 typeCheckM (CoreProg prog) = mapM_ typeCheckScomb  prog
 
-getType :: Name -> Check TypeCore
-getType name = do
+getSignature :: Name -> Check SignatureCore
+getSignature name = do
   TypeContext ctx <- ask
   maybe err pure $ M.lookup name ctx
   where
@@ -95,6 +96,9 @@ getScombType Scomb{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type $ V.toList scomb'args
     res  = typed'type scomb'body
+
+getScombSignature :: Scomb -> SignatureCore
+getScombSignature sc = foldr (\v z -> H.forAllT () v z) (H.monoT $ getScombType sc) (scomb'forall sc)
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
@@ -142,22 +146,39 @@ inferExpr = \case
     EBottom        -> pure AnyType
 
 inferVar :: Name -> Check MonoType
-inferVar name = do
-  ty <- getType name
-  if isMonoType (MonoType ty)
-    then return $ MonoType ty
-    else notMonomorphicType name ty
+inferVar name = getMonoType name
+
+getMonoType :: Name -> Check MonoType
+getMonoType name =
+  fmap MonoType $ (\sig -> maybe (noMonoSignature name sig) pure $ extractMonoType sig) =<< getSignature name
+
+noMonoSignature :: Name -> SignatureCore -> Check a
+noMonoSignature name x = notMonomorphicType name $ H.stripSignature x
+
+extractMonoType :: SignatureCore -> Maybe TypeCore
+extractMonoType x = flip cataM (H.unSignature x) $ \case
+  H.MonoT ty      -> Just ty
+  H.ForAllT _ _ _ -> Nothing
 
 inferPolyVar :: Name -> [TypeCore] -> Check MonoType
 inferPolyVar name ts = do
-  ty <- getType name
-  let monoTy = instantiateType ts ty
-  if isMonoType (MonoType monoTy)
-    then return $ MonoType monoTy
-    else notMonomorphicType name monoTy
+  sig <- getSignature name
+  maybe (noMonoSignature name sig) (pure . MonoType) $ instantiateType ts sig
 
-instantiateType :: [TypeCore] -> TypeCore -> TypeCore
-instantiateType = undefined
+instantiateType :: [TypeCore] -> SignatureCore -> Maybe TypeCore
+instantiateType argTys sig
+  | length argTys == length vars = Just $ H.apply subst ty
+  | otherwise                    = Nothing
+  where
+    subst = H.Subst $ M.fromList $ zip vars argTys
+    (vars, ty) = splitArgsAndType sig
+
+splitArgsAndType :: SignatureCore -> ([Name], TypeCore)
+splitArgsAndType (H.Signature x) = cata go x
+  where
+    go = \case
+      H.ForAllT _ v (vs, t) -> (v:vs, t)
+      H.MonoT t             -> ([], t)
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
@@ -224,25 +245,25 @@ inferIf c t e = do
 -- type inference context
 
 -- | Type context of the known signatures
-newtype TypeContext = TypeContext (Map Name TypeCore)
+newtype TypeContext = TypeContext (Map Name SignatureCore)
   deriving newtype (Semigroup, Monoid)
 
 
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext -> TypeContext
 loadContext (CoreProg defs) ctx =
-  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) ctx defs
+  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombSignature sc) res) ctx defs
 
-insertSignature :: Name -> TypeCore -> TypeContext -> TypeContext
-insertSignature name ty (TypeContext m) =
-  TypeContext $ M.insert name ty m
+insertSignature :: Name -> SignatureCore -> TypeContext -> TypeContext
+insertSignature name sig (TypeContext m) =
+  TypeContext $ M.insert name sig m
 
 loadArgs :: [Typed Name] -> TypeContext -> TypeContext
 loadArgs args ctx =
   L.foldl' (\res arg -> loadName arg res) ctx args
 
 loadName :: Typed Name -> TypeContext -> TypeContext
-loadName Typed{..} = insertSignature typed'value typed'type
+loadName Typed{..} = insertSignature typed'value (H.monoT typed'type)
 
 -------------------------------------------------------
 -- constants

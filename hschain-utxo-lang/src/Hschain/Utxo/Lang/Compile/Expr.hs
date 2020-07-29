@@ -71,9 +71,9 @@ type Comb bind = Def bind (ExprLam bind)
 
 -- | Definition (or combinator).
 data Def bind rhs = Def
-  { def'name :: VarName  -- ^ name of the definition
-  , def'args :: [bind]   -- ^ arguments
-  , def'body :: rhs      -- ^ body of the definition
+  { def'name   :: VarName  -- ^ name of the definition
+  , def'args   :: [bind]   -- ^ arguments
+  , def'body   :: rhs      -- ^ body of the definition
   } deriving (Functor, Foldable, Traversable, Show, Eq)
 
 -- | Expressions of the Extended Lambda calculus Core-language

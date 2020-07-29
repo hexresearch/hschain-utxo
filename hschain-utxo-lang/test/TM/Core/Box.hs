@@ -23,7 +23,6 @@ import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
 import qualified Data.Text.IO as T
-import qualified Hschain.Utxo.Lang.Const as Const
 
 blockChainHeight :: Int64
 blockChainHeight = 10
@@ -84,31 +83,30 @@ testProg name res prog = testGroup name
   ]
 
 progGetHeight :: CoreProg
-progGetHeight = mainProg $ Typed "getHeight" intT
+progGetHeight = mainProg $ Typed getHeight intT
 
 progGetSelfId :: CoreProg
-progGetSelfId = mainProg $ Typed (EAp "getBoxId" "getSelf") textT
+progGetSelfId = mainProg $ Typed (getBoxId getSelf) textT
 
 progGetSelfScript :: CoreProg
-progGetSelfScript = mainProg $ Typed (EAp "getBoxScript" "getSelf") bytesT
+progGetSelfScript = mainProg $ Typed (getBoxScript getSelf) bytesT
 
 progGetTxArg :: CoreProg
-progGetTxArg = mainProg $ Typed (ap (listAtV intT) ["getIntArgs", int 1]) intT
+progGetTxArg = mainProg $ Typed (listAt intT getIntArgs (int 1)) intT
 
 progGetInputId :: CoreProg
-progGetInputId = mainProg $ Typed (ap "getBoxId" [ap (listAtV boxT) ["getInputs", int 0]]) textT
+progGetInputId = mainProg $ Typed (getBoxId $ listAt boxT getInputs (int 0)) textT
 
 progGetOutputId :: CoreProg
-progGetOutputId = mainProg $ Typed (ap "getBoxId" [ap (listAtV boxT) ["getOutputs", int 0]]) textT
+progGetOutputId = mainProg $ Typed (getBoxId $ listAt boxT getOutputs (int 0)) textT
 
 progGetOutputLastIntArg :: CoreProg
-progGetOutputLastIntArg = mainProg $ Typed (ap (listAtV intT) [ap "getBoxArgs" [ap (listAtV boxT) ["getOutputs", int 0]], int 1]) intT
+progGetOutputLastIntArg = mainProg $
+  Typed (listAt intT (getBoxIntArgs $ listAt boxT getOutputs (int 0)) (int 1)) intT
 
 progGetInputLastTextArg :: CoreProg
-progGetInputLastTextArg = mainProg $ Typed (ap (listAtV textT) [ap "getBoxArgs" [ap (listAtV boxT) ["getInputs", int 1]], int 1]) textT
-
-listAtV :: TypeCore -> ExprCore
-listAtV t = EPolyVar Const.listAt [t]
+progGetInputLastTextArg = mainProg $
+  Typed (listAt textT (getBoxTextArgs $ listAt boxT getInputs (int 1)) (int 1)) textT
 
 mainProg :: Typed ExprCore -> CoreProg
 mainProg expr = CoreProg [mkMain expr]

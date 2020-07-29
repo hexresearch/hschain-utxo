@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Compile(
 import Control.Monad
 
 import Data.Fix
+import Data.Foldable
 
 import Hschain.Utxo.Lang.Expr hiding (Type)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
@@ -20,7 +21,10 @@ import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, coreProgToSc
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 
+import qualified Data.List   as L
 import qualified Data.Vector as V
+
+import qualified Language.HM as H
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
@@ -42,10 +46,17 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
     toScomb Def{..} = do
       expr <- toCoreExpr def'body
       return $ Core.Scomb
-          { Core.scomb'name = varName'name def'name
-          , Core.scomb'args = V.fromList def'args
-          , Core.scomb'body = expr
+          { Core.scomb'name   = varName'name def'name
+          , Core.scomb'forall = collectForall $ fmap typed'type def'args ++ [typed'type expr]
+          , Core.scomb'args   = V.fromList def'args
+          , Core.scomb'body   = expr
           }
+
+    collectForall ts = V.fromList $ L.nub $ foldMap extractTypeVars ts
+
+    extractTypeVars (H.Type x) = flip cata x $ \case
+      H.VarT _ name      -> [name]
+      other              -> fold other
 
     toCoreExpr :: TypedExprLam -> m (Typed ExprCore)
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)

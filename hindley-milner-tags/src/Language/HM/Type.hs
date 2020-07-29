@@ -22,6 +22,7 @@ module Language.HM.Type (
     monoT,
     stripSignature,
     typeToSignature,
+    getTypeVars,
 
     VarSet(..),
     differenceVarSet,
@@ -235,6 +236,10 @@ typeToSignature :: (Eq loc, Ord v) => Type loc v -> Signature loc v
 typeToSignature ty = foldr (\(v, src) a -> forAllT src v a) (monoT ty) vs
   where
     vs = tyVarsInOrder ty
+
+-- | Reads all type-variables.
+getTypeVars :: (Ord var, HasTypeVars f) => f src var -> [(src, var)]
+getTypeVars = varSetToList . tyVars
 
 --------------------------------------------------------------------------------
 

@@ -3,6 +3,7 @@
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
   , TypeCore
+  , SignatureCore
   , Typed(..)
   , Addr
   , Prim(..)
@@ -30,6 +31,7 @@ import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
 import Language.HM.Pretty (PrintCons(..), HasPrefix(..))
 
 type TypeCore = H.Type () Name
+type SignatureCore = H.Signature () Name
 
 -- | Type tags for values
 data Typed a = Typed

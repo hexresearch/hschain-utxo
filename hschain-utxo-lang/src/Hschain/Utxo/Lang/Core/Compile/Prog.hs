@@ -175,13 +175,16 @@ compileE expr env = case expr of
   ELet es e -> compileLet env (fmap stripLetType es) e
   EIf a b c                         -> compileIf a b c
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
+  EAp (EAp (EPolyVar op _) a) b     -> compileDiadic op a b
   EAp (EVar op) a                   -> compileUnary op a
+  EAp (EPolyVar op _) a             -> compileUnary op a
   ECase e alts -> compileCase env (typed'value e) alts
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   --
-  EVar{}  -> defaultCase
-  EAp{}   -> defaultCase
-  EBottom -> defaultCase
+  EVar{}     -> defaultCase
+  EPolyVar{} -> defaultCase
+  EAp{}      -> defaultCase
+  EBottom    -> defaultCase
   where
     compileDiadic op a b =
       case M.lookup op builtInDiadic of
@@ -204,9 +207,8 @@ compileCase env e alts = compileE e env <> Code.singleton (CaseJump $ compileAlt
 -- | Compile expression in lazy context
 compileC :: ExprCore -> Env -> Code
 compileC expr env = case expr of
-  EVar v  -> Code.singleton $ case lookupEnv v env of
-               Just n  -> Push n
-               Nothing -> PushGlobal (GlobalName v)
+  EVar v              -> fromVar v
+  EPolyVar v _        -> fromVar v
   EPrim n             -> Code.singleton $ PushPrim n
   EAp a b             -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
   ELet es e           -> compileLet env (fmap stripLetType es) e
@@ -218,6 +220,11 @@ compileC expr env = case expr of
   -- see discussion at the book on impl at p. 136 section: 3.8.7
   where
     compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
+
+    fromVar v =
+      Code.singleton $ case lookupEnv v env of
+        Just n  -> Push n
+        Nothing -> PushGlobal (GlobalName v)
 
 compileLet :: Env -> [(Name, ExprCore)] -> ExprCore -> Code
 compileLet env defs e =

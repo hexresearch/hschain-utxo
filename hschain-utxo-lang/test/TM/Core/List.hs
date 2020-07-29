@@ -25,7 +25,6 @@ import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
 import qualified Data.Text.IO as T
-import qualified Hschain.Utxo.Lang.Const as Const
 
 tests :: TestTree
 tests = testGroup "core-lists"
@@ -63,13 +62,6 @@ testTypeCheckCase testName prog =
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 
-primComb :: Name -> TypeCore -> ExprCore -> Scomb
-primComb name ty expr = Scomb
-  { scomb'name = name
-  , scomb'args = mempty
-  , scomb'body = Typed expr ty
-  }
-
 listToExpr :: TypeCore -> [ExprCore] -> ExprCore
 listToExpr ty = foldr cons nil
   where
@@ -87,8 +79,8 @@ listConsts = CoreProg
   , bools "bs" bs
   ]
   where
-    nums  name values  = primComb name (listT intT)  $ listToExpr intT $ fmap (EPrim . PrimInt) values
-    bools name values = primComb name (listT boolT) $ listToExpr boolT $ fmap (EPrim . PrimBool) values
+    nums  name values  = constantComb name (listT intT)  $ listToExpr intT $ fmap (EPrim . PrimInt) values
+    bools name values = constantComb name (listT boolT) $ listToExpr boolT $ fmap (EPrim . PrimBool) values
     xs = [1,2,3]
     ys = [4,5,6]
     zs = xs ++ ys
@@ -99,15 +91,15 @@ listConsts = CoreProg
 -- We index the list [1,2,3] with given index.
 -- Out of bound should terminate with BottomTerm.
 progListAt :: Int64 -> CoreProg
-progListAt n = mainProg $ Typed (ap Const.listAt ["xs", int n]) intT
+progListAt n = mainProg $ Typed (listAt intT "xs" (int n)) intT
 
 -- | Concatenation of two lists.
 progConcatList :: CoreProg
-progConcatList = mainProg $ Typed (ap Const.appendList ["xs", "ys"]) (listT intT)
+progConcatList = mainProg $ Typed (appendList intT "xs" "ys") (listT intT)
 
 -- | Map over list
 progMapList :: CoreProg
-progMapList = mainProg $ Typed (ap Const.map [EAp "*" (int 10), "xs"]) (listT intT)
+progMapList = mainProg $ Typed (mapList intT intT (EAp "*" (int 10)) "xs") (listT intT)
 
 progSumList :: CoreProg
 progSumList = mainProg $ Typed (ap "sum" ["zs"]) intT
@@ -116,19 +108,19 @@ progOrList :: Int64 -> CoreProg
 progOrList n = listConsts <>
   CoreProg [mkMain orExpr]
   where
-    orExpr = Typed (ap "or" [ap "map" [isIntV n, "zs"]]) boolT
+    orExpr = Typed (ap "or" [mapList intT boolT (isIntV n) "zs"]) boolT
 
 isIntV :: Int64 -> ExprCore
 isIntV n = EAp "Int.equals" (int n)
 
 progAnyList :: Int64 -> CoreProg
-progAnyList n = mainProg $ Typed (ap "any" [isIntV n, "xs"]) boolT
+progAnyList n = mainProg $ Typed (ap (EPolyVar "any" [intT]) [isIntV n, "xs"]) boolT
 
 progAllList :: Int64 -> CoreProg
-progAllList n = mainProg $ Typed (ap "all" [isIntV n, "xs"]) boolT
+progAllList n = mainProg $ Typed (ap (EPolyVar "all" [intT]) [isIntV n, "xs"]) boolT
 
 progSigmaAllList :: CoreProg
-progSigmaAllList = mainProg $ Typed (ap "sigmaAll" ["toSigma", "bs"]) sigmaT
+progSigmaAllList = mainProg $ Typed (ap (EPolyVar "sigmaAll" [boolT]) ["toSigma", "bs"]) sigmaT
 
 mainProg :: Typed ExprCore -> CoreProg
 mainProg expr = listConsts <> CoreProg [mkMain expr]
