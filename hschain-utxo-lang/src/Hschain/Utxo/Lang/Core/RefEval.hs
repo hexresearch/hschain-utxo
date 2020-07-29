@@ -22,6 +22,7 @@ import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Types (InputEnv)
 
 
 -- | Value hanled by evaluator
@@ -42,12 +43,14 @@ type LEnv = Map.Map Name Val
 
 
 -- | Evaluate program
-evalProg :: CoreProg -> Maybe Prim
-evalProg (CoreProg prog) = do
+evalProg :: InputEnv -> CoreProg -> Maybe Prim
+evalProg env (CoreProg prog) = do
   ValP p <- "main" `Map.lookup` genv
   return p
   where
-    genv = MapL.fromList [ (scomb'name s, evalScomb genv s) | s <- prog ]
+    genv = MapL.fromList [ (scomb'name s, evalScomb genv s)
+                         | s <- prog ++ environmentFunctions env
+                         ]
 
 
 evalScomb :: GEnv -> Scomb -> Val
