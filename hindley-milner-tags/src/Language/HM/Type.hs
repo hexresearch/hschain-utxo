@@ -21,6 +21,7 @@ module Language.HM.Type (
     forAllT,
     monoT,
     stripSignature,
+    splitSignature,
     typeToSignature,
     getTypeVars,
 
@@ -36,7 +37,10 @@ module Language.HM.Type (
     TypeFunctor(..),
 
     extractFunType,
-    extractArrow
+    extractArrow,
+
+    isMono,
+    isPoly
 ) where
 
 --------------------------------------------------------------------------------
@@ -47,8 +51,10 @@ import Control.Monad
 import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Data.Fix
+import Data.Foldable
 import Data.Function (on)
 import Data.Map.Strict (Map)
+import Data.Monoid
 import Data.String
 import Data.Tuple (swap)
 
@@ -196,7 +202,7 @@ class LocFunctor f where
   mapLoc :: (locA -> locB) -> f locA var -> f locB var
 
 -- | Sets the source code location to given value for all expressions in the functor.
-setLoc :: LocFunctor f => loc -> f loc v -> f loc v
+setLoc :: LocFunctor f => loc -> f locA v -> f loc v
 setLoc loc = mapLoc (const loc)
 
 instance LocFunctor Type where
@@ -324,6 +330,12 @@ stripSignature = cata go . unSignature
       ForAllT _ _ r -> r
       MonoT ty -> ty
 
+-- | Separates type variables from type definition.
+splitSignature :: Signature loc var -> ([var], Type loc var)
+splitSignature (Signature x) = flip cata x $ \case
+  ForAllT _ v (vs, t) -> (v:vs, t)
+  MonoT t             -> ([], t)
+
 extractFunType :: Type loc var -> ([Type loc var], Type loc var)
 extractFunType ty = case extractArrow ty of
   Just (lhs, rhs) ->
@@ -335,6 +347,18 @@ extractArrow :: Type loc var -> Maybe (Type loc var, Type loc var)
 extractArrow (Type (Fix x)) = case x of
   ArrowT _ a b -> Just (Type a, Type b)
   _            -> Nothing
+
+------------------------------------
+
+-- | Checks that type is monomorphic.
+isMono :: Type loc var -> Bool
+isMono (Type t) = getAll $ flip cata t $ \case
+  VarT _ _  -> All False
+  other     -> fold other
+
+-- | Checks that type is polymorphic.
+isPoly :: Type loc var -> Bool
+isPoly = not . isMono
 
 ------------------------------------
 -- instances

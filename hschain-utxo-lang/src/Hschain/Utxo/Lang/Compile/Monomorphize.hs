@@ -419,6 +419,7 @@ unifySubst tA tB = case H.unifyTypes tA tB of
   Right subst -> return $ (H.apply subst tB, subst)
   Left err    -> throwError $ TypeError $ H.mapLoc (const noLoc) err
 
+
 -- | Substitutes polymorphic comparison operators to
 -- monomorphic ones. After type checking we have precise
 -- information to what operator we should specify.

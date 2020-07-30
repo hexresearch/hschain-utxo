@@ -6,6 +6,7 @@
 module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
     typeCheck
   , TypeContext(..)
+  , lookupSignature
   , getScombSignature
   -- * primitive types
   , intT
@@ -84,9 +85,7 @@ typeCheckM :: CoreProg -> Check ()
 typeCheckM (CoreProg prog) = mapM_ typeCheckScomb  prog
 
 getSignature :: Name -> Check SignatureCore
-getSignature name = do
-  TypeContext ctx <- ask
-  maybe err pure $ M.lookup name ctx
+getSignature name = maybe err pure =<< fmap (lookupSignature name) ask
   where
     err = throwError $ VarIsNotDefined name
 
@@ -123,15 +122,7 @@ fromMonoType = \case
 isMonoType :: MonoType -> Bool
 isMonoType x = case x of
   AnyType -> False
-  MonoType t -> isMono t
-
-isMono :: TypeCore -> Bool
-isMono (H.Type t) = flip cata t $ \case
-  H.VarT _ _      -> False
-  H.ConT _ _ as   -> and as
-  H.ArrowT _ a b  -> a && b
-  H.TupleT _ as   -> and as
-  H.ListT _ a     -> a
+  MonoType t -> H.isMono t
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
@@ -171,14 +162,7 @@ instantiateType argTys sig
   | otherwise                    = Nothing
   where
     subst = H.Subst $ M.fromList $ zip vars argTys
-    (vars, ty) = splitArgsAndType sig
-
-splitArgsAndType :: SignatureCore -> ([Name], TypeCore)
-splitArgsAndType (H.Signature x) = cata go x
-  where
-    go = \case
-      H.ForAllT _ v (vs, t) -> (v:vs, t)
-      H.MonoT t             -> ([], t)
+    (vars, ty) = H.splitSignature sig
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
@@ -248,7 +232,6 @@ inferIf c t e = do
 newtype TypeContext = TypeContext (Map Name SignatureCore)
   deriving newtype (Semigroup, Monoid)
 
-
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext -> TypeContext
 loadContext (CoreProg defs) ctx =
@@ -264,6 +247,9 @@ loadArgs args ctx =
 
 loadName :: Typed Name -> TypeContext -> TypeContext
 loadName Typed{..} = insertSignature typed'value (H.monoT typed'type)
+
+lookupSignature :: Name -> TypeContext -> Maybe SignatureCore
+lookupSignature name (TypeContext m) = M.lookup name m
 
 -------------------------------------------------------
 -- constants

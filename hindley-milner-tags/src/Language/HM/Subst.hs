@@ -3,6 +3,7 @@ module Language.HM.Subst(
     CanApply(..)
   , Subst(..)
   , delta
+  , applyToVar
 ) where
 
 import Data.Fix
@@ -12,18 +13,14 @@ import Language.HM.Type
 
 -- | Substitutions of type variables for monomorphic types.
 newtype Subst loc v = Subst { unSubst :: M.Map v (Type loc v) }
-  deriving (Eq, Ord)
-
-instance Ord v => Semigroup (Subst loc v) where
-  Subst s1 <> Subst s2 =
-    Subst $ M.map (apply (Subst s1)) s2 `M.union` s1
-
-instance Ord v => Monoid (Subst loc v) where
-  mempty = Subst M.empty
+  deriving (Eq, Ord, Semigroup, Monoid)
 
 -- | Singleton substitution.
 delta :: IsVar v => v -> Type loc v -> Subst loc v
 delta v ty = Subst $ M.singleton v ty
+
+applyToVar :: Ord v => Subst loc v -> v -> Maybe (Type loc v)
+applyToVar (Subst m) v = M.lookup v m
 
 ---------------------------------------------------------------
 
