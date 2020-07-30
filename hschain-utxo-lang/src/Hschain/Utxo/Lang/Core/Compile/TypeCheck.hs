@@ -6,7 +6,8 @@
 module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
     typeCheck
   , TypeContext(..)
-  , getScombType
+  , lookupSignature
+  , getScombSignature
   -- * primitive types
   , intT
   , boolT
@@ -32,7 +33,6 @@ import Control.Monad.Reader
 import Control.Monad.Except
 
 import Data.Fix
-import Data.Either
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -44,6 +44,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
+import qualified Language.HM.Subst as H
 
 {- for debug
 import Debug.Trace
@@ -83,10 +84,8 @@ runCheck ctx (Check m) = runReaderT m ctx
 typeCheckM :: CoreProg -> Check ()
 typeCheckM (CoreProg prog) = mapM_ typeCheckScomb  prog
 
-getType :: Name -> Check TypeCore
-getType name = do
-  TypeContext ctx <- ask
-  maybe err pure $ M.lookup name ctx
+getSignature :: Name -> Check SignatureCore
+getSignature name = maybe err pure =<< fmap (lookupSignature name) ask
   where
     err = throwError $ VarIsNotDefined name
 
@@ -96,6 +95,9 @@ getScombType Scomb{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type $ V.toList scomb'args
     res  = typed'type scomb'body
+
+getScombSignature :: Scomb -> SignatureCore
+getScombSignature sc = foldr (\v z -> H.forAllT () v z) (H.monoT $ getScombType sc) (scomb'forall sc)
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
@@ -120,19 +122,12 @@ fromMonoType = \case
 isMonoType :: MonoType -> Bool
 isMonoType x = case x of
   AnyType -> False
-  MonoType t -> isMono t
-
-isMono :: TypeCore -> Bool
-isMono (H.Type t) = flip cata t $ \case
-  H.VarT _ _      -> False
-  H.ConT _ _ as   -> and as
-  H.ArrowT _ a b  -> a && b
-  H.TupleT _ as   -> and as
-  H.ListT _ a     -> a
+  MonoType t -> H.isMono t
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
+    EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
     EAp  f a       -> inferAp f a
     ELet es e      -> inferLet es e
@@ -141,16 +136,33 @@ inferExpr = \case
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
-inferVar :: Typed Name -> Check MonoType
-inferVar (Typed name ty) =
-  if isMonoType (MonoType ty)
-    then do
-      globalTy <- getType name
-      if isMonoType (MonoType globalTy)
-        then when (ty /= globalTy) $ typeCoreMismatch ty globalTy
-        else when (isLeft $ ty `H.subtypeOf` globalTy) $ subtypeError ty globalTy
-      return $ MonoType ty
-    else notMonomorphicType name ty
+inferVar :: Name -> Check MonoType
+inferVar name = getMonoType name
+
+getMonoType :: Name -> Check MonoType
+getMonoType name =
+  fmap MonoType $ (\sig -> maybe (noMonoSignature name sig) pure $ extractMonoType sig) =<< getSignature name
+
+noMonoSignature :: Name -> SignatureCore -> Check a
+noMonoSignature name x = notMonomorphicType name $ H.stripSignature x
+
+extractMonoType :: SignatureCore -> Maybe TypeCore
+extractMonoType x = flip cataM (H.unSignature x) $ \case
+  H.MonoT ty      -> Just ty
+  H.ForAllT _ _ _ -> Nothing
+
+inferPolyVar :: Name -> [TypeCore] -> Check MonoType
+inferPolyVar name ts = do
+  sig <- getSignature name
+  maybe (noMonoSignature name sig) (pure . MonoType) $ instantiateType ts sig
+
+instantiateType :: [TypeCore] -> SignatureCore -> Maybe TypeCore
+instantiateType argTys sig
+  | length argTys == length vars = Just $ H.apply subst ty
+  | otherwise                    = Nothing
+  where
+    subst = H.Subst $ M.fromList $ zip vars argTys
+    (vars, ty) = H.splitSignature sig
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
@@ -217,25 +229,27 @@ inferIf c t e = do
 -- type inference context
 
 -- | Type context of the known signatures
-newtype TypeContext = TypeContext (Map Name TypeCore)
+newtype TypeContext = TypeContext (Map Name SignatureCore)
   deriving newtype (Semigroup, Monoid)
-
 
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext -> TypeContext
 loadContext (CoreProg defs) ctx =
-  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) ctx defs
+  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombSignature sc) res) ctx defs
 
-insertSignature :: Name -> TypeCore -> TypeContext -> TypeContext
-insertSignature name ty (TypeContext m) =
-  TypeContext $ M.insert name ty m
+insertSignature :: Name -> SignatureCore -> TypeContext -> TypeContext
+insertSignature name sig (TypeContext m) =
+  TypeContext $ M.insert name sig m
 
 loadArgs :: [Typed Name] -> TypeContext -> TypeContext
 loadArgs args ctx =
   L.foldl' (\res arg -> loadName arg res) ctx args
 
 loadName :: Typed Name -> TypeContext -> TypeContext
-loadName Typed{..} = insertSignature typed'value typed'type
+loadName Typed{..} = insertSignature typed'value (H.monoT typed'type)
+
+lookupSignature :: Name -> TypeContext -> Maybe SignatureCore
+lookupSignature name (TypeContext m) = M.lookup name m
 
 -------------------------------------------------------
 -- constants

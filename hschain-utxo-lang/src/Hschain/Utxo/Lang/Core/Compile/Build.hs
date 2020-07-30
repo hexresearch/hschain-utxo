@@ -17,6 +17,24 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , sigmaBool
   , equals
   , toCompareName
+  , listAt
+  , appendList
+  , mapList
+  , getBoxId
+  , getBoxScript
+  , getBoxValue
+  , getBoxIntArgs
+  , getBoxTextArgs
+  , getBoxByteArgs
+  , getBoxBoolArgs
+  , getInputs
+  , getOutputs
+  , getSelf
+  , getHeight
+  , getIntArgs
+  , getTextArgs
+  , getByteArgs
+  , getBoolArgs
 ) where
 
 import Data.ByteString (ByteString)
@@ -34,6 +52,8 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
 ap :: ExprCore -> [ExprCore] -> ExprCore
 ap f args = L.foldl' (\op a -> EAp op a) f args
 
@@ -46,16 +66,18 @@ constant name val = constantComb name (primToType val) (EPrim val)
 
 constantComb :: Name -> TypeCore -> ExprCore -> Scomb
 constantComb name ty val = Scomb
-  { scomb'name = name
-  , scomb'args = V.empty
-  , scomb'body = Typed val ty
+  { scomb'name   = name
+  , scomb'forall = V.fromList $ fmap snd $ H.getTypeVars ty
+  , scomb'args   = V.empty
+  , scomb'body   = Typed val ty
   }
 
 op1 :: Name -> TypeCore -> TypeCore -> Scomb
 op1 name argT resT = Scomb
-  { scomb'name = name
-  , scomb'args = V.fromList $ [Typed "x" argT]
-  , scomb'body = Typed (EAp (EVar $ Typed name (arrowT argT resT)) (EVar $ Typed "x" argT)) resT
+  { scomb'name   = name
+  , scomb'forall = V.fromList $ fmap snd $ H.getTypeVars $ H.arrowT () argT resT
+  , scomb'args   = V.fromList $ [Typed "x" argT]
+  , scomb'body   = Typed (EAp (EVar name) (EVar "x" )) resT
   }
 
 intOp2 :: Name -> Scomb
@@ -73,9 +95,10 @@ compareOp ty name = op2 name (ty, ty) boolT
 
 op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
 op2 name (xT, yT) resT = Scomb
-  { scomb'name = name
-  , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT]
-  , scomb'body = Typed (ap2 (EVar $ Typed name (funT [xT, yT] resT)) (EVar $ Typed "x" xT) (EVar $ Typed "y" yT)) resT
+  { scomb'name   = name
+  , scomb'forall = V.fromList $ fmap snd $ H.getTypeVars $ funT [xT, yT] resT
+  , scomb'args   = V.fromList [Typed "x" xT, Typed "y" yT]
+  , scomb'body   = Typed (ap2 (EVar name) (EVar "x") (EVar "y")) resT
   }
 
 int :: Int64 -> ExprCore
@@ -94,9 +117,7 @@ sigmaBool :: Bool -> ExprCore
 sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
 
 equals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-equals t a b = ap eqV [a, b]
-  where
-    eqV = EVar $ Typed (toCompareName t "equals") (funT [t, t] boolT)
+equals t a b = ap (EVar (toCompareName t "equals")) [a, b]
 
 toCompareName :: TypeCore -> Name -> Name
 toCompareName ty name = mconcat [primName ty, ".", name]
@@ -105,4 +126,44 @@ toCompareName ty name = mconcat [primName ty, ".", name]
       H.ConT _ prim _ -> prim
       _               -> error "Non-primitive type"
 
+listAt :: TypeCore -> ExprCore -> ExprCore -> ExprCore
+listAt ty as n = ap (EPolyVar Const.listAt [ty]) [as, n]
+
+appendList :: TypeCore -> ExprCore -> ExprCore -> ExprCore
+appendList ty as bs = ap (EPolyVar Const.appendList [ty]) [as, bs]
+
+mapList :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> ExprCore
+mapList ta tb f as = ap (EPolyVar Const.map [ta, tb]) [f, as]
+
+getBoxId :: ExprCore -> ExprCore
+getBoxId = EAp "getBoxId"
+
+getBoxValue :: ExprCore -> ExprCore
+getBoxValue = EAp "getBoxValue"
+
+getBoxScript :: ExprCore -> ExprCore
+getBoxScript = EAp "getBoxScript"
+
+getBoxIntArgs :: ExprCore -> ExprCore
+getBoxIntArgs = EAp "getBoxIntArgs"
+
+getBoxTextArgs :: ExprCore -> ExprCore
+getBoxTextArgs = EAp "getBoxTextArgs"
+
+getBoxByteArgs :: ExprCore -> ExprCore
+getBoxByteArgs = EAp "getBoxByteArgs"
+
+getBoxBoolArgs :: ExprCore -> ExprCore
+getBoxBoolArgs = EAp "getBoxBoolArgs"
+
+getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
+
+getInputs = "getInputs"
+getOutputs = "getOutputs"
+getSelf = "getSelf"
+getHeight = "getHeight"
+getIntArgs = "getIntArgs"
+getTextArgs = "getTextArgs"
+getByteArgs = "getByteArgs"
+getBoolArgs = "getBoolArgs"
 

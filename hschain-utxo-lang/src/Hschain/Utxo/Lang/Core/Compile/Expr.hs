@@ -15,6 +15,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
 
 import Codec.Serialise
 
+import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -51,15 +52,21 @@ coreProgFromHumanText = undefined -- renderText
 --
 -- > S a1 a2 a3 = expr
 data Scomb = Scomb
-  { scomb'name :: Name                 -- ^ name of supercombinator
-  , scomb'args :: Vector (Typed Name)  -- ^ list of arguments
-  , scomb'body :: Typed ExprCore       -- ^ body
+  { scomb'name   :: Name                 -- ^ name of supercombinator
+  , scomb'forall :: Vector Name          -- ^ names of type variables. It is empty if type is monomorphic.
+  , scomb'args   :: Vector (Typed Name)  -- ^ list of arguments
+  , scomb'body   :: Typed ExprCore       -- ^ body
   } deriving (Show, Eq, Generic)
+
+instance IsString ExprCore where
+  fromString = EVar . fromString
 
 -- | Expressions of the Core-language
 data ExprCore
-  = EVar !(Typed Name)
+  = EVar !Name
   -- ^ variables
+  | EPolyVar Name [TypeCore]
+  -- ^ polymorphic variables which require explicit instantioation of type variables
   | EPrim !Prim
   -- ^ constant primitive
   | EAp  ExprCore ExprCore

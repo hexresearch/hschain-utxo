@@ -23,7 +23,6 @@ import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
 import qualified Data.Text.IO as T
-import qualified Hschain.Utxo.Lang.Const as Const
 
 blockChainHeight :: Int64
 blockChainHeight = 10
@@ -84,65 +83,33 @@ testProg name res prog = testGroup name
   ]
 
 progGetHeight :: CoreProg
-progGetHeight = CoreProg [ mkMain getHeightExpr ]
-  where
-    getHeightExpr = Typed getHeightV intT
-    getHeightV = EVar $ Typed "getHeight" intT
+progGetHeight = mainProg $ Typed getHeight intT
 
 progGetSelfId :: CoreProg
-progGetSelfId = CoreProg [ mkMain expr ]
-  where
-    expr = Typed (EAp getBoxIdV getSelfV) textT
+progGetSelfId = mainProg $ Typed (getBoxId getSelf) textT
 
 progGetSelfScript :: CoreProg
-progGetSelfScript = CoreProg [ mkMain expr ]
-  where
-    expr = Typed (EAp getBoxScriptV getSelfV) bytesT
-    getBoxScriptV = EVar $ Typed "getBoxScript" (arrowT boxT bytesT)
+progGetSelfScript = mainProg $ Typed (getBoxScript getSelf) bytesT
 
 progGetTxArg :: CoreProg
-progGetTxArg = CoreProg [ mkMain expr ]
-  where
-    expr = Typed (ap (listAtV intT) [getIntArgsV, int 1]) intT
-    getIntArgsV = EVar $ Typed (Const.getArgs "Int")  (listT intT)
+progGetTxArg = mainProg $ Typed (listAt intT getIntArgs (int 1)) intT
 
 progGetInputId :: CoreProg
-progGetInputId = CoreProg [ mkMain expr ]
-  where
-    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [getInputsV, int 0]]) textT
+progGetInputId = mainProg $ Typed (getBoxId $ listAt boxT getInputs (int 0)) textT
 
 progGetOutputId :: CoreProg
-progGetOutputId = CoreProg [ mkMain expr ]
-  where
-    expr = Typed (ap getBoxIdV [ap (listAtV boxT) [getOutputsV, int 0]]) textT
+progGetOutputId = mainProg $ Typed (getBoxId $ listAt boxT getOutputs (int 0)) textT
 
 progGetOutputLastIntArg :: CoreProg
-progGetOutputLastIntArg = CoreProg [ mkMain expr ]
-  where
-    expr = Typed (ap (listAtV intT) [ap getBoxArgsV [ap (listAtV boxT) [getOutputsV, int 0]], int 1]) intT
-    getBoxArgsV = EVar $ Typed (Const.getBoxArgs "Int") (arrowT boxT (listT intT))
+progGetOutputLastIntArg = mainProg $
+  Typed (listAt intT (getBoxIntArgs $ listAt boxT getOutputs (int 0)) (int 1)) intT
 
 progGetInputLastTextArg :: CoreProg
-progGetInputLastTextArg = CoreProg [ mkMain expr ]
-  where
-    expr = Typed (ap (listAtV textT) [ap getBoxArgsV [ap (listAtV boxT) [getInputsV, int 1]], int 1]) textT
-    getBoxArgsV = EVar $ Typed (Const.getBoxArgs "Text") (arrowT boxT (listT textT))
+progGetInputLastTextArg = mainProg $
+  Typed (listAt textT (getBoxTextArgs $ listAt boxT getInputs (int 1)) (int 1)) textT
 
-getInputsV :: ExprCore
-getInputsV  = EVar $ Typed "getInputs" (listT boxT)
-
-getOutputsV :: ExprCore
-getOutputsV  = EVar $ Typed "getOutputs" (listT boxT)
-
-getBoxIdV :: ExprCore
-getBoxIdV = EVar $ Typed "getBoxId" (arrowT boxT textT)
-
-getSelfV :: ExprCore
-getSelfV  = EVar $ Typed "getSelf" boxT
-
-listAtV :: TypeCore -> ExprCore
-listAtV t = EVar $ Typed Const.listAt (funT [listT t, intT] t)
-
+mainProg :: Typed ExprCore -> CoreProg
+mainProg expr = CoreProg [mkMain expr]
 
 run :: CoreProg -> Either Error [Prim]
 run

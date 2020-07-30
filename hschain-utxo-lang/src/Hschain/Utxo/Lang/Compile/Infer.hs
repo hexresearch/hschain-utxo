@@ -14,7 +14,7 @@ import qualified Data.Map.Strict as M
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
@@ -54,6 +54,9 @@ instance H.IsPrim PrimLoc where
 
 eraseLoc :: TypeCore -> H.Type Loc Tag
 eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
+
+eraseSignatureLoc :: SignatureCore -> H.Signature Loc Tag
+eraseSignatureLoc = H.mapLoc (const noLoc) . fmap VarTag
 
 eraseWith :: Loc -> TypeCore -> H.Type Loc Tag
 eraseWith loc = H.mapLoc (const loc) . fmap VarTag
@@ -178,7 +181,7 @@ libTypeContext = (H.Context $ M.fromList
     aT = varT' "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
 
-    fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap (H.typeToSignature . eraseLoc) ctx
+    fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap eraseSignatureLoc ctx
 
     genericCompareOps = H.Context $ M.fromList $ fmap (, cmpT) $
       [ "==", "/=", "<", ">", "<=", ">=" ]
