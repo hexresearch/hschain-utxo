@@ -14,7 +14,6 @@ module Hschain.Utxo.Lang.Sigma(
   , SigmaF(..)
   , newProof
   , verifyProof
-  , notSigma
   , publicKeyFromText
   , publicKeyToText
   , emptyProofEnv
@@ -130,30 +129,6 @@ instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
 
 instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
   hashStep = genericHashStep Sigma.hashDomain
-
-
--- | Not for sigma expressions.
---  Warning: assumption
--- We propose that absense of the key can not be proved.
--- not (pk owner) - evaluates to Fasle for any owner
-notSigma :: forall k . Sigma k -> Either Bool (Sigma k)
-notSigma = cata $ \case
-      SigmaPk  _   -> Left False
-      SigmaAnd as  -> orTag as
-      SigmaOr  as  -> andTag as
-      SigmaBool b  -> Left $ not b
-  where
-    orTag xs
-      | or ls     = Left True
-      | otherwise = Right $ Fix $ SigmaOr rs
-      where
-        (ls, rs) = partitionEithers xs
-
-    andTag xs
-      | not (and ls) = Left False
-      | otherwise    = Right $ Fix $ SigmaAnd rs
-      where
-        (ls, rs) = partitionEithers xs
 
 fromSigmaExpr :: Sigma.SigmaE () a -> Sigma a
 fromSigmaExpr = \case
