@@ -444,7 +444,7 @@ filterComb = Scomb
       (ECase (Typed "as" asT)
         [ CaseAlt 0 [] (EConstr nilT 0 0)
         , CaseAlt 1 [x, xs]
-            (ELet [(ys, ap "filter" ["f", "xs"])]
+            (ELet [("ys", ap "filter" ["f", "xs"])]
                   (EIf (EAp "f" "x")
                        (ap (EConstr consT 1 2) ["x", "ys"])
                        "ys"
@@ -457,7 +457,6 @@ filterComb = Scomb
     as     = Typed "as" asT
     x      = Typed "x" aT
     xs     = Typed "xs" asT
-    ys     = Typed "ys" asT
 
     nilT = listT aT
     consT = aT `arrowT` (listT aT `arrowT` listT aT)

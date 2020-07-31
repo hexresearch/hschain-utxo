@@ -135,7 +135,7 @@ compileSc Scomb{..} = CompiledScomb
 compileR :: ExprCore -> Env -> Int -> Code
 compileR expr env arity =
   case expr of
-    ELet es e                         -> compileLetR env arity (fmap stripLetType es) e
+    ELet es e                         -> compileLetR env arity es e
     EIf a b c                         -> compileIf a b c
     ECase e alts                      -> compileCaseR (typed'value e) alts
     _                                 -> defaultCase
@@ -158,9 +158,6 @@ compileR expr env arity =
 
     compileCaseR e alts = compileE e env <> Code.singleton (CaseJump $ compileAltsR arity env alts)
 
-stripLetType :: (Typed Name, ExprCore) -> (Name, ExprCore)
-stripLetType (n, e) = (typed'value n, e)
-
 compileLetR :: Env -> Int -> [(Name, ExprCore)] -> ExprCore -> Code
 compileLetR env arity defs e =
   lets <> compileR e env' (arity + length defs)
@@ -172,7 +169,7 @@ compileLetR env arity defs e =
 compileE :: ExprCore -> Env -> Code
 compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
-  ELet es e -> compileLet env (fmap stripLetType es) e
+  ELet es e -> compileLet env es e
   EIf a b c                         -> compileIf a b c
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
   EAp (EAp (EPolyVar op _) a) b     -> compileDiadic op a b
@@ -211,7 +208,7 @@ compileC expr env = case expr of
   EPolyVar v _        -> fromVar v
   EPrim n             -> Code.singleton $ PushPrim n
   EAp a b             -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
-  ELet es e           -> compileLet env (fmap stripLetType es) e
+  ELet es e           -> compileLet env es e
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   ECase e alts        -> compileCase env (typed'value e) alts
   EIf a b c           -> compileIf a b c
@@ -273,7 +270,7 @@ compileAlt comp env CaseAlt{..} = (caseAlt'tag, comp arity caseAlt'rhs env')
 compileB :: ExprCore -> Env -> Code
 compileB expr env = case expr of
   EPrim n                           -> Code.singleton $ PushBasic n
-  ELet es e                         -> compileLetB env (fmap stripLetType es) e
+  ELet es e                         -> compileLetB env es e
   EIf a b c                         -> compileIf a b c
   EAp (EAp (EVar op) a) b           -> compileDiadic op a b
   EAp (EVar op) a                   -> compileUnary op a

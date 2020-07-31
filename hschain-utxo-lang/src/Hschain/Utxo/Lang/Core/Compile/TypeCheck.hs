@@ -187,15 +187,13 @@ inferAp f a = do
           H.ArrowT () arg res -> return (MonoType $ H.Type arg, MonoType $ H.Type res)
           _                   -> throwError $ ArrowTypeExpected $ H.Type $ Fix t
 
-inferLet :: [(Typed Name, ExprCore)] -> ExprCore -> Check MonoType
-inferLet binds body = local (loadArgs (fmap fst binds)) $ do
-  mapM_ (uncurry checkBind) binds
-  inferExpr body
-  where
-    checkBind :: Typed Name -> ExprCore -> Check ()
-    checkBind Typed{..} expr = do
-      ty <- inferExpr expr
-      hasType ty (MonoType typed'type)
+inferLet :: [(Name, ExprCore)] -> ExprCore -> Check MonoType
+inferLet binds body = do
+  typeMap <- forM binds $ \(nm, e) -> do ty <- inferExpr e >>= \case
+                                           MonoType ty -> pure ty
+                                           AnyType     -> throwError PolymorphicLet
+                                         return $ Typed nm ty
+  local (loadArgs typeMap) $ inferExpr body
 
 inferCase :: Typed ExprCore -> [CaseAlt] -> Check MonoType
 inferCase e alts = do
