@@ -38,7 +38,7 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
-import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText)
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, publicKeyFromText)
 import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Data.ByteString.Lazy as LB
@@ -225,9 +225,8 @@ execLang (Fix topExpr) = case topExpr of
         TupleAt _ n -> fromTupleAt n x'
       where
         fromNot expr = case expr of
-          Fix (PrimE loc1 (PrimBool b))  -> prim loc1 $ PrimBool $ not b
-          Fix (PrimE loc1 (PrimSigma b)) -> prim loc1 $ either PrimBool PrimSigma $ notSigma b
-          _                                   -> thisShouldNotHappen x
+          Fix (PrimE loc1 (PrimBool b)) -> prim loc1 $ PrimBool $ not b
+          _                             -> thisShouldNotHappen x
 
         fromNeg expr = case expr of
           Fix (PrimE loc1 a) -> case a of
