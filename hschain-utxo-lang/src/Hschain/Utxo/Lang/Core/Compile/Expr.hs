@@ -71,11 +71,11 @@ data ExprCore
   -- ^ constant primitive
   | EAp  ExprCore ExprCore
   -- ^ application
-  | ELet [(Typed Name, ExprCore)] ExprCore
+  | ELet [(Name, ExprCore)] ExprCore
   -- ^ lent bindings
   | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
-  | ECase !(Typed ExprCore) [CaseAlt]
+  | ECase !ExprCore [CaseAlt]
   -- ^ case alternatives
   | EConstr TypeCore !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type

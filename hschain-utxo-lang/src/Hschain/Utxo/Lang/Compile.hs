@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Compile(
   , toCoreScript
 ) where
 
+import Control.Arrow (first)
 import Control.Monad
 
 import Data.Fix
@@ -68,10 +69,10 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
           EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
           EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
           EAp _  f a           -> pure $ Core.EAp f a
-          ELet _ binds e       -> pure $ Core.ELet binds e
+          ELet _ binds e       -> pure $ Core.ELet (first typed'value <$> binds) e
           ELam _ _ _           -> eliminateLamError
           EIf _ c t e          -> pure $ Core.EIf c t e
-          ECase _ e alts       -> pure $ Core.ECase (Typed e exprTy) (fmap convertAlt alts)
+          ECase _ e alts       -> pure $ Core.ECase e (fmap convertAlt alts)
           EConstr _ consTy m n -> pure $ Core.EConstr consTy m n
           EAssertType _ e _    -> pure e
           EBottom _            -> pure $ Core.EBottom

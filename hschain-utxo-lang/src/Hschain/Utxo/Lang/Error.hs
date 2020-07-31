@@ -87,6 +87,7 @@ data TypeCoreError
   | TypeCoreMismatch TypeCore TypeCore
   | SubtypeError TypeCore TypeCore
   | EmptyCaseExpression
+  | PolymorphicLet
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 
