@@ -49,7 +49,7 @@ execScriptToSigma env prog = case isSigmaScript prog of
   Just err -> Left err
   where
     getSigmaOutput st = case Output.toList $ gmachine'output st of
-      [PrimSigma sigma] -> Right sigma
+      [PrimSigma sigma] -> Right $ either (Fix . SigmaBool) id $ eliminateSigmaBool sigma
       [PrimBool b]      -> Right $ Fix $ SigmaBool b
       _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
 
