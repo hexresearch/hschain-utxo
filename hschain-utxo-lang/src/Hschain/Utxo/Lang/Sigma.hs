@@ -35,6 +35,7 @@ import Codec.Serialise
 import Data.Aeson
 import Data.Either
 import Data.Fix
+import Data.Functor.Classes (Eq1(..))
 import Data.Text (Text)
 
 import GHC.Generics
@@ -198,11 +199,6 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
   (SigmaAnd as, SigmaAnd bs)       -> equalList as bs
   _                                -> False
   where
-    equalList xs ys = case (xs, ys) of
-      ([], []) -> True
-      (a:as, b:bs) -> if equalSigmaExpr a b
-                        then equalList as bs
-                        else False
-      _ -> False
+    equalList = liftEq equalSigmaExpr
 
 $(deriveShow1 ''SigmaF)
