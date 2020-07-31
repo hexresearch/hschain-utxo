@@ -146,7 +146,7 @@ withTestDir Options{..} nextAct = do
     withFixedDirectory dir name cont = do
       let resDir = dir </> name
       putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
-      createDirectory resDir
+      createDirectoryIfMissing True resDir
       cont resDir
 
 clearDb :: FilePath -> IO ()
