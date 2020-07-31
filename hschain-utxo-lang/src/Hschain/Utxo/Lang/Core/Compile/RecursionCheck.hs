@@ -41,7 +41,7 @@ freeVars = \case
   EAp f a         -> freeVars f <> freeVars a
   ELet binds e    -> freeLetVars binds e
   EIf a b c       -> freeVars a <> freeVars b <> freeVars c
-  ECase e alts    -> freeVars (typed'value e) <> foldMap freeAltVars alts
+  ECase e alts    -> freeVars e <> foldMap freeAltVars alts
   EConstr _ _ _   -> S.empty
   EBottom         -> S.empty
   where
@@ -74,7 +74,7 @@ checkLetExpr = \case
   EAp f a       -> checkLetExpr f && checkLetExpr a
   ELet binds e  -> checkBinds binds e
   EIf a b c     -> checkLetExpr a && checkLetExpr b && checkLetExpr c
-  ECase e alts  -> checkLetExpr (typed'value e) && all checkAlts alts
+  ECase e alts  -> checkLetExpr e && all checkAlts alts
   EVar _        -> checkVar
   EPolyVar _ _  -> checkVar
   EConstr _ _ _ -> True

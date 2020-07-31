@@ -137,7 +137,7 @@ compileR expr env arity =
   case expr of
     ELet es e                         -> compileLetR env arity es e
     EIf a b c                         -> compileIf a b c
-    ECase e alts                      -> compileCaseR (typed'value e) alts
+    ECase e alts                      -> compileCaseR e alts
     _                                 -> defaultCase
   where
     endInstrs
@@ -175,7 +175,7 @@ compileE expr env = case expr of
   EAp (EAp (EPolyVar op _) a) b     -> compileDiadic op a b
   EAp (EVar op) a                   -> compileUnary op a
   EAp (EPolyVar op _) a             -> compileUnary op a
-  ECase e alts -> compileCase env (typed'value e) alts
+  ECase e alts -> compileCase env e alts
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   --
   EVar{}     -> defaultCase
@@ -210,7 +210,7 @@ compileC expr env = case expr of
   EAp a b             -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
   ELet es e           -> compileLet env es e
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
-  ECase e alts        -> compileCase env (typed'value e) alts
+  ECase e alts        -> compileCase env e alts
   EIf a b c           -> compileIf a b c
   EBottom             -> Code.singleton Bottom
   -- TODO: we need to substitute it with special case

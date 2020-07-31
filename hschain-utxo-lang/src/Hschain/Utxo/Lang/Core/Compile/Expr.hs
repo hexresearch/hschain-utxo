@@ -75,7 +75,7 @@ data ExprCore
   -- ^ lent bindings
   | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
-  | ECase !(Typed ExprCore) [CaseAlt]
+  | ECase !ExprCore [CaseAlt]
   -- ^ case alternatives
   | EConstr TypeCore !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
