@@ -30,7 +30,7 @@ tests = testGroup "core"
   , testGroup "primitives"
     [ testProgram "eq.Int"  (progEquality (PrimInt  12))    (PrimBool True)
     , testProgram "eq.Bool" (progEquality (PrimBool False)) (PrimBool True)
-    , testProgram "eq.Int"  (progEquality (PrimText "12"))  (PrimBool True)
+    , testProgram "eq.Text" (progEquality (PrimText "12"))  (PrimBool True)
     ]
   , testGroup "env"
     [ testProgram "getHeight" progHeight (PrimInt 123)
