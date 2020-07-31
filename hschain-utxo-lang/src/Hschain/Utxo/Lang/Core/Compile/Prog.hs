@@ -36,6 +36,7 @@ import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
 import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
 import qualified Hschain.Utxo.Lang.Error as E
+import qualified Hschain.Utxo.Lang.Core.RefEval as Ref
 
 -- | Executes script to sigma-expression.
 --
@@ -44,14 +45,24 @@ import qualified Hschain.Utxo.Lang.Error as E
 -- contain no recursion.
 execScriptToSigma :: InputEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
 execScriptToSigma env prog = case isSigmaScript prog of
-  Nothing  -> either (Left . E.ExecError . E.GmachineError) getSigmaOutput
-            $ eval $ compile $ removeDeadCode $ addPrelude env prog
+  Nothing
+    | refRes /= gmRes -> error (show gmRes)
+    | otherwise       -> gmRes
   Just err -> Left err
   where
+    gmRes  = either (Left . E.ExecError . E.GmachineError) getSigmaOutput
+           $ eval $ compile $ removeDeadCode $ addPrelude env prog
     getSigmaOutput st = case Output.toList $ gmachine'output st of
       [PrimSigma sigma] -> Right $ either (Fix . SigmaBool) id $ eliminateSigmaBool sigma
       [PrimBool b]      -> Right $ Fix $ SigmaBool b
       _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
+    -- Reference eval
+    refRes = case Ref.evalProg env $ removeDeadCode $ addPrelude env prog of
+      Ref.EvalPrim (PrimBool  b) -> Right $ Fix $ SigmaBool b
+      Ref.EvalPrim (PrimSigma s) -> case eliminateSigmaBool s of
+        Left  b  -> Right $ Fix $ SigmaBool b
+        Right s' -> Right $ s'
+      _                  -> Left $ E.CoreScriptError E.ResultIsNotSigma
 
 addPrelude :: InputEnv -> CoreProg -> CoreProg
 addPrelude inputEnv prog = preludeLib inputEnv <> prog
