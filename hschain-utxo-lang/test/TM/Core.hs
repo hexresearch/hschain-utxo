@@ -22,9 +22,17 @@ import Examples.Simple
 
 tests :: TestTree
 tests = testGroup "core"
-  [ testGroup "simple"
-    [ testProgram "spend to key" progSpendToKey (PrimBool True)
-    , testProgram "Addition"     progAddition   (PrimInt 101)
+  [ testGroup "Literal"
+    [ testProgram nm (progLiteral p) p
+    | (nm,p) <- [ ("sigma", PrimSigma $ Fix $ SigmaBool True)
+                , ("bool" , PrimBool False)
+                , ("int",   PrimInt  123)
+                , ("text",  PrimText "XX")
+                , ("bytes", PrimBytes "XX")
+                ]
+    ]
+  , testGroup "simple"
+    [ testProgram "Addition"     progAddition   (PrimInt 101)
     , testProgram "SKK3"         exampleSKK3    (PrimInt 3)
     ]
   , testGroup "primitives"
@@ -45,11 +53,11 @@ testProgram nm prog res = testGroup nm
 
 
 -- Trivial
-progSpendToKey :: CoreProg
-progSpendToKey = CoreProg
+progLiteral :: Prim -> CoreProg
+progLiteral p = CoreProg
   [ mkMain $ Typed
-    { typed'value = EPrim (PrimSigma (Fix $ SigmaBool True))
-    , typed'type  = sigmaT
+    { typed'value = EPrim p
+    , typed'type  = primToType p
     }
   ]
 

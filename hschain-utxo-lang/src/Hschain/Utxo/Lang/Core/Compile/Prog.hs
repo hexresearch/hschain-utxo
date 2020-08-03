@@ -44,11 +44,12 @@ import qualified Hschain.Utxo.Lang.Error as E
 -- contain no recursion.
 execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
 execScriptToSigma env prog = case isSigmaScript prog of
-  Nothing  -> either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
+  Nothing  -> either (Left . E.ExecError . E.GmachineError) getSigmaOutput
+            $ eval $ compile $ removeDeadCode $ addPrelude env prog
   Just err -> Left err
   where
     getSigmaOutput st = case Output.toList $ gmachine'output st of
-      [PrimSigma sigma] -> Right sigma
+      [PrimSigma sigma] -> Right $ either (Fix . SigmaBool) id $ eliminateSigmaBool sigma
       [PrimBool b]      -> Right $ Fix $ SigmaBool b
       _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
 

@@ -30,7 +30,7 @@ import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
 -- | Evaluates code for Gmachine and returns the final state
 -- and possible errors. If there are no errors then code was successfully executed.
 eval :: Gmachine -> Either Error Gmachine
-eval = runExec $ loop >> modifyOutput Output.simplifySigmas
+eval = runExec $ loop
   where
     loop = fix $ \rec -> do
       mCode <- getNextInstr
