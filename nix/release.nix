@@ -79,6 +79,7 @@ let
         hschain-crypto  = callHSChain "hschain-crypto";
         hschain-types   = callHSChain "hschain-types";
         hschain-net     = callHSChain "hschain-net";
+        hschain-db      = callHSChain "hschain-db";
         hschain         = callHSChain "hschain";
         # Disable tests
         timeout         = lib.dontCheck hsOld.timeout;
