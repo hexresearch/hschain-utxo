@@ -172,6 +172,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Box
                        TM.Core.Bytes
                        TM.Core.List
+                       TM.Tx.Sigma
                        Examples.SKI
                        Examples.Simple
 
