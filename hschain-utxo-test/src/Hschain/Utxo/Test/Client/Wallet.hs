@@ -78,15 +78,15 @@ getBalance Wallet{..} = do
   fmap (sum . catMaybes) $ mapM getBoxBalance xs
 
 -- | Create proof for a most simple expression of @pk user-key@
-getOwnerProof :: MonadIO io => Wallet -> io (Either Text Proof)
-getOwnerProof w@Wallet{..} =
-  liftIO $ newProof env $ Fix $ SigmaPk (getWalletPublicKey w)
+getOwnerProof :: MonadIO io => Wallet -> Tx -> io (Either Text Proof)
+getOwnerProof w@Wallet{..} tx =
+  liftIO $ newProof env (Fix $ SigmaPk (getWalletPublicKey w)) (getTxBytes tx)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 
-getOwnerProofUnsafe :: Wallet -> App Proof
-getOwnerProofUnsafe wallet =
-  either throwError pure =<< getOwnerProof wallet
+getOwnerProofUnsafe :: Wallet -> Tx -> App Proof
+getOwnerProofUnsafe wallet tx =
+  either throwError pure =<< getOwnerProof wallet tx
 
 -- | Send money from one user to another
 data Send = Send
@@ -115,7 +115,7 @@ newSendTx wallet send@Send{..} = do
   eSigma <- getTxSigma preTx
   fmap join $ forM eSigma $ \sigma -> do
     let env = getProofEnv wallet
-    eProof <- liftIO $ newProof env sigma
+    eProof <- liftIO $ newProof env sigma (getTxBytes preTx)
     case eProof of
       Right proof -> fmap Right $ toSendTx wallet send back (Just proof)
       Left err    -> return $ Left err
@@ -124,9 +124,9 @@ newSendTx wallet send@Send{..} = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount send'back
 
-newProofOrFail :: ProofEnv -> Sigma PublicKey -> App Proof
-newProofOrFail env expr = do
-  eProof <- liftIO $ newProof env expr
+newProofOrFail :: ProofEnv -> Sigma PublicKey -> Tx -> App Proof
+newProofOrFail env expr tx = do
+  eProof <- liftIO $ newProof env expr (getTxBytes tx)
   case eProof of
     Right proof -> return proof
     Left err    -> throwError err

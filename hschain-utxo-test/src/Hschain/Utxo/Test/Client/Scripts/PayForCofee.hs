@@ -139,7 +139,7 @@ sendTxDelayed from fromBox to delayDiff amount = do
       preTx = toSendTxDelayed from sendTx Nothing
       proofEnv = getProofEnv from
   eSigma <- getTxSigma preTx
-  eProof <- fmap join $ mapM (liftIO . newProof proofEnv) eSigma
+  eProof <- fmap join $ mapM (\sigma -> liftIO $ newProof proofEnv sigma (getTxBytes preTx)) eSigma
   case eProof of
     Right proof -> do
       let tx = toSendTxDelayed from sendTx (Just proof)

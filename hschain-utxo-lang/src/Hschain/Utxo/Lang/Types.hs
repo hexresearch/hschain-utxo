@@ -25,6 +25,9 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
+import qualified Codec.Serialise as CBOR
+import qualified Data.ByteString.Lazy as LB
+
 -- | User identifier.
 newtype UserId = UserId { unUserId :: Text }
   deriving newtype  (Show, Eq, ToJSON, FromJSON)
@@ -65,16 +68,34 @@ data Tx = Tx
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
+-- | This is used for hashing the TX, to get it's id and
+-- for serialization to get message to be signed for verification.
+data TxContent = TxContent
+  { txContent'inputs  :: !(Vector BoxId)
+  , txContent'outputs :: !(Vector Box)
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
+getTxContent :: Tx -> TxContent
+getTxContent Tx{..} = TxContent
+  { txContent'inputs  = tx'inputs
+  , txContent'outputs = tx'outputs
+  }
+
+getTxBytes :: Tx -> ByteString
+getTxBytes = LB.toStrict . CBOR.serialise . getTxContent
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
-  { txArg'inputs  :: !(Vector Box)
-  , txArg'outputs :: !(Vector Box)
-  , txArg'proof   :: !(Maybe Proof)
-  , txArg'args    :: !Args
-  , txArg'env     :: !Env
+  { txArg'inputs   :: !(Vector Box)
+  , txArg'outputs  :: !(Vector Box)
+  , txArg'proof    :: !(Maybe Proof)
+  , txArg'args     :: !Args
+  , txArg'env      :: !Env
+  , txArg'txBytes  :: !ByteString -- ^ serialised content of TX (it's used to verify the proof)
   }
   deriving (Show, Eq)
 
@@ -116,7 +137,6 @@ scriptToText = encodeBase58 . unScript
 -- JSON instnaces
 
 $(deriveJSON dropPrefixOptions ''Tx)
-$(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
 
 instance CryptoHashable Tx where
