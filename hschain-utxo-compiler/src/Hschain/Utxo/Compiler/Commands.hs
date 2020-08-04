@@ -14,6 +14,7 @@ import Hschain.Utxo.Lang.Parser.Hask
 
 import Hschain.Utxo.Lang.Core.Compile (coreProgToScript, isSigmaScript)
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Exec
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
@@ -92,20 +93,21 @@ getPublicKey input output = do
 
 -- | Sign sigma-expression.
 --
--- > signSigma secretFile exprFile mOutputFile
+-- > signSigma secretFile exprFile txFile mOutputFile
 --
 -- It takes file with user private key and sigma-expression
 -- and saves signed expression (proof) to the file, or if file not
 -- specified dumps to stdout.
-signSigma :: FilePath -> FilePath -> Maybe FilePath -> IO ()
-signSigma secretFile input output = do
+signSigma :: FilePath -> FilePath -> FilePath -> Maybe FilePath -> IO ()
+signSigma secretFile exprFile txFile output = do
   secret <- readSecret
-  expr   <- readInput
+  expr   <- readExpr
+  tx     <- readTx
   case expr of
     ConstBool _       -> errorExpressionIsConst
     SigmaResult sigma -> do
       let env = Sigma.proofEnvFromKeys [Sigma.getKeyPair secret]
-      signedSigma <- Sigma.newProof env sigma
+      signedSigma <- Sigma.newProof env sigma (getTxBytes tx)
       saveSigma signedSigma
   where
     readSecret :: IO Sigma.Secret
@@ -113,15 +115,21 @@ signSigma secretFile input output = do
       file <- LB.readFile secretFile
       return $ either (const failToReadSecret) id $ S.deserialiseOrFail file
 
-    readInput :: IO BoolExprResult
-    readInput = do
-      file <- LB.readFile input
+    readExpr :: IO BoolExprResult
+    readExpr = do
+      file <- LB.readFile exprFile
       return $ fromMaybe failToReadExpression $ decode' file
+
+    readTx :: IO Tx
+    readTx = do
+      file <- LB.readFile txFile
+      return $ either (const failToReadTx) id $ S.deserialiseOrFail file
 
     saveSigma = maybe C.putStrLn LB.writeFile output . encode
 
     failToReadSecret     = failToRead "secret"     secretFile
-    failToReadExpression = failToRead "expression" input
+    failToReadExpression = failToRead "expression" exprFile
+    failToReadTx         = failToRead "tx"         txFile
 
     errorExpressionIsConst = error "Expression os consant boolean, not a sigma expression. Nothing to sign."
 
