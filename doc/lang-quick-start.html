@@ -240,13 +240,15 @@ boolean expression that can contain AND and OR operators in the nodes and owners
 pk-statements with public keys in the leafs. To get this expression we first need to
 call the API method <code class="docutils literal notranslate"><span class="pre">api/tx-sigma/get</span></code> with our transaction but we omit proof.</p>
 <p>Once we get the expression. We can sign it with compiler command <code class="docutils literal notranslate"><span class="pre">sign</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">sign</span> <span class="o">--</span><span class="n">secret</span> <span class="n">secret</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="nb">input</span> <span class="n">sigma</span><span class="o">-</span><span class="n">expr</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">output</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">sign</span> <span class="o">--</span><span class="n">secret</span> <span class="n">secret</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">expression</span> <span class="n">sigma</span><span class="o">-</span><span class="n">expr</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">tx</span> <span class="n">tx</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">output</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">.</span><span class="n">txt</span>
 </pre></div>
 </div>
 <p>This command expects three inputs:</p>
-<ul class="simple">
+<ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">--secret</span></code> the file that contains secret key of the user</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--sigma-expr.txt</span></code> the file that contains the ouptut of the API call to tx-sigma method.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--expression</span> <span class="pre">sigma-expr.txt</span></code> the file that contains the ouptut of the API call to tx-sigma method.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--tx</span> <span class="pre">tx.txt</span></code> the file that contains serialised code for TX without a proof.</p>
+</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--signed-sigma.txt</span></code> the file to dump the output, i.e. signed sigma expression or proof of the ownership.</p></li>
 </ul>
 </div>
@@ -499,7 +501,7 @@ We need method <code class="docutils literal notranslate"><span class="pre">post
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2019, HXR.
+      &copy;1970, HXR.
       
       |
       Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>
