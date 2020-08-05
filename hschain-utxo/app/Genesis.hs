@@ -18,8 +18,8 @@ singleOwnerGenesis :: IO [Tx]
 singleOwnerGenesis = withSecret =<< newSecret
   where
     withSecret secret = do
-      Right proof <- newProof env (Fix $ SigmaPk publicKey)
-      return $ [tx proof]
+      Right proof <- newProof env (Fix $ SigmaPk publicKey) (getTxBytes preTx)
+      return $ [tx $ Just proof]
       where
         publicKey = getPublicKey secret
         env = proofEnvFromKeys [getKeyPair secret]
@@ -31,12 +31,14 @@ singleOwnerGenesis = withSecret =<< newSecret
           , box'args   = mempty
           }
 
-        tx proof = Tx
+        tx mProof = Tx
           { tx'inputs  = V.empty
           , tx'outputs = V.fromList [box]
-          , tx'proof   = Just proof
+          , tx'proof   = mProof
           , tx'args    = mempty
           }
+
+        preTx = tx Nothing
 
         initMoney = 1000000
 
