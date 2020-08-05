@@ -104,6 +104,8 @@ instance Serialise a => FromJSON (Sigma a) where
 -- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
 -- The last argument message is a serialised content of transaction.
 -- It's message to be signed.
+--
+-- For the message use getTxBytes from TX that has no proof.
 newProof :: ProofEnv -> Sigma PublicKey -> ByteString -> IO (Either Text Proof)
 newProof env expr message =
   case toSigmaExpr expr of
@@ -113,6 +115,10 @@ newProof env expr message =
     catchBoolean = Left "Expression is constant boolean. It is not  a sigma-expression"
 
 -- | Verify the proof.
+--
+-- > verifyProof proof message
+--
+-- For the message use getTxBytes from TX.
 verifyProof :: Proof -> ByteString -> Bool
 verifyProof = Sigma.verifyProof
 
