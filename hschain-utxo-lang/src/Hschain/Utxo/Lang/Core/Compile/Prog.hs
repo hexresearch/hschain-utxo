@@ -24,7 +24,7 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (TxEnv)
+import Hschain.Utxo.Lang.Types (InputEnv)
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
@@ -42,7 +42,7 @@ import qualified Hschain.Utxo.Lang.Error as E
 -- Sigma script should contain main function that
 -- returns sigma-expression. The script should be well-typed and
 -- contain no recursion.
-execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
+execScriptToSigma :: InputEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
 execScriptToSigma env prog = case isSigmaScript prog of
   Nothing  -> either (Left . E.ExecError . E.GmachineError) getSigmaOutput
             $ eval $ compile $ removeDeadCode $ addPrelude env prog
@@ -53,8 +53,8 @@ execScriptToSigma env prog = case isSigmaScript prog of
       [PrimBool b]      -> Right $ Fix $ SigmaBool b
       _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
 
-addPrelude :: TxEnv -> CoreProg -> CoreProg
-addPrelude txEnv prog = preludeLib txEnv <> prog
+addPrelude :: InputEnv -> CoreProg -> CoreProg
+addPrelude inputEnv prog = preludeLib inputEnv <> prog
 
 -- | TODO: implement the function to remove unreachable code.
 -- We start from main and then include only functions that are needed by finding free variables.

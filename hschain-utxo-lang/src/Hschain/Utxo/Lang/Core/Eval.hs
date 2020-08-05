@@ -4,7 +4,7 @@ module Hschain.Utxo.Lang.Core.Eval(
   , evalProveTx
 ) where
 
-import Data.Fix
+import Data.ByteString (ByteString)
 import Data.Text
 import Data.Vector (Vector)
 
@@ -16,43 +16,45 @@ import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 
-import qualified Data.Vector as V
+evalToSigma :: TxArg -> Either Error (Vector BoolExprResult)
+evalToSigma tx = mapM (evalInput . snd) $ splitInputs tx
 
--- | Evaluates transaction. TxArg is a transaction augmented with current blockchain state.
-evalToSigma :: TxArg -> Either Error BoolExprResult
-evalToSigma tx@TxArg{..} = fmap joinSigma $ mapM (evalBox tx) txArg'inputs
+evalInput :: InputEnv -> Either Error BoolExprResult
+evalInput env =
+  case coreProgFromScript $ box'script $ inputEnv'self env of
+    Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
+    Nothing   -> Left $ ExecError FailedToDecodeScript
 
-evalBox  :: TxArg -> Box -> Either Error (Sigma PublicKey)
-evalBox tx box@Box{..} = case coreProgFromScript box'script of
-  Just prog -> execScriptToSigma (getScriptEnv tx box) prog
-  Nothing   -> Left $ ExecError FailedToDecodeScript
+verifyInput :: ByteString -> Proof -> InputEnv -> Either Error Bool
+verifyInput message proof env = fmap verifyResult $ evalInput env
+  where
+    verifyResult = \case
+      ConstBool b       -> b
+      SigmaResult sigma -> equalSigmaProof sigma proof && verifyProof proof message
 
-getScriptEnv :: TxArg -> Box -> TxEnv
-getScriptEnv TxArg{..} box = TxEnv
-  { txEnv'self    = box
-  , txEnv'height  = env'height txArg'env
-  , txEnv'inputs  = txArg'inputs
-  , txEnv'outputs = txArg'outputs
-  , txEnv'args    = txArg'args
+getInputEnv :: TxArg -> BoxInput -> InputEnv
+getInputEnv TxArg{..} input = InputEnv
+  { inputEnv'self    = boxInput'box input
+  , inputEnv'height  = env'height txArg'env
+  , inputEnv'inputs  = fmap boxInput'box txArg'inputs
+  , inputEnv'outputs = txArg'outputs
+  , inputEnv'args    = boxInput'args input
   }
 
-joinSigma :: Vector (Sigma PublicKey) -> BoolExprResult
-joinSigma vs = either ConstBool SigmaResult $ eliminateSigmaBool $ Fix $ SigmaAnd $ V.toList vs
+splitInputs :: TxArg -> Vector (Proof, InputEnv)
+splitInputs tx = fmap (\input -> (boxInput'proof input, getInputEnv tx input)) $ txArg'inputs tx
 
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
 evalProveTx :: TxArg -> (Bool, Text)
 evalProveTx tx
-  | txPreservesValue tx = case res of
-        Right (SigmaResult sigmaWithBools) -> case eliminateSigmaBool sigmaWithBools of
-          Right sigma -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof (txArg'txBytes tx), debug)) mProof
-          Left bool   -> (bool, "")
-        Right (ConstBool bool)  -> (bool, "")
-        Left err    -> (False, renderText err)
+  | txPreservesValue tx =
+      case mapM (uncurry $ verifyInput message) $ splitInputs tx of
+        Right bs  -> (and bs, debug)
+        Left err  -> (False, renderText err)
   | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
   where
-    res = evalToSigma tx
+    message = txArg'txBytes tx
     -- todo: implement debug for core
-    debug = ""
-    mProof = txArg'proof tx
+    debug   = ""
 

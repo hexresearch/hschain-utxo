@@ -27,13 +27,13 @@ import qualified Data.Text.IO as T
 blockChainHeight :: Int64
 blockChainHeight = 10
 
-txEnv :: TxEnv
-txEnv = TxEnv
-  { txEnv'height  = blockChainHeight
-  , txEnv'self    = in2
-  , txEnv'inputs  = [in1, in2]
-  , txEnv'outputs = [out1]
-  , txEnv'args    = intArgs [1,2,3] <> textArgs ["alice", "bob"] <> boolArgs [True, False]
+txEnv :: InputEnv
+txEnv = InputEnv
+  { inputEnv'height  = blockChainHeight
+  , inputEnv'self    = in2
+  , inputEnv'inputs  = [in1, in2]
+  , inputEnv'outputs = [out1]
+  , inputEnv'args    = intArgs [1,2,3] <> textArgs ["alice", "bob"] <> boolArgs [True, False]
   }
   where
     in1 = Box
