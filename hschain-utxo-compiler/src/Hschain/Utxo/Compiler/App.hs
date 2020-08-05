@@ -15,5 +15,5 @@ app = \case
   Compile{..}       -> compile       compile'input compile'output
   GenPrivateKey{..} -> genPrivateKey genPrivateKey'output
   GetPublicKey{..}  -> getPublicKey  getPublicKey'input getPublicKey'output
-  SignSigma{..}     -> signSigma     signSigma'secret signSigma'input signSigma'output
+  SignSigma{..}     -> signSigma     signSigma'secret signSigma'expression signSigma'tx signSigma'output
 

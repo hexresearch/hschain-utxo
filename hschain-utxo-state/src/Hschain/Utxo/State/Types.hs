@@ -44,13 +44,14 @@ instance CryptoHashable BoxChain where
 --
 -- The value of type @TxArg@ is self-contained for execution.
 toTxArg :: BoxChain -> Tx -> Either Text TxArg
-toTxArg bch@BoxChain{..} Tx{..} = fmap (\inputs ->
+toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
   TxArg
     { txArg'outputs = tx'outputs
     , txArg'inputs  = inputs
     , txArg'args    = tx'args
     , txArg'proof   = tx'proof
     , txArg'env     = getEnv bch
+    , txArg'txBytes = getTxBytes tx
     }
   ) mInputs
   where

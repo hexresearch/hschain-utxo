@@ -26,6 +26,7 @@ import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Codec.Serialise as CBOR
 import qualified Data.Aeson      as JSON
+import Data.ByteString (ByteString)
 import Data.Foldable
 import Data.Maybe
 import Data.Monoid (All(..))
@@ -34,6 +35,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import qualified Data.Sequence as Seq
+import qualified Data.ByteString.Lazy as LB
 
 -- import Debug.Trace
 -- import Text.Show.Pretty
@@ -153,10 +155,10 @@ deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Cha
 
 -- | Create proof for sigma expression based on ownership of collection of keys (@Env@)
 newProof :: (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
-  => Env a -> SigmaE () (PublicKey a) -> IO (Either Text (Proof a))
-newProof env expr = runProve $ do
+  => Env a -> SigmaE () (PublicKey a) -> ByteString -> IO (Either Text (Proof a))
+newProof env expr message = runProve $ do
   commitments <- generateCommitments (markTree env expr)
-  toProof =<< generateProofs env commitments
+  toProof =<< generateProofs env commitments message
 
 -- Syntactic step that performs a type conversion only
 toProof :: SigmaE (ProofTag a) (ProofDL a) -> Prove (Proof a)
@@ -261,15 +263,47 @@ generateCommitments tree = case sexprAnn tree of
       _ -> throwError "Real node"
 
 
+initRootChallenge
+  :: forall k a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
+  => SigmaE k (FiatShamirLeaf a)
+  -> ByteString
+  -> Challenge a
+initRootChallenge expr message =
+  randomOracle $ (LB.toStrict $ CBOR.serialise $ toFiatShamir expr) <> message
+
+getProofRootChallenge ::
+     (EC a, Eq (ECPoint a))
+  => SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
+  -> ByteString
+  -> Challenge a
+getProofRootChallenge expr message =
+  initRootChallenge (fmap extractCommitment expr) message
+  where
+    extractCommitment :: Either (PartialProof a) (ProofDL a) -> FiatShamirLeaf a
+    extractCommitment =
+      either
+        (\x -> FiatShamirLeaf (pproofPK x) (pproofA x))
+        (\x -> FiatShamirLeaf (publicK x)  (commitmentA x))
+
+getVerifyRootChallenge ::
+     (EC a, Eq (ECPoint a))
+  => SigmaE k (ProofDL a)
+  -> ByteString
+  -> Challenge a
+getVerifyRootChallenge expr message =
+  initRootChallenge (fmap extractFiatShamirLeaf expr) message
+  where
+    extractFiatShamirLeaf ProofDL{..} = FiatShamirLeaf publicK commitmentA
+
 generateProofs
   :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
   => Env a
   -> SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
+  -> ByteString
   -> Prove (SigmaE (ProofTag a) (ProofDL a))
-generateProofs (Env env) expr0 = goReal ch0 expr0
+generateProofs (Env env) expr0 message = goReal ch0 expr0
   where
     withChallenge ch tag = tag { proofTag'challenge = Just ch }
-
 
     -- Prover Steps 7: convert the relevant information in the tree (namely, tree structure, node types,
     -- the statements being proven and commitments at the leaves)
@@ -278,13 +312,7 @@ generateProofs (Env env) expr0 = goReal ch0 expr0
     -- Prover Step 8: compute the challenge for the root of the tree as the Fiat-Shamir hash of s
     -- and the message being signed.
     ch0 :: Challenge a
-    ch0 = fiatShamirCommitment $ toFiatShamir $ fmap extractCommitment expr0
-
-    extractCommitment :: Either (PartialProof a) (ProofDL a) -> FiatShamirLeaf a
-    extractCommitment =
-      either
-        (\x -> FiatShamirLeaf (pproofPK x) (pproofA x))
-        (\x -> FiatShamirLeaf (publicK x)  (commitmentA x))
+    ch0 = getProofRootChallenge expr0 message
 
     -- Prover Step 9: complete the proof by computing challenges at real
     -- nodes and additionally responses at real leaves
@@ -340,19 +368,15 @@ orChallenge ch rest = foldl xorChallenge ch rest
 
 -- | Verify proof. It checks if the proof is correct.
 verifyProof :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a), Eq (Challenge a))
-  => Proof a -> Bool
-verifyProof proof =
+  => Proof a -> ByteString -> Bool
+verifyProof proof message =
      checkProofs compTree
-  && (checkHash (getHash compTree))
+  && (checkHash (getVerifyRootChallenge compTree message))
   where
     checkProofs :: SigmaE b (ProofDL a) -> Bool
     checkProofs = getAll . foldMap (All . verifyProofDL)
 
     checkHash hash = proof'rootChallenge proof == hash
-
-    getHash tree = fiatShamirCommitment $ toFiatShamir $ fmap extractFiatShamirLeaf tree
-      where
-        extractFiatShamirLeaf ProofDL{..} = FiatShamirLeaf publicK commitmentA
 
     compTree = completeProvenTree proof
 

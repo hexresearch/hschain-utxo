@@ -128,6 +128,7 @@ library
   default-language:    Haskell2010
   default-extensions:
     BangPatterns
+    DataKinds
     FlexibleInstances
     FlexibleContexts
     GADTs
@@ -172,6 +173,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Box
                        TM.Core.Bytes
                        TM.Core.List
+                       TM.Tx.Sigma
                        Examples.SKI
                        Examples.Simple
 

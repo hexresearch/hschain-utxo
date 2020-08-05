@@ -133,7 +133,7 @@ xorGameRound Scene{..} game@Game{..} = do
       gameAddr <- allocAddress wallet
       preTx <- makeAliceTx game'amount aliceScript wallet box backAddr gameAddr Nothing
       eSigma <- getTxSigma preTx
-      eProof <- liftIO $ fmap join $ mapM (newProof (getProofEnv wallet)) eSigma
+      eProof <- liftIO $ fmap join $ mapM (\sigma -> newProof (getProofEnv wallet) sigma (getTxBytes preTx)) eSigma
       case eProof of
         Right proof -> do
           tx <- makeAliceTx (fromIntegral game'amount) aliceScript wallet box backAddr gameAddr (Just proof)
@@ -180,7 +180,7 @@ xorGameRound Scene{..} game@Game{..} = do
       backAddr <- allocAddress wallet
       preTx <- makeBobTx gameAddr backAddr Nothing
       eSigma <- getTxSigma preTx
-      eProof <- liftIO $ fmap join $ mapM (newProof (getProofEnv wallet)) eSigma
+      eProof <- liftIO $ fmap join $ mapM (\sigma -> newProof (getProofEnv wallet) sigma (getTxBytes preTx)) eSigma
       case eProof of
         Right proof -> do
           tx <- makeBobTx gameAddr backAddr (Just proof)
@@ -235,13 +235,16 @@ xorGameRound Scene{..} game@Game{..} = do
       where
         winMsg str = mconcat [str, " tries to win."]
 
-    winTx gameBox winAddr wallet aliceSecret aliceGuess = fmap (\proof -> Tx
+    winTx gameBox winAddr wallet aliceSecret aliceGuess =
+      fmap (toTx . Just) $ getOwnerProofUnsafe wallet (toTx Nothing)
+      where
+        toTx mProof = Tx
             { tx'inputs  = V.fromList [gameBox]
             , tx'outputs = V.fromList [outBox]
-            , tx'proof   = Just proof
+            , tx'proof   = mProof
             , tx'args    = args
-            }) $ getOwnerProofUnsafe wallet
-      where
+            }
+
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
 
         outBox = Box

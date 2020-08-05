@@ -45,7 +45,7 @@ evalProveTx :: TxArg -> (Bool, Text)
 evalProveTx tx
   | txPreservesValue tx = case res of
         Right (SigmaResult sigmaWithBools) -> case eliminateSigmaBool sigmaWithBools of
-          Right sigma -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof, debug)) mProof
+          Right sigma -> maybe (False, "No proof submitted") (\proof -> (equalSigmaProof sigma proof && verifyProof proof (txArg'txBytes tx), debug)) mProof
           Left bool   -> (bool, "")
         Right (ConstBool bool)  -> (bool, "")
         Left err    -> (False, renderText err)

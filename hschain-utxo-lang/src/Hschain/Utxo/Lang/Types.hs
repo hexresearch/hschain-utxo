@@ -18,12 +18,15 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (encodeBase58)
+import HSChain.Crypto.Classes (ViaBase58(..), encodeBase58)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
+
+import qualified Codec.Serialise as CBOR
+import qualified Data.ByteString.Lazy as LB
 
 -- | User identifier.
 newtype UserId = UserId { unUserId :: Text }
@@ -65,16 +68,37 @@ data Tx = Tx
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
+-- | This is used for hashing the TX, to get it's id and
+-- for serialization to get message to be signed for verification.
+data TxContent = TxContent
+  { txContent'inputs  :: !(Vector BoxId)
+  , txContent'outputs :: !(Vector Box)
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
+getTxContent :: Tx -> TxContent
+getTxContent Tx{..} = TxContent
+  { txContent'inputs  = tx'inputs
+  , txContent'outputs = tx'outputs
+  }
+
+getTxBytes :: Tx -> ByteString
+getTxBytes = getTxContentBytes . getTxContent
+
+getTxContentBytes :: TxContent -> ByteString
+getTxContentBytes = LB.toStrict . CBOR.serialise
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
-  { txArg'inputs  :: !(Vector Box)
-  , txArg'outputs :: !(Vector Box)
-  , txArg'proof   :: !(Maybe Proof)
-  , txArg'args    :: !Args
-  , txArg'env     :: !Env
+  { txArg'inputs   :: !(Vector Box)
+  , txArg'outputs  :: !(Vector Box)
+  , txArg'proof    :: !(Maybe Proof)
+  , txArg'args     :: !Args
+  , txArg'env      :: !Env
+  , txArg'txBytes  :: !ByteString -- ^ serialised content of TX (it's used to verify the proof)
   }
   deriving (Show, Eq)
 
@@ -102,6 +126,51 @@ txPreservesValue tx@TxArg{..}
 
 isStartEpoch :: TxArg -> Bool
 isStartEpoch TxArg{..} = env'height txArg'env == 0
+{-
+instance FromJSON Script where
+  parseJSON = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) . parseJSON
+
+instance ToJSONKey Script where
+  toJSONKey = contramapToJSONKeyFunction (ViaBase58 . unScript) toJSONKey
+
+instance FromJSON Args where
+  parseJSON = withObject "Args" $ \o -> do
+    args'ints  <- o .: "ints"
+    args'bools <- o .: "bools"
+    args'texts <- o .: "texts"
+    bytes      <- o .: "bytes"
+    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
+               , ..
+               }
+instance ToJSON Args where
+  toJSON Args{..} = object
+    [ "ints"  .= args'ints
+    , "bools" .= args'bools
+    , "texts" .= args'texts
+    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
+    ]
+-}
+instance ToJSON TxArg where
+  toJSON TxArg{..} = object
+    [ "inputs"   .= txArg'inputs
+    , "outputs"  .= txArg'outputs
+    , "proof"    .= txArg'proof
+    , "args"     .= txArg'args
+    , "env"      .= txArg'env
+    , "txBytes"  .= ViaBase58 txArg'txBytes
+    ]
+
+instance FromJSON TxArg where
+  parseJSON = withObject "TxArgs" $ \obj -> do
+    txArg'inputs  <- obj .: "inputs"
+    txArg'outputs <- obj .: "outputs"
+    txArg'proof   <- obj .: "proof"
+    txArg'args    <- obj .: "args"
+    txArg'env     <- obj .: "env"
+    bytes         <- obj .: "txBytes"
+    return TxArg { txArg'txBytes = (\(ViaBase58 s :: ViaBase58 "ByteString" ByteString) -> s) bytes
+                 , ..
+                 }
 
 --------------------------------------------
 
@@ -116,7 +185,6 @@ scriptToText = encodeBase58 . unScript
 -- JSON instnaces
 
 $(deriveJSON dropPrefixOptions ''Tx)
-$(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
 
 instance CryptoHashable Tx where
