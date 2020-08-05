@@ -18,7 +18,7 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (encodeBase58)
+import HSChain.Crypto.Classes (ViaBase58(..), encodeBase58)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
@@ -84,7 +84,10 @@ getTxContent Tx{..} = TxContent
   }
 
 getTxBytes :: Tx -> ByteString
-getTxBytes = LB.toStrict . CBOR.serialise . getTxContent
+getTxBytes = getTxContentBytes . getTxContent
+
+getTxContentBytes :: TxContent -> ByteString
+getTxContentBytes = LB.toStrict . CBOR.serialise
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
@@ -123,6 +126,51 @@ txPreservesValue tx@TxArg{..}
 
 isStartEpoch :: TxArg -> Bool
 isStartEpoch TxArg{..} = env'height txArg'env == 0
+{-
+instance FromJSON Script where
+  parseJSON = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) . parseJSON
+
+instance ToJSONKey Script where
+  toJSONKey = contramapToJSONKeyFunction (ViaBase58 . unScript) toJSONKey
+
+instance FromJSON Args where
+  parseJSON = withObject "Args" $ \o -> do
+    args'ints  <- o .: "ints"
+    args'bools <- o .: "bools"
+    args'texts <- o .: "texts"
+    bytes      <- o .: "bytes"
+    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
+               , ..
+               }
+instance ToJSON Args where
+  toJSON Args{..} = object
+    [ "ints"  .= args'ints
+    , "bools" .= args'bools
+    , "texts" .= args'texts
+    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
+    ]
+-}
+instance ToJSON TxArg where
+  toJSON TxArg{..} = object
+    [ "inputs"   .= txArg'inputs
+    , "outputs"  .= txArg'outputs
+    , "proof"    .= txArg'proof
+    , "args"     .= txArg'args
+    , "env"      .= txArg'env
+    , "txBytes"  .= ViaBase58 txArg'txBytes
+    ]
+
+instance FromJSON TxArg where
+  parseJSON = withObject "TxArgs" $ \obj -> do
+    txArg'inputs  <- obj .: "inputs"
+    txArg'outputs <- obj .: "outputs"
+    txArg'proof   <- obj .: "proof"
+    txArg'args    <- obj .: "args"
+    txArg'env     <- obj .: "env"
+    bytes         <- obj .: "txBytes"
+    return TxArg { txArg'txBytes = (\(ViaBase58 s :: ViaBase58 "ByteString" ByteString) -> s) bytes
+                 , ..
+                 }
 
 --------------------------------------------
 

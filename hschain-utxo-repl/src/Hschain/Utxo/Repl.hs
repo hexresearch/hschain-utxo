@@ -72,6 +72,6 @@ runRepl = runReplM txArg $ evalRepl (pure " > ") eval options Nothing (Word comp
         , txArg'proof   = Nothing
         , txArg'args    = mempty
         , txArg'env     = Env 0
+        , txArg'txBytes = getTxContentBytes $ TxContent mempty mempty
         }
-
 
