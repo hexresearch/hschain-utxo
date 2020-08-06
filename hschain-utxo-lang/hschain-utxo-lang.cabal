@@ -176,6 +176,10 @@ Test-suite hschain-utxo-lang-tests
                        TM.Tx.Sigma
                        Examples.SKI
                        Examples.Simple
+  default-extensions:
+    RecordWildCards
+    OverloadedLists
+    OverloadedStrings
 
 benchmark hschain-utxo-lang-bench
   type:             exitcode-stdio-1.0

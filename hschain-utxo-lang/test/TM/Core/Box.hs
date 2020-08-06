@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
 module TM.Core.Box(
     tests
   , run

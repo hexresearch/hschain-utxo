@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- |
 module TM.Core ( tests )where
 

@@ -1,5 +1,3 @@
-{-# Language OverloadedLists #-}
-{-# Language OverloadedStrings #-}
 -- | Basic tests for sigma-protocols
 module TM.Tx.Sigma(
   tests
@@ -17,7 +15,8 @@ import Hschain.Utxo.Lang.Types
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
-  [ testCase "verify correct single owner script"  $ ( @=? Right True)  =<< verifyAliceTx
+  [ testCase "Same message for Tx and PreTx"       $ ( @=? Right True)  =<< verifySameMessagePreTx
+  , testCase "verify correct single owner script"  $ ( @=? Right True)  =<< verifyAliceTx
   , testCase "verify broken tx"                    $ ( @=? Right False) =<< verifyBrokenTx
   ]
 
@@ -51,6 +50,21 @@ initTx = do
       , box'script = script
       , box'args   = mempty
       }) $ mainScript $ pk $ text $ publicKeyToText owner
+
+verifySameMessagePreTx :: IO (Either Text Bool)
+verifySameMessagePreTx = do
+  eTx <- initTx
+  return $ fmap check eTx
+  where
+    check tx = getPreTxBytes preTx == getTxBytes tx
+      where
+        preTx = getPreTxSubset tx
+
+    getPreTxSubset Tx{..} = PreTx
+      { preTx'inputs  = fmap (\BoxInputRef{..} -> PreBoxInputRef boxInputRef'id boxInputRef'args) tx'inputs
+      , preTx'outputs = tx'outputs
+      }
+
 
 -- | Verify that proof is correct
 verifyAliceTx :: IO (Either Text Bool)
