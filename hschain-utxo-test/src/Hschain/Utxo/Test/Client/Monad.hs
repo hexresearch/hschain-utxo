@@ -34,6 +34,7 @@ import Control.Monad.Reader
 import Data.Int
 import Data.Sequence (Seq)
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import Test.Hspec
 
@@ -146,15 +147,15 @@ getState = call C.getState
 getBoxChainEnv :: App Env
 getBoxChainEnv = fmap unGetEnvResponse $ call C.getEnv
 
-getTxSigma :: Tx -> App (Either Text (Sigma PublicKey))
+getTxSigma :: Tx -> App (Either Text (Vector (Sigma PublicKey)))
 getTxSigma tx = do
   resp <- call $ C.getTxSigma tx
   logTest $ T.unlines ["PRE TX SIGMA:", showt resp]
-  case sigmaTxResponse'value resp of
-    Right boolRes -> return $ case boolRes of
+  return $ mapM extractSigma =<< sigmaTxResponse'value resp
+  where
+    extractSigma val = case val of
       SigmaResult sigma -> Right sigma
       ConstBool b       -> Left $ mconcat ["Not a sigma-expression from result, got ", showt b]
-    Left err -> return $ Left err
 
 -------------------------
 -- test to hspec
@@ -183,8 +184,6 @@ initGenesis secret = [tx]
     tx = Tx
       { tx'inputs  = V.empty
       , tx'outputs = V.fromList [box]
-      , tx'proof   = Nothing
-      , tx'args    = mempty
       }
 
     initMoney = 1000000
