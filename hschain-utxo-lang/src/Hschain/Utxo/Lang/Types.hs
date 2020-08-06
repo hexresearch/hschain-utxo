@@ -27,6 +27,7 @@ import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Codec.Serialise as CBOR
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.Vector as V
 
 -- | User identifier.
 newtype UserId = UserId { unUserId :: Text }
@@ -60,13 +61,35 @@ instance FromJSONKey TxHash where
 -- send API-query to know the sigma-expression that is going to be result
 -- of the calculation of the input scripts within the context of the current blockchain state.
 data Tx = Tx
-  { tx'inputs  :: !(Vector BoxId)   -- ^ List of identifiers of input boxes in blockchain
-  , tx'outputs :: !(Vector Box)     -- ^ List of outputs
-  , tx'proof   :: !(Maybe Proof)    -- ^ Proof of the resulting sigma expression
-  , tx'args    :: !Args             -- ^ Arguments for the scripts
+  { tx'inputs  :: !(Vector BoxInputRef)   -- ^ List of inputs
+  , tx'outputs :: !(Vector Box)           -- ^ List of outputs
   }
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
+
+-- | Input is an unspent Box that exists in blockchain.
+-- To spend the input we need to provide right arguments and proof
+-- of reulting sigma expression.
+data BoxInputRef = BoxInputRef
+  { boxInputRef'id    :: BoxId
+  , boxInputRef'args  :: Args
+  , boxInputRef'proof :: Maybe Proof
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
+appendProofs :: Vector (Maybe Proof) -> Tx -> Tx
+appendProofs proofs Tx{..} = Tx
+  { tx'inputs  = V.zipWith appendProofToBox proofs tx'inputs
+  , tx'outputs = tx'outputs
+  }
+
+appendProofToBox :: Maybe Proof -> BoxInputRef -> BoxInputRef
+appendProofToBox proof BoxInputRef{..} = BoxInputRef
+  { boxInputRef'id    = boxInputRef'id
+  , boxInputRef'args  = boxInputRef'args
+  , boxInputRef'proof = proof
+  }
 
 -- | This is used for hashing the TX, to get it's id and
 -- for serialization to get message to be signed for verification.
@@ -79,7 +102,7 @@ data TxContent = TxContent
 
 getTxContent :: Tx -> TxContent
 getTxContent Tx{..} = TxContent
-  { txContent'inputs  = tx'inputs
+  { txContent'inputs  = fmap boxInputRef'id tx'inputs
   , txContent'outputs = tx'outputs
   }
 
@@ -93,69 +116,61 @@ getTxContentBytes = LB.toStrict . CBOR.serialise
 --  This type is the same as Tx only it contains Boxes for inputs instead
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
-  { txArg'inputs   :: !(Vector Box)
+  { txArg'inputs   :: !(Vector BoxInput)
   , txArg'outputs  :: !(Vector Box)
-  , txArg'proof    :: !(Maybe Proof)
-  , txArg'args     :: !Args
   , txArg'env      :: !Env
   , txArg'txBytes  :: !ByteString -- ^ serialised content of TX (it's used to verify the proof)
   }
   deriving (Show, Eq)
+
+data BoxInput = BoxInput
+  { boxInput'box   :: !Box
+  , boxInput'args  :: !Args
+  , boxInput'proof :: !(Maybe Proof)
+  }
+  deriving (Show, Eq, Generic)
 
 -- | Blockchain environment variables.
 data Env = Env
   { env'height   :: !Int64    -- ^ blockchain height
   } deriving (Show, Eq)
 
--- | Transaction environment. All values that user can read
--- from the script
-data TxEnv = TxEnv
-  { txEnv'height   :: !Int64
-  , txEnv'self     :: !Box
-  , txEnv'inputs   :: !(Vector Box)
-  , txEnv'outputs  :: !(Vector Box)
-  , txEnv'args     :: !Args
+-- | Input environment contains all data that have to be used
+-- during execution of the script.
+data InputEnv = InputEnv
+  { inputEnv'height  :: !Int64
+  , inputEnv'self    :: !Box
+  , inputEnv'inputs  :: !(Vector Box)
+  , inputEnv'outputs :: !(Vector Box)
+  , inputEnv'args    :: !Args
+  }
+
+splitInputs :: TxArg -> Vector (Maybe Proof, InputEnv)
+splitInputs tx = fmap (\input -> (boxInput'proof input, getInputEnv tx input)) $ txArg'inputs tx
+
+getInputEnv :: TxArg -> BoxInput -> InputEnv
+getInputEnv TxArg{..} input = InputEnv
+  { inputEnv'self    = boxInput'box input
+  , inputEnv'height  = env'height txArg'env
+  , inputEnv'inputs  = fmap boxInput'box txArg'inputs
+  , inputEnv'outputs = txArg'outputs
+  , inputEnv'args    = boxInput'args input
   }
 
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True
-  | otherwise       = toSum txArg'inputs == toSum txArg'outputs
+  | otherwise       = toSum (fmap boxInput'box txArg'inputs) == toSum txArg'outputs
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
 isStartEpoch :: TxArg -> Bool
 isStartEpoch TxArg{..} = env'height txArg'env == 0
-{-
-instance FromJSON Script where
-  parseJSON = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) . parseJSON
 
-instance ToJSONKey Script where
-  toJSONKey = contramapToJSONKeyFunction (ViaBase58 . unScript) toJSONKey
-
-instance FromJSON Args where
-  parseJSON = withObject "Args" $ \o -> do
-    args'ints  <- o .: "ints"
-    args'bools <- o .: "bools"
-    args'texts <- o .: "texts"
-    bytes      <- o .: "bytes"
-    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
-               , ..
-               }
-instance ToJSON Args where
-  toJSON Args{..} = object
-    [ "ints"  .= args'ints
-    , "bools" .= args'bools
-    , "texts" .= args'texts
-    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
-    ]
--}
 instance ToJSON TxArg where
   toJSON TxArg{..} = object
     [ "inputs"   .= txArg'inputs
     , "outputs"  .= txArg'outputs
-    , "proof"    .= txArg'proof
-    , "args"     .= txArg'args
     , "env"      .= txArg'env
     , "txBytes"  .= ViaBase58 txArg'txBytes
     ]
@@ -164,8 +179,6 @@ instance FromJSON TxArg where
   parseJSON = withObject "TxArgs" $ \obj -> do
     txArg'inputs  <- obj .: "inputs"
     txArg'outputs <- obj .: "outputs"
-    txArg'proof   <- obj .: "proof"
-    txArg'args    <- obj .: "args"
     txArg'env     <- obj .: "env"
     bytes         <- obj .: "txBytes"
     return TxArg { txArg'txBytes = (\(ViaBase58 s :: ViaBase58 "ByteString" ByteString) -> s) bytes
@@ -186,7 +199,15 @@ scriptToText = encodeBase58 . unScript
 
 $(deriveJSON dropPrefixOptions ''Tx)
 $(deriveJSON dropPrefixOptions ''Env)
+$(deriveJSON dropPrefixOptions ''BoxInput)
+$(deriveJSON dropPrefixOptions ''BoxInputRef)
 
 instance CryptoHashable Tx where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxInput where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxInputRef where
   hashStep = genericHashStep hashDomain
 

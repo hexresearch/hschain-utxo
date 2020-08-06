@@ -22,7 +22,7 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Code (Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Types (TxEnv(..))
+import Hschain.Utxo.Lang.Types (InputEnv(..))
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -38,7 +38,7 @@ fromArgType = \case
   TextArg  -> textT
   BytesArg -> bytesT
 
-preludeLib :: TxEnv -> CoreProg
+preludeLib :: InputEnv -> CoreProg
 preludeLib env = CoreProg $ environmentFunctions env ++ primitives
 
 preludeTypeContext :: TypeContext
@@ -53,13 +53,13 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 --
 -- So we create library functions that contain concrete
 -- constants for current state of our blockchain.
-environmentFunctions :: TxEnv -> [Scomb]
-environmentFunctions TxEnv{..} =
-  [ getHeight txEnv'height
-  , getSelf txEnv'self
-  , getInputs txEnv'inputs
-  , getOutputs txEnv'outputs
-  ] ++ getArgs txEnv'args
+environmentFunctions :: InputEnv -> [Scomb]
+environmentFunctions InputEnv{..} =
+  [ getHeight inputEnv'height
+  , getSelf inputEnv'self
+  , getInputs inputEnv'inputs
+  , getOutputs inputEnv'outputs
+  ] ++ getArgs inputEnv'args
 
 environmentTypes :: TypeContext
 environmentTypes = TypeContext $ M.fromList $

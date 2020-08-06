@@ -1,13 +1,10 @@
-{-# Language OverloadedLists #-}
-{-# Language OverloadedStrings #-}
 -- | Basic tests for sigma-protocols
 module TM.Tx.Sigma(
   tests
 ) where
 
 import Data.Fix
-import Data.Text
-
+import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -35,14 +32,18 @@ initTx = do
     Left _    -> return $ Left "Failed to create owner script"
     Right box -> do
       let preTx = Tx
-            { tx'inputs  = [BoxId "box-1"]
+            { tx'inputs  = [inputRef]
             , tx'outputs = [box]
-            , tx'proof   = Nothing
-            , tx'args    = mempty
             }
       eProof <- newProof aliceProofEnv (singleOwnerSigma alicePubKey) (getTxBytes preTx)
-      return $ fmap (\proof -> preTx { tx'proof = Just proof }) eProof
+      return $ fmap (\proof -> appendProofs [Just proof] preTx) eProof
   where
+    inputRef = BoxInputRef
+      { boxInputRef'id    = BoxId "box-1"
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Nothing
+      }
+
     outBox owner = fmap (\script -> Box
       { box'id     = BoxId "box-2"
       , box'value  = 1
@@ -54,7 +55,7 @@ initTx = do
 verifyAliceTx :: IO (Either Text Bool)
 verifyAliceTx = do
   eTx <- initTx
-  return $ verifyTx =<< eTx
+  return $ fmap verifyTx eTx
 
 -- | Let's pretend that Bob captures Alice's correct transaction
 -- and tries to steal the output by injecting his ownership script.
@@ -80,11 +81,11 @@ verifyBrokenTx = do
     Left err      -> return $ Left err
     Right aliceTx -> do
       bobTx <- bobStealsTx aliceTx
-      return $ verifyTx bobTx
+      return $ Right $ verifyTx bobTx
 
 -- | External TX verifier.
-verifyTx :: Tx -> Either Text Bool
-verifyTx tx = do
-  proof <- maybe (Left "No proof found") Right $ tx'proof tx
-  return $ verifyProof proof (getTxBytes tx)
+verifyTx :: Tx -> Bool
+verifyTx tx = all (maybe False (\proof -> verifyProof proof message) . boxInputRef'proof) $ tx'inputs tx
+  where
+    message = getTxBytes tx
 

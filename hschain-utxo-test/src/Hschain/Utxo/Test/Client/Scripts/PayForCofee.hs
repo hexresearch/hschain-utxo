@@ -16,7 +16,7 @@ import Data.Text (Text)
 
 import Text.Show.Pretty
 
-import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle, getTxSigma)
+import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
@@ -136,29 +136,26 @@ sendTxDelayed from fromBox to delayDiff amount = do
   currentHeight <- M.getHeight
   totalAmount <- fmap (fromMaybe 0) $ M.getBoxBalance fromBox
   let sendTx = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
-      preTx = toSendTxDelayed from sendTx Nothing
-      proofEnv = getProofEnv from
-  eSigma <- getTxSigma preTx
-  eProof <- fmap join $ mapM (\sigma -> liftIO $ newProof proofEnv sigma (getTxBytes preTx)) eSigma
-  case eProof of
-    Right proof -> do
-      let tx = toSendTxDelayed from sendTx (Just proof)
-      logTest $ renderText tx
-      txResp <- M.postTx tx
-      logTest $ fromString $ ppShow txResp
-      return $ Right $ SendRes backBox toBox $ getTxHash txResp
-    Left err -> return $ Left err
+  tx <- toSendTxDelayed from sendTx
+  logTest $ renderText tx
+  txResp <- M.postTx tx
+  logTest $ fromString $ ppShow txResp
+  return $ Right $ SendRes backBox toBox $ getTxHash txResp
 
-toSendTxDelayed :: Wallet -> SendDelayed -> Maybe Proof -> Tx
-toSendTxDelayed wallet SendDelayed{..} mProof = do
-    Tx
+toSendTxDelayed :: Wallet -> SendDelayed -> App Tx
+toSendTxDelayed wallet SendDelayed{..} = proofSingleOwnerTx wallet preTx
+  where
+    preTx = Tx
       { tx'inputs   = V.fromList [inputBox]
       , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-      , tx'proof    = mProof
-      , tx'args     = mempty
       }
-  where
-    inputBox = sendDelayed'from
+
+    inputBox = BoxInputRef
+      { boxInputRef'id   = sendDelayed'from
+      , boxInputRef'args = mempty
+      , boxInputRef'proof = Nothing
+      }
+
     height = sendDelayed'height
 
     spendHeightId = 0

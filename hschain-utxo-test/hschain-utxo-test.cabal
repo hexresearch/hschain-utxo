@@ -66,6 +66,7 @@ library
     GeneralizedNewtypeDeriving
     MultiParamTypeClasses
     TypeFamilies
+    OverloadedLists
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables

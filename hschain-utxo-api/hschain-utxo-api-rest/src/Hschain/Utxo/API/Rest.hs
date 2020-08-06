@@ -8,6 +8,7 @@ import Hex.Common.Serialise
 import Control.Monad
 
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import Web.HttpApiData
 
@@ -54,9 +55,9 @@ data PostTxResponse = PostTxResponse
 
 -- | Result of execution of TX in the current state of blockchain.
 data SigmaTxResponse = SigmaTxResponse
-  { sigmaTxResponse'value :: !(Either Text BoolExprResult)  -- ^ result of execution
-                                                            -- (sigma-expression or boolean)
-  , sigmaTxResponse'debug :: !Text }                        -- ^ Debug info on the process of execution
+  { sigmaTxResponse'value :: !(Either Text (Vector BoolExprResult))  -- ^ result of execution
+                                                                     -- (sigma-expression or boolean)
+  , sigmaTxResponse'debug :: !Text }                                 -- ^ Debug info on the process of execution
   deriving (Show, Eq)
 
 -- | Useful stats about state of the blockchain

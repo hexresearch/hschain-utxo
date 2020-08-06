@@ -15,16 +15,20 @@ module Hschain.Utxo.Test.Client.Wallet(
   , getProofEnv
   , newProofOrFail
   , getTxSigmaUnsafe
+  , singleOwnerSigmaExpr
+  , proofSingleOwnerTx
 ) where
 
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
+import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Maybe
 import Data.Text (Text)
 import Data.UUID
+import Data.Vector (Vector)
 
 import System.Random
 
@@ -111,43 +115,46 @@ data SendBack = SendBack
 newSendTx :: Wallet -> Send -> App (Either Text Tx)
 newSendTx wallet send@Send{..} = do
   back <- getSendBack
-  preTx <- toSendTx wallet send back Nothing
-  eSigma <- getTxSigma preTx
-  fmap join $ forM eSigma $ \sigma -> do
-    let env = getProofEnv wallet
-    eProof <- liftIO $ newProof env sigma (getTxBytes preTx)
-    case eProof of
-      Right proof -> fmap Right $ toSendTx wallet send back (Just proof)
-      Left err    -> return $ Left err
+  toSendTx wallet send back
   where
     getSendBack = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount send'back
 
-newProofOrFail :: ProofEnv -> Sigma PublicKey -> Tx -> App Proof
-newProofOrFail env expr tx = do
-  eProof <- liftIO $ newProof env expr (getTxBytes tx)
+newProofOrFail :: ProofEnv -> Sigma PublicKey -> ByteString -> App Proof
+newProofOrFail env expr message = do
+  eProof <- liftIO $ newProof env expr message
   case eProof of
     Right proof -> return proof
     Left err    -> throwError err
 
-getTxSigmaUnsafe :: Tx -> App (Sigma PublicKey)
+getTxSigmaUnsafe :: Tx -> App (Vector (Sigma PublicKey))
 getTxSigmaUnsafe tx = either throwError pure =<< getTxSigma tx
 
-getSigmaForProof :: Tx -> App (Sigma PublicKey)
+getSigmaForProof :: Tx -> App (Vector (Sigma PublicKey))
 getSigmaForProof tx = getTxSigmaUnsafe tx
 
+singleOwnerSigmaExpr :: Wallet -> Sigma PublicKey
+singleOwnerSigmaExpr wallet = Fix $ SigmaPk $ getWalletPublicKey wallet
+
 -- | Sends money with exchange
-toSendTx :: Wallet -> Send -> SendBack -> Maybe Proof -> App Tx
-toSendTx wallet Send{..} SendBack{..} mProof = do
-  return $ Tx
-        { tx'inputs   = V.fromList [inputBox]
-        , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-        , tx'proof    = mProof
-        , tx'args     = mempty
-        }
+toSendTx :: Wallet -> Send -> SendBack -> App (Either Text Tx)
+toSendTx wallet Send{..} SendBack{..}  = do
+  eProof <- liftIO $ newProof (getProofEnv wallet) (singleOwnerSigmaExpr wallet) message
+  return $ fmap (\proof -> appendProofs [Just proof] preTx) eProof
   where
-    inputBox = send'from
+    message = getTxBytes preTx
+
+    preTx = Tx
+      { tx'inputs  = V.fromList [inputBox]
+      , tx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      }
+
+    inputBox = BoxInputRef
+      { boxInputRef'id    = send'from
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Nothing
+      }
 
     senderUtxo
       | sendBack'totalAmount > send'amount = Just $ Box
@@ -164,4 +171,12 @@ toSendTx wallet Send{..} SendBack{..} mProof = do
       , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
       , box'args   = mempty
       }
+
+proofSingleOwnerTx :: Wallet -> Tx -> App Tx
+proofSingleOwnerTx wallet preTx = do
+  proof <- newProofOrFail (getProofEnv wallet) (singleOwnerSigmaExpr wallet) (getTxBytes preTx)
+  return $ appendProofs [Just proof] preTx
+
+
+
 

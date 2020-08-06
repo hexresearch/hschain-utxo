@@ -2,7 +2,6 @@
 module Main where
 
 import Data.Aeson.Encode.Pretty
-import Data.Fix
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
@@ -15,14 +14,14 @@ main :: IO ()
 main = B.putStrLn . LB.toStrict . encodePretty =<< singleOwnerGenesis
 
 singleOwnerGenesis :: IO [Tx]
-singleOwnerGenesis = withSecret =<< newSecret
+singleOwnerGenesis = fmap withSecret newSecret
   where
-    withSecret secret = do
-      Right proof <- newProof env (Fix $ SigmaPk publicKey) (getTxBytes preTx)
-      return $ [tx $ Just proof]
+    withSecret secret = return $ Tx
+      { tx'inputs  = V.empty
+      , tx'outputs = V.fromList [box]
+      }
       where
         publicKey = getPublicKey secret
-        env = proofEnvFromKeys [getKeyPair secret]
 
         box = Box
           { box'id     = BoxId "master:box-0"
@@ -30,15 +29,6 @@ singleOwnerGenesis = withSecret =<< newSecret
           , box'script = mainScriptUnsafe $ pk' publicKey
           , box'args   = mempty
           }
-
-        tx mProof = Tx
-          { tx'inputs  = V.empty
-          , tx'outputs = V.fromList [box]
-          , tx'proof   = mProof
-          , tx'args    = mempty
-          }
-
-        preTx = tx Nothing
 
         initMoney = 1000000
 

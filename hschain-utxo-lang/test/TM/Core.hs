@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- |
 module TM.Core ( tests )where
 
@@ -10,7 +7,7 @@ import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
-import Hschain.Utxo.Lang.Types (TxEnv(..))
+import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -91,17 +88,17 @@ run
 
 ----------------------------------------------------------------
 
-env :: TxEnv
-env = TxEnv
-  { txEnv'height   = 123
-  , txEnv'self     = Box
+env :: InputEnv
+env = InputEnv
+  { inputEnv'height   = 123
+  , inputEnv'self     = Box
     { box'id     = BoxId ""
     , box'value  = 100
     , box'script = Script ""
     , box'args   = mempty
     }
-  , txEnv'inputs   = mempty
-  , txEnv'outputs  = mempty
-  , txEnv'args     = mempty
+  , inputEnv'inputs   = mempty
+  , inputEnv'outputs  = mempty
+  , inputEnv'args     = mempty
   }
 

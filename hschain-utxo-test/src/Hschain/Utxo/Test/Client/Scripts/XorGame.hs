@@ -19,7 +19,7 @@ import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle, getTxSigma)
+import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
@@ -131,24 +131,15 @@ xorGameRound Scene{..} game@Game{..} = do
           aliceScript = halfGameScript $ bytes $ fullScriptHash
       backAddr <- allocAddress wallet
       gameAddr <- allocAddress wallet
-      preTx <- makeAliceTx game'amount aliceScript wallet box backAddr gameAddr Nothing
-      eSigma <- getTxSigma preTx
-      eProof <- liftIO $ fmap join $ mapM (\sigma -> newProof (getProofEnv wallet) sigma (getTxBytes preTx)) eSigma
-      case eProof of
-        Right proof -> do
-          tx <- makeAliceTx (fromIntegral game'amount) aliceScript wallet box backAddr gameAddr (Just proof)
-          eTx <- postTxDebug True "Alice posts half game script" tx
-          case eTx of
-            Right _txHash -> return $ Just (k, gameAddr, backAddr, s)
-            Left err      -> do
-              liftIO $ T.putStrLn err
-              return Nothing
-        Left err -> do
+      tx <- makeAliceTx game'amount aliceScript wallet box backAddr gameAddr
+      eTx <- postTxDebug True "Alice posts half game script" tx
+      case eTx of
+        Right _txHash -> return $ Just (k, gameAddr, backAddr, s)
+        Left err      -> do
           liftIO $ T.putStrLn err
           return Nothing
 
-
-    makeAliceTx amount script wallet inBox backAddr gameAddr mProof = do
+    makeAliceTx amount script wallet inBox backAddr gameAddr = do
       total <- fmap (fromMaybe 0) $ getBoxBalance inBox
 
       let gameBox = if (amount > total)
@@ -168,43 +159,43 @@ xorGameRound Scene{..} game@Game{..} = do
               , box'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
               , box'args   = mempty
               }
-      return $ Tx
-            { tx'inputs  = V.fromList [inBox]
-            , tx'outputs = V.fromList $ catMaybes [gameBox, restBox]
-            , tx'proof   = mProof
-            , tx'args    = mempty
+
+          inputBox = BoxInputRef
+            { boxInputRef'id   = inBox
+            , boxInputRef'args = mempty
+            , boxInputRef'proof = Nothing
             }
+
+          preTx = Tx
+            { tx'inputs  = [inputBox]
+            , tx'outputs = V.fromList $ catMaybes [gameBox, restBox]
+            }
+
+      proofSingleOwnerTx wallet preTx
 
     getBobScript guess wallet alicePublicHash scriptBox alicePubKey inBox = do
       gameAddr <- allocAddress wallet
       backAddr <- allocAddress wallet
-      preTx <- makeBobTx gameAddr backAddr Nothing
-      eSigma <- getTxSigma preTx
-      eProof <- liftIO $ fmap join $ mapM (\sigma -> newProof (getProofEnv wallet) sigma (getTxBytes preTx)) eSigma
-      case eProof of
-        Right proof -> do
-          tx <- makeBobTx gameAddr backAddr (Just proof)
-          eTxHash <- postTxDebug True "Bob posts full game script" tx
-          case eTxHash of
-            Right _txHash -> return $ Just (gameAddr, backAddr)
-            Left  err     -> do
-                bobPostError err
-                return Nothing
-        Left err -> do
-          bobPostError err
-          return Nothing
+      tx <- makeBobTx gameAddr backAddr
+      eTxHash <- postTxDebug True "Bob posts full game script" tx
+      case eTxHash of
+        Right _txHash -> return $ Just (gameAddr, backAddr)
+        Left  err     -> do
+            bobPostError err
+            return Nothing
       where
         bobPostError msg = liftIO $ T.putStrLn $ mconcat ["Bob posts full game error: ", msg]
 
-        makeBobTx gameAddr backAddr mProof = do
+        makeBobTx gameAddr backAddr = do
           total <- fmap (fromMaybe 0) $ getBoxBalance inBox
           height <- M.getHeight
-          return $ Tx
-              { tx'inputs  = V.fromList [inBox, scriptBox]
-              , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
-              , tx'proof   = mProof
-              , tx'args    = mempty
-              }
+          let preTx mBobProof = Tx
+                { tx'inputs  = V.fromList [BoxInputRef inBox mempty mBobProof, BoxInputRef scriptBox mempty Nothing]
+                , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
+                }
+              message = getTxBytes (preTx Nothing)
+          bobProof <- newProofOrFail (getProofEnv wallet) (singleOwnerSigmaExpr wallet) message
+          return $ preTx $ Just bobProof
           where
             gameBox total height
               | total < game'amount = Nothing
@@ -235,14 +226,11 @@ xorGameRound Scene{..} game@Game{..} = do
       where
         winMsg str = mconcat [str, " tries to win."]
 
-    winTx gameBox winAddr wallet aliceSecret aliceGuess =
-      fmap (toTx . Just) $ getOwnerProofUnsafe wallet (toTx Nothing)
+    winTx gameBox winAddr wallet aliceSecret aliceGuess = proofSingleOwnerTx wallet preTx
       where
-        toTx mProof = Tx
-            { tx'inputs  = V.fromList [gameBox]
+        preTx = Tx
+            { tx'inputs  = V.fromList [BoxInputRef gameBox args Nothing]
             , tx'outputs = V.fromList [outBox]
-            , tx'proof   = mProof
-            , tx'args    = args
             }
 
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
@@ -275,5 +263,4 @@ postTxDebug isSuccess msg tx = do
   return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
   where
     wait = sleep 0.25
-
 

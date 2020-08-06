@@ -27,6 +27,7 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , bytestring
                      , containers
                      , data-default
                      , data-fix

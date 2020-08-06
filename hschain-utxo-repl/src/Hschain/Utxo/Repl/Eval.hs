@@ -12,17 +12,20 @@ module Hschain.Utxo.Repl.Eval(
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
+import Data.Maybe
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Desugar
 
-
 import Hschain.Utxo.Repl.Monad
 
+import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
+
 
 getClosureExpr :: Lang -> Repl Lang
 getClosureExpr expr = do
@@ -47,13 +50,29 @@ evalExpr lang = do
     tx    <- fmap replEnv'tx get
     ctx   <- getExecContext
     types <- getUserTypes
-    let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang =<< desugar types expr
+    let env = fromMaybe defaultInputEnv $ fmap snd $ splitInputs tx V.!? 0
+    let res = runExec ctx env $ execLang =<< desugar types expr
     liftIO $ case res of
       Right (e, debugTxt) -> do
         T.putStrLn $ renderText e
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
       Left err   -> T.putStrLn $ renderText err
 
+defaultInputEnv :: InputEnv
+defaultInputEnv = InputEnv
+  { inputEnv'height  = 0
+  , inputEnv'self    = self
+  , inputEnv'inputs  = V.fromList [self]
+  , inputEnv'outputs = V.fromList [self]
+  , inputEnv'args    = mempty
+  }
+  where
+    self = Box
+      { box'id     = BoxId "default-input-box"
+      , box'value  = 1
+      , box'script = Script BS.empty
+      , box'args   = mempty
+      }
 
 -- | Evaluate user bind. Bind is construct to assign name to variable
 --
@@ -66,7 +85,8 @@ evalBind var lang = do
       tx  <- fmap replEnv'tx get
       ctx <- getExecContext
       types <- getUserTypes
-      let res = runExec ctx (txArg'args tx) (env'height $ txArg'env tx) (txArg'inputs tx) (txArg'outputs tx) $ execLang =<< desugar types expr
+      let env = fromMaybe defaultInputEnv $ fmap snd $ splitInputs tx V.!? 0
+      let res = runExec ctx env $ execLang =<< desugar types expr
       case res of
         Right (e, _) -> do
           modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var e next)

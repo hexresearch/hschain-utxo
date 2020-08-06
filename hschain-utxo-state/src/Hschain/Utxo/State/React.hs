@@ -10,6 +10,7 @@ import Control.Monad
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgFromScript)
@@ -52,7 +53,7 @@ react tx bch
 updateBoxChain :: Tx -> BoxChain -> BoxChain
 updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
   where
-    removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete) tx'inputs)
+    removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
 
     insertOutputs = updateBoxes $ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
 
@@ -65,7 +66,7 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
 -- to get the sigma-expression of the evaluation of the transaction script.
 --
 -- Also it returns debug-log for transaction execution.
-execInBoxChain :: Tx -> BoxChain -> (Either Text BoolExprResult, Text)
+execInBoxChain :: Tx -> BoxChain -> (Either Text (Vector BoolExprResult), Text)
 execInBoxChain tx bch = case toTxArg bch tx of
   Right txArg ->  (either (Left . renderText) Right $ Core.evalToSigma txArg, fakeDebug)
   Left err    -> (Left err, "No message")

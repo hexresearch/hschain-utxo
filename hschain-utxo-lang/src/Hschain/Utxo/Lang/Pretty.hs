@@ -77,16 +77,26 @@ instance Pretty Tx where
   pretty Tx{..} = prettyRecord "Tx"
     [ ("inputs", brackets $ hsep $ punctuate comma $ V.toList $ fmap pretty tx'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList tx'outputs )
-    , ("proof", pretty tx'proof)
-    , ("args", prettyArgs tx'args)
     ]
 
 instance Pretty TxArg where
   pretty TxArg{..} = prettyRecord "TxArg"
     [ ("inputs",  vsep $ fmap pretty $ V.toList txArg'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList txArg'outputs )
-    , ("proof", pretty txArg'proof)
-    , ("args", prettyArgs txArg'args)
+    ]
+
+instance Pretty BoxInput where
+  pretty BoxInput{..} = prettyRecord "BoxInput"
+    [ ("box",   pretty boxInput'box)
+    , ("args",  prettyArgs boxInput'args)
+    , ("proof", pretty boxInput'proof)
+    ]
+
+instance Pretty BoxInputRef where
+  pretty BoxInputRef{..} = prettyRecord "BoxInputRef"
+    [ ("id",    pretty boxInputRef'id)
+    , ("args",  prettyArgs boxInputRef'args)
+    , ("proof", pretty boxInputRef'proof)
     ]
 
 instance Pretty Env where
