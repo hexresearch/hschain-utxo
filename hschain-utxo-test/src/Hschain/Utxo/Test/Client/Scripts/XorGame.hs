@@ -160,14 +160,15 @@ xorGameRound Scene{..} game@Game{..} = do
               , box'args   = mempty
               }
 
-          inputBox = PreBoxInputRef
-            { preBoxInputRef'id   = inBox
-            , preBoxInputRef'args = mempty
+          inputBox = BoxInputRef
+            { boxInputRef'id   = inBox
+            , boxInputRef'args = mempty
+            , boxInputRef'proof = Nothing
             }
 
-          preTx = PreTx
-            { preTx'inputs  = [inputBox]
-            , preTx'outputs = V.fromList $ catMaybes [gameBox, restBox]
+          preTx = Tx
+            { tx'inputs  = [inputBox]
+            , tx'outputs = V.fromList $ catMaybes [gameBox, restBox]
             }
 
       proofSingleOwnerTx wallet preTx
@@ -188,11 +189,13 @@ xorGameRound Scene{..} game@Game{..} = do
         makeBobTx gameAddr backAddr = do
           total <- fmap (fromMaybe 0) $ getBoxBalance inBox
           height <- M.getHeight
-          let preTx = PreTx
-                { preTx'inputs  = V.fromList [PreBoxInputRef inBox mempty, PreBoxInputRef scriptBox mempty]
-                , preTx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
+          let preTx mBobProof = Tx
+                { tx'inputs  = V.fromList [BoxInputRef inBox mempty mBobProof, BoxInputRef scriptBox mempty Nothing]
+                , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
                 }
-          proofSingleOwnerTx wallet preTx
+              message = getTxBytes (preTx Nothing)
+          bobProof <- newProofOrFail (getProofEnv wallet) (singleOwnerSigmaExpr wallet) message
+          return $ preTx $ Just bobProof
           where
             gameBox total height
               | total < game'amount = Nothing
@@ -225,9 +228,9 @@ xorGameRound Scene{..} game@Game{..} = do
 
     winTx gameBox winAddr wallet aliceSecret aliceGuess = proofSingleOwnerTx wallet preTx
       where
-        preTx = PreTx
-            { preTx'inputs  = V.fromList [PreBoxInputRef gameBox args]
-            , preTx'outputs = V.fromList [outBox]
+        preTx = Tx
+            { tx'inputs  = V.fromList [BoxInputRef gameBox args Nothing]
+            , tx'outputs = V.fromList [outBox]
             }
 
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]

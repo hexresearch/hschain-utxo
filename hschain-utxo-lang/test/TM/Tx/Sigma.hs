@@ -15,8 +15,7 @@ import Hschain.Utxo.Lang.Types
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
-  [ testCase "Same message for Tx and PreTx"       $ ( @=? Right True)  =<< verifySameMessagePreTx
-  , testCase "verify correct single owner script"  $ ( @=? Right True)  =<< verifyAliceTx
+  [ testCase "verify correct single owner script"  $ ( @=? Right True)  =<< verifyAliceTx
   , testCase "verify broken tx"                    $ ( @=? Right False) =<< verifyBrokenTx
   ]
 
@@ -32,16 +31,17 @@ initTx = do
   case outBox alicePubKey of
     Left _    -> return $ Left "Failed to create owner script"
     Right box -> do
-      let preTx = PreTx
-            { preTx'inputs  = [preInputRef]
-            , preTx'outputs = [box]
+      let preTx = Tx
+            { tx'inputs  = [inputRef]
+            , tx'outputs = [box]
             }
-      eProof <- newProof aliceProofEnv (singleOwnerSigma alicePubKey) (getPreTxBytes preTx)
-      return $ fmap (\proof -> appendProofs [proof] preTx) eProof
+      eProof <- newProof aliceProofEnv (singleOwnerSigma alicePubKey) (getTxBytes preTx)
+      return $ fmap (\proof -> appendProofs [Just proof] preTx) eProof
   where
-    preInputRef = PreBoxInputRef
-      { preBoxInputRef'id    = BoxId "box-1"
-      , preBoxInputRef'args  = mempty
+    inputRef = BoxInputRef
+      { boxInputRef'id    = BoxId "box-1"
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Nothing
       }
 
     outBox owner = fmap (\script -> Box
@@ -50,21 +50,6 @@ initTx = do
       , box'script = script
       , box'args   = mempty
       }) $ mainScript $ pk $ text $ publicKeyToText owner
-
-verifySameMessagePreTx :: IO (Either Text Bool)
-verifySameMessagePreTx = do
-  eTx <- initTx
-  return $ fmap check eTx
-  where
-    check tx = getPreTxBytes preTx == getTxBytes tx
-      where
-        preTx = getPreTxSubset tx
-
-    getPreTxSubset Tx{..} = PreTx
-      { preTx'inputs  = fmap (\BoxInputRef{..} -> PreBoxInputRef boxInputRef'id boxInputRef'args) tx'inputs
-      , preTx'outputs = tx'outputs
-      }
-
 
 -- | Verify that proof is correct
 verifyAliceTx :: IO (Either Text Bool)
@@ -100,7 +85,7 @@ verifyBrokenTx = do
 
 -- | External TX verifier.
 verifyTx :: Tx -> Bool
-verifyTx tx = all ((\proof -> verifyProof proof message) . boxInputRef'proof) $ tx'inputs tx
+verifyTx tx = all (maybe False (\proof -> verifyProof proof message) . boxInputRef'proof) $ tx'inputs tx
   where
     message = getTxBytes tx
 

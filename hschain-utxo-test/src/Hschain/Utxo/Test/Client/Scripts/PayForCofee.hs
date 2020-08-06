@@ -145,14 +145,15 @@ sendTxDelayed from fromBox to delayDiff amount = do
 toSendTxDelayed :: Wallet -> SendDelayed -> App Tx
 toSendTxDelayed wallet SendDelayed{..} = proofSingleOwnerTx wallet preTx
   where
-    preTx = PreTx
-      { preTx'inputs   = V.fromList [inputBox]
-      , preTx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    preTx = Tx
+      { tx'inputs   = V.fromList [inputBox]
+      , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
-    inputBox = PreBoxInputRef
-      { preBoxInputRef'id   = sendDelayed'from
-      , preBoxInputRef'args = mempty
+    inputBox = BoxInputRef
+      { boxInputRef'id   = sendDelayed'from
+      , boxInputRef'args = mempty
+      , boxInputRef'proof = Nothing
       }
 
     height = sendDelayed'height

@@ -67,47 +67,29 @@ data Tx = Tx
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
-
--- | Pre-TX is used to query the sigma expressions that TX-inputs are going to be evaluated to
--- without proving them
-data PreTx = PreTx
-  { preTx'inputs  :: !(Vector PreBoxInputRef) -- ^ List of inputs
-  , preTx'outputs :: !(Vector Box)
-  }
-  deriving stock    (Show, Eq, Ord, Generic)
-  deriving anyclass (Serialise, NFData)
-
 -- | Input is an unspent Box that exists in blockchain.
 -- To spend the input we need to provide right arguments and proof
 -- of reulting sigma expression.
 data BoxInputRef = BoxInputRef
   { boxInputRef'id    :: BoxId
   , boxInputRef'args  :: Args
-  , boxInputRef'proof :: Proof
+  , boxInputRef'proof :: Maybe Proof
   }
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
-data PreBoxInputRef = PreBoxInputRef
-  { preBoxInputRef'id   :: BoxId
-  , preBoxInputRef'args :: Args
-  }
-  deriving stock    (Show, Eq, Ord, Generic)
-  deriving anyclass (Serialise, NFData)
-
-appendProofs :: Vector Proof -> PreTx -> Tx
-appendProofs proofs PreTx{..} = Tx
-  { tx'inputs  = V.zipWith appendProofToBox proofs preTx'inputs
-  , tx'outputs = preTx'outputs
+appendProofs :: Vector (Maybe Proof) -> Tx -> Tx
+appendProofs proofs Tx{..} = Tx
+  { tx'inputs  = V.zipWith appendProofToBox proofs tx'inputs
+  , tx'outputs = tx'outputs
   }
 
-appendProofToBox :: Proof -> PreBoxInputRef -> BoxInputRef
-appendProofToBox proof PreBoxInputRef{..} = BoxInputRef
-  { boxInputRef'id    = preBoxInputRef'id
-  , boxInputRef'args  = preBoxInputRef'args
+appendProofToBox :: Maybe Proof -> BoxInputRef -> BoxInputRef
+appendProofToBox proof BoxInputRef{..} = BoxInputRef
+  { boxInputRef'id    = boxInputRef'id
+  , boxInputRef'args  = boxInputRef'args
   , boxInputRef'proof = proof
   }
-
 
 -- | This is used for hashing the TX, to get it's id and
 -- for serialization to get message to be signed for verification.
@@ -124,22 +106,8 @@ getTxContent Tx{..} = TxContent
   , txContent'outputs = tx'outputs
   }
 
-getPreTxContent :: PreTx -> TxContent
-getPreTxContent PreTx{..} = TxContent
-  { txContent'inputs  = fmap preBoxInputRef'id preTx'inputs
-  , txContent'outputs = preTx'outputs
-  }
-
 getTxBytes :: Tx -> ByteString
 getTxBytes = getTxContentBytes . getTxContent
-
--- | Invariant that getPreTxBytes === getTxBytes
---
--- We use this variant to get the sign message when we don't have the proof.
--- When we don't know inadvance to what sigma-expressions input-scripts
--- are going to be evaluated.
-getPreTxBytes :: PreTx -> ByteString
-getPreTxBytes = getTxContentBytes . getPreTxContent
 
 getTxContentBytes :: TxContent -> ByteString
 getTxContentBytes = LB.toStrict . CBOR.serialise
@@ -158,7 +126,7 @@ data TxArg = TxArg
 data BoxInput = BoxInput
   { boxInput'box   :: !Box
   , boxInput'args  :: !Args
-  , boxInput'proof :: !Proof
+  , boxInput'proof :: !(Maybe Proof)
   }
   deriving (Show, Eq, Generic)
 
@@ -177,7 +145,7 @@ data InputEnv = InputEnv
   , inputEnv'args    :: !Args
   }
 
-splitInputs :: TxArg -> Vector (Proof, InputEnv)
+splitInputs :: TxArg -> Vector (Maybe Proof, InputEnv)
 splitInputs tx = fmap (\input -> (boxInput'proof input, getInputEnv tx input)) $ txArg'inputs tx
 
 getInputEnv :: TxArg -> BoxInput -> InputEnv
@@ -233,7 +201,6 @@ $(deriveJSON dropPrefixOptions ''Tx)
 $(deriveJSON dropPrefixOptions ''Env)
 $(deriveJSON dropPrefixOptions ''BoxInput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
-$(deriveJSON dropPrefixOptions ''PreBoxInputRef)
 
 instance CryptoHashable Tx where
   hashStep = genericHashStep hashDomain

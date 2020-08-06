@@ -141,18 +141,19 @@ singleOwnerSigmaExpr wallet = Fix $ SigmaPk $ getWalletPublicKey wallet
 toSendTx :: Wallet -> Send -> SendBack -> App (Either Text Tx)
 toSendTx wallet Send{..} SendBack{..}  = do
   eProof <- liftIO $ newProof (getProofEnv wallet) (singleOwnerSigmaExpr wallet) message
-  return $ fmap (\proof -> appendProofs [proof] preTx) eProof
+  return $ fmap (\proof -> appendProofs [Just proof] preTx) eProof
   where
-    message = getPreTxBytes preTx
+    message = getTxBytes preTx
 
-    preTx = PreTx
-      { preTx'inputs  = V.fromList [inputBox]
-      , preTx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    preTx = Tx
+      { tx'inputs  = V.fromList [inputBox]
+      , tx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
-    inputBox = PreBoxInputRef
-      { preBoxInputRef'id = send'from
-      , preBoxInputRef'args = mempty
+    inputBox = BoxInputRef
+      { boxInputRef'id    = send'from
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Nothing
       }
 
     senderUtxo
@@ -171,10 +172,10 @@ toSendTx wallet Send{..} SendBack{..}  = do
       , box'args   = mempty
       }
 
-proofSingleOwnerTx :: Wallet -> PreTx -> App Tx
+proofSingleOwnerTx :: Wallet -> Tx -> App Tx
 proofSingleOwnerTx wallet preTx = do
-  proof <- newProofOrFail (getProofEnv wallet) (singleOwnerSigmaExpr wallet) (getPreTxBytes preTx)
-  return $ appendProofs [proof] preTx
+  proof <- newProofOrFail (getProofEnv wallet) (singleOwnerSigmaExpr wallet) (getTxBytes preTx)
+  return $ appendProofs [Just proof] preTx
 
 
 

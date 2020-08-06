@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Core.Eval(
 ) where
 
 import Data.ByteString (ByteString)
+import Data.Fix
 import Data.Text
 import Data.Vector (Vector)
 
@@ -25,12 +26,14 @@ evalInput env =
     Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
     Nothing   -> Left $ ExecError FailedToDecodeScript
 
-verifyInput :: ByteString -> Proof -> InputEnv -> Either Error Bool
-verifyInput message proof env = fmap verifyResult $ evalInput env
+verifyInput :: ByteString -> Maybe Proof -> InputEnv -> Either Error Bool
+verifyInput message mProof env = fmap verifyResult $ evalInput env
   where
     verifyResult = \case
       ConstBool b       -> b
-      SigmaResult sigma -> equalSigmaProof sigma proof && verifyProof proof message
+      SigmaResult sigma -> case sigma of
+        Fix (SigmaBool b) -> b
+        _                 -> maybe False (\proof -> equalSigmaProof sigma proof && verifyProof proof message) mProof
 
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
