@@ -27,6 +27,7 @@ import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Codec.Serialise as CBOR
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.Vector as V
 
 -- | User identifier.
 newtype UserId = UserId { unUserId :: Text }
@@ -66,6 +67,7 @@ data Tx = Tx
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
+
 -- | Pre-TX is used to query the sigma expressions that TX-inputs are going to be evaluated to
 -- without proving them
 data PreTx = PreTx
@@ -93,6 +95,20 @@ data PreBoxInputRef = PreBoxInputRef
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
+appendProofs :: Vector Proof -> PreTx -> Tx
+appendProofs proofs PreTx{..} = Tx
+  { tx'inputs  = V.zipWith appendProofToBox proofs preTx'inputs
+  , tx'outputs = preTx'outputs
+  }
+
+appendProofToBox :: Proof -> PreBoxInputRef -> BoxInputRef
+appendProofToBox proof PreBoxInputRef{..} = BoxInputRef
+  { boxInputRef'id    = preBoxInputRef'id
+  , boxInputRef'args  = preBoxInputRef'args
+  , boxInputRef'proof = proof
+  }
+
+
 -- | This is used for hashing the TX, to get it's id and
 -- for serialization to get message to be signed for verification.
 data TxContent = TxContent
@@ -108,8 +124,22 @@ getTxContent Tx{..} = TxContent
   , txContent'outputs = tx'outputs
   }
 
+getPreTxContent :: PreTx -> TxContent
+getPreTxContent PreTx{..} = TxContent
+  { txContent'inputs  = fmap preBoxInputRef'id preTx'inputs
+  , txContent'outputs = preTx'outputs
+  }
+
 getTxBytes :: Tx -> ByteString
 getTxBytes = getTxContentBytes . getTxContent
+
+-- | Invariant that getPreTxBytes === getTxBytes
+--
+-- We use this variant to get the sign message when we don't have the proof.
+-- When we don't know inadvance to what sigma-expressions input-scripts
+-- are going to be evaluated.
+getPreTxBytes :: PreTx -> ByteString
+getPreTxBytes = getTxContentBytes . getPreTxContent
 
 getTxContentBytes :: TxContent -> ByteString
 getTxContentBytes = LB.toStrict . CBOR.serialise

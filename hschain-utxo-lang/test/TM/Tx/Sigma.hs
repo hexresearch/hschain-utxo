@@ -6,8 +6,7 @@ module TM.Tx.Sigma(
 ) where
 
 import Data.Fix
-import Data.Text
-
+import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -34,15 +33,18 @@ initTx = do
   case outBox alicePubKey of
     Left _    -> return $ Left "Failed to create owner script"
     Right box -> do
-      let preTx = Tx
-            { tx'inputs  = [BoxId "box-1"]
-            , tx'outputs = [box]
-            , tx'proof   = Nothing
-            , tx'args    = mempty
+      let preTx = PreTx
+            { preTx'inputs  = [preInputRef]
+            , preTx'outputs = [box]
             }
-      eProof <- newProof aliceProofEnv (singleOwnerSigma alicePubKey) (getTxBytes preTx)
-      return $ fmap (\proof -> preTx { tx'proof = Just proof }) eProof
+      eProof <- newProof aliceProofEnv (singleOwnerSigma alicePubKey) (getPreTxBytes preTx)
+      return $ fmap (\proof -> appendProofs [proof] preTx) eProof
   where
+    preInputRef = PreBoxInputRef
+      { preBoxInputRef'id    = BoxId "box-1"
+      , preBoxInputRef'args  = mempty
+      }
+
     outBox owner = fmap (\script -> Box
       { box'id     = BoxId "box-2"
       , box'value  = 1
@@ -54,7 +56,7 @@ initTx = do
 verifyAliceTx :: IO (Either Text Bool)
 verifyAliceTx = do
   eTx <- initTx
-  return $ verifyTx =<< eTx
+  return $ fmap verifyTx eTx
 
 -- | Let's pretend that Bob captures Alice's correct transaction
 -- and tries to steal the output by injecting his ownership script.
@@ -80,11 +82,11 @@ verifyBrokenTx = do
     Left err      -> return $ Left err
     Right aliceTx -> do
       bobTx <- bobStealsTx aliceTx
-      return $ verifyTx bobTx
+      return $ Right $ verifyTx bobTx
 
 -- | External TX verifier.
-verifyTx :: Tx -> Either Text Bool
-verifyTx tx = do
-  proof <- maybe (Left "No proof found") Right $ tx'proof tx
-  return $ verifyProof proof (getTxBytes tx)
+verifyTx :: Tx -> Bool
+verifyTx tx = all ((\proof -> verifyProof proof message) . boxInputRef'proof) $ tx'inputs tx
+  where
+    message = getTxBytes tx
 
