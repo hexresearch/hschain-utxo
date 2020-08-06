@@ -177,6 +177,18 @@ data InputEnv = InputEnv
   , inputEnv'args    :: !Args
   }
 
+splitInputs :: TxArg -> Vector (Proof, InputEnv)
+splitInputs tx = fmap (\input -> (boxInput'proof input, getInputEnv tx input)) $ txArg'inputs tx
+
+getInputEnv :: TxArg -> BoxInput -> InputEnv
+getInputEnv TxArg{..} input = InputEnv
+  { inputEnv'self    = boxInput'box input
+  , inputEnv'height  = env'height txArg'env
+  , inputEnv'inputs  = fmap boxInput'box txArg'inputs
+  , inputEnv'outputs = txArg'outputs
+  , inputEnv'args    = boxInput'args input
+  }
+
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True

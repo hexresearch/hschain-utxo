@@ -40,6 +40,7 @@ import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
 import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, publicKeyFromText)
 import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Types
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map.Strict as M
@@ -64,10 +65,7 @@ trace2 expr x = trace (T.unpack $ renderText expr) x
 -- | Context of execution
 data Ctx = Ctx
   { ctx'vars       :: !(Map VarName Lang)  -- ^ global bindings (outer scope)
-  , ctx'userArgs   :: !Args                -- ^ list user arguments for transaction
-  , ctx'height     :: !Int64               -- ^ height of blockchain
-  , ctx'inputs     :: !(Vector Box)        -- ^ vector of input boxes
-  , ctx'outputs    :: !(Vector Box)        -- ^ vector of ouptut boxes
+  , ctx'env        :: !InputEnv            -- ^ input environment
   , ctx'debug      :: !Text                -- ^ debug log for executed expression
   , ctx'freshVarId :: !Int                 -- ^ counter for allocation of fresh variables
   }
@@ -86,13 +84,16 @@ instance Alternative Exec where
             Left _    -> runStateT stB s
 
 getHeight :: Exec Int64
-getHeight = fmap ctx'height get
+getHeight = fmap (inputEnv'height . ctx'env) get
 
 getInputs :: Exec (Vector Box)
-getInputs = fmap ctx'inputs get
+getInputs = fmap (inputEnv'inputs . ctx'env) get
 
 getOutputs :: Exec (Vector Box)
-getOutputs = fmap ctx'outputs get
+getOutputs = fmap (inputEnv'outputs . ctx'env) get
+
+getSelf :: Exec Box
+getSelf = fmap (inputEnv'self . ctx'env) get
 
 instance MonadFreshVar Exec where
   getFreshVarName = do
@@ -105,18 +106,18 @@ instance MonadFreshVar Exec where
 instance MonadLang Exec where
 
 getUserArgs :: Exec Args
-getUserArgs = fmap  ctx'userArgs get
+getUserArgs = fmap (inputEnv'args . ctx'env) get
 
 saveTrace :: Text -> Exec ()
 saveTrace msg =
   modify' $ \st -> st { ctx'debug = T.unlines [ctx'debug st, msg] }
 
 -- | Run execution monad.
-runExec :: ExecCtx -> Args -> Int64 -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
-runExec (ExecCtx binds) args height inputs outputs (Exec st) =
+runExec :: ExecCtx -> InputEnv -> Exec a -> Either Error (a, Text)
+runExec (ExecCtx binds) env (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
-    emptyCtx = Ctx binds args height inputs outputs mempty 0
+    emptyCtx = Ctx binds env mempty 0
 
 -- | Performs execution of expression.
 execLang :: Lang -> Exec Lang
@@ -475,6 +476,7 @@ execLang (Fix topExpr) = case topExpr of
         Output loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getOutputs
         Inputs loc1  -> fmap (toBoxes loc1) getInputs
         Outputs loc1 -> fmap (toBoxes loc1) getOutputs
+        Self loc1 -> fmap (Fix . BoxE loc1 . PrimBox loc1) getSelf
         GetVar varLoc argType -> do
           args <- getUserArgs
           return $ case argType of
@@ -689,70 +691,4 @@ getPrimIntOrFail = getPrimOrFailBy getPrimInt
 
 getPrimBytesOrFail :: Lang -> Exec ByteString
 getPrimBytesOrFail = getPrimOrFailBy getPrimBytes
-
-
-
-{- for debug
-traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
-traceFun name f x =
-  let res = f x
-  in  trace (mconcat ["\n\nTRACE: " , name, "(", show x, ") = ", show res]) (f x)
-
--- | We verify that expression is evaluated to the sigma-value that is
--- supplied by the proposer and then verify the proof itself.
-exec :: ExecCtx -> TxArg -> (Bool, Text)
-exec ctx tx
-  | txPreservesValue tx = case res of
-        Right (SigmaResult sigmaWithBools) -> case eliminateSigmaBool sigmaWithBools of
-          Right sigma -> maybe (False, "No proof submitted") (\proof -> (S.equalSigmaProof sigma proof && S.verifyProof proof, debug)) mProof
-          Left bool   -> (bool, "")
-        Right (ConstBool bool)  -> (bool, "")
-        Left err    -> (False, err)
-  | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
-  where
-    (res, debug) = execToSigma ctx tx
-    mProof = txArg'proof tx
-
-
-
--- | Executes expression to sigma-expression
-execToSigma :: ExecCtx -> TxArg -> (Either Text BoolExprResult, Text)
-execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
-  where
-    execExpr (Expr x) =
-      case runExec ctx txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> case eliminateSigmaBool b of
-          Left bool                               -> (Right $ ConstBool bool, msg)
-          Right sigma                             -> (Right $ SigmaResult sigma, msg)
-        Right (Fix (PrimE _ (PrimBool b)), msg)   -> (Right $ ConstBool b, msg)
-        Right _                                   -> (Left noSigmaExpr, noSigmaExpr)
-        Left err                                  -> (Left (showt err), showt err)
-
-    noSigmaExpr = "Error: Script does not evaluate to sigma expression"
-
-getInputExpr :: TxArg -> Expr Bool
-getInputExpr tx@TxArg{..}
-  | V.null inputs = onEmptyInputs
-  | otherwise     = V.foldl1' (&&*) inputs
-  where
-    inputs = V.zipWith substSelfIndex (V.fromList [0..]) $ fmap (either (const false) applyBase . fromScript . box'script) txArg'inputs
-
-    onEmptyInputs
-      | isStartEpoch tx = true
-      | otherwise       = false
-
-
-applyBase :: Expr a -> Expr a
-applyBase (Expr a) = Expr $ importBase a
-
-substSelfIndex :: Int -> Expr a -> Expr a
-substSelfIndex selfId (Expr x) = Expr $ cata phi x
-  where
-    phi = \case
-      GetEnv loc idx -> Fix $ GetEnv loc $ case idx of
-        Self src -> Input src $ Fix $ PrimE src $ PrimInt $ fromIntegral selfId
-        _        -> idx
-      other  -> Fix other
-
--}
 
