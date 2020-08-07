@@ -502,7 +502,7 @@ execLang (Fix topExpr) = case topExpr of
 
     getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
-      BoxFieldId         -> prim loc $ PrimString $ unBoxId box'id
+      BoxFieldId         -> prim loc $ PrimBytes $ unBoxId box'id
       BoxFieldValue      -> prim loc $ PrimInt $ box'value
       BoxFieldScript     -> prim loc $ PrimBytes $ unScript $ box'script
       BoxFieldArgList ty -> return $ case ty of

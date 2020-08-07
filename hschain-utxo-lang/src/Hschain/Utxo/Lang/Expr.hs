@@ -1,4 +1,5 @@
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
@@ -12,7 +13,6 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
-import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import Data.Coerce
 import Data.Fix
@@ -277,16 +277,19 @@ byteArgs xs = Args
   }
 
 -- | Identifier of the box. Box holds value protected by the script.
-newtype BoxId = BoxId { unBoxId :: Text }
-  deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+-- It equals to the hash of Box-content.
+newtype BoxId = BoxId { unBoxId :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
 
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
   deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
 
 -- | Box holds the value protected by the script.
 -- We use boxes as inputs for transaction and create new output boxes
@@ -964,18 +967,5 @@ instance ToJSON Args where
     , "texts" .= args'texts
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
-
-instance ToJSON Script where
-  toJSON (Script s) = toJSON (ViaBase58 s)
-
-instance FromJSON Script where
-  parseJSON = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) . parseJSON
-
-instance ToJSONKey Script where
-  toJSONKey = contramapToJSONKeyFunction (ViaBase58 . unScript) toJSONKey
-
-instance FromJSONKey Script where
-  fromJSONKey = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) fromJSONKey
-
 
 $(deriveJSON dropPrefixOptions ''Box)

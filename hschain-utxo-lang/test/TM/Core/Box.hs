@@ -58,11 +58,11 @@ txEnv = InputEnv
 tests :: TestTree
 tests = testGroup "core-boxes"
     [ testProg "get height"         [PrimInt blockChainHeight] progGetHeight
-    , testProg "get self id"        [PrimText "box-2"] progGetSelfId
+    , testProg "get self id"        [PrimBytes "box-2"] progGetSelfId
     , testProg "get self script"    [PrimBytes "in2"]  progGetSelfScript
     , testProg "get tx arg"         [PrimInt 2]        progGetTxArg
-    , testProg "get input id"       [PrimText "box-1"] progGetInputId
-    , testProg "get output id"      [PrimText "box-3"] progGetOutputId
+    , testProg "get input id"       [PrimBytes "box-1"] progGetInputId
+    , testProg "get output id"      [PrimBytes "box-3"] progGetOutputId
     , testProg "get output arg"     [PrimInt 9] progGetOutputLastIntArg
     , testProg "get input text arg" [PrimText "neil"] progGetInputLastTextArg
     ]
@@ -84,7 +84,7 @@ progGetHeight :: CoreProg
 progGetHeight = mainProg $ Typed getHeight intT
 
 progGetSelfId :: CoreProg
-progGetSelfId = mainProg $ Typed (getBoxId getSelf) textT
+progGetSelfId = mainProg $ Typed (getBoxId getSelf) bytesT
 
 progGetSelfScript :: CoreProg
 progGetSelfScript = mainProg $ Typed (getBoxScript getSelf) bytesT
@@ -93,10 +93,10 @@ progGetTxArg :: CoreProg
 progGetTxArg = mainProg $ Typed (listAt intT getIntArgs (int 1)) intT
 
 progGetInputId :: CoreProg
-progGetInputId = mainProg $ Typed (getBoxId $ listAt boxT getInputs (int 0)) textT
+progGetInputId = mainProg $ Typed (getBoxId $ listAt boxT getInputs (int 0)) bytesT
 
 progGetOutputId :: CoreProg
-progGetOutputId = mainProg $ Typed (getBoxId $ listAt boxT getOutputs (int 0)) textT
+progGetOutputId = mainProg $ Typed (getBoxId $ listAt boxT getOutputs (int 0)) bytesT
 
 progGetOutputLastIntArg :: CoreProg
 progGetOutputLastIntArg = mainProg $

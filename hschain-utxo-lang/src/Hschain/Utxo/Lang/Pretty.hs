@@ -45,7 +45,7 @@ instance Pretty Lang where
   pretty = pretty . P.prettyExp
 
 instance Pretty BoxId where
-  pretty (BoxId txt) = pretty txt
+  pretty (BoxId txt) = pretty $ encodeBase58 txt
 
 instance Pretty Script where
   pretty = pretty . scriptToText
