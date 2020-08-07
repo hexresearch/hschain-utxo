@@ -15,9 +15,9 @@ simpleExchange = do
   Scene{..} <- initUsers
   let alice     = user'wallet scene'alice
       bob       = user'wallet scene'bob
-      aliceBox1 = user'box scene'alice
-      bobBox1   = user'box scene'bob
-  SendResult _aliceBox2  bobBox2 _  <- debugSend True "Alice sends 1 to bob"     alice  aliceBox1     bob   1
+      Just aliceBox1 = user'box scene'alice
+      Just bobBox1   = user'box scene'bob
+  SendResult _ bobBox2 _  <- debugSend True "Alice sends 1 to bob" alice  aliceBox1  bob   1
   bobBalance <- getBoxBalance bobBox2
   testCase "Bob balance becomes 1" $ bobBalance == Just 1
   logTest "Tries to run invalid Tx. It should be rejected (Sends 2 coins from the box with 1 coin)"

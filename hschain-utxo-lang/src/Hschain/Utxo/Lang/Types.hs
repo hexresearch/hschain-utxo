@@ -5,6 +5,7 @@ import Hex.Common.Aeson
 import Hex.Common.Serialise
 import Control.DeepSeq (NFData)
 import Control.Monad
+import Control.Monad.Except
 
 import Codec.Serialise
 
@@ -162,6 +163,7 @@ data InputEnv = InputEnv
   , inputEnv'outputs :: !(Vector Box)
   , inputEnv'args    :: !Args
   }
+  deriving (Show, Eq)
 
 splitInputs :: TxArg -> Vector (Maybe Proof, InputEnv)
 splitInputs tx = fmap (\input -> (boxInput'proof input, getInputEnv tx input)) $ txArg'inputs tx
@@ -223,6 +225,13 @@ makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
       mProof <- mapM (\sigma -> newProof proofEnv sigma message) expectedBox'sigma
       return $ expectedBox'input { boxInputRef'proof = either (const Nothing) Just =<< mProof }
 
+makeInputsOrFail :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Either Text (Vector BoxInputRef))
+makeInputsOrFail proofEnv message expectedInputs = runExceptT $ mapM toInput expectedInputs
+  where
+    toInput ExpectedBox{..} = do
+      mProof <- mapM (\sigma -> ExceptT $ newProof proofEnv sigma message) expectedBox'sigma
+      return $ expectedBox'input { boxInputRef'proof = mProof }
+
 -- | Expectation of the result of the box.
 -- We use it when we know to what sigma expression input box script is going to be executed.
 -- Then we can generate proofs with function @newProofTx@.
@@ -241,13 +250,31 @@ data ExpectedBox = ExpectedBox
 --
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: ProofEnv -> TxContent ExpectedBox -> IO Tx
-newProofTx proofEnv tx = do
+newProofTx :: MonadIO io => ProofEnv -> TxContent ExpectedBox -> io Tx
+newProofTx proofEnv tx = liftIO $ do
   inputs <- makeInputs proofEnv message $ txContent'inputs tx
   return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = makeOutputs txId $ txContent'outputs tx
     }
+  where
+    txId      = getTxId message
+    message   = getTxContentBytes txContent
+    txContent = fmap expectedBox'input tx
+
+-- | If we now the expected sigma expressions for the inputs
+-- we can create transaction with all proofs supplied.
+-- Whole function fails if any of the proof can not be produced
+--
+-- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
+-- over API.
+newProofTxOrFail :: MonadIO io => ProofEnv -> TxContent ExpectedBox -> io (Either Text Tx)
+newProofTxOrFail proofEnv tx = liftIO $ do
+  eInputs <- makeInputsOrFail proofEnv message $ txContent'inputs tx
+  return $ fmap (\inputs -> Tx
+    { tx'inputs  = inputs
+    , tx'outputs = makeOutputs txId $ txContent'outputs tx
+    }) eInputs
   where
     txId      = getTxId message
     message   = getTxContentBytes txContent

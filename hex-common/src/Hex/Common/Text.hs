@@ -8,6 +8,8 @@ module Hex.Common.Text(
   , ppDoc
   , pPrint
   , readMayt
+  , ToText(..)
+  , FromText(..)
 ) where
 
 import Data.Text (Text)
@@ -16,6 +18,12 @@ import Safe
 
 import qualified Data.Text      as T
 import qualified Data.Text.Read as T
+
+class ToText a where
+  toText :: a -> Text
+
+class FromText a where
+  fromText :: Text -> Maybe a
 
 showt :: Show a => a -> Text
 showt = T.pack . show

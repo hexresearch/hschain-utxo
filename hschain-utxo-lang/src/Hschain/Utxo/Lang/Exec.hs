@@ -15,7 +15,7 @@ module Hschain.Utxo.Lang.Exec(
 ) where
 
 import Hex.Common.Control
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Codec.Serialise
 

@@ -4,6 +4,7 @@ module Hschain.Utxo.API.Rest where
 
 import Hex.Common.Aeson
 import Hex.Common.Serialise
+import Hex.Common.Text
 
 import Control.Monad
 
@@ -73,10 +74,12 @@ instance FromHttpApiData TxHash where
       err = Left "Failed to decode query param for TxHash"
 
 instance ToHttpApiData BoxId where
-  toQueryParam (BoxId txt) = txt
+  toQueryParam = toText
 
 instance FromHttpApiData BoxId where
-  parseQueryParam = fmap (fmap BoxId) parseQueryParam
+  parseQueryParam = (\txt -> maybe (err txt) Right $ fromText txt) <=< parseQueryParam
+    where
+      err txt = Left $ "Failed to parse boxId from: " <> txt
 
 $(deriveJSON dropPrefixOptions ''PostTxResponse)
 $(deriveJSON dropPrefixOptions ''SigmaTxResponse)

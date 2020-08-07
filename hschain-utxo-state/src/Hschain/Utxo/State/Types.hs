@@ -54,7 +54,7 @@ toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
   ) mInputs
   where
     mInputs = mapM lookupInput tx'inputs
-    noInputFor (BoxId idx) = Left $ mconcat ["Error: no box input with id: ", idx]
+    noInputFor boxId = Left $ mconcat ["Error: no box input with id: ", renderText boxId]
 
     lookupInput BoxInputRef{..} =
         maybe (noInputFor boxInputRef'id) (Right . toBoxInput) $

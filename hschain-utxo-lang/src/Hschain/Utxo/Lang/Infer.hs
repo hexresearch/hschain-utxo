@@ -11,7 +11,7 @@ module Hschain.Utxo.Lang.Infer(
   , userTypesToTypeContext
 ) where
 
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Control.Applicative
 import Control.Monad.Except

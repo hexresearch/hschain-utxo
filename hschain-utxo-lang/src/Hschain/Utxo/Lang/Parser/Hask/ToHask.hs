@@ -5,7 +5,7 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskType
 ) where
 
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Data.Fix
 

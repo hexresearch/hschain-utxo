@@ -10,7 +10,7 @@ module Hschain.Utxo.Lang.Compile.Hask.Utils(
   , toBytes
 ) where
 
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Data.Fix
 import Data.ByteString (ByteString)

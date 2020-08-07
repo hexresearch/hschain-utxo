@@ -37,7 +37,7 @@ react tx bch
     checkTxArg txArg
       | isValidTx           = (inputsAreValid, debugMsgInputs)
       | not inputsAreValid  = (False, "Tx inputs are invalid")
-      | not outputsAreValid = (False, mconcat ["Tx output is invalid: ", fromMaybe "" mInvalidOutputId])
+      | not outputsAreValid = (False, mconcat ["Tx output is invalid: ", maybe "" renderText mInvalidOutputId])
       | otherwise           = (False, "TX is invalid")
       where
         isValidTx = inputsAreValid && outputsAreValid
@@ -46,7 +46,7 @@ react tx bch
         -- todo: check here that script evaluates to boolean with type checker.
         --       for now we check only that it parses
         mInvalidOutput = L.find (isNothing . coreProgFromScript . box'script) $ checkOutputTxArg txArg
-        mInvalidOutputId = fmap (unBoxId . box'id) mInvalidOutput
+        mInvalidOutputId = fmap box'id mInvalidOutput
 
         outputsAreValid = isNothing mInvalidOutput
 

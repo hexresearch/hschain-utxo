@@ -29,6 +29,7 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes (encodeBase58, decodeBase58)
 import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
@@ -292,6 +293,12 @@ newtype BoxId = BoxId { unBoxId :: ByteString }
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
+
+instance ToText BoxId where
+  toText (BoxId bs) = encodeBase58 bs
+
+instance FromText BoxId where
+  fromText txt = fmap BoxId $ decodeBase58 txt
 
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
