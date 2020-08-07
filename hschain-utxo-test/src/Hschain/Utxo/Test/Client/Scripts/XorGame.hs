@@ -142,18 +142,18 @@ xorGameRound Scene{..} game@Game{..} = do
 
       let gameBox = if (amount > total)
             then Nothing
-            else Just $ BoxContent
-              { boxContent'value  = amount
-              , boxContent'script = mainScriptUnsafe script
-              , boxContent'args   = mempty
+            else Just $ PreBox
+              { preBox'value  = amount
+              , preBox'script = mainScriptUnsafe script
+              , preBox'args   = mempty
               }
 
       let restBox = if (total <= amount)
             then Nothing
-            else Just $ BoxContent
-              { boxContent'value  = total - amount
-              , boxContent'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
-              , boxContent'args   = mempty
+            else Just $ PreBox
+              { preBox'value  = total - amount
+              , preBox'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
+              , preBox'args   = mempty
               }
 
           inputBox = BoxInputRef
@@ -162,9 +162,9 @@ xorGameRound Scene{..} game@Game{..} = do
             , boxInputRef'proof = Nothing
             }
 
-          preTx = TxContent
-            { txContent'inputs  = [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
-            , txContent'outputs = V.fromList $ catMaybes [restBox, gameBox]
+          preTx = PreTx
+            { preTx'inputs  = [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+            , preTx'outputs = V.fromList $ catMaybes [restBox, gameBox]
             }
 
       fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
@@ -183,12 +183,12 @@ xorGameRound Scene{..} game@Game{..} = do
         makeBobTx = do
           total <- fmap (fromMaybe 0) $ getBoxBalance inBox
           height <- M.getHeight
-          let preTx = TxContent
-                { txContent'inputs  = V.fromList
+          let preTx = PreTx
+                { preTx'inputs  = V.fromList
                                         [ ExpectedBox (Just $ singleOwnerSigmaExpr wallet) (BoxInputRef inBox mempty Nothing)
                                         , ExpectedBox Nothing (BoxInputRef scriptBox mempty Nothing)
                                         ]
-                , txContent'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
+                , preTx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
                 }
           tx <- newProofTx (getProofEnv wallet) preTx
           let (gameBoxId, mChangeBoxId) = extractOutputs tx
@@ -196,18 +196,18 @@ xorGameRound Scene{..} game@Game{..} = do
           where
             gameBox total height
               | total < game'amount = Nothing
-              | otherwise           = Just $ BoxContent
-                  { boxContent'value   = 2 * game'amount
-                  , boxContent'script  = mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (text alicePubKey)
-                  , boxContent'args    = makeArgs height
+              | otherwise           = Just $ PreBox
+                  { preBox'value   = 2 * game'amount
+                  , preBox'script  = mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (text alicePubKey)
+                  , preBox'args    = makeArgs height
                   }
 
             restBox total
               | total <= game'amount = Nothing
-              | otherwise            = Just $ BoxContent
-                  { boxContent'value  = total - game'amount
-                  , boxContent'script = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
-                  , boxContent'args   = mempty
+              | otherwise            = Just $ PreBox
+                  { preBox'value  = total - game'amount
+                  , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
+                  , preBox'args   = mempty
                   }
 
             makeArgs height = intArgs [guess, height + 35] <> textArgs [publicKeyToText $ getWalletPublicKey wallet]
@@ -230,17 +230,17 @@ xorGameRound Scene{..} game@Game{..} = do
       tx <- newProofTx (getProofEnv wallet) preTx
       return (tx, extractWinAddr tx)
       where
-        preTx = TxContent
-            { txContent'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) $ BoxInputRef gameBox args Nothing]
-            , txContent'outputs = V.fromList [outBox]
+        preTx = PreTx
+            { preTx'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) $ BoxInputRef gameBox args Nothing]
+            , preTx'outputs = V.fromList [outBox]
             }
 
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
 
-        outBox = BoxContent
-          { boxContent'value   = 2 * game'amount
-          , boxContent'script  = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
-          , boxContent'args    = mempty
+        outBox = PreBox
+          { preBox'value   = 2 * game'amount
+          , preBox'script  = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
+          , preBox'args    = mempty
           }
 
         extractWinAddr tx = box'id $ V.head $ tx'outputs tx

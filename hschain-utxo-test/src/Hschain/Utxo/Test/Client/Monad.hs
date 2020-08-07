@@ -179,17 +179,17 @@ initGenesis secret = ([tx], masterBoxId)
   where
     masterBoxId = box'id $ V.head $ tx'outputs tx
 
-    tx = newTx $ TxContent
-      { txContent'inputs  = []
-      , txContent'outputs = [box]
+    tx = newTx $ PreTx
+      { preTx'inputs  = []
+      , preTx'outputs = [box]
       }
 
     publicKey = getPublicKey secret
 
-    box = BoxContent
-      { boxContent'value  = initMoney
-      , boxContent'script = mainScriptUnsafe $ pk' publicKey
-      , boxContent'args   = mempty
+    box = PreBox
+      { preBox'value  = initMoney
+      , preBox'script = mainScriptUnsafe $ pk' publicKey
+      , preBox'args   = mempty
       }
 
     initMoney = 1000000

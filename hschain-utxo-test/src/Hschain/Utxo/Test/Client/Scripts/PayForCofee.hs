@@ -140,9 +140,9 @@ toSendTxDelayed :: Wallet -> SendDelayed -> App (Tx, Maybe BoxId, BoxId)
 toSendTxDelayed wallet SendDelayed{..} = do
   fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
   where
-    preTx = TxContent
-      { txContent'inputs   = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
-      , txContent'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    preTx = PreTx
+      { preTx'inputs   = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      , preTx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
     inputBox = BoxInputRef
@@ -158,10 +158,10 @@ toSendTxDelayed wallet SendDelayed{..} = do
     senderPk = pk' $ getWalletPublicKey wallet
 
     senderUtxo
-      | sendDelayed'remain > 0 = Just $ BoxContent
-                { boxContent'value  = sendDelayed'remain
-                , boxContent'script = mainScriptUnsafe backScript
-                , boxContent'args   = mempty
+      | sendDelayed'remain > 0 = Just $ PreBox
+                { preBox'value  = sendDelayed'remain
+                , preBox'script = mainScriptUnsafe backScript
+                , preBox'args   = mempty
                 }
       | otherwise                 = Nothing
 
@@ -169,10 +169,10 @@ toSendTxDelayed wallet SendDelayed{..} = do
     -- or just the rest of it if it's greater than the limit
     backScript = senderPk
 
-    receiverUtxo = BoxContent
-      { boxContent'value  = sendDelayed'amount
-      , boxContent'script = mainScriptUnsafe $ receiverScript ||* refundScript
-      , boxContent'args   = intArgs [height]
+    receiverUtxo = PreBox
+      { preBox'value  = sendDelayed'amount
+      , preBox'script = mainScriptUnsafe $ receiverScript ||* refundScript
+      , preBox'args   = intArgs [height]
       }
 
     getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)

@@ -278,8 +278,8 @@ byteArgs xs = Args
   , args'bytes = V.fromList xs
   }
 
--- | Identifier of TX. We can derive it from the TxContent.
---  It equals to hash of serialised TxContent
+-- | Identifier of TX. We can derive it from the PreTx.
+--  It equals to hash of serialised PreTx
 newtype TxId = TxId { unTxId :: ByteString }
   deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
@@ -318,14 +318,14 @@ data Box = Box
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
--- | BoxContent holds all meaningfull data of the Box.
+-- | PreBox holds all meaningfull data of the Box.
 -- we use it to get Hashes for transaction and Box itself.
--- Comparing to Box it omits identifier that is generated from BoxContent
+-- Comparing to Box it omits identifier that is generated from PreBox
 -- and origin that can be derived from TX identifier (hash of @getTxBytes tx@).
-data BoxContent = BoxContent
-  { boxContent'value  :: !Money    -- ^ Value of the box
-  , boxContent'script :: !Script   -- ^ Protecting script
-  , boxContent'args   :: !Args     -- ^ arguments for the script
+data PreBox = PreBox
+  { preBox'value  :: !Money    -- ^ Value of the box
+  , preBox'script :: !Script   -- ^ Protecting script
+  , preBox'args   :: !Args     -- ^ arguments for the script
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
@@ -334,7 +334,7 @@ getBoxToHashId = BoxId . getSha256 . LB.toStrict . serialise
 
 -- | Values that are used to get the hash of the box to create identifier for it.
 data BoxToHash = BoxToHash
-  { boxToHash'content  :: !BoxContent  -- ^ meaningful data of the box
+  { boxToHash'content  :: !PreBox  -- ^ meaningful data of the box
   , boxToHash'origin   :: !BoxOrigin   -- ^ origin of the box
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)

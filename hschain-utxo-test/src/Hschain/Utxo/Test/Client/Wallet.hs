@@ -119,9 +119,9 @@ toSendTx :: Wallet -> Send -> SendBack -> App (Either Text (Tx, Maybe BoxId, Box
 toSendTx wallet Send{..} SendBack{..} =
   fmap (fmap appendSenderReceiverIds) $ newProofTxOrFail (getProofEnv wallet) preTx
   where
-    preTx = TxContent
-      { txContent'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
-      , txContent'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    preTx = PreTx
+      { preTx'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      , preTx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
     inputBox = BoxInputRef
@@ -131,17 +131,17 @@ toSendTx wallet Send{..} SendBack{..} =
       }
 
     senderUtxo
-      | sendBack'totalAmount > send'amount = Just $ BoxContent
-                { boxContent'value  = sendBack'totalAmount - send'amount
-                , boxContent'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
-                , boxContent'args   = mempty
+      | sendBack'totalAmount > send'amount = Just $ PreBox
+                { preBox'value  = sendBack'totalAmount - send'amount
+                , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+                , preBox'args   = mempty
                 }
       | otherwise                 = Nothing
 
-    receiverUtxo = BoxContent
-      { boxContent'value  = send'amount
-      , boxContent'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
-      , boxContent'args   = mempty
+    receiverUtxo = PreBox
+      { preBox'value  = send'amount
+      , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
+      , preBox'args   = mempty
       }
 
 appendSenderReceiverIds :: Tx -> (Tx, Maybe BoxId, BoxId)

@@ -97,36 +97,36 @@ appendProofToBox proof BoxInputRef{..} = BoxInputRef
 
 -- | This is used for hashing the TX, to get it's id and
 -- for serialization to get message to be signed for verification.
-data TxContent a = TxContent
-  { txContent'inputs  :: !(Vector a)
-  , txContent'outputs :: !(Vector BoxContent)
+data PreTx a = PreTx
+  { preTx'inputs  :: !(Vector a)
+  , preTx'outputs :: !(Vector PreBox)
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor)
   deriving anyclass (Serialise, NFData)
 
-getTxContent :: Tx -> TxContent BoxInputRef
-getTxContent Tx{..} = clearProofs $ TxContent
-  { txContent'inputs  = tx'inputs
-  , txContent'outputs = fmap toBoxContent tx'outputs
+getPreTx :: Tx -> PreTx BoxInputRef
+getPreTx Tx{..} = clearProofs $ PreTx
+  { preTx'inputs  = tx'inputs
+  , preTx'outputs = fmap toPreBox tx'outputs
   }
 
-toBoxContent :: Box -> BoxContent
-toBoxContent Box{..} = BoxContent
-  { boxContent'value  = box'value
-  , boxContent'script = box'script
-  , boxContent'args   = box'args
+toPreBox :: Box -> PreBox
+toPreBox Box{..} = PreBox
+  { preBox'value  = box'value
+  , preBox'script = box'script
+  , preBox'args   = box'args
   }
 
-clearProofs :: TxContent BoxInputRef -> TxContent BoxInputRef
-clearProofs tx = tx { txContent'inputs = fmap clearProof $ txContent'inputs tx }
+clearProofs :: PreTx BoxInputRef -> PreTx BoxInputRef
+clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
   where
     clearProof box = box { boxInputRef'proof = Nothing }
 
 getTxBytes :: Tx -> SignMessage
-getTxBytes = getTxContentBytes . getTxContent
+getTxBytes = getPreTxBytes . getPreTx
 
-getTxContentBytes :: TxContent BoxInputRef -> SignMessage
-getTxContentBytes = SignMessage . LB.toStrict . serialise . clearProofs
+getPreTxBytes :: PreTx BoxInputRef -> SignMessage
+getPreTxBytes = SignMessage . LB.toStrict . serialise . clearProofs
 
 getTxId :: SignMessage -> TxId
 getTxId (SignMessage bs) = TxId $ getSha256 bs
@@ -192,22 +192,22 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 -- | Creates TX and assigns properly all box identifiers.
 -- It does not creates the proofs.
-newTx :: TxContent BoxInputRef -> Tx
+newTx :: PreTx BoxInputRef -> Tx
 newTx tx = Tx
-  { tx'inputs  = txContent'inputs tx
-  , tx'outputs = makeOutputs txId $ txContent'outputs tx
+  { tx'inputs  = preTx'inputs tx
+  , tx'outputs = makeOutputs txId $ preTx'outputs tx
   }
   where
-    txId = getTxId $ getTxContentBytes tx
+    txId = getTxId $ getPreTxBytes tx
 
-makeOutputs :: TxId -> Vector BoxContent -> Vector Box
+makeOutputs :: TxId -> Vector PreBox -> Vector Box
 makeOutputs txId outputs = V.imap toBox outputs
   where
-    toBox outputIndex box@BoxContent{..} = Box
+    toBox outputIndex box@PreBox{..} = Box
       { box'id     = boxId
-      , box'value  = boxContent'value
-      , box'script = boxContent'script
-      , box'args   = boxContent'args
+      , box'value  = preBox'value
+      , box'script = preBox'script
+      , box'args   = preBox'args
       }
       where
         boxId = getBoxToHashId $ BoxToHash
@@ -250,17 +250,17 @@ data ExpectedBox = ExpectedBox
 --
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: MonadIO io => ProofEnv -> TxContent ExpectedBox -> io Tx
+newProofTx :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io Tx
 newProofTx proofEnv tx = liftIO $ do
-  inputs <- makeInputs proofEnv message $ txContent'inputs tx
+  inputs <- makeInputs proofEnv message $ preTx'inputs tx
   return $ Tx
     { tx'inputs  = inputs
-    , tx'outputs = makeOutputs txId $ txContent'outputs tx
+    , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }
   where
     txId      = getTxId message
-    message   = getTxContentBytes txContent
-    txContent = fmap expectedBox'input tx
+    message   = getPreTxBytes preTx
+    preTx = fmap expectedBox'input tx
 
 -- | If we now the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -268,17 +268,17 @@ newProofTx proofEnv tx = liftIO $ do
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
-newProofTxOrFail :: MonadIO io => ProofEnv -> TxContent ExpectedBox -> io (Either Text Tx)
+newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
-  eInputs <- makeInputsOrFail proofEnv message $ txContent'inputs tx
+  eInputs <- makeInputsOrFail proofEnv message $ preTx'inputs tx
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
-    , tx'outputs = makeOutputs txId $ txContent'outputs tx
+    , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }) eInputs
   where
     txId      = getTxId message
-    message   = getTxContentBytes txContent
-    txContent = fmap expectedBox'input tx
+    message   = getPreTxBytes preTx
+    preTx = fmap expectedBox'input tx
 
 --------------------------------------------
 -- box ids validation
@@ -296,7 +296,7 @@ validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
                               { boxOrigin'outputIndex = fromIntegral n
                               , boxOrigin'txId        = txId
                               }
-      , boxToHash'content = toBoxContent box
+      , boxToHash'content = toPreBox box
       }
 
 -- | Claculate the hash of the script.

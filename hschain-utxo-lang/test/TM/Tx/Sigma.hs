@@ -14,10 +14,10 @@ import Hschain.Utxo.Lang.Types
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
-  [ testCase "verify correct sign message (same for tx-content)" $ ( @=? True)  =<< verifySameSignMessage
-  , testCase "verify correct box identifiers"                    $ ( @=? True)  =<< verifyValidBoxIds
-  , testCase "verify correct single owner script"                $ ( @=? True)  =<< verifyAliceTx
-  , testCase "verify broken tx"                                  $ ( @=? False) =<< verifyBrokenTx
+  [ testCase "verify correct sign message (same for pre-tx)" $ ( @=? True)  =<< verifySameSignMessage
+  , testCase "verify correct box identifiers"                $ ( @=? True)  =<< verifyValidBoxIds
+  , testCase "verify correct single owner script"            $ ( @=? True)  =<< verifyAliceTx
+  , testCase "verify broken tx"                              $ ( @=? False) =<< verifyBrokenTx
   ]
 
 singleOwnerSigma :: PublicKey -> Sigma PublicKey
@@ -25,8 +25,8 @@ singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
 
 verifySameSignMessage :: IO Bool
 verifySameSignMessage = do
-  (tx, txContent) <- initTx
-  return $ getTxBytes tx == getTxContentBytes txContent
+  (tx, preTx) <- initTx
+  return $ getTxBytes tx == getPreTxBytes preTx
 
 verifyValidBoxIds :: IO Bool
 verifyValidBoxIds = do
@@ -34,7 +34,7 @@ verifyValidBoxIds = do
   return $ validateOutputBoxIds tx
 
 -- | Inits transaction that is owned by alice and has correct proof.
-initTx :: IO (Tx, TxContent BoxInputRef)
+initTx :: IO (Tx, PreTx BoxInputRef)
 initTx = do
   aliceSecret <- newSecret
   let alicePubKey = getPublicKey aliceSecret
@@ -42,15 +42,15 @@ initTx = do
   resTx <- newProofTx aliceProofEnv $ tx alicePubKey
   return (resTx, fmap expectedBox'input $ tx alicePubKey)
   where
-    tx pubKey = TxContent
-      { txContent'inputs = return $ ExpectedBox
+    tx pubKey = PreTx
+      { preTx'inputs = return $ ExpectedBox
                                       { expectedBox'sigma = Just $ singleOwnerSigma pubKey
                                       , expectedBox'input = inputRef
                                       }
-      , txContent'outputs = return $ BoxContent
-                                      { boxContent'value  = 1
-                                      , boxContent'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
-                                      , boxContent'args   = mempty
+      , preTx'outputs = return $ PreBox
+                                      { preBox'value  = 1
+                                      , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
+                                      , preBox'args   = mempty
                                       }
       }
 

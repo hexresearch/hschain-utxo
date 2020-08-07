@@ -16,18 +16,17 @@ main = B.putStrLn . LB.toStrict . encodePretty =<< singleOwnerGenesis
 singleOwnerGenesis :: IO [Tx]
 singleOwnerGenesis = fmap withSecret newSecret
   where
-    withSecret secret = return $ Tx
-      { tx'inputs  = V.empty
-      , tx'outputs = V.fromList [box]
+    withSecret secret = return $ newTx $ PreTx
+      { preTx'inputs  = V.empty
+      , preTx'outputs = V.fromList [box]
       }
       where
         publicKey = getPublicKey secret
 
-        box = Box
-          { box'id     = BoxId "master:box-0"
-          , box'value  = initMoney
-          , box'script = mainScriptUnsafe $ pk' publicKey
-          , box'args   = mempty
+        box = PreBox
+          { preBox'value  = initMoney
+          , preBox'script = mainScriptUnsafe $ pk' publicKey
+          , preBox'args   = mempty
           }
 
         initMoney = 1000000
