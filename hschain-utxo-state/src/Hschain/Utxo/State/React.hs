@@ -48,7 +48,7 @@ react tx bch
         mInvalidOutput = L.find (isNothing . coreProgFromScript . box'script) $ checkOutputTxArg txArg
         mInvalidOutputId = fmap box'id mInvalidOutput
 
-        outputsAreValid = isNothing mInvalidOutput
+        outputsAreValid = isNothing mInvalidOutput && validateOutputBoxIds tx
 
 updateBoxChain :: Tx -> BoxChain -> BoxChain
 updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs

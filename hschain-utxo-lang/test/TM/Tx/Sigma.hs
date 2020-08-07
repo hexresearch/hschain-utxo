@@ -15,6 +15,7 @@ import Hschain.Utxo.Lang.Types
 tests :: TestTree
 tests = testGroup "sigma-protocols"
   [ testCase "verify correct sign message (same for tx-content)" $ ( @=? True)  =<< verifySameSignMessage
+  , testCase "verify correct box identifiers"                    $ ( @=? True)  =<< verifyValidBoxIds
   , testCase "verify correct single owner script"                $ ( @=? True)  =<< verifyAliceTx
   , testCase "verify broken tx"                                  $ ( @=? False) =<< verifyBrokenTx
   ]
@@ -26,6 +27,11 @@ verifySameSignMessage :: IO Bool
 verifySameSignMessage = do
   (tx, txContent) <- initTx
   return $ getTxBytes tx == getTxContentBytes txContent
+
+verifyValidBoxIds :: IO Bool
+verifyValidBoxIds = do
+  tx <- fmap fst initTx
+  return $ validateOutputBoxIds tx
 
 -- | Inits transaction that is owned by alice and has correct proof.
 initTx :: IO (Tx, TxContent BoxInputRef)

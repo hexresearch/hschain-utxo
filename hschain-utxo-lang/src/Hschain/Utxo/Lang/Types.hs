@@ -281,6 +281,23 @@ newProofTxOrFail proofEnv tx = liftIO $ do
     txContent = fmap expectedBox'input tx
 
 --------------------------------------------
+-- box ids validation
+
+-- | Checks that all output boxes have correct identifiers that are based on hashes.
+validateOutputBoxIds :: Tx -> Bool
+validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
+  where
+    txId = getTxId $ getTxBytes tx
+
+    checkBoxId n box@Box{..} = box'id == getId n box
+
+    getId n box = getBoxToHashId $ BoxToHash
+      { boxToHash'origin  = BoxOrigin
+                              { boxOrigin'outputIndex = fromIntegral n
+                              , boxOrigin'txId        = txId
+                              }
+      , boxToHash'content = toBoxContent box
+      }
 
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString
