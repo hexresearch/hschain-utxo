@@ -1,5 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
@@ -35,6 +33,7 @@ import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
+import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -42,6 +41,8 @@ import qualified Language.Haskell.Exts.SrcLoc as Hask
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
+import qualified Data.ByteString.Lazy as LB
+
 
 import qualified Hschain.Utxo.Lang.Const as Const
 
@@ -276,6 +277,14 @@ byteArgs xs = Args
   , args'bytes = V.fromList xs
   }
 
+-- | Identifier of TX. We can derive it from the TxContent.
+--  It equals to hash of serialised TxContent
+newtype TxId = TxId { unTxId :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
+
 -- | Identifier of the box. Box holds value protected by the script.
 -- It equals to the hash of Box-content.
 newtype BoxId = BoxId { unBoxId :: ByteString }
@@ -299,6 +308,34 @@ data Box = Box
   , box'value  :: !Money    -- ^ Value of the box
   , box'script :: !Script   -- ^ Protecting script
   , box'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | BoxContent holds all meaningfull data of the Box.
+-- we use it to get Hashes for transaction and Box itself.
+-- Comparing to Box it omits identifier that is generated from BoxContent
+-- and origin that can be derived from TX identifier (hash of @getTxBytes tx@).
+data BoxContent = BoxContent
+  { boxContent'value  :: !Money    -- ^ Value of the box
+  , boxContent'script :: !Script   -- ^ Protecting script
+  , boxContent'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+getBoxToHashId :: BoxToHash -> BoxId
+getBoxToHashId = BoxId . getSha256 . LB.toStrict . serialise
+
+-- | Values that are used to get the hash of the box to create identifier for it.
+data BoxToHash = BoxToHash
+  { boxToHash'content  :: !BoxContent  -- ^ meaningful data of the box
+  , boxToHash'origin   :: !BoxOrigin   -- ^ origin of the box
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Data encodes the source of the Box when it was produced.
+data BoxOrigin = BoxOrigin
+  { boxOrigin'txId        :: !TxId   -- ^ identifier of TX that produced the Box
+  , boxOrigin'outputIndex :: !Int64  -- ^ index in the vector of outputs for the box
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 

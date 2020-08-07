@@ -145,6 +145,7 @@ library
     DeriveGeneric
     DeriveTraversable
     DerivingStrategies
+    DerivingVia
     ScopedTypeVariables
     StandaloneDeriving
     TemplateHaskell
@@ -152,7 +153,7 @@ library
     TypeApplications
     TypeFamilies
     UndecidableInstances
-
+    QuantifiedConstraints
 
 Test-suite hschain-utxo-lang-tests
   Type:                exitcode-stdio-1.0
