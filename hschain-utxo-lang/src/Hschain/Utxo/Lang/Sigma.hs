@@ -10,6 +10,7 @@ module Hschain.Utxo.Lang.Sigma(
   , Secret
   , ProofEnv
   , Proof
+  , SignMessage(..)
   , Sigma
   , SigmaF(..)
   , newProof
@@ -43,13 +44,18 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 
-
+newtype SignMessage = SignMessage { unSignMessage :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
 
 -- | Cryptographic algorithm that we use.
 type CryptoAlg = Sigma.Ed25519
@@ -106,8 +112,8 @@ instance Serialise a => FromJSON (Sigma a) where
 -- It's message to be signed.
 --
 -- For the message use getTxBytes from TX that has no proof.
-newProof :: ProofEnv -> Sigma PublicKey -> ByteString -> IO (Either Text Proof)
-newProof env expr message =
+newProof :: ProofEnv -> Sigma PublicKey -> SignMessage -> IO (Either Text Proof)
+newProof env expr (SignMessage message) =
   case toSigmaExpr expr of
     Right sigma -> Sigma.newProof env sigma message
     Left  _     -> return catchBoolean
@@ -119,8 +125,8 @@ newProof env expr message =
 -- > verifyProof proof message
 --
 -- For the message use getTxBytes from TX.
-verifyProof :: Proof -> ByteString -> Bool
-verifyProof = Sigma.verifyProof
+verifyProof :: Proof -> SignMessage -> Bool
+verifyProof proof (SignMessage msg) = Sigma.verifyProof proof msg
 
 type Sigma k = Fix (SigmaF k)
 

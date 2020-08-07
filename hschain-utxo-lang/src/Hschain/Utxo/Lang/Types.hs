@@ -18,14 +18,13 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (ViaBase58(..), encodeBase58)
+import HSChain.Crypto.Classes (encodeBase58)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
-import qualified Codec.Serialise as CBOR
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 
@@ -67,6 +66,10 @@ data Tx = Tx
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
+data TxSignMessage = TxSignMessage { unTxSignMessage :: ByteString }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
 -- | Input is an unspent Box that exists in blockchain.
 -- To spend the input we need to provide right arguments and proof
 -- of reulting sigma expression.
@@ -101,7 +104,7 @@ data TxContent a = TxContent
   deriving anyclass (Serialise, NFData)
 
 getTxContent :: Tx -> TxContent BoxInputRef
-getTxContent Tx{..} = TxContent
+getTxContent Tx{..} = clearProofs $ TxContent
   { txContent'inputs  = tx'inputs
   , txContent'outputs = fmap toBoxContent tx'outputs
   }
@@ -113,14 +116,19 @@ toBoxContent Box{..} = BoxContent
   , boxContent'args   = box'args
   }
 
-getTxBytes :: Tx -> ByteString
+clearProofs :: TxContent BoxInputRef -> TxContent BoxInputRef
+clearProofs tx = tx { txContent'inputs = fmap clearProof $ txContent'inputs tx }
+  where
+    clearProof box = box { boxInputRef'proof = Nothing }
+
+getTxBytes :: Tx -> SignMessage
 getTxBytes = getTxContentBytes . getTxContent
 
-getTxContentBytes :: Serialise a => TxContent a -> ByteString
-getTxContentBytes = LB.toStrict . CBOR.serialise
+getTxContentBytes :: TxContent BoxInputRef -> SignMessage
+getTxContentBytes = SignMessage . LB.toStrict . serialise . clearProofs
 
-getTxId :: Serialise a => TxContent a -> TxId
-getTxId = TxId . getSha256 . LB.toStrict . serialise
+getTxId :: SignMessage -> TxId
+getTxId (SignMessage bs) = TxId $ getSha256 bs
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
@@ -129,7 +137,7 @@ data TxArg = TxArg
   { txArg'inputs   :: !(Vector BoxInput)
   , txArg'outputs  :: !(Vector Box)
   , txArg'env      :: !Env
-  , txArg'txBytes  :: !ByteString -- ^ serialised content of TX (it's used to verify the proof)
+  , txArg'txBytes  :: !SignMessage -- ^ serialised content of TX (it's used to verify the proof)
   }
   deriving (Show, Eq)
 
@@ -177,23 +185,6 @@ txPreservesValue tx@TxArg{..}
 isStartEpoch :: TxArg -> Bool
 isStartEpoch TxArg{..} = env'height txArg'env == 0
 
-instance ToJSON TxArg where
-  toJSON TxArg{..} = object
-    [ "inputs"   .= txArg'inputs
-    , "outputs"  .= txArg'outputs
-    , "env"      .= txArg'env
-    , "txBytes"  .= ViaBase58 txArg'txBytes
-    ]
-
-instance FromJSON TxArg where
-  parseJSON = withObject "TxArgs" $ \obj -> do
-    txArg'inputs  <- obj .: "inputs"
-    txArg'outputs <- obj .: "outputs"
-    txArg'env     <- obj .: "env"
-    bytes         <- obj .: "txBytes"
-    return TxArg { txArg'txBytes = (\(ViaBase58 s :: ViaBase58 "ByteString" ByteString) -> s) bytes
-                 , ..
-                 }
 ---------------------------------------------------------------------
 -- smartconstructors to create boxes and transactions
 
@@ -205,7 +196,7 @@ newTx tx = Tx
   , tx'outputs = makeOutputs txId $ txContent'outputs tx
   }
   where
-    txId = getTxId tx
+    txId = getTxId $ getTxContentBytes tx
 
 makeOutputs :: TxId -> Vector BoxContent -> Vector Box
 makeOutputs txId outputs = V.imap toBox outputs
@@ -225,7 +216,7 @@ makeOutputs txId outputs = V.imap toBox outputs
             , boxToHash'content = box
             }
 
-makeInputs :: ProofEnv -> ByteString -> Vector ExpectedBox -> IO (Vector BoxInputRef)
+makeInputs :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Vector BoxInputRef)
 makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
   where
     toInput ExpectedBox{..} = do
@@ -233,9 +224,13 @@ makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
       return $ expectedBox'input { boxInputRef'proof = either (const Nothing) Just =<< mProof }
 
 -- | Expectation of the result of the box.
+-- We use it when we know to what sigma expression input box script is going to be executed.
+-- Then we can generate proofs with function @newProofTx@.
 data ExpectedBox = ExpectedBox
   { expectedBox'sigma   :: Maybe (Sigma PublicKey)
+    -- ^ Expected result of sigma expression (Nothing if result is constant boolean)
   , expectedBox'input   :: BoxInputRef
+    -- ^ content of box input reference (id, arguments)
   }
 
 -- | If we now the expected sigma expressions for the inputs
@@ -254,8 +249,8 @@ newProofTx proofEnv tx = do
     , tx'outputs = makeOutputs txId $ txContent'outputs tx
     }
   where
-    txId    = getTxId txContent
-    message = getTxContentBytes txContent
+    txId      = getTxId message
+    message   = getTxContentBytes txContent
     txContent = fmap expectedBox'input tx
 
 --------------------------------------------
@@ -271,6 +266,7 @@ scriptToText = encodeBase58 . unScript
 -- JSON instnaces
 
 $(deriveJSON dropPrefixOptions ''Tx)
+$(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
 $(deriveJSON dropPrefixOptions ''BoxInput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
