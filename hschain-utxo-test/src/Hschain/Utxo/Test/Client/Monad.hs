@@ -11,6 +11,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , getState
   , getBoxChainEnv
   , getMasterSecret
+  , getMasterBoxId
   , forceLogTest
   , logTest
   , printTest
@@ -18,7 +19,6 @@ module Hschain.Utxo.Test.Client.Monad(
   , testCase
   , runTest
   , toHspec
-  , initMasterBox
   , initGenesis
   , mainScriptUnsafe
 ) where
@@ -61,7 +61,7 @@ data TestCase = TestCase
   } deriving (Show, Eq)
 
 newtype App a = App { unApp :: ReaderT TestEnv (ExceptT Text IO) a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader TestEnv, MonadError Text)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadFail, MonadReader TestEnv, MonadError Text)
 
 data TestEnv = TestEnv
   { testEnv'client         :: !C.ClientSpec
@@ -69,6 +69,7 @@ data TestEnv = TestEnv
   , testEnv'log            :: TVar (Seq Text)
   , testEnv'test           :: TVar Test
   , testEnv'masterSecret   :: !Secret
+  , testEnv'masterBoxId    :: !BoxId
   }
 
 data TestSpec = TestSpec
@@ -79,8 +80,11 @@ data TestSpec = TestSpec
 getMasterSecret :: App Secret
 getMasterSecret = asks testEnv'masterSecret
 
-runTest :: TestSpec -> Secret -> App () -> IO Test
-runTest TestSpec{..} masterSecret app = do
+getMasterBoxId :: App BoxId
+getMasterBoxId = asks testEnv'masterBoxId
+
+runTest :: TestSpec -> Secret -> BoxId -> App () -> IO Test
+runTest TestSpec{..} masterSecret masterBoxId app = do
   testTv <- newTVarIO emptyTest
   logTv <- newTVarIO mempty
   res <- runApp (env testTv logTv masterSecret) app
@@ -95,6 +99,7 @@ runTest TestSpec{..} masterSecret app = do
         , testEnv'log = logTv
         , testEnv'test = tv
         , testEnv'masterSecret = masterPrivateKey
+        , testEnv'masterBoxId  = masterBoxId
         }
 
     emptyTest = Test "" mempty
@@ -168,28 +173,24 @@ toHspec Test{..} =
     fromCase TestCase{..} =
       it (T.unpack testCase'name) $ testCase'value `shouldBe` True
 
-
-initGenesis :: Secret -> Genesis
-initGenesis secret = [tx]
+-- | returns genesis and the identifier of the master root box.
+initGenesis :: Secret -> (Genesis, BoxId)
+initGenesis secret = ([tx], masterBoxId)
   where
-    publicKey = getPublicKey secret
+    masterBoxId = box'id $ V.head $ tx'outputs tx
 
-    box = Box
-      { box'id     = initMasterBox
-      , box'value  = initMoney
-      , box'script = mainScriptUnsafe $ pk' publicKey
-      , box'args   = mempty
+    tx = newTx $ PreTx
+      { preTx'inputs  = []
+      , preTx'outputs = [box]
       }
 
-    tx = Tx
-      { tx'inputs  = V.empty
-      , tx'outputs = V.fromList [box]
+    publicKey = getPublicKey secret
+
+    box = PreBox
+      { preBox'value  = initMoney
+      , preBox'script = mainScriptUnsafe $ pk' publicKey
+      , preBox'args   = mempty
       }
 
     initMoney = 1000000
-
--- | Initial master box for default genesis.
--- All funds belong to master-user.
-initMasterBox :: BoxId
-initMasterBox = BoxId "master:box-0"
 

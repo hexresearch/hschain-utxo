@@ -38,10 +38,10 @@ payForCofeeBob :: App ()
 payForCofeeBob = do
   testTitle "Pay with delay: Bob gets his money."
   Scene{..} <- initUsers
-  let (User alice  aliceBox1)  = scene'alice
+  let (User alice  (Just aliceBox1))  = scene'alice
       (User bob    _bobBox1)    = scene'bob
       (User john   _johnBox1)   = scene'john
-      (User master masterBox1) = scene'master
+      (User master (Just masterBox1)) = scene'master
   mSendDelAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
@@ -49,7 +49,7 @@ payForCofeeBob = do
       SendResult _bobBox3 _johnBox2 _  <- debugSend False
             "Bob tries to send 2 coins to john (it should fail on delayed condition)"
             bob aliceOrBobBox john 2
-      SendResult masterBox2 _johnBox3 _ <- debugSend True
+      SendResult (Just masterBox2) _johnBox3 _ <- debugSend True
             "Master sends to john 1 coin"
             master masterBox1 john 1
       SendResult _masterBox3 _johnBox4 _ <- debugSend True
@@ -66,10 +66,10 @@ payForCofeeAlice :: App ()
 payForCofeeAlice = do
   testTitle "Pay with delay: Alice gets her money back."
   Scene{..} <- initUsers
-  let (User alice  aliceBox1)  = scene'alice
+  let (User alice  (Just aliceBox1))  = scene'alice
       (User bob   _bobBox1)    = scene'bob
       (User john  _johnBox1)   = scene'john
-      (User master masterBox1) = scene'master
+      (User master (Just masterBox1)) = scene'master
   mDelSendAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
@@ -90,9 +90,6 @@ payForCofeeAlice = do
 
 data SendDelayed = SendDelayed
   { sendDelayed'from   :: !BoxId
-  , sendDelayed'to     :: !BoxId
-  , sendDelayed'back   :: !BoxId
-  , sendDelayed'refund :: !BoxId
   , sendDelayed'amount :: !Money
   , sendDelayed'remain :: !Money
   , sendDelayed'height :: !Int64
@@ -100,7 +97,7 @@ data SendDelayed = SendDelayed
   }
 
 data SendResultDelayed = SendRes
-  { sendRes'from        :: BoxId
+  { sendRes'from        :: Maybe BoxId
   , sendRes'refundOrTo  :: BoxId
   , sendRes'txHash      :: !(Maybe TxHash)
   } deriving (Show, Eq)
@@ -130,24 +127,22 @@ debugSendDelayed isSuccess msg from fromBox to heightDiff amount = do
 
 sendTxDelayed :: Wallet -> BoxId -> Wallet -> Int64 -> Money -> App (Either Text SendResultDelayed)
 sendTxDelayed from fromBox to delayDiff amount = do
-  toBox     <- allocAddress to
-  backBox   <- allocAddress from
-  refundBox <- allocAddress from
   currentHeight <- M.getHeight
   totalAmount <- fmap (fromMaybe 0) $ M.getBoxBalance fromBox
-  let sendTx = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
-  tx <- toSendTxDelayed from sendTx
+  let sendTx = SendDelayed fromBox amount (totalAmount - amount) (currentHeight + delayDiff) to
+  (tx, backBox, toBox) <- toSendTxDelayed from sendTx
   logTest $ renderText tx
   txResp <- M.postTx tx
   logTest $ fromString $ ppShow txResp
   return $ Right $ SendRes backBox toBox $ getTxHash txResp
 
-toSendTxDelayed :: Wallet -> SendDelayed -> App Tx
-toSendTxDelayed wallet SendDelayed{..} = proofSingleOwnerTx wallet preTx
+toSendTxDelayed :: Wallet -> SendDelayed -> App (Tx, Maybe BoxId, BoxId)
+toSendTxDelayed wallet SendDelayed{..} = do
+  fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
   where
-    preTx = Tx
-      { tx'inputs   = V.fromList [inputBox]
-      , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    preTx = PreTx
+      { preTx'inputs   = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      , preTx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
     inputBox = BoxInputRef
@@ -163,11 +158,10 @@ toSendTxDelayed wallet SendDelayed{..} = proofSingleOwnerTx wallet preTx
     senderPk = pk' $ getWalletPublicKey wallet
 
     senderUtxo
-      | sendDelayed'remain > 0 = Just $ Box
-                { box'id     = sendDelayed'back
-                , box'value  = sendDelayed'remain
-                , box'script = mainScriptUnsafe backScript
-                , box'args   = mempty
+      | sendDelayed'remain > 0 = Just $ PreBox
+                { preBox'value  = sendDelayed'remain
+                , preBox'script = mainScriptUnsafe backScript
+                , preBox'args   = mempty
                 }
       | otherwise                 = Nothing
 
@@ -175,11 +169,10 @@ toSendTxDelayed wallet SendDelayed{..} = proofSingleOwnerTx wallet preTx
     -- or just the rest of it if it's greater than the limit
     backScript = senderPk
 
-    receiverUtxo = Box
-      { box'id     = sendDelayed'to
-      , box'value  = sendDelayed'amount
-      , box'script = mainScriptUnsafe $ receiverScript ||* refundScript
-      , box'args   = intArgs [height]
+    receiverUtxo = PreBox
+      { preBox'value  = sendDelayed'amount
+      , preBox'script = mainScriptUnsafe $ receiverScript ||* refundScript
+      , preBox'args   = intArgs [height]
       }
 
     getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
@@ -193,4 +186,3 @@ toSendTxDelayed wallet SendDelayed{..} = proofSingleOwnerTx wallet preTx
     refundScript =
             senderPk
         &&* toSigma (getSpendHeight >=* getHeight)
-

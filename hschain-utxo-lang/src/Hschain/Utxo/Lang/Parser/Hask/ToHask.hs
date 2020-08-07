@@ -5,7 +5,7 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskType
 ) where
 
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Data.Fix
 
@@ -147,7 +147,7 @@ toHaskExp (Fix expr) = case expr of
       BoxAt loc a field   -> fromBoxField loc a field
 
     fromPrimBox loc Box{..} = H.RecConstr loc (qname "Box")
-      [ field "box'id"     $ prim $ PrimString $ unBoxId box'id
+      [ field "box'id"     $ prim $ PrimString $ encodeBase58 $ unBoxId box'id
       , field "box'value"  $ prim $ PrimInt  $ box'value
       , field "box'script" $ prim $ PrimString $ encodeBase58 $ unScript box'script
       , field "box'args"   $ args

@@ -6,7 +6,7 @@ module Hschain.Utxo.Lang.Compile.Hask.ToHask(
   , toHaskExpr
 ) where
 
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Hask.Utils

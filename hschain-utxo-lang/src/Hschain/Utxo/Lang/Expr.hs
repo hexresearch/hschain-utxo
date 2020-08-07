@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
@@ -12,7 +11,6 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
-import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import Data.Coerce
 import Data.Fix
@@ -31,10 +29,12 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes (encodeBase58, decodeBase58)
 import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
+import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -42,6 +42,8 @@ import qualified Language.Haskell.Exts.SrcLoc as Hask
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
+import qualified Data.ByteString.Lazy as LB
+
 
 import qualified Hschain.Utxo.Lang.Const as Const
 
@@ -276,17 +278,34 @@ byteArgs xs = Args
   , args'bytes = V.fromList xs
   }
 
--- | Identifier of the box. Box holds value protected by the script.
-newtype BoxId = BoxId { unBoxId :: Text }
-  deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+-- | Identifier of TX. We can derive it from the PreTx.
+--  It equals to hash of serialised PreTx
+newtype TxId = TxId { unTxId :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
+
+-- | Identifier of the box. Box holds value protected by the script.
+-- It equals to the hash of Box-content.
+newtype BoxId = BoxId { unBoxId :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
+
+instance ToText BoxId where
+  toText (BoxId bs) = encodeBase58 bs
+
+instance FromText BoxId where
+  fromText txt = fmap BoxId $ decodeBase58 txt
 
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
   deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
 
 -- | Box holds the value protected by the script.
 -- We use boxes as inputs for transaction and create new output boxes
@@ -296,6 +315,34 @@ data Box = Box
   , box'value  :: !Money    -- ^ Value of the box
   , box'script :: !Script   -- ^ Protecting script
   , box'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | PreBox holds all meaningfull data of the Box.
+-- we use it to get Hashes for transaction and Box itself.
+-- Comparing to Box it omits identifier that is generated from PreBox
+-- and origin that can be derived from TX identifier (hash of @getTxBytes tx@).
+data PreBox = PreBox
+  { preBox'value  :: !Money    -- ^ Value of the box
+  , preBox'script :: !Script   -- ^ Protecting script
+  , preBox'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+getBoxToHashId :: BoxToHash -> BoxId
+getBoxToHashId = BoxId . getSha256 . LB.toStrict . serialise
+
+-- | Values that are used to get the hash of the box to create identifier for it.
+data BoxToHash = BoxToHash
+  { boxToHash'content  :: !PreBox  -- ^ meaningful data of the box
+  , boxToHash'origin   :: !BoxOrigin   -- ^ origin of the box
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Data encodes the source of the Box when it was produced.
+data BoxOrigin = BoxOrigin
+  { boxOrigin'txId        :: !TxId   -- ^ identifier of TX that produced the Box
+  , boxOrigin'outputIndex :: !Int64  -- ^ index in the vector of outputs for the box
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
@@ -964,18 +1011,5 @@ instance ToJSON Args where
     , "texts" .= args'texts
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
-
-instance ToJSON Script where
-  toJSON (Script s) = toJSON (ViaBase58 s)
-
-instance FromJSON Script where
-  parseJSON = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) . parseJSON
-
-instance ToJSONKey Script where
-  toJSONKey = contramapToJSONKeyFunction (ViaBase58 . unScript) toJSONKey
-
-instance FromJSONKey Script where
-  fromJSONKey = fmap (\(ViaBase58 s :: ViaBase58 "Script" ByteString) -> Script s) fromJSONKey
-
 
 $(deriveJSON dropPrefixOptions ''Box)

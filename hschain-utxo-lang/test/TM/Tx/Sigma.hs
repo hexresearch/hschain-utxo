@@ -4,7 +4,6 @@ module TM.Tx.Sigma(
 ) where
 
 import Data.Fix
-import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -15,47 +14,55 @@ import Hschain.Utxo.Lang.Types
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
-  [ testCase "verify correct single owner script"  $ ( @=? Right True)  =<< verifyAliceTx
-  , testCase "verify broken tx"                    $ ( @=? Right False) =<< verifyBrokenTx
+  [ testCase "verify correct sign message (same for pre-tx)" $ ( @=? True)  =<< verifySameSignMessage
+  , testCase "verify correct box identifiers"                $ ( @=? True)  =<< verifyValidBoxIds
+  , testCase "verify correct single owner script"            $ ( @=? True)  =<< verifyAliceTx
+  , testCase "verify broken tx"                              $ ( @=? False) =<< verifyBrokenTx
   ]
 
 singleOwnerSigma :: PublicKey -> Sigma PublicKey
 singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
 
+verifySameSignMessage :: IO Bool
+verifySameSignMessage = do
+  (tx, preTx) <- initTx
+  return $ getTxBytes tx == getPreTxBytes preTx
+
+verifyValidBoxIds :: IO Bool
+verifyValidBoxIds = do
+  tx <- fmap fst initTx
+  return $ validateOutputBoxIds tx
+
 -- | Inits transaction that is owned by alice and has correct proof.
-initTx :: IO (Either Text Tx)
+initTx :: IO (Tx, PreTx BoxInputRef)
 initTx = do
   aliceSecret <- newSecret
   let alicePubKey = getPublicKey aliceSecret
       aliceProofEnv = toProofEnv [getKeyPair aliceSecret]
-  case outBox alicePubKey of
-    Left _    -> return $ Left "Failed to create owner script"
-    Right box -> do
-      let preTx = Tx
-            { tx'inputs  = [inputRef]
-            , tx'outputs = [box]
-            }
-      eProof <- newProof aliceProofEnv (singleOwnerSigma alicePubKey) (getTxBytes preTx)
-      return $ fmap (\proof -> appendProofs [Just proof] preTx) eProof
+  resTx <- newProofTx aliceProofEnv $ tx alicePubKey
+  return (resTx, fmap expectedBox'input $ tx alicePubKey)
   where
+    tx pubKey = PreTx
+      { preTx'inputs = return $ ExpectedBox
+                                      { expectedBox'sigma = Just $ singleOwnerSigma pubKey
+                                      , expectedBox'input = inputRef
+                                      }
+      , preTx'outputs = return $ PreBox
+                                      { preBox'value  = 1
+                                      , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
+                                      , preBox'args   = mempty
+                                      }
+      }
+
     inputRef = BoxInputRef
       { boxInputRef'id    = BoxId "box-1"
       , boxInputRef'args  = mempty
       , boxInputRef'proof = Nothing
       }
 
-    outBox owner = fmap (\script -> Box
-      { box'id     = BoxId "box-2"
-      , box'value  = 1
-      , box'script = script
-      , box'args   = mempty
-      }) $ mainScript $ pk $ text $ publicKeyToText owner
-
 -- | Verify that proof is correct
-verifyAliceTx :: IO (Either Text Bool)
-verifyAliceTx = do
-  eTx <- initTx
-  return $ fmap verifyTx eTx
+verifyAliceTx :: IO Bool
+verifyAliceTx = fmap (verifyTx . fst) initTx
 
 -- | Let's pretend that Bob captures Alice's correct transaction
 -- and tries to steal the output by injecting his ownership script.
@@ -74,14 +81,11 @@ bobStealsTx aliceTx = do
 -- | Verify that broken tx is incorrect. It should return False.
 -- Proof should become invalid because Tx's digital signature does not
 -- corresponds to supplied proof.
-verifyBrokenTx :: IO (Either Text Bool)
+verifyBrokenTx :: IO Bool
 verifyBrokenTx = do
-  eAliceTx <- initTx
-  case eAliceTx of
-    Left err      -> return $ Left err
-    Right aliceTx -> do
-      bobTx <- bobStealsTx aliceTx
-      return $ Right $ verifyTx bobTx
+  aliceTx <- fmap fst initTx
+  bobTx <- bobStealsTx aliceTx
+  return $ verifyTx bobTx
 
 -- | External TX verifier.
 verifyTx :: Tx -> Bool

@@ -4,7 +4,6 @@ module Hschain.Utxo.Lang.Core.Eval(
   , evalProveTx
 ) where
 
-import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Text
 import Data.Vector (Vector)
@@ -26,7 +25,7 @@ evalInput env =
     Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
     Nothing   -> Left $ ExecError FailedToDecodeScript
 
-verifyInput :: ByteString -> Maybe Proof -> InputEnv -> Either Error Bool
+verifyInput :: SignMessage -> Maybe Proof -> InputEnv -> Either Error Bool
 verifyInput message mProof env = fmap verifyResult $ evalInput env
   where
     verifyResult = \case

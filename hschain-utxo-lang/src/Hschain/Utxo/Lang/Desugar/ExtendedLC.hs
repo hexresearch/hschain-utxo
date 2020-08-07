@@ -15,7 +15,6 @@ import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT, intT, boxT, textT)
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Types (scriptToText)
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, intT, boxT, textT)
@@ -249,9 +248,9 @@ exprToExtendedLC typeCtx = cataM $ \case
             -- consider other primitive types
             boxConsTy = foldr arrowT boxT [textT, intT, textT, listT intT]
 
-            id'    = prim loc $ P.PrimText $ unBoxId box'id
-            value  = prim loc $ P.PrimInt  $ box'value
-            script = prim loc $ P.PrimText $ scriptToText box'script
+            id'    = prim loc $ P.PrimBytes $ unBoxId box'id
+            value  = prim loc $ P.PrimInt   $ box'value
+            script = prim loc $ P.PrimBytes $ unScript box'script
             args   = Fix $ EConstr loc (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
 
 

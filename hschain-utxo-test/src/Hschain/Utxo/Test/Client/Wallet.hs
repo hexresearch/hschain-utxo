@@ -4,7 +4,6 @@ module Hschain.Utxo.Test.Client.Wallet(
     Wallet(..)
   , newWallet
   , getWalletPublicKey
-  , allocAddress
   , getBalance
   , getBoxBalance
   , newSendTx
@@ -16,27 +15,23 @@ module Hschain.Utxo.Test.Client.Wallet(
   , newProofOrFail
   , getTxSigmaUnsafe
   , singleOwnerSigmaExpr
-  , proofSingleOwnerTx
+  , appendSenderReceiverIds
 ) where
 
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
-import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Maybe
 import Data.Text (Text)
-import Data.UUID
 import Data.Vector (Vector)
 
-import System.Random
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Monad
 
-import qualified Data.Text as T
 import qualified Data.Vector as V
 
 -- | User wallet
@@ -56,24 +51,9 @@ newWallet userId pubKey = liftIO $ do
 getWalletPublicKey :: Wallet -> PublicKey
 getWalletPublicKey = getPublicKey . wallet'privateKey
 
--- | Generates address name and saves it to the wallet utxo list
-allocAddress :: MonadIO io => Wallet -> io BoxId
-allocAddress wallet@Wallet{..} = liftIO $ do
-  addr <- newAddress wallet
-  atomically $ modifyTVar' wallet'utxos $ (addr : )
-  return addr
-
 -- | Gets user proof environment or list of keys
 getProofEnv :: Wallet -> ProofEnv
 getProofEnv Wallet{..} = proofEnvFromKeys [getKeyPair wallet'privateKey]
-
--- | Generates new address name
-newAddress :: MonadIO io => Wallet -> io BoxId
-newAddress Wallet{..} = liftIO $ do
-  idx <- fmap (T.pack .show) (randomIO :: IO UUID)
-  return $ BoxId $ mconcat [ userId, "-", idx]
-  where
-    userId = (\(UserId uid) -> uid) wallet'user
 
 -- | Query the user balance.
 getBalance :: Wallet -> App Money
@@ -96,10 +76,6 @@ getOwnerProofUnsafe wallet tx =
 data Send = Send
   { send'from    :: !BoxId
   -- ^ from user box
-  , send'to      :: !BoxId
-  -- ^ to user box
-  , send'back    :: !BoxId
-  -- ^ where to put exchange
   , send'amount  :: !Money
   -- ^ amount of money to send
   , send'recepientWallet :: !Wallet -- TODO: we need it right now, substitute it with public key in the future
@@ -108,20 +84,19 @@ data Send = Send
 -- | Data to hold the data for exchange send
 data SendBack = SendBack
   { sendBack'totalAmount  :: !Money  -- ^ amount of money
-  , sendBack'backBox      :: !BoxId  -- ^ where to send exchange
   }
 
 -- | Creates script that sends money from user to another
-newSendTx :: Wallet -> Send -> App (Either Text Tx)
+newSendTx :: Wallet -> Send -> App (Either Text (Tx, Maybe BoxId, BoxId))
 newSendTx wallet send@Send{..} = do
   back <- getSendBack
   toSendTx wallet send back
   where
     getSendBack = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
-      return $ SendBack totalAmount send'back
+      return $ SendBack totalAmount
 
-newProofOrFail :: ProofEnv -> Sigma PublicKey -> ByteString -> App Proof
+newProofOrFail :: ProofEnv -> Sigma PublicKey -> SignMessage -> App Proof
 newProofOrFail env expr message = do
   eProof <- liftIO $ newProof env expr message
   case eProof of
@@ -138,16 +113,15 @@ singleOwnerSigmaExpr :: Wallet -> Sigma PublicKey
 singleOwnerSigmaExpr wallet = Fix $ SigmaPk $ getWalletPublicKey wallet
 
 -- | Sends money with exchange
-toSendTx :: Wallet -> Send -> SendBack -> App (Either Text Tx)
-toSendTx wallet Send{..} SendBack{..}  = do
-  eProof <- liftIO $ newProof (getProofEnv wallet) (singleOwnerSigmaExpr wallet) message
-  return $ fmap (\proof -> appendProofs [Just proof] preTx) eProof
+--
+-- returns tripple: (tx, box address for change if needed, receiver output result)
+toSendTx :: Wallet -> Send -> SendBack -> App (Either Text (Tx, Maybe BoxId, BoxId))
+toSendTx wallet Send{..} SendBack{..} =
+  fmap (fmap appendSenderReceiverIds) $ newProofTxOrFail (getProofEnv wallet) preTx
   where
-    message = getTxBytes preTx
-
-    preTx = Tx
-      { tx'inputs  = V.fromList [inputBox]
-      , tx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    preTx = PreTx
+      { preTx'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      , preTx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
     inputBox = BoxInputRef
@@ -157,26 +131,27 @@ toSendTx wallet Send{..} SendBack{..}  = do
       }
 
     senderUtxo
-      | sendBack'totalAmount > send'amount = Just $ Box
-                { box'id     = sendBack'backBox
-                , box'value  = sendBack'totalAmount - send'amount
-                , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
-                , box'args   = mempty
+      | sendBack'totalAmount > send'amount = Just $ PreBox
+                { preBox'value  = sendBack'totalAmount - send'amount
+                , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+                , preBox'args   = mempty
                 }
       | otherwise                 = Nothing
 
-    receiverUtxo = Box
-      { box'id     = send'to
-      , box'value  = send'amount
-      , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
-      , box'args   = mempty
+    receiverUtxo = PreBox
+      { preBox'value  = send'amount
+      , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
+      , preBox'args   = mempty
       }
 
-proofSingleOwnerTx :: Wallet -> Tx -> App Tx
-proofSingleOwnerTx wallet preTx = do
-  proof <- newProofOrFail (getProofEnv wallet) (singleOwnerSigmaExpr wallet) (getTxBytes preTx)
-  return $ appendProofs [Just proof] preTx
+appendSenderReceiverIds :: Tx -> (Tx, Maybe BoxId, BoxId)
+appendSenderReceiverIds tx = (tx, sender, receiver)
+  where
+    (sender, receiver) = extractSenderReceiverIds tx
 
-
-
+extractSenderReceiverIds :: Tx -> (Maybe BoxId, BoxId)
+extractSenderReceiverIds tx = case tx'outputs tx of
+  [receiver]         -> (Nothing, box'id receiver)
+  [sender, receiver] -> (Just $ box'id sender, box'id receiver)
+  _                  -> error "Not enough outputs fot TX"
 

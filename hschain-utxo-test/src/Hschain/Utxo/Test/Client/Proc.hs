@@ -129,9 +129,10 @@ app opt genesisTx = do
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do
   masterSecret <- newSecret
-  serviceResources <- app defaultServiceOptions $ initGenesis masterSecret
+  let (genesis, masterBoxId) = initGenesis masterSecret
+  serviceResources <- app defaultServiceOptions genesis
   wait
-  test <- runTest defaultTestSpec masterSecret $ testApp
+  test <- runTest defaultTestSpec masterSecret masterBoxId $ testApp
   clearResource serviceResources
   wait
   return $ toHspec $ test

@@ -180,14 +180,14 @@ getBoxField name field resT = Scomb
 
 boxArgs :: [Typed Name]
 boxArgs =
-  [ Typed "name"   textT
+  [ Typed "name"   bytesT
   , Typed "script" bytesT
   , Typed "value"  intT
   , Typed "args"   argsT
   ]
 
 getBoxId :: Scomb
-getBoxId = getBoxField Const.getBoxId "name" textT
+getBoxId = getBoxField Const.getBoxId "name" bytesT
 
 getBoxScript :: Scomb
 getBoxScript = getBoxField Const.getBoxScript "script" bytesT
@@ -225,7 +225,7 @@ boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value,
 toBox :: Box -> ExprCore
 toBox Box{..} = boxConstr name script value args
   where
-    name   = EPrim $ PrimText  $ unBoxId box'id
+    name   = EPrim $ PrimBytes $ unBoxId box'id
     script = EPrim $ PrimBytes $ unScript box'script
     value  = EPrim $ PrimInt   $ box'value
     args   = toArgs box'args
