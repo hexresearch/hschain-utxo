@@ -112,9 +112,8 @@ evalExpr genv = recur
         _                 -> ValBottom TypeMismatch
       -- FIXME: Here we assume that let is completely nonrecursive
       --        (For simplicity)
-      ELet binds body ->
-        let lenv' = MapL.fromList [ (nm, recur lenv' e) | (nm,e) <- binds ]
-                 <> lenv
+      ELet nm bind body ->
+        let lenv' = MapL.insert nm (recur lenv bind) lenv
         in recur lenv' body
       --
       ECase e alts -> case recur lenv e of
