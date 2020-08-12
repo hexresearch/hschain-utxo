@@ -75,9 +75,10 @@ evalExpr :: GEnv -> LEnv -> ExprCore -> Val
 evalExpr genv = recur
   where
     evalVar lenv x
-      | Just v <- x `Map.lookup` lenv     = v
-      | Just v <- x `Map.lookup` genv     = v
-      | Just v <- x `Map.lookup` primVals = v
+      | Just v <- x `Map.lookup` lenv          = v
+      | Just v <- x `Map.lookup` genv          = v
+      | Just v <- x `Map.lookup` primVals      = v
+      | Just v <- x `Map.lookup` primitivesMap = v
       | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
     recur lenv = \case
       EVar     x   -> evalVar lenv x
@@ -196,6 +197,10 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
       Get          -> gerr
       UpdatePrim{} -> gerr
     gerr = error "GMachine primitive"
+
+primitivesMap :: Map.Map Name Val
+primitivesMap = MapL.fromList
+  [ (scomb'name s, evalScomb mempty s) | s <- primitives ]
 
 opComparison :: (forall a. Ord a => a -> a -> Bool) -> Val
 opComparison (#) = primFun2 go
