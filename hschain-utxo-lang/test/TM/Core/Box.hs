@@ -16,6 +16,7 @@ import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Gmachine
+import Hschain.Utxo.Lang.Core.RefEval
 import qualified Hschain.Utxo.Lang.Core.Data.Output as O
 import Examples.SKI
 
@@ -78,6 +79,7 @@ testProg :: String -> [Prim] -> CoreProg -> TestTree
 testProg name res prog = testGroup name
   [ testTypeCheckCase "typecheck" prog
   , testCase          "eval"      $ Right res @=? run prog
+  , testCase          "simple"    $ Just res @=? ((:[]) <$> evalProg txEnv prog)
   ]
 
 progGetHeight :: CoreProg
