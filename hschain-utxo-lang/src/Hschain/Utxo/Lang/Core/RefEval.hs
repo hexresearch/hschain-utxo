@@ -4,6 +4,7 @@
 module Hschain.Utxo.Lang.Core.RefEval
   ( Val(..)
   , EvalErr(..)
+  , EvalResult(..)
   , evalProg
   ) where
 
@@ -34,6 +35,14 @@ data Val
   | Val2F (Val -> Val -> Val)   -- ^ Binary function. Added in order to make defining primops easier
   | ValCon Int [Val]            -- ^ Constructor cell
 
+-- | Result of evaluation. It exisit in current form in order to be
+--   able to test list based function.
+data EvalResult
+  = EvalPrim !Prim
+  | EvalList [Prim]
+  | EvalFail EvalErr
+  deriving (Show, Eq)
+
 -- | Evaluation error
 data EvalErr
   = TypeMismatch    -- ^ Type error. Should never happen when evaluating well-typed program.
@@ -49,16 +58,16 @@ type LEnv = Map.Map Name Val
 
 
 -- | Evaluate program
-evalProg :: InputEnv -> CoreProg -> Either EvalErr Prim
+evalProg :: InputEnv -> CoreProg -> EvalResult
 evalProg env (CoreProg prog) =
   case "main" `Map.lookup` genv of
-    Nothing -> Left $ EvalErr "No main function"
+    Nothing -> EvalFail $ EvalErr "No main function"
     Just v  -> case v of
-      ValP p      -> Right p
-      ValBottom e -> Left e
-      ValF{}      -> Left $ EvalErr "Returning function"
-      Val2F{}     -> Left $ EvalErr "Returning function"
-      ValCon{}    -> Left $ EvalErr "Returning compound value"
+      ValP p      -> EvalPrim p
+      ValBottom e -> EvalFail e
+      ValF{}      -> EvalFail $ EvalErr "Returning function"
+      Val2F{}     -> EvalFail $ EvalErr "Returning function"
+      ValCon{}    -> EvalFail $ EvalErr "Returning compound value"
   where
     genv = MapL.fromList [ (scomb'name s, evalScomb genv s)
                          | s <- prog ++ environmentFunctions env

@@ -94,8 +94,8 @@ testTypeCheckCase testName prog =
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram name prog res = testGroup name
   [ testTypeCheckCase "typecheck" prog
-  , testCase          "eval"      $ Right [res] @=? run prog
-  , testCase          "simple"    $ Right res   @=? evalProg env prog
+  , testCase          "eval"      $ Right [res]  @=? run prog
+  , testCase          "simple"    $ EvalPrim res @=? evalProg env prog
   ]
 
 run :: CoreProg -> Either Error [Prim]

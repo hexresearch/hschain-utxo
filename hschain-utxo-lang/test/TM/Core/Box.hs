@@ -58,14 +58,14 @@ txEnv = InputEnv
 
 tests :: TestTree
 tests = testGroup "core-boxes"
-    [ testProg "get height"         [PrimInt blockChainHeight] progGetHeight
-    , testProg "get self id"        [PrimBytes "box-2"] progGetSelfId
-    , testProg "get self script"    [PrimBytes "in2"]  progGetSelfScript
-    , testProg "get tx arg"         [PrimInt 2]        progGetTxArg
-    , testProg "get input id"       [PrimBytes "box-1"] progGetInputId
-    , testProg "get output id"      [PrimBytes "box-3"] progGetOutputId
-    , testProg "get output arg"     [PrimInt 9] progGetOutputLastIntArg
-    , testProg "get input text arg" [PrimText "neil"] progGetInputLastTextArg
+    [ testProg "get height"         (PrimInt blockChainHeight) progGetHeight
+    , testProg "get self id"        (PrimBytes "box-2") progGetSelfId
+    , testProg "get self script"    (PrimBytes "in2")  progGetSelfScript
+    , testProg "get tx arg"         (PrimInt 2)        progGetTxArg
+    , testProg "get input id"       (PrimBytes "box-1") progGetInputId
+    , testProg "get output id"      (PrimBytes "box-3") progGetOutputId
+    , testProg "get output arg"     (PrimInt 9) progGetOutputLastIntArg
+    , testProg "get input text arg" (PrimText "neil") progGetInputLastTextArg
     ]
 
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
@@ -75,11 +75,11 @@ testTypeCheckCase testName prog =
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 
-testProg :: String -> [Prim] -> CoreProg -> TestTree
+testProg :: String -> Prim -> CoreProg -> TestTree
 testProg name res prog = testGroup name
   [ testTypeCheckCase "typecheck" prog
-  , testCase          "eval"      $ Right res @=? run prog
-  , testCase          "simple"    $ Right res @=? ((:[]) <$> evalProg txEnv prog)
+  , testCase          "eval"      $ Right   [res] @=? run prog
+  , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
   ]
 
 progGetHeight :: CoreProg
