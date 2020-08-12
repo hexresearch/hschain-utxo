@@ -67,12 +67,16 @@ evalProg env (CoreProg prog) =
       ValBottom e -> EvalFail e
       ValF{}      -> EvalFail $ EvalErr "Returning function"
       Val2F{}     -> EvalFail $ EvalErr "Returning function"
-      ValCon{}    -> EvalFail $ EvalErr "Returning compound value"
+      ValCon i xs -> maybe (EvalFail $ EvalErr "Not a list") EvalList
+                   $ con2list i xs
   where
     genv = MapL.fromList [ (scomb'name s, evalScomb genv s)
                          | s <- prog ++ environmentFunctions env
                          ]
-
+    --
+    con2list 0 []                   = Just []
+    con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
+    con2list _ _                    = Nothing
 
 evalScomb :: GEnv -> Scomb -> Val
 evalScomb genv Scomb{..} = buildArg Map.empty (V.toList scomb'args)

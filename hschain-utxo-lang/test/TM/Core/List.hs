@@ -57,7 +57,10 @@ testProgramBy :: String -> CoreProg -> Either Error [Prim] -> TestTree
 testProgramBy nm prog res = testGroup nm
   [ testTypeCheckCase "typecheck" prog
   , testCase "eval"   $ res @=? run prog
-  -- , testCase "simple" $ res @=? evalProg env prog
+  , testCase "simple" $ case res of
+      Left  _   -> return ()
+      Right [r] -> EvalPrim r @=? evalProg env prog
+      Right r   -> EvalList r @=? evalProg env prog
   ]
 
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
