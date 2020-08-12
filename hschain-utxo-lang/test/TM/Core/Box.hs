@@ -79,7 +79,7 @@ testProg :: String -> [Prim] -> CoreProg -> TestTree
 testProg name res prog = testGroup name
   [ testTypeCheckCase "typecheck" prog
   , testCase          "eval"      $ Right res @=? run prog
-  , testCase          "simple"    $ Just res @=? ((:[]) <$> evalProg txEnv prog)
+  , testCase          "simple"    $ Right res @=? ((:[]) <$> evalProg txEnv prog)
   ]
 
 progGetHeight :: CoreProg
