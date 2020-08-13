@@ -77,15 +77,13 @@ app :: Options -> Genesis -> IO Resource
 app opt genesisTx = do
   valCfgs <- mapM readYaml $ configValidatorPath opt
   nodeCfg <- readYaml $ configWebnodePath opt
-  go valCfgs nodeCfg
-  where
-    go valCfgs nodeCfg = do
-      valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
-      webThread <- forkIO $ runWebNode nodeCfg genesisTx
-      return $ Resource
-        { resource'threads = webThread : valThreads
-        , resource'dbs     = catMaybes $ fmap nspec'dbName $ config'node nodeCfg : valCfgs
-        }
+  valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
+  webThread  <- forkIO $ runWebNode nodeCfg genesisTx
+  return $ Resource
+    { resource'threads = webThread : valThreads
+    , resource'dbs     = catMaybes $ fmap nspec'dbName $ config'node nodeCfg : valCfgs
+    }
+
 
 
 runTestProc :: App () -> IO Spec
