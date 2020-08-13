@@ -18,15 +18,6 @@ import Hschain.Utxo.Test.Client.Monad(App, runTest, toHspec, TestSpec(..), initG
 import qualified Hschain.Utxo.API.Client as C
 
 
--- | Resources of children processes
-data Resource = Resource
-  { resource'threads :: [ThreadId]
-  } deriving (Show)
-
-clearResource :: Resource -> IO ()
-clearResource Resource{..} = do
-  mapM_ killThread resource'threads
-
 -- | configs for tests
 data Options = Options
   { configValidatorPath  :: ![FilePath]  -- ^ validator configs
@@ -65,26 +56,23 @@ defaultTestSpec = TestSpec
   , testSpec'verbose = True
   }
 
-app :: Options -> Genesis -> IO Resource
+app :: Options -> Genesis -> IO [ThreadId]
 app opt genesisTx = do
   valCfgs <- mapM readYaml $ configValidatorPath opt
   nodeCfg <- readYaml $ configWebnodePath opt
   valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
   webThread  <- forkIO $ runWebNode nodeCfg genesisTx
-  return $ Resource
-    { resource'threads = webThread : valThreads
-    }
-
+  return $ webThread : valThreads
 
 
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do
   masterSecret <- newSecret
   let (genesis, masterBoxId) = initGenesis masterSecret
-  serviceResources <- app defaultServiceOptions genesis
+  tids <- app defaultServiceOptions genesis
   wait
   test <- runTest defaultTestSpec masterSecret masterBoxId $ testApp
-  clearResource serviceResources
+  mapM_ killThread tids
   wait
   return $ toHspec $ test
   where
