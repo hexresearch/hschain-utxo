@@ -13,10 +13,7 @@ import Control.Timeout
 import Data.Maybe
 
 import System.Directory
-import System.FilePath
 import Test.Hspec
-
-import HSChain.Logger
 
 import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Back.App
@@ -24,9 +21,8 @@ import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Lang.Sigma (newSecret)
 import Hschain.Utxo.Test.Client.Monad(App, runTest, toHspec, TestSpec(..), initGenesis)
 
-import qualified Data.List as L
-
 import qualified Hschain.Utxo.API.Client as C
+
 
 -- | Resources of children processes
 data Resource = Resource
@@ -79,14 +75,9 @@ defaultTestSpec = TestSpec
 
 app :: Options -> Genesis -> IO Resource
 app opt genesisTx = do
-  valCfgs <-  mapM readValidatorConfig $ configValidatorPath opt
-  nodeCfg <- readWebnodeConfig $ configWebnodePath opt
-  if (isInMemoryTest nodeCfg valCfgs)
-    then do
-      putStrLn "In memory test"
-      go valCfgs nodeCfg
-    else withTestDir opt $ \tempDir ->
-            go (fmap (substValidatorTempDir tempDir) valCfgs) (substWebnodeTempDir tempDir nodeCfg)
+  valCfgs <- mapM readYaml $ configValidatorPath opt
+  nodeCfg <- readYaml $ configWebnodePath opt
+  go valCfgs nodeCfg
   where
     go valCfgs nodeCfg = do
       valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
@@ -96,35 +87,6 @@ app opt genesisTx = do
         , resource'dbs     = catMaybes $ fmap nspec'dbName $ config'node nodeCfg : valCfgs
         }
 
-    readValidatorConfig :: FilePath -> IO NodeSpec
-    readValidatorConfig = readYaml
-
-    readWebnodeConfig :: FilePath -> IO Config
-    readWebnodeConfig = readYaml
-
-    substValidatorTempDir = substNodeSpec
-    substWebnodeTempDir dir cfg@Config{..} = cfg
-      { config'node = substNodeSpec dir config'node
-      }
-
-    substNodeSpec dir spec@NodeSpec{..} = spec
-      { nspec'dbName = fmap (substDir dir) nspec'dbName
-      , nspec'logs   = substLog dir nspec'logs
-      }
-
-    substLog dir spec@LogSpec{..} = spec
-      { logSpec'files = fmap (substScribeSpec dir) logSpec'files
-      }
-
-    substScribeSpec dir spec@ScribeSpec{..} = spec
-      { scribe'path = fmap (substDir dir) scribe'path
-      }
-
-    substDir dir path
-      | isAbsolutePath path = path
-      | otherwise           = dir </> path
-      where
-        isAbsolutePath = L.isPrefixOf "/"
 
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do
@@ -139,26 +101,6 @@ runTestProc testApp = do
   where
     wait = sleep 1
 
-withTestDir :: Options -> (FilePath -> IO a) -> IO a
-withTestDir Options{..} nextAct = do
-  createDirectoryIfMissing True testDir
-  withFixedDirectory testDir "test" nextAct
-  where
-    withFixedDirectory dir name cont = do
-      let resDir = dir </> name
-      putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
-      createDirectoryIfMissing True resDir
-      cont resDir
 
 clearDb :: FilePath -> IO ()
 clearDb path = removeFile path
-
-isInMemoryTest :: Config -> [NodeSpec] -> Bool
-isInMemoryTest webNode validators =
-  all isInMemoryNode $ config'node webNode : validators
-
-isInMemoryNode :: NodeSpec -> Bool
-isInMemoryNode NodeSpec{..} =
-     (isNothing nspec'dbName || nspec'dbName == Just ":memory:")
-  && (L.null $ logSpec'files nspec'logs)
-
