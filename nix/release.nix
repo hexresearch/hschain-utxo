@@ -72,16 +72,17 @@ let
         });
       } // {
         # HSChain dependencies
-        hschain-control  = callHSChain "hschain-control";
-        hschain-config   = callHSChain "hschain-config";
-        hschain-merkle   = callHSChain "hschain-merkle";
-        hschain-logger   = callHSChain "hschain-logger";
-        hschain-crypto   = callHSChain "hschain-crypto";
-        hschain-types    = callHSChain "hschain-types";
-        hschain-net      = callHSChain "hschain-net";
+        hschain-control = callHSChain "hschain-control";
+        hschain-config  = callHSChain "hschain-config";
+        hschain-merkle  = callHSChain "hschain-merkle";
+        hschain-logger  = callHSChain "hschain-logger";
+        hschain-crypto  = callHSChain "hschain-crypto";
+        hschain-types   = callHSChain "hschain-types";
+        hschain-net     = callHSChain "hschain-net";
+        hschain-db      = callHSChain "hschain-db";
         hschain-pow-func = callHSChain "proof-of-work";
         hschain-PoW      = callHSChain "hschain-PoW";
-        hschain          = callHSChain "hschain";
+        hschain         = callHSChain "hschain";
         # Disable tests
         timeout         = lib.dontCheck hsOld.timeout;
         repline         = lib.dontCheck hsOld.repline;

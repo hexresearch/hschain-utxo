@@ -10,11 +10,11 @@ module Hschain.Utxo.Lang.Sigma(
   , Secret
   , ProofEnv
   , Proof
+  , SignMessage(..)
   , Sigma
   , SigmaF(..)
   , newProof
   , verifyProof
-  , notSigma
   , publicKeyFromText
   , publicKeyToText
   , emptyProofEnv
@@ -34,21 +34,28 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
+import Data.ByteString (ByteString)
 import Data.Either
 import Data.Fix
+import Data.Functor.Classes (Eq1(..))
 import Data.Text (Text)
 
 import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 
-
+newtype SignMessage = SignMessage { unSignMessage :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
 
 -- | Cryptographic algorithm that we use.
 type CryptoAlg = Sigma.Ed25519
@@ -101,17 +108,25 @@ instance Serialise a => FromJSON (Sigma a) where
   parseJSON = serialiseFromJSON
 
 -- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
-newProof :: ProofEnv -> Sigma PublicKey -> IO (Either Text Proof)
-newProof env expr =
+-- The last argument message is a serialised content of transaction.
+-- It's message to be signed.
+--
+-- For the message use getTxBytes from TX that has no proof.
+newProof :: ProofEnv -> Sigma PublicKey -> SignMessage -> IO (Either Text Proof)
+newProof env expr (SignMessage message) =
   case toSigmaExpr expr of
-    Right sigma -> Sigma.newProof env sigma
+    Right sigma -> Sigma.newProof env sigma message
     Left  _     -> return catchBoolean
   where
     catchBoolean = Left "Expression is constant boolean. It is not  a sigma-expression"
 
 -- | Verify the proof.
-verifyProof :: Proof -> Bool
-verifyProof = Sigma.verifyProof
+--
+-- > verifyProof proof message
+--
+-- For the message use getTxBytes from TX.
+verifyProof :: Proof -> SignMessage -> Bool
+verifyProof proof (SignMessage msg) = Sigma.verifyProof proof msg
 
 type Sigma k = Fix (SigmaF k)
 
@@ -130,30 +145,6 @@ instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
 
 instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
   hashStep = genericHashStep Sigma.hashDomain
-
-
--- | Not for sigma expressions.
---  Warning: assumption
--- We propose that absense of the key can not be proved.
--- not (pk owner) - evaluates to Fasle for any owner
-notSigma :: forall k . Sigma k -> Either Bool (Sigma k)
-notSigma = cata $ \case
-      SigmaPk  _   -> Left False
-      SigmaAnd as  -> orTag as
-      SigmaOr  as  -> andTag as
-      SigmaBool b  -> Left $ not b
-  where
-    orTag xs
-      | or ls     = Left True
-      | otherwise = Right $ Fix $ SigmaOr rs
-      where
-        (ls, rs) = partitionEithers xs
-
-    andTag xs
-      | not (and ls) = Left False
-      | otherwise    = Right $ Fix $ SigmaAnd rs
-      where
-        (ls, rs) = partitionEithers xs
 
 fromSigmaExpr :: Sigma.SigmaE () a -> Sigma a
 fromSigmaExpr = \case
@@ -223,11 +214,6 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
   (SigmaAnd as, SigmaAnd bs)       -> equalList as bs
   _                                -> False
   where
-    equalList xs ys = case (xs, ys) of
-      ([], []) -> True
-      (a:as, b:bs) -> if equalSigmaExpr a b
-                        then equalList as bs
-                        else False
-      _ -> False
+    equalList = liftEq equalSigmaExpr
 
 $(deriveShow1 ''SigmaF)

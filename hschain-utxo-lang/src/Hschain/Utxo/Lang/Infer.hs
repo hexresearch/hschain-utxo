@@ -11,15 +11,13 @@ module Hschain.Utxo.Lang.Infer(
   , userTypesToTypeContext
 ) where
 
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
 import Data.Fix hiding ((~>))
-
-import Data.String
 import Data.Text (Text)
 
 import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, arrowT, stripSignature)
@@ -34,9 +32,7 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
-instance H.IsVar Text where
-  intToVar n = mappend "$$" (showt n)
-  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+import qualified Hschain.Utxo.Lang.Const as Const
 
 data EmptyPrim = EmptyPrim
   deriving (Show)
@@ -101,6 +97,8 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   VecE loc v                -> fmap (fromVec loc) $ mapM rec v
   -- text
   TextE loc txt             -> fmap (fromText loc) $ mapM rec txt
+  -- text
+  BytesE loc txt            -> fmap (fromBytes loc) $ mapM rec txt
   -- boxes
   BoxE loc box              -> fmap (fromBox loc) $ mapM rec box
   -- debug
@@ -153,6 +151,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       PrimString _ -> textE
       PrimBool _   -> boolE
       PrimSigma _  -> sigmaE
+      PrimBytes _  -> bytesE
 
     fromIf loc cond t e = app3 loc ifVar cond t e
 
@@ -205,7 +204,12 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       TextAppend loc a b            -> app2 loc appendTextVar a b
       ConvertToText loc textTypeTag -> varE loc (convertToTextVar textTypeTag)
       TextLength loc                -> varE loc lengthTextVar
-      TextHash loc hashAlgo         -> varE loc (textHashVar hashAlgo)
+
+    fromBytes _ = \case
+      BytesAppend loc a b            -> app2 loc appendBytesVar a b
+      SerialiseToBytes loc tag a     -> app1 loc (serialiseToBytesVar tag) a
+      DeserialiseFromBytes loc tag a -> app1 loc (deserialiseToBytesVar tag) a
+      BytesHash loc hashAlgo a       -> app1 loc (bytesHashVar hashAlgo) a
 
     fromBox _ = \case
       PrimBox loc _     -> varE loc boxVar
@@ -248,6 +252,7 @@ defaultContext = H.Context $ M.fromList $
   , (textVar,   monoT textT)
   , (boolVar,   monoT boolT)
   , (sigmaVar,  monoT sigmaT)
+  , (bytesVar,  monoT bytesT)
   -- if
   , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
   -- pk
@@ -295,7 +300,7 @@ defaultContext = H.Context $ M.fromList $
   , (getVarVar, forA $ monoT $ intT `arr` a)
   , (altVar, forA $ monoT $ a `arr` (a `arr` a))
   , (failCaseVar, forA $ monoT a)
-  ] ++ tupleConVars ++ tupleAtVars ++ textExprVars ++ getBoxArgVars
+  ] ++ tupleConVars ++ tupleAtVars ++ textExprVars ++ bytesExprVars ++ getBoxArgVars
   where
     getBoxArgVars =
       fmap (\ty -> (getBoxArgVar' ty, monoT $ boxT `arr` (vectorT $ argTagToType ty))) argTypes
@@ -343,22 +348,29 @@ defaultContext = H.Context $ M.fromList $
       , convertExpr IntToText intT
       , convertExpr BoolToText boolT
       , convertExpr ScriptToText scriptT
-      ] ++ (fmap (\alg -> (textHashVar alg, monoT $ textT `arr` textT)) [Sha256, Blake2b256])
+      ] ++ (fmap (\alg -> (bytesHashVar alg, monoT $ bytesT `arr` bytesT)) [Sha256])
       where
         convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
+    bytesExprVars =
+      [ (appendBytesVar, monoT $ bytesT `arr` (bytesT `arr` bytesT))
+      ] ++ (fmap (\tag -> (serialiseToBytesVar tag, monoT $ argTagToType tag `arr` bytesT)) argTypes)
+        ++ (fmap (\tag -> (deserialiseToBytesVar tag, monoT $ bytesT `arr` argTagToType tag)) argTypes)
 
-intE, textE, boolE, sigmaE :: loc -> H.Term prim loc Text
+
+intE, textE, boolE, bytesE, sigmaE :: loc -> H.Term prim loc Text
 
 intE loc = varE loc intVar
 textE loc = varE loc textVar
+bytesE loc = varE loc bytesVar
 boolE loc = varE loc boolVar
 sigmaE loc = varE loc sigmaVar
 
-intVar, textVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
+intVar, textVar, bytesVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
 
 intVar = secretVar "Int"
 textVar = secretVar "Text"
+bytesVar = secretVar "Bytes"
 boolVar = secretVar "Bool"
 sigmaVar = secretVar "Sigma"
 boxVar = secretVar "Box"
@@ -409,11 +421,19 @@ appendTextVar, lengthTextVar :: Text
 appendTextVar = secretVar "appendText"
 lengthTextVar = secretVar "lengthText"
 
+appendBytesVar :: Text
+appendBytesVar = secretVar Const.appendBytes
+
+serialiseToBytesVar, deserialiseToBytesVar :: ArgType -> Text
+
+serialiseToBytesVar   tag = secretVar $ Const.serialiseBytes (argTypeName tag)
+deserialiseToBytesVar tag = secretVar $ Const.deserialiseBytes (argTypeName tag)
+
 convertToTextVar :: TextTypeTag -> Text
 convertToTextVar tag = secretVar $ mappend "convertToText" (showt tag)
 
-textHashVar :: HashAlgo -> Text
-textHashVar hashAlgo = secretVar $ mappend "textHash" (showt hashAlgo)
+bytesHashVar :: HashAlgo -> Text
+bytesHashVar hashAlgo = secretVar $ mappend "bytesHash" (showt hashAlgo)
 
 
 getBoxIdVar, getBoxValueVar, getBoxScriptVar :: Text

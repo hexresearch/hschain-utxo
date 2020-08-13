@@ -15,7 +15,6 @@ import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT, intT, boxT, textT)
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Types (scriptToText)
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, intT, boxT, textT)
@@ -71,6 +70,7 @@ exprToExtendedLC typeCtx = cataM $ \case
   SigmaE loc e            -> fromSigma loc e
   VecE loc e              -> fromVecExpr loc e
   TextE loc e             -> fromTextExpr loc e
+  BytesE loc e            -> fromBytesExpr loc e
   BoxE loc e              -> fromBoxExpr loc e
   Trace loc a b           -> fromTrace loc a b
   Ascr loc e t            -> fromAscr loc e t
@@ -132,7 +132,6 @@ exprToExtendedLC typeCtx = cataM $ \case
         vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
 
 
-
     fromAlt _ _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
 
     fromFailCase loc = pure $ Fix $ EBottom loc
@@ -142,13 +141,14 @@ exprToExtendedLC typeCtx = cataM $ \case
       PrimString txt  -> P.PrimText txt
       PrimBool b      -> P.PrimBool b
       PrimSigma sigma -> P.PrimSigma sigma
+      PrimBytes bs    -> P.PrimBytes bs
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
     fromSigma locA = \case
       Pk locB a        -> pure $ ap1 locA (var locB "pk") a
-      SAnd locB a b    -> pure $ ap2 locA (var locB "sigmaAnd") a b
-      SOr  locB a b    -> pure $ ap2 locA (var locB "sigmaOr")  a b
+      SAnd locB a b    -> pure $ ap2 locA (var locB "&&&") a b
+      SOr  locB a b    -> pure $ ap2 locA (var locB "|||")  a b
       SPrimBool locB a -> pure $ ap1 locA (var locB "toSigma") a
 
     fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args
@@ -197,11 +197,11 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromVecExpr _ expr = pure $ case expr of
       NewVec loc args     -> newVec loc args
-      VecAppend loc a b   -> ap2 loc (var loc "++") a b
-      VecAt loc a b       -> ap2 loc (var loc "listAt") a b
-      VecLength loc       -> var loc "length"
-      VecMap loc          -> var loc "map"
-      VecFold loc         -> var loc "foldl"
+      VecAppend loc a b   -> ap2 loc (var loc Const.appendList) a b
+      VecAt loc a b       -> ap2 loc (var loc Const.listAt) a b
+      VecLength loc       -> var loc Const.length
+      VecMap loc          -> var loc Const.map
+      VecFold loc         -> var loc Const.foldl
       where
         newVec loc args = V.foldr (cons loc) (nil loc) args
 
@@ -215,23 +215,27 @@ exprToExtendedLC typeCtx = cataM $ \case
       TextAppend loc a b    -> ap2 loc (var loc "<>") a b
       ConvertToText loc tag -> var loc (mappend "show" $ fromTextTag tag)
       TextLength loc        -> var loc "lengthText"
-      TextHash loc algo     -> var loc (fromHashAlgo algo)
       where
         fromTextTag = \case
           IntToText    -> "Int"
           BoolToText   -> "Bool"
           ScriptToText -> "Script"  -- TODO: in low level language we don't have type for Script, or should we?
 
+    fromBytesExpr _ expr = pure $ case expr of
+      BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
+      SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
+      DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
+      BytesHash loc algo a           -> ap1 loc (var loc $ fromHashAlgo algo) a
+      where
         fromHashAlgo = \case
           Sha256       -> "sha256"
-          Blake2b256   -> "blake2b256"
 
     fromBoxExpr _ expr = pure $ case expr of
       PrimBox loc box     -> fromPrimBox loc box
       BoxAt loc a field   -> fromBoxField loc a field
       where
         fromBoxField loc a field = (\f -> ap1 loc f a) $ case field of
-          BoxFieldId         -> var loc Const.getBoxName
+          BoxFieldId         -> var loc Const.getBoxId
           BoxFieldValue      -> var loc Const.getBoxValue
           BoxFieldScript     -> var loc Const.getBoxScript
           BoxFieldArgList ty -> var loc $ Const.getBoxArgs $ argTypeName ty
@@ -244,9 +248,9 @@ exprToExtendedLC typeCtx = cataM $ \case
             -- consider other primitive types
             boxConsTy = foldr arrowT boxT [textT, intT, textT, listT intT]
 
-            id'    = prim loc $ P.PrimText $ unBoxId box'id
-            value  = prim loc $ P.PrimInt  $ box'value
-            script = prim loc $ P.PrimText $ scriptToText box'script
+            id'    = prim loc $ P.PrimBytes $ unBoxId box'id
+            value  = prim loc $ P.PrimInt   $ box'value
+            script = prim loc $ P.PrimBytes $ unScript box'script
             args   = Fix $ EConstr loc (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
 
 

@@ -1,46 +1,50 @@
 -- | Evaluation of transaction
 module Hschain.Utxo.Lang.Core.Eval(
-  evalTx
+    evalToSigma
+  , evalProveTx
 ) where
 
 import Data.Fix
+import Data.Text
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Prog
 import Hschain.Utxo.Lang.Expr hiding (SigmaExpr(..))
 import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 
-import qualified Data.Vector as V
+evalToSigma :: TxArg -> Either Error (Vector BoolExprResult)
+evalToSigma tx = mapM (evalInput . snd) $ splitInputs tx
 
--- | Evaluates transaction. TxArg is a transaction augmented with current blockchain state.
-evalTx :: TxArg -> Either Error (Sigma PublicKey)
-evalTx tx@TxArg{..} = fmap joinSigma $ mapM (evalBox tx) txArg'inputs
+evalInput :: InputEnv -> Either Error BoolExprResult
+evalInput env =
+  case coreProgFromScript $ box'script $ inputEnv'self env of
+    Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
+    Nothing   -> Left $ ExecError FailedToDecodeScript
 
-evalBox  :: TxArg -> Box -> Either Error (Sigma PublicKey)
-evalBox tx box@Box{..} = case coreProgFromText $ unScript box'script of
-  Just prog -> execScriptToSigma (getScriptEnv tx box) prog
-  Nothing   -> Left $ ExecError FailedToDecodeScript
-
-getScriptEnv :: TxArg -> Box -> TxEnv
-getScriptEnv TxArg{..} box = TxEnv
-  { txEnv'self    = box
-  , txEnv'height  = env'height txArg'env
-  , txEnv'inputs  = txArg'inputs
-  , txEnv'outputs = txArg'outputs
-  , txEnv'args    = txArg'args
-  }
-
-joinSigma :: Vector (Sigma PublicKey) -> Sigma PublicKey
-joinSigma vs
-  | null qs        = Fix $ SigmaBool True
-  | any isFalse qs = Fix $ SigmaBool False
-  | otherwise      = Fix $ SigmaAnd qs
+verifyInput :: SignMessage -> Maybe Proof -> InputEnv -> Either Error Bool
+verifyInput message mProof env = fmap verifyResult $ evalInput env
   where
-    isTrue a  = a == (Fix $ SigmaBool True)
-    isFalse a = a == (Fix $ SigmaBool False)
+    verifyResult = \case
+      ConstBool b       -> b
+      SigmaResult sigma -> case sigma of
+        Fix (SigmaBool b) -> b
+        _                 -> maybe False (\proof -> equalSigmaProof sigma proof && verifyProof proof message) mProof
 
-    qs = filter (not . isTrue) $ V.toList vs
+-- | We verify that expression is evaluated to the sigma-value that is
+-- supplied by the proposer and then verify the proof itself.
+evalProveTx :: TxArg -> (Bool, Text)
+evalProveTx tx
+  | txPreservesValue tx =
+      case mapM (uncurry $ verifyInput message) $ splitInputs tx of
+        Right bs  -> (and bs, debug)
+        Left err  -> (False, renderText err)
+  | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
+  where
+    message = txArg'txBytes tx
+    -- todo: implement debug for core
+    debug   = ""
 

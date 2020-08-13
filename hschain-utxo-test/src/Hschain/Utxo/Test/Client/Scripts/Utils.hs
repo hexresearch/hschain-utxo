@@ -3,11 +3,11 @@ module Hschain.Utxo.Test.Client.Scripts.Utils(
   , send
   , SendResult(..)
   , newUser
-  , initMasterBox
   , initUsers
   , User(..)
   , Scene(..)
   , getTxHash
+  , mainScriptUnsafe
 ) where
 
 import Control.Timeout
@@ -23,9 +23,9 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Monad
 
 data SendResult = SendResult
-  { sendResult'from   :: BoxId
-  , sendResult'to     :: BoxId
-  , sendResult'txHash :: Maybe TxHash
+  { sendResult'changeId :: Maybe BoxId
+  , sendResult'to       :: BoxId
+  , sendResult'txHash   :: Maybe TxHash
   } deriving (Show, Eq)
 
 debugSend :: Bool -> Text -> Wallet -> BoxId -> Wallet -> Money -> App SendResult
@@ -42,7 +42,7 @@ debugSend isSuccess msg from fromBox to amount = do
       return res
     Left err -> do
       testCase (mconcat [msg, " ", err]) (False == isSuccess)
-      return $ SendResult fromBox fromBox Nothing
+      return $ SendResult (Just fromBox) fromBox Nothing
   where
     wait = sleep 0.25
 
@@ -58,14 +58,12 @@ newMasterUser = do
 
 send :: Wallet -> BoxId -> Wallet -> Money -> App (Either Text SendResult)
 send from fromBoxId to money = do
-  toBoxId <- allocAddress to
-  backBoxId <- allocAddress from
-  eTx <- newSendTx from  (Send fromBoxId toBoxId backBoxId money to)
-  forM eTx $ \tx -> do
+  eTx <- newSendTx from  (Send fromBoxId money to)
+  forM eTx $ \(tx, backId, toId) -> do
     logTest $ renderText tx
     resp <- postTx tx
     printTest resp
-    return $ SendResult backBoxId toBoxId (getTxHash resp)
+    return $ SendResult backId toId (getTxHash resp)
 
 getTxHash :: PostTxResponse -> Maybe TxHash
 getTxHash PostTxResponse{..} = postTxResponse'value
@@ -75,7 +73,7 @@ getTxHash PostTxResponse{..} = postTxResponse'value
 
 data User = User
   { user'wallet  :: !Wallet
-  , user'box     :: !BoxId
+  , user'box     :: !(Maybe BoxId)
   }
 
 data Scene = Scene
@@ -87,21 +85,21 @@ data Scene = Scene
 
 initUsers :: App Scene
 initUsers = do
-  master <- newMasterUser
-  alice  <- newUser "alice"
-  bob    <- newUser "bob"
-  john   <- newUser "john"
+  master        <- newMasterUser
+  alice         <- newUser "alice"
+  bob           <- newUser "bob"
+  john          <- newUser "john"
+  initMasterBox <- getMasterBoxId
   setupScene $ Scene
-    { scene'alice   = User alice  (box "alice")
-    , scene'bob     = User bob    (box "bob")
-    , scene'john    = User john   (box "john")
-    , scene'master  = User master initMasterBox
+    { scene'alice   = User alice  Nothing
+    , scene'bob     = User bob    Nothing
+    , scene'john    = User john   Nothing
+    , scene'master  = User master (Just initMasterBox)
     }
-  where
-    box user = BoxId $ mconcat [user, ":box-0"]
 
 setupScene :: Scene -> App Scene
 setupScene scene@Scene{..} = do
+  initMasterBox <- getMasterBoxId
   logTest "Start state:"
   st <- getState
   logTest $ renderText st
@@ -110,9 +108,9 @@ setupScene scene@Scene{..} = do
       bob    = user'wallet scene'bob
       john   = user'wallet scene'john
 
-  SendResult masterBox1 aliceBox _ <- debugSend True "Master sends 10 to alice" master initMasterBox alice 10
-  SendResult masterBox2 bobBox _   <- debugSend True "Master sends 10 to bob"   master masterBox1    bob   10
-  SendResult masterBox3 johnBox _  <- debugSend True "Master sends 10 to john"  master masterBox2    john  10
+  SendResult (Just masterBox1) aliceBox _ <- debugSend True "Master sends 10 to alice" master initMasterBox alice 10
+  SendResult (Just masterBox2) bobBox _   <- debugSend True "Master sends 10 to bob"   master masterBox1    bob   10
+  SendResult (Just masterBox3) johnBox _  <- debugSend True "Master sends 10 to john"  master masterBox2    john  10
   return $ scene
     { scene'alice  = withBox scene'alice  aliceBox
     , scene'bob    = withBox scene'bob    bobBox
@@ -120,5 +118,5 @@ setupScene scene@Scene{..} = do
     , scene'master = withBox scene'master masterBox3
     }
     where
-      withBox u b = u { user'box = b }
+      withBox u b = u { user'box = Just b }
 

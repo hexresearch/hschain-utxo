@@ -5,7 +5,9 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
+import Data.Coerce
 
+import HSChain.Mempool
 import HSChain.Types.Blockchain
 import HSChain.Types.Merkle.Types
 import HSChain.Store
@@ -18,18 +20,17 @@ import Hschain.Utxo.Blockchain.Logic
 
 -- | Connection to hschain internals.
 -- Low level API to post transactions.
-data Bchain m = Bchain {
-    bchain'conn       :: Connection 'RO BData
-  , bchain'mempool    :: Mempool m (Alg BData) Tx
-  , bchain'store      :: BChStore m BData
-  , bchain'waitForTx  :: m (TxHash -> m Bool)
+data Bchain m = Bchain
+  { bchain'conn          :: Connection 'RO
+  , bchain'mempoolCursor :: MempoolCursor (Alg BData) Tx
+  , bchain'state         :: m BoxChain
+  , bchain'waitForTx     :: m (TxHash -> m Bool)
   }
 
 -- | Transform underlying monad for @Bchain@.
 hoistBchain :: Functor n => (forall a. m a -> n a) -> Bchain m -> Bchain n
 hoistBchain f Bchain{..} = Bchain
-  { bchain'mempool    = hoistMempool f bchain'mempool
-  , bchain'store      = hoistDict    f bchain'store
+  { bchain'state      = f bchain'state
   , bchain'waitForTx  = fmap f <$> f bchain'waitForTx
   , ..
   }
@@ -44,27 +45,20 @@ class MonadIO m => MonadBChain m where
 writeTx :: (MonadBChain m) => Tx -> m (Maybe TxHash)
 writeTx tx = do
   Bchain{..} <- askBchain
-  liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
-    ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
+  liftIO $ fmap coerce <$> pushTxSync bchain'mempoolCursor tx
 
-readBlock :: (MonadIO m, MonadBChain m) => Int -> m (Maybe [Tx])
+readBlock :: (MonadIO m, MonadReadDB m, MonadCached BData m) => Int -> m (Maybe [Tx])
 readBlock height = do
-  Bchain{..} <- askBchain
-  liftIO $ do
-    mb <- runDBT bchain'conn $ queryRO $ retrieveBlock (Height $ fromIntegral height)
-    pure $ unBData . merkleValue . blockData <$> mb
+  mb <- queryRO $ retrieveBlock $ Height $ fromIntegral height
+  pure $ unBData . merkleValue . blockData <$> mb
 
-blockchainSize :: (MonadIO m, MonadBChain m) => m Int
+blockchainSize :: (MonadIO m, MonadReadDB m, MonadCached BData m) => m Int
 blockchainSize = do
-  Bchain{..} <- askBchain
-  liftIO $ do
-    Height h <- runDBT bchain'conn $ queryRO blockchainHeight
-    pure $! fromIntegral h
+  Height h <- queryRO blockchainHeight
+  pure $! fromIntegral h
 
 readBoxChainState :: (MonadBChain m) => m BoxChain
-readBoxChainState = do
-  Bchain{..} <- askBchain
-  liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
+readBoxChainState = liftIO . bchain'state =<< askBchain
 
 waitForTx :: (MonadBChain m) => m (TxHash -> m Bool)
 waitForTx = do

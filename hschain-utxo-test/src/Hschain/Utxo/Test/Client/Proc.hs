@@ -129,9 +129,10 @@ app opt genesisTx = do
 runTestProc :: App () -> IO Spec
 runTestProc testApp = do
   masterSecret <- newSecret
-  serviceResources <- app defaultServiceOptions $ initGenesis masterSecret
+  let (genesis, masterBoxId) = initGenesis masterSecret
+  serviceResources <- app defaultServiceOptions genesis
   wait
-  test <- runTest defaultTestSpec masterSecret $ testApp
+  test <- runTest defaultTestSpec masterSecret masterBoxId $ testApp
   clearResource serviceResources
   wait
   return $ toHspec $ test
@@ -146,7 +147,7 @@ withTestDir Options{..} nextAct = do
     withFixedDirectory dir name cont = do
       let resDir = dir </> name
       putStrLn $ mconcat ["Alocate directory for tests: ", resDir]
-      createDirectory resDir
+      createDirectoryIfMissing True resDir
       cont resDir
 
 clearDb :: FilePath -> IO ()

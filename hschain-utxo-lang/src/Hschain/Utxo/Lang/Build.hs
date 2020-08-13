@@ -2,8 +2,14 @@
 -- | Functions to construct AST for our language programmatically (not parsed from the code).
 -- They are well-typed with usage of phantom type but under the hood they all use type Lang.
 module Hschain.Utxo.Lang.Build(
-    int
+    simpleModule
+  , mainExprModule
+  , mainScript
+  , mainScriptUnsafe
+  , bind
+  , int
   , text
+  , bytes
   , pk
   , pk'
   , SigmaBool
@@ -14,21 +20,23 @@ module Hschain.Utxo.Lang.Build(
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
   , getInputs, getOutputs
-  , getIntVars, getBoolVars, getTextVars
-  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, vecAt
+  , getIntVars, getBoolVars, getTextVars, getBytesVars
+  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
   , var
   , def
   , (=:)
   , lam
   , lam2
   , app
-  , toScriptBytes
   , concatText
   , lengthText
   , showInt
   , showScript
   , sha256
-  , blake2b256
+  , serialiseInt
+  , serialiseBytes
+  , serialiseBool
+   ,serialiseText
   , trace
   , pair
   , pairAt1
@@ -38,19 +46,40 @@ module Hschain.Utxo.Lang.Build(
 ) where
 
 import Data.Boolean
+import Data.ByteString (ByteString)
 import Data.Fix
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import qualified Data.Text   as T
 import qualified Data.Vector as V
 
+import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Desugar
+import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
-import Hschain.Utxo.Lang.Types (toScript)
 
 import Hschain.Utxo.Lang.Expr
 
+-- | Creates module  out of single main expression and ignores the errors of compilation.
+mainScriptUnsafe :: Expr SigmaBool -> Script
+mainScriptUnsafe expr =
+  either (error . T.unpack . renderText) id $ mainScript expr
+
+-- | Creates module  out of single main expression.
+mainScript :: Expr SigmaBool -> Either Error Script
+mainScript expr = toCoreScript $ mainExprModule expr
+
+mainExprModule :: Expr SigmaBool -> Module
+mainExprModule expr = simpleModule [bind "main" expr]
+
+simpleModule :: [Bind Lang] -> Module
+simpleModule = Module noLoc mempty
+
+bind :: Text -> Expr a -> Bind Lang
+bind name (Expr expr) = simpleBind (VarName noLoc name) expr
 
 (=:) :: Text -> Expr a -> (Expr a -> Expr b) -> Expr b
 (=:) = def
@@ -63,6 +92,9 @@ int x = primExpr $ PrimInt $ fromIntegral x
 
 text :: Text -> Expr Text
 text x = primExpr $ PrimString x
+
+bytes :: ByteString -> Expr ByteString
+bytes x = primExpr $ PrimBytes x
 
 mkBool :: Bool -> Expr Bool
 mkBool x = primExpr $ PrimBool x
@@ -165,7 +197,7 @@ getBoxId (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldId
 getBoxValue :: Expr Box -> Expr Int
 getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
 
-getBoxScript :: Expr Box -> Expr Script
+getBoxScript :: Expr Box -> Expr ByteString
 getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScript
 
 getBoxIntArgList :: Expr Box -> Expr (Vector Int)
@@ -189,11 +221,8 @@ getBoolVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BoolArg
 getTextVars :: Expr (Vector Text)
 getTextVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc TextArg
 
-toScriptBytes :: Expr SigmaBool -> Expr Script
-toScriptBytes expr = unsafeCoerceExpr $ text $ unScript $ toScript expr
-
-unsafeCoerceExpr :: Expr a -> Expr b
-unsafeCoerceExpr (Expr a) = Expr a
+getBytesVars :: Expr (Vector ByteString)
+getBytesVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BytesArg
 
 getInputs :: Expr (Vector Box)
 getInputs = Expr $ Fix $ GetEnv noLoc (Inputs noLoc)
@@ -204,8 +233,8 @@ getOutputs = Expr $ Fix $ GetEnv noLoc (Outputs noLoc)
 fromVec :: Vector (Expr a) -> Expr (Vector a)
 fromVec vs = Expr $ Fix $ VecE noLoc $ NewVec noLoc $ fmap (\(Expr a) -> a) vs
 
-vecAt :: Expr (Vector a) -> Expr Int -> Expr a
-vecAt (Expr vector) (Expr index) = Expr $ Fix $ VecE noLoc $ VecAt noLoc vector index
+listAt :: Expr (Vector a) -> Expr Int -> Expr a
+listAt (Expr vector) (Expr index) = Expr $ Fix $ VecE noLoc $ VecAt noLoc vector index
 
 mapVec :: Expr (a -> b) -> Expr (Vector a) -> Expr (Vector b)
 mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecMap noLoc)) f) v
@@ -229,6 +258,7 @@ type instance BooleanOf (Expr Bool) = Expr Bool
 type instance BooleanOf (Expr Int) = Expr Bool
 type instance BooleanOf (Expr Text) = Expr Bool
 type instance BooleanOf (Expr Script) = Expr Bool
+type instance BooleanOf (Expr ByteString) = Expr Bool
 type instance BooleanOf (Expr (a, b)) = Expr Bool
 type instance BooleanOf (Expr (a, b, c)) = Expr Bool
 
@@ -239,6 +269,9 @@ instance IfB (Expr Bool) where
   ifB = ifExpr
 
 instance IfB (Expr Text) where
+  ifB = ifExpr
+
+instance IfB (Expr ByteString) where
   ifB = ifExpr
 
 instance IfB (Expr Script) where
@@ -278,6 +311,10 @@ instance EqB (Expr Text) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
 
+instance EqB (Expr ByteString) where
+  (==*) = op2 (BinOpE noLoc Equals)
+  (/=*) = op2 (BinOpE noLoc NotEquals)
+
 instance EqB (Expr Script) where
   (==*) = op2 (BinOpE noLoc Equals)
   (/=*) = op2 (BinOpE noLoc NotEquals)
@@ -290,11 +327,17 @@ instance OrdB (Expr Int) where
 instance OrdB (Expr Text) where
   (<*) = op2 (BinOpE noLoc LessThan)
 
+instance OrdB (Expr ByteString) where
+  (<*) = op2 (BinOpE noLoc LessThan)
+
 --------------------------
 -- text
 
 concatText :: Expr Text -> Expr Text -> Expr Text
 concatText (Expr a) (Expr b) = Expr $ Fix $ TextE noLoc $ TextAppend noLoc a b
+
+concatBytes :: Expr ByteString -> Expr ByteString -> Expr ByteString
+concatBytes (Expr a) (Expr b) = Expr $ Fix $ BytesE noLoc $ BytesAppend noLoc a b
 
 lengthText :: Expr Text -> Expr Int
 lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
@@ -305,17 +348,32 @@ showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText no
 showScript :: Expr Script -> Expr Text
 showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) a
 
-sha256 :: Expr Text -> Expr Text
-sha256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Sha256) a
+sha256 :: Expr ByteString -> Expr ByteString
+sha256 (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesHash noLoc Sha256 a
 
-blake2b256 :: Expr Text -> Expr Text
-blake2b256 (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc $ TextHash noLoc Blake2b256) a
+serialiseInt :: Expr Int -> Expr ByteString
+serialiseInt = serialiseBy IntArg
+
+serialiseText :: Expr Text -> Expr ByteString
+serialiseText = serialiseBy TextArg
+
+serialiseBytes :: Expr ByteString -> Expr ByteString
+serialiseBytes = serialiseBy BytesArg
+
+serialiseBool :: Expr Bool -> Expr ByteString
+serialiseBool = serialiseBy BoolArg
+
+serialiseBy :: ArgType -> Expr a -> Expr ByteString
+serialiseBy tag (Expr expr) = Expr $ Fix $ BytesE noLoc $ SerialiseToBytes noLoc tag expr
 
 -------------------------------
 -- monoids
 
 instance Semigroup (Expr Text) where
   (<>) = concatText
+
+instance Semigroup (Expr ByteString) where
+  (<>) = concatBytes
 
 instance Monoid (Expr Text) where
   mempty = ""

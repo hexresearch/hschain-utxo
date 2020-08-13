@@ -35,15 +35,17 @@ depIsAcyclic deps = all isAcyclic $ G.stronglyConnComp depGraph
 -- | Find free variables for expression.
 freeVars :: ExprCore -> Set Name
 freeVars = \case
-  EVar name     -> S.singleton $ typed'value name
-  EPrim _       -> S.empty
-  EAp f a       -> freeVars f <> freeVars a
-  ELet binds e  -> freeLetVars binds e
-  EIf a b c     -> freeVars a <> freeVars b <> freeVars c
-  ECase e alts  -> freeVars (typed'value e) <> foldMap freeAltVars alts
-  EConstr _ _ _ -> S.empty
-  EBottom       -> S.empty
+  EVar name       -> fromVar name
+  EPolyVar name _ -> fromVar name
+  EPrim _         -> S.empty
+  EAp f a         -> freeVars f <> freeVars a
+  ELet binds e    -> freeLetVars binds e
+  EIf a b c       -> freeVars a <> freeVars b <> freeVars c
+  ECase e alts    -> freeVars e <> foldMap freeAltVars alts
+  EConstr _ _ _   -> S.empty
+  EBottom         -> S.empty
   where
+    fromVar name = S.singleton name
     freeAltVars CaseAlt{..} =
       freeVars caseAlt'rhs S.\\ (S.fromList $ fmap typed'value caseAlt'args)
 
@@ -51,12 +53,12 @@ freeVars = \case
       where
         eVars = freeVars e S.\\ bindNames
 
-        bindNames = S.fromList $ fmap (typed'value . fst) binds
+        bindNames = S.fromList $ fmap fst binds
 
         bindVars = fst $ L.foldl' go (mempty, mempty) binds
           where
             go (res, binded) (name, expr) =
-              ((res <> freeVars expr) S.\\ binded, S.insert (typed'value name) binded)
+              ((res <> freeVars expr) S.\\ binded, S.insert name binded)
 
 -- | Build dependencies for a single supercmbinator
 scombToDep :: Scomb -> Dep
@@ -72,15 +74,18 @@ checkLetExpr = \case
   EAp f a       -> checkLetExpr f && checkLetExpr a
   ELet binds e  -> checkBinds binds e
   EIf a b c     -> checkLetExpr a && checkLetExpr b && checkLetExpr c
-  ECase e alts  -> checkLetExpr (typed'value e) && all checkAlts alts
+  ECase e alts  -> checkLetExpr e && all checkAlts alts
+  EVar _        -> checkVar
+  EPolyVar _ _  -> checkVar
   EConstr _ _ _ -> True
-  EVar _        -> True
   EPrim _       -> True
   EBottom       -> True
   where
+    checkVar = True
+
     checkBinds binds e = checkLetExpr e && all (checkLetExpr . snd) binds && check binds
       where
-        check bs = depIsAcyclic $ fmap (\b -> (typed'value $ fst b, S.toList $ freeVars $ snd b)) bs
+        check bs = depIsAcyclic $ fmap (\b -> (fst b, S.toList $ freeVars $ snd b)) bs
 
     checkAlts CaseAlt{..} = checkLetExpr caseAlt'rhs
 

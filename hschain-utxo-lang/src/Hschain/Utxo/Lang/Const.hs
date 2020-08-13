@@ -9,11 +9,26 @@ module Hschain.Utxo.Lang.Const(
   , getArgs
   -- * Boxes
   , getBoxArgs
-  , getBoxName
+  , getBoxId
   , getBoxScript
   , getBoxValue
+  -- * List functions
+  , listAt
+  , map
+  , filter
+  , foldr
+  , foldl
+  , length
+  , appendList
+  -- * Bytes functions
+  , appendBytes
+  , serialiseBytes
+  , deserialiseBytes
+  , sha256
 ) where
 
+import Prelude hiding (map, filter, foldr, foldl, length)
+import Data.String
 import Data.Text (Text)
 
 -- TODO: define all names for primitive functions in this module.
@@ -43,9 +58,37 @@ getArgs typeName = mconcat ["get", typeName, "Args"]
 getBoxArgs :: Text -> Text
 getBoxArgs typeName = mconcat ["getBox", typeName, "Args"]
 
-getBoxName, getBoxScript, getBoxValue :: Text
+getBoxId, getBoxScript, getBoxValue :: Text
 
-getBoxName   = "getBoxName"
+getBoxId     = "getBoxId"
 getBoxScript = "getBoxScript"
 getBoxValue  = "getBoxValue"
+
+-------------------------------------------------------------------
+-- list functions
+
+listAt, map, filter, foldr, foldl, length, appendList :: IsString a => a
+
+listAt = "listAt"
+map    = "map"
+filter = "filter"
+foldr  = "foldr"
+foldl  = "foldl"
+length = "length"
+appendList = "++"
+
+-------------------------------------------------------------------
+-- bytes functions
+
+appendBytes :: Text
+appendBytes = "appendBytes"
+
+serialiseBytes :: Text -> Text
+serialiseBytes typeName = "serialise" <> typeName
+
+deserialiseBytes :: Text -> Text
+deserialiseBytes typeName = "deserialise" <> typeName
+
+sha256 :: Text
+sha256 = "sha256"
 

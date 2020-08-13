@@ -29,7 +29,6 @@ import System.Console.Haskeline.MonadException
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Infer
-import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Repl.Imports
 
 -- | Parse user input in the repl
@@ -73,7 +72,7 @@ runReplM tx (ReplM app) = evalStateT app defEnv
         { replEnv'tx            = tx
         , replEnv'imports       = def
         , replEnv'closure       = id
-        , replEnv'words         = baseNames
+        , replEnv'words         = mempty
         , replEnv'txFile        = Nothing
         }
 

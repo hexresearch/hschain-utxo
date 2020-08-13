@@ -44,18 +44,27 @@ instance CryptoHashable BoxChain where
 --
 -- The value of type @TxArg@ is self-contained for execution.
 toTxArg :: BoxChain -> Tx -> Either Text TxArg
-toTxArg bch@BoxChain{..} Tx{..} = fmap (\inputs ->
+toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
   TxArg
     { txArg'outputs = tx'outputs
     , txArg'inputs  = inputs
-    , txArg'args    = tx'args
-    , txArg'proof   = tx'proof
     , txArg'env     = getEnv bch
+    , txArg'txBytes = getTxBytes tx
     }
   ) mInputs
   where
-    mInputs = mapM (\boxId -> maybe (noInputFor boxId) Right $ M.lookup boxId boxChain'boxes) tx'inputs
-    noInputFor (BoxId idx) = Left $ mconcat ["Error: no box input with id: ", idx]
+    mInputs = mapM lookupInput tx'inputs
+    noInputFor boxId = Left $ mconcat ["Error: no box input with id: ", renderText boxId]
+
+    lookupInput BoxInputRef{..} =
+        maybe (noInputFor boxInputRef'id) (Right . toBoxInput) $
+          M.lookup boxInputRef'id boxChain'boxes
+      where
+        toBoxInput box = BoxInput
+          { boxInput'box   = box
+          , boxInput'args  = boxInputRef'args
+          , boxInput'proof = boxInputRef'proof
+          }
 
 -- | Read blockchain environment.
 getEnv :: BoxChain -> Env

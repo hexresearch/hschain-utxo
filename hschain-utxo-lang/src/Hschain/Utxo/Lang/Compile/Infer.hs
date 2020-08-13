@@ -14,7 +14,7 @@ import qualified Data.Map.Strict as M
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
@@ -54,6 +54,9 @@ instance H.IsPrim PrimLoc where
 
 eraseLoc :: TypeCore -> H.Type Loc Tag
 eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
+
+eraseSignatureLoc :: SignatureCore -> H.Signature Loc Tag
+eraseSignatureLoc = H.mapLoc (const noLoc) . fmap VarTag
 
 eraseWith :: Loc -> TypeCore -> H.Type Loc Tag
 eraseWith loc = H.mapLoc (const loc) . fmap VarTag
@@ -102,7 +105,7 @@ annotateTypes =
       EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
       EBottom loc     -> H.bottomE loc
       EConstr loc ty tag arity -> H.constrE loc (eraseWith loc ty) (ConstrTag tag) arity
-      ELet loc bs e   -> H.letE loc (fmap (fromBind loc) bs) e
+      ELet loc bs e   -> foldr (\b rhs -> H.letE loc [fromBind loc b] rhs) e bs
       EAssertType loc e ty -> H.assertTypeE loc e (eraseWith loc ty)
       ECase loc e alts -> H.caseE loc e (fmap fromAlt alts)
 
@@ -178,7 +181,7 @@ libTypeContext = (H.Context $ M.fromList
     aT = varT' "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
 
-    fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap (H.typeToSignature . eraseLoc) ctx
+    fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap eraseSignatureLoc ctx
 
     genericCompareOps = H.Context $ M.fromList $ fmap (, cmpT) $
       [ "==", "/=", "<", ">", "<=", ">=" ]

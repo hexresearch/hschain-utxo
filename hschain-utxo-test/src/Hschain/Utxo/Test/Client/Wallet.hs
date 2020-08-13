@@ -4,7 +4,6 @@ module Hschain.Utxo.Test.Client.Wallet(
     Wallet(..)
   , newWallet
   , getWalletPublicKey
-  , allocAddress
   , getBalance
   , getBoxBalance
   , newSendTx
@@ -15,6 +14,8 @@ module Hschain.Utxo.Test.Client.Wallet(
   , getProofEnv
   , newProofOrFail
   , getTxSigmaUnsafe
+  , singleOwnerSigmaExpr
+  , appendSenderReceiverIds
 ) where
 
 import Control.Concurrent.STM
@@ -24,15 +25,13 @@ import Control.Monad.Except
 import Data.Fix
 import Data.Maybe
 import Data.Text (Text)
-import Data.UUID
+import Data.Vector (Vector)
 
-import System.Random
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Monad
 
-import qualified Data.Text as T
 import qualified Data.Vector as V
 
 -- | User wallet
@@ -52,24 +51,9 @@ newWallet userId pubKey = liftIO $ do
 getWalletPublicKey :: Wallet -> PublicKey
 getWalletPublicKey = getPublicKey . wallet'privateKey
 
--- | Generates address name and saves it to the wallet utxo list
-allocAddress :: MonadIO io => Wallet -> io BoxId
-allocAddress wallet@Wallet{..} = liftIO $ do
-  addr <- newAddress wallet
-  atomically $ modifyTVar' wallet'utxos $ (addr : )
-  return addr
-
 -- | Gets user proof environment or list of keys
 getProofEnv :: Wallet -> ProofEnv
 getProofEnv Wallet{..} = proofEnvFromKeys [getKeyPair wallet'privateKey]
-
--- | Generates new address name
-newAddress :: MonadIO io => Wallet -> io BoxId
-newAddress Wallet{..} = liftIO $ do
-  idx <- fmap (T.pack .show) (randomIO :: IO UUID)
-  return $ BoxId $ mconcat [ userId, "-", idx]
-  where
-    userId = (\(UserId uid) -> uid) wallet'user
 
 -- | Query the user balance.
 getBalance :: Wallet -> App Money
@@ -78,24 +62,20 @@ getBalance Wallet{..} = do
   fmap (sum . catMaybes) $ mapM getBoxBalance xs
 
 -- | Create proof for a most simple expression of @pk user-key@
-getOwnerProof :: MonadIO io => Wallet -> io (Either Text Proof)
-getOwnerProof w@Wallet{..} =
-  liftIO $ newProof env $ Fix $ SigmaPk (getWalletPublicKey w)
+getOwnerProof :: MonadIO io => Wallet -> Tx -> io (Either Text Proof)
+getOwnerProof w@Wallet{..} tx =
+  liftIO $ newProof env (Fix $ SigmaPk (getWalletPublicKey w)) (getTxBytes tx)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 
-getOwnerProofUnsafe :: Wallet -> App Proof
-getOwnerProofUnsafe wallet =
-  either throwError pure =<< getOwnerProof wallet
+getOwnerProofUnsafe :: Wallet -> Tx -> App Proof
+getOwnerProofUnsafe wallet tx =
+  either throwError pure =<< getOwnerProof wallet tx
 
 -- | Send money from one user to another
 data Send = Send
   { send'from    :: !BoxId
   -- ^ from user box
-  , send'to      :: !BoxId
-  -- ^ to user box
-  , send'back    :: !BoxId
-  -- ^ where to put exchange
   , send'amount  :: !Money
   -- ^ amount of money to send
   , send'recepientWallet :: !Wallet -- TODO: we need it right now, substitute it with public key in the future
@@ -104,64 +84,74 @@ data Send = Send
 -- | Data to hold the data for exchange send
 data SendBack = SendBack
   { sendBack'totalAmount  :: !Money  -- ^ amount of money
-  , sendBack'backBox      :: !BoxId  -- ^ where to send exchange
   }
 
 -- | Creates script that sends money from user to another
-newSendTx :: Wallet -> Send -> App (Either Text Tx)
+newSendTx :: Wallet -> Send -> App (Either Text (Tx, Maybe BoxId, BoxId))
 newSendTx wallet send@Send{..} = do
   back <- getSendBack
-  preTx <- toSendTx wallet send back Nothing
-  eSigma <- getTxSigma preTx
-  fmap join $ forM eSigma $ \sigma -> do
-    let env = getProofEnv wallet
-    eProof <- liftIO $ newProof env sigma
-    case eProof of
-      Right proof -> fmap Right $ toSendTx wallet send back (Just proof)
-      Left err    -> return $ Left err
+  toSendTx wallet send back
   where
     getSendBack = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
-      return $ SendBack totalAmount send'back
+      return $ SendBack totalAmount
 
-newProofOrFail :: ProofEnv -> Sigma PublicKey -> App Proof
-newProofOrFail env expr = do
-  eProof <- liftIO $ newProof env expr
+newProofOrFail :: ProofEnv -> Sigma PublicKey -> SignMessage -> App Proof
+newProofOrFail env expr message = do
+  eProof <- liftIO $ newProof env expr message
   case eProof of
     Right proof -> return proof
     Left err    -> throwError err
 
-getTxSigmaUnsafe :: Tx -> App (Sigma PublicKey)
+getTxSigmaUnsafe :: Tx -> App (Vector (Sigma PublicKey))
 getTxSigmaUnsafe tx = either throwError pure =<< getTxSigma tx
 
-getSigmaForProof :: Tx -> App (Sigma PublicKey)
+getSigmaForProof :: Tx -> App (Vector (Sigma PublicKey))
 getSigmaForProof tx = getTxSigmaUnsafe tx
 
+singleOwnerSigmaExpr :: Wallet -> Sigma PublicKey
+singleOwnerSigmaExpr wallet = Fix $ SigmaPk $ getWalletPublicKey wallet
+
 -- | Sends money with exchange
-toSendTx :: Wallet -> Send -> SendBack -> Maybe Proof -> App Tx
-toSendTx wallet Send{..} SendBack{..} mProof = do
-  return $ Tx
-        { tx'inputs   = V.fromList [inputBox]
-        , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-        , tx'proof    = mProof
-        , tx'args     = mempty
-        }
+--
+-- returns tripple: (tx, box address for change if needed, receiver output result)
+toSendTx :: Wallet -> Send -> SendBack -> App (Either Text (Tx, Maybe BoxId, BoxId))
+toSendTx wallet Send{..} SendBack{..} =
+  fmap (fmap appendSenderReceiverIds) $ newProofTxOrFail (getProofEnv wallet) preTx
   where
-    inputBox = send'from
+    preTx = PreTx
+      { preTx'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      , preTx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      }
+
+    inputBox = BoxInputRef
+      { boxInputRef'id    = send'from
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Nothing
+      }
 
     senderUtxo
-      | sendBack'totalAmount > send'amount = Just $ Box
-                { box'id     = sendBack'backBox
-                , box'value  = sendBack'totalAmount - send'amount
-                , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
-                , box'args   = mempty
+      | sendBack'totalAmount > send'amount = Just $ PreBox
+                { preBox'value  = sendBack'totalAmount - send'amount
+                , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+                , preBox'args   = mempty
                 }
       | otherwise                 = Nothing
 
-    receiverUtxo = Box
-      { box'id     = send'to
-      , box'value  = send'amount
-      , box'script = toScript $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
-      , box'args   = mempty
+    receiverUtxo = PreBox
+      { preBox'value  = send'amount
+      , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
+      , preBox'args   = mempty
       }
+
+appendSenderReceiverIds :: Tx -> (Tx, Maybe BoxId, BoxId)
+appendSenderReceiverIds tx = (tx, sender, receiver)
+  where
+    (sender, receiver) = extractSenderReceiverIds tx
+
+extractSenderReceiverIds :: Tx -> (Maybe BoxId, BoxId)
+extractSenderReceiverIds tx = case tx'outputs tx of
+  [receiver]         -> (Nothing, box'id receiver)
+  [sender, receiver] -> (Just $ box'id sender, box'id receiver)
+  _                  -> error "Not enough outputs fot TX"
 

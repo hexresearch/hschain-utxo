@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Core.Data.Output(
 ) where
 
 import Control.DeepSeq
+
 import Data.Sequence (Seq, (|>))
 
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -19,4 +20,3 @@ put el (Output xs) = Output $ xs |> el
 
 toList :: Output -> [Prim]
 toList (Output xs) = F.toList xs
-

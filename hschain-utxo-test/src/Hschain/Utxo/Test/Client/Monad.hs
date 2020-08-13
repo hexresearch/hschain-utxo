@@ -11,6 +11,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , getState
   , getBoxChainEnv
   , getMasterSecret
+  , getMasterBoxId
   , forceLogTest
   , logTest
   , printTest
@@ -18,8 +19,8 @@ module Hschain.Utxo.Test.Client.Monad(
   , testCase
   , runTest
   , toHspec
-  , initMasterBox
   , initGenesis
+  , mainScriptUnsafe
 ) where
 
 import Hex.Common.Text
@@ -33,12 +34,13 @@ import Control.Monad.Reader
 import Data.Int
 import Data.Sequence (Seq)
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import Test.Hspec
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build (pk')
+import Hschain.Utxo.Lang.Build (pk', mainScriptUnsafe)
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Config
 
@@ -59,7 +61,7 @@ data TestCase = TestCase
   } deriving (Show, Eq)
 
 newtype App a = App { unApp :: ReaderT TestEnv (ExceptT Text IO) a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader TestEnv, MonadError Text)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadFail, MonadReader TestEnv, MonadError Text)
 
 data TestEnv = TestEnv
   { testEnv'client         :: !C.ClientSpec
@@ -67,6 +69,7 @@ data TestEnv = TestEnv
   , testEnv'log            :: TVar (Seq Text)
   , testEnv'test           :: TVar Test
   , testEnv'masterSecret   :: !Secret
+  , testEnv'masterBoxId    :: !BoxId
   }
 
 data TestSpec = TestSpec
@@ -77,8 +80,11 @@ data TestSpec = TestSpec
 getMasterSecret :: App Secret
 getMasterSecret = asks testEnv'masterSecret
 
-runTest :: TestSpec -> Secret -> App () -> IO Test
-runTest TestSpec{..} masterSecret app = do
+getMasterBoxId :: App BoxId
+getMasterBoxId = asks testEnv'masterBoxId
+
+runTest :: TestSpec -> Secret -> BoxId -> App () -> IO Test
+runTest TestSpec{..} masterSecret masterBoxId app = do
   testTv <- newTVarIO emptyTest
   logTv <- newTVarIO mempty
   res <- runApp (env testTv logTv masterSecret) app
@@ -93,6 +99,7 @@ runTest TestSpec{..} masterSecret app = do
         , testEnv'log = logTv
         , testEnv'test = tv
         , testEnv'masterSecret = masterPrivateKey
+        , testEnv'masterBoxId  = masterBoxId
         }
 
     emptyTest = Test "" mempty
@@ -145,15 +152,15 @@ getState = call C.getState
 getBoxChainEnv :: App Env
 getBoxChainEnv = fmap unGetEnvResponse $ call C.getEnv
 
-getTxSigma :: Tx -> App (Either Text (Sigma PublicKey))
+getTxSigma :: Tx -> App (Either Text (Vector (Sigma PublicKey)))
 getTxSigma tx = do
   resp <- call $ C.getTxSigma tx
   logTest $ T.unlines ["PRE TX SIGMA:", showt resp]
-  case sigmaTxResponse'value resp of
-    Right boolRes -> return $ case boolRes of
+  return $ mapM extractSigma =<< sigmaTxResponse'value resp
+  where
+    extractSigma val = case val of
       SigmaResult sigma -> Right sigma
       ConstBool b       -> Left $ mconcat ["Not a sigma-expression from result, got ", showt b]
-    Left err -> return $ Left err
 
 -------------------------
 -- test to hspec
@@ -166,31 +173,24 @@ toHspec Test{..} =
     fromCase TestCase{..} =
       it (T.unpack testCase'name) $ testCase'value `shouldBe` True
 
-
-initGenesis :: Secret -> Genesis
-initGenesis secret = [tx]
+-- | returns genesis and the identifier of the master root box.
+initGenesis :: Secret -> (Genesis, BoxId)
+initGenesis secret = ([tx], masterBoxId)
   where
-    publicKey = getPublicKey secret
+    masterBoxId = box'id $ V.head $ tx'outputs tx
 
-    box = Box
-      { box'id     = initMasterBox
-      , box'value  = initMoney
-      , box'script = toScript $ pk' publicKey
-      , box'args   = mempty
+    tx = newTx $ PreTx
+      { preTx'inputs  = []
+      , preTx'outputs = [box]
       }
 
-    tx = Tx
-      { tx'inputs  = V.empty
-      , tx'outputs = V.fromList [box]
-      , tx'proof   = Nothing
-      , tx'args    = mempty
+    publicKey = getPublicKey secret
+
+    box = PreBox
+      { preBox'value  = initMoney
+      , preBox'script = mainScriptUnsafe $ pk' publicKey
+      , preBox'args   = mempty
       }
 
     initMoney = 1000000
-
--- | Initial master box for default genesis.
--- All funds belong to master-user.
-initMasterBox :: BoxId
-initMasterBox = BoxId "master:box-0"
-
 

@@ -9,6 +9,8 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
 
 import Control.Applicative
 
+import Data.Fix
+
 import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.Compile.Env
 import Hschain.Utxo.Lang.Core.Compile.Primitives
@@ -22,7 +24,7 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (TxEnv)
+import Hschain.Utxo.Lang.Types (InputEnv)
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
@@ -40,17 +42,19 @@ import qualified Hschain.Utxo.Lang.Error as E
 -- Sigma script should contain main function that
 -- returns sigma-expression. The script should be well-typed and
 -- contain no recursion.
-execScriptToSigma :: TxEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
+execScriptToSigma :: InputEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
 execScriptToSigma env prog = case isSigmaScript prog of
-  Nothing  -> either (Left . E.ExecError . E.GmachineError) getSigmaOutput $ eval $ compile $ removeDeadCode $ addPrelude env prog
+  Nothing  -> either (Left . E.ExecError . E.GmachineError) getSigmaOutput
+            $ eval $ compile $ removeDeadCode $ addPrelude env prog
   Just err -> Left err
   where
     getSigmaOutput st = case Output.toList $ gmachine'output st of
-      [PrimSigma sigma] -> Right sigma
+      [PrimSigma sigma] -> Right $ either (Fix . SigmaBool) id $ eliminateSigmaBool sigma
+      [PrimBool b]      -> Right $ Fix $ SigmaBool b
       _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
 
-addPrelude :: TxEnv -> CoreProg -> CoreProg
-addPrelude txEnv prog = preludeLib txEnv <> prog
+addPrelude :: InputEnv -> CoreProg -> CoreProg
+addPrelude inputEnv prog = preludeLib inputEnv <> prog
 
 -- | TODO: implement the function to remove unreachable code.
 -- We start from main and then include only functions that are needed by finding free variables.
@@ -78,7 +82,7 @@ coreProgTerminates prog =
       coreTypeError   (typeCheck preludeTypeContext prog)
   <|> recursiveScript (recursionCheck prog)
   where
-    coreTypeError   = E.wrapBoolError (E.CoreScriptError E.CoreTypeError)
+    coreTypeError   = fmap (E.CoreScriptError . E.TypeCoreError)
     recursiveScript = E.wrapBoolError (E.CoreScriptError E.RecursiveScript )
 
 mainIsSigma :: CoreProg -> Maybe E.Error
@@ -132,9 +136,9 @@ compileSc Scomb{..} = CompiledScomb
 compileR :: ExprCore -> Env -> Int -> Code
 compileR expr env arity =
   case expr of
-    ELet es e                         -> compileLetR env arity (fmap stripLetType es) e
+    ELet es e                         -> compileLetR env arity es e
     EIf a b c                         -> compileIf a b c
-    ECase e alts                      -> compileCaseR (typed'value e) alts
+    ECase e alts                      -> compileCaseR e alts
     _                                 -> defaultCase
   where
     endInstrs
@@ -155,9 +159,6 @@ compileR expr env arity =
 
     compileCaseR e alts = compileE e env <> Code.singleton (CaseJump $ compileAltsR arity env alts)
 
-stripLetType :: (Typed Name, ExprCore) -> (Name, ExprCore)
-stripLetType (n, e) = (typed'value n, e)
-
 compileLetR :: Env -> Int -> [(Name, ExprCore)] -> ExprCore -> Code
 compileLetR env arity defs e =
   lets <> compileR e env' (arity + length defs)
@@ -169,16 +170,19 @@ compileLetR env arity defs e =
 compileE :: ExprCore -> Env -> Code
 compileE expr env = case expr of
   EPrim n -> Code.singleton $ PushPrim n
-  ELet es e -> compileLet env (fmap stripLetType es) e
+  ELet es e -> compileLet env es e
   EIf a b c                         -> compileIf a b c
-  EAp (EAp (EVar op) a) b           -> compileDiadic (typed'value op) a b
-  EAp (EVar op) a                   -> compileUnary (typed'value op) a
-  ECase e alts -> compileCase env (typed'value e) alts
+  EAp (EAp (EVar op) a) b           -> compileDiadic op a b
+  EAp (EAp (EPolyVar op _) a) b     -> compileDiadic op a b
+  EAp (EVar op) a                   -> compileUnary op a
+  EAp (EPolyVar op _) a             -> compileUnary op a
+  ECase e alts -> compileCase env e alts
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
   --
-  EVar{}  -> defaultCase
-  EAp{}   -> defaultCase
-  EBottom -> defaultCase
+  EVar{}     -> defaultCase
+  EPolyVar{} -> defaultCase
+  EAp{}      -> defaultCase
+  EBottom    -> defaultCase
   where
     compileDiadic op a b =
       case M.lookup op builtInDiadic of
@@ -201,20 +205,24 @@ compileCase env e alts = compileE e env <> Code.singleton (CaseJump $ compileAlt
 -- | Compile expression in lazy context
 compileC :: ExprCore -> Env -> Code
 compileC expr env = case expr of
-  EVar v  -> Code.singleton $ case lookupEnv (typed'value v) env of
-               Just n  -> Push n
-               Nothing -> PushGlobal (GlobalName $ typed'value v)
+  EVar v              -> fromVar v
+  EPolyVar v _        -> fromVar v
   EPrim n             -> Code.singleton $ PushPrim n
   EAp a b             -> compileC b env <> compileC a (argOffset 1 env) <> Code.singleton Mkap
-  ELet es e           -> compileLet env (fmap stripLetType es) e
+  ELet es e           -> compileLet env es e
   EConstr _ tag arity -> Code.singleton $ PushGlobal $ ConstrName tag arity
-  ECase e alts        -> compileCase env (typed'value e) alts
+  ECase e alts        -> compileCase env e alts
   EIf a b c           -> compileIf a b c
   EBottom             -> Code.singleton Bottom
   -- TODO: we need to substitute it with special case
   -- see discussion at the book on impl at p. 136 section: 3.8.7
   where
     compileIf a b c = compileB a env <> Code.singleton (Cond (compileE b env) (compileE c env))
+
+    fromVar v =
+      Code.singleton $ case lookupEnv v env of
+        Just n  -> Push n
+        Nothing -> PushGlobal (GlobalName v)
 
 compileLet :: Env -> [(Name, ExprCore)] -> ExprCore -> Code
 compileLet env defs e =
@@ -263,10 +271,10 @@ compileAlt comp env CaseAlt{..} = (caseAlt'tag, comp arity caseAlt'rhs env')
 compileB :: ExprCore -> Env -> Code
 compileB expr env = case expr of
   EPrim n                           -> Code.singleton $ PushBasic n
-  ELet es e                         -> compileLetB env (fmap stripLetType es) e
+  ELet es e                         -> compileLetB env es e
   EIf a b c                         -> compileIf a b c
-  EAp (EAp (EVar op) a) b           -> compileDiadic (typed'value op) a b
-  EAp (EVar op) a                   -> compileUnary (typed'value op) a
+  EAp (EAp (EVar op) a) b           -> compileDiadic op a b
+  EAp (EVar op) a                   -> compileUnary op a
   _                                 -> defaultCase
   where
     compileIf a b c =

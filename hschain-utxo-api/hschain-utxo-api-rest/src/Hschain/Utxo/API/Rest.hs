@@ -4,10 +4,12 @@ module Hschain.Utxo.API.Rest where
 
 import Hex.Common.Aeson
 import Hex.Common.Serialise
+import Hex.Common.Text
 
 import Control.Monad
 
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import Web.HttpApiData
 
@@ -54,9 +56,9 @@ data PostTxResponse = PostTxResponse
 
 -- | Result of execution of TX in the current state of blockchain.
 data SigmaTxResponse = SigmaTxResponse
-  { sigmaTxResponse'value :: !(Either Text BoolExprResult)  -- ^ result of execution
-                                                            -- (sigma-expression or boolean)
-  , sigmaTxResponse'debug :: !Text }                        -- ^ Debug info on the process of execution
+  { sigmaTxResponse'value :: !(Either Text (Vector BoolExprResult))  -- ^ result of execution
+                                                                     -- (sigma-expression or boolean)
+  , sigmaTxResponse'debug :: !Text }                                 -- ^ Debug info on the process of execution
   deriving (Show, Eq)
 
 -- | Useful stats about state of the blockchain
@@ -72,10 +74,12 @@ instance FromHttpApiData TxHash where
       err = Left "Failed to decode query param for TxHash"
 
 instance ToHttpApiData BoxId where
-  toQueryParam (BoxId txt) = txt
+  toQueryParam = toText
 
 instance FromHttpApiData BoxId where
-  parseQueryParam = fmap (fmap BoxId) parseQueryParam
+  parseQueryParam = (\txt -> maybe (err txt) Right $ fromText txt) <=< parseQueryParam
+    where
+      err txt = Left $ "Failed to parse boxId from: " <> txt
 
 $(deriveJSON dropPrefixOptions ''PostTxResponse)
 $(deriveJSON dropPrefixOptions ''SigmaTxResponse)

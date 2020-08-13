@@ -2,33 +2,32 @@ module Hschain.Utxo.Blockchain.Interpret(
     UtxoAlg
   , UtxoError(..)
   , BData(..)
-  , initBoxChain
   , interpretSpec
---  , interpretSpecWithCallback
 ) where
 
 import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Control.Monad.Catch
-import Control.Monad.Trans.Except
 import Data.Default.Class
 import Data.Function (fix)
+import Data.IORef
 import Data.Either
+import qualified Data.Map.Strict as Map
 
 import HSChain.Blockchain.Internal.Engine.Types
 import HSChain.Control.Class
 import HSChain.Crypto hiding (PublicKey)
 import HSChain.Logger
+import HSChain.Mempool
 import HSChain.Monitoring
 import HSChain.Run
 import HSChain.Network.TCP (newNetworkTcp)
 import HSChain.Store
-import HSChain.Store.STM
 import HSChain.Types
 import HSChain.Types.Merkle.Types
+import HSChain.Internal.Types.Consensus
 
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.State.Types
 
 import Hschain.Utxo.Blockchain.Logic
 import Hschain.Utxo.Blockchain.Bchain
@@ -37,52 +36,44 @@ import Hschain.Utxo.Blockchain.Net
 ------------------------------------------
 
 interpretSpec
-   :: ( MonadDB BData m, MonadFork m, MonadMask m, MonadLogger m
+   :: ( MonadDB m, MonadCached BData m, MonadFork m, MonadMask m, MonadLogger m
       , MonadTMMonitoring m)
    => (Block BData -> m ())
    -> NodeSpec
    -> [Tx]
    -> m (Bchain m, [m ()])
-interpretSpec callBackOnCommit nodeSpec genesisTx = do
+interpretSpec callBackOnCommit nodeSpec@NodeSpec{..} genesisTx = do
   txWaitChan <- liftIO newBroadcastTChanIO
-  conn     <- askConnectionRO
-  store    <- newSTMBchStorage $ blockchainState genesis
-  mempool  <- makeMempool store (ExceptT . return)
-  acts <- runNode (def :: Configuration BoxChainConfig)
-        $ getNodeDesc nodeSpec mempool store genesis txWaitChan callBackOnCommit
+  conn       <- askConnectionRO
+  (state,stRef,memThr) <- inMemoryView validatorSet
+  let node = NodeDescription
+        { nodeValidationKey = nspec'privKey
+        , nodeGenesis       = genesis
+        , nodeCallbacks     = mempty { appCommitCallback = \b -> do
+                                         getCommitCallback txWaitChan b
+                                         callBackOnCommit b
+                                     }
+        , nodeStateView     = state
+        , nodeNetwork       = BlockchainNet
+            { bchNetwork      = newNetworkTcp nspec'port
+            , bchInitialPeers = nspec'seeds
+            }
+    }
+  acts <- runNode (def :: Configuration BoxChainConfig) node
+  cursor <- getMempoolCursor $ mempoolHandle $ stateMempool state
   let bchain = Bchain
-          { bchain'conn       = conn
-          , bchain'mempool    = mempool
-          , bchain'store      = store
-          , bchain'waitForTx  = getTxWait txWaitChan mempool
+          { bchain'conn          = conn
+          , bchain'mempoolCursor = cursor
+          , bchain'state         = liftIO $ readIORef stRef
+          , bchain'waitForTx     = getTxWait txWaitChan $ stateMempool state
           }
-  return (bchain, acts)
+  return (bchain, acts ++ memThr)
   where
     validatorSet = getValidatorSet nodeSpec
-    genesis      = initBoxChain validatorSet genesisTx
-
-getNodeDesc :: (Monad m, MonadIO m)
-  => NodeSpec
-  -> Mempool m (Alg BData) Tx
-  -> BChStore m BData
-  -> Genesis BData
-  -> TChan [Hash UtxoAlg]
-  -> (Block BData -> m ())
-  -> NodeDescription m BData
-getNodeDesc NodeSpec{..} mempool store genesis txWaitChan callBackOnCommit =
-  NodeDescription
-    { nodeValidationKey = nspec'privKey
-    , nodeGenesis       = genesis
-    , nodeCallbacks     = mempty { appCommitCallback = getCommitCallback txWaitChan callBackOnCommit }
-    , nodeRunner        = ExceptT . return
-    , nodeStore         = AppStore { appBchState = store
-                                   , appMempool  = mempool
-                                   }
-    , nodeNetwork       = BlockchainNet
-        { bchNetwork      = newNetworkTcp nspec'port
-        , bchInitialPeers = nspec'seeds
-        }
-    }
+    genesis      = Genesis
+      { genesisValSet = validatorSet
+      , genesisBlock  = makeGenesis (BData genesisTx) validatorSet validatorSet
+      }
 
 getTxWait :: (Monad m, MonadIO m)
   => TChan [Hash UtxoAlg]
@@ -98,16 +89,19 @@ getTxWait txWaitChan mempool = do
       False -> txInMempool mempool h >>= \case
         True  -> loop
         False -> pure False
+  where
+    txInMempool Mempool{..} h = do
+      MempoolState{..} <- liftIO getMempoolState
+      return $ h `Map.member` mempRevMap
+      
 
 getCommitCallback :: (Monad m, MonadIO m)
   => TChan [Hash UtxoAlg]
-  -> (Block BData -> m ())
   -> Block BData
   -> m ()
-getCommitCallback txWaitChan callBackOnCommit b = do
+getCommitCallback txWaitChan b = do
   liftIO $ atomically $ writeTChan txWaitChan $ fmap hash $ (\(BData txs) -> txs) $ merkleValue $ blockData b
-  -- User callback
-  callBackOnCommit b
+
 
 getValidatorSet :: NodeSpec -> ValidatorSet UtxoAlg
 getValidatorSet NodeSpec{..} =
@@ -121,11 +115,10 @@ getValidatorSet NodeSpec{..} =
 makeGenesis
   :: (Crypto (Alg a), CryptoHashable a)
   => a                          -- ^ Block data
-  -> Hashed (Alg a) (BlockchainState a)
-  -> ValidatorSet (Alg a)           -- ^ Set of validators for H=0
-  -> ValidatorSet (Alg a)           -- ^ Set of validators for H=1
+  -> ValidatorSet (Alg a)       -- ^ Set of validators for H=0
+  -> ValidatorSet (Alg a)       -- ^ Set of validators for H=1
   -> Block a
-makeGenesis dat stateHash valSet0 valSet1 = Block
+makeGenesis dat valSet0 valSet1 = Block
   { blockHeight        = Height 0
   , blockPrevBlockID   = Nothing
   , blockValidators    = hashed valSet0
@@ -133,32 +126,10 @@ makeGenesis dat stateHash valSet0 valSet1 = Block
   , blockData          = merkled dat
   , blockPrevCommit    = Nothing
   , blockEvidence      = merkled []
-  , blockStateHash     = stateHash
   }
 
 -------------------------------------------
 
-initBoxChain :: ValidatorSet UtxoAlg -> [Tx] -> Genesis BData
-initBoxChain valSet txs = BChEval
-  { bchValue        = extractRealGenesisHash genesis
-  , validatorSet    = merkled valSet
-  , blockchainState = merkled state0
-  }
-  where
-    genesis = getFakeHashGenesis
-    state0 = emptyBoxChain
-
-    getFakeHashGenesis = makeGenesis (BData txs) fakeHash valSet valSet
-    fakeHash = hashed emptyBoxChain
-
-    extractRealGenesisHash gen = gen { blockStateHash = merkleHashed st }
-      where
-        Right BChEval{blockchainState=st}
-          = processBlock utxoLogic BChEval
-            { bchValue        = gen
-            , validatorSet    = merkled valSet
-            , blockchainState = merkled state0
-            }
 
 -- | Config tag for our blockchain
 data BoxChainConfig

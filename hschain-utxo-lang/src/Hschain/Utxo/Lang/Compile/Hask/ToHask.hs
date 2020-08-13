@@ -6,7 +6,7 @@ module Hschain.Utxo.Lang.Compile.Hask.ToHask(
   , toHaskExpr
 ) where
 
-import Hex.Common.Text
+import Hex.Common.Text (showt)
 
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Hask.Utils
@@ -58,6 +58,7 @@ toHaskExpr = cata $ \case
       PrimText  txt    -> toText loc txt
       PrimBool  b      -> toBool loc b
       PrimSigma sigma  -> toSigma loc sigma
+      PrimBytes bs     -> toBytes loc bs
 
     toAp = H.App
 

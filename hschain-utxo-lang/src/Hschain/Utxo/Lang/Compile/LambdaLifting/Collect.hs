@@ -57,7 +57,6 @@ collectExpr = cataM $ \case
       ELam loc args body -> Just $ Def (VarName loc name) args body
       _                  -> Nothing
 
-
 partitionBy :: (a -> Maybe b) -> [a] -> ([b], [a])
 partitionBy f xs = case xs of
   []   -> ([], [])

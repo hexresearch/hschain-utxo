@@ -7,17 +7,20 @@ module Hschain.Utxo.State.React(
 
 import Control.Monad
 
-import Data.Either
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
+import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgFromScript)
 import Hschain.Utxo.State.Types
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
+
+import qualified Hschain.Utxo.Lang.Core.Eval as Core
 
 -- | React to single input transaction.
 -- It updates blockchain or reports error on commit of the transaction.
@@ -34,23 +37,23 @@ react tx bch
     checkTxArg txArg
       | isValidTx           = (inputsAreValid, debugMsgInputs)
       | not inputsAreValid  = (False, "Tx inputs are invalid")
-      | not outputsAreValid = (False, mconcat ["Tx output is invalid: ", fromMaybe "" mInvalidOutputId])
+      | not outputsAreValid = (False, mconcat ["Tx output is invalid: ", maybe "" renderText mInvalidOutputId])
       | otherwise           = (False, "TX is invalid")
       where
         isValidTx = inputsAreValid && outputsAreValid
 
-        (inputsAreValid, debugMsgInputs) = exec mempty txArg
+        (inputsAreValid, debugMsgInputs) = Core.evalProveTx txArg
         -- todo: check here that script evaluates to boolean with type checker.
         --       for now we check only that it parses
-        mInvalidOutput = L.find (isLeft . fromScript . box'script) $ checkOutputTxArg txArg
-        mInvalidOutputId = fmap (unBoxId . box'id) mInvalidOutput
+        mInvalidOutput = L.find (isNothing . coreProgFromScript . box'script) $ checkOutputTxArg txArg
+        mInvalidOutputId = fmap box'id mInvalidOutput
 
-        outputsAreValid = isNothing mInvalidOutput
+        outputsAreValid = isNothing mInvalidOutput && validateOutputBoxIds tx
 
 updateBoxChain :: Tx -> BoxChain -> BoxChain
 updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
   where
-    removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete) tx'inputs)
+    removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
 
     insertOutputs = updateBoxes $ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
 
@@ -63,10 +66,13 @@ updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
 -- to get the sigma-expression of the evaluation of the transaction script.
 --
 -- Also it returns debug-log for transaction execution.
-execInBoxChain :: Tx -> BoxChain -> (Either Text BoolExprResult, Text)
+execInBoxChain :: Tx -> BoxChain -> (Either Text (Vector BoolExprResult), Text)
 execInBoxChain tx bch = case toTxArg bch tx of
-  Right txArg -> execToSigma mempty txArg
+  Right txArg ->  (either (Left . renderText) Right $ Core.evalToSigma txArg, fakeDebug)
   Left err    -> (Left err, "No message")
+  where
+    -- | TODO: implement debug in core
+    fakeDebug = "no-debug"
 
 -- | We move outputs to inputs to check that expressions of outputs
 -- are all valid and produce sigma expressions or booleans.

@@ -7,9 +7,7 @@
 -- For now it is done with simple algorithm of substitution of
 -- values (application of lambda abstractions and substitution of subexpressions).
 module Hschain.Utxo.Lang.Exec(
-    exec
-  , execLang
-  , execToSigma
+    execLang
   , evalModule
   , runExec
   , Error(..)
@@ -17,21 +15,19 @@ module Hschain.Utxo.Lang.Exec(
 ) where
 
 import Hex.Common.Control
-import Hex.Common.Text
+import Hex.Common.Text (showt)
+
+import Codec.Serialise
 
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.State.Strict
 import Control.Monad.Extra (firstJustM)
 
-import Crypto.Hash
-
-import Data.Aeson
-import Data.Boolean
+import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Int
 import Data.Map.Strict (Map)
-import Data.Monoid hiding (Alt)
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -40,15 +36,15 @@ import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Exec.Subst
-import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, notSigma, publicKeyFromText, eliminateSigmaBool)
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, publicKeyFromText)
+import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Types
 
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import qualified Language.HM as H
 
@@ -69,10 +65,7 @@ trace2 expr x = trace (T.unpack $ renderText expr) x
 -- | Context of execution
 data Ctx = Ctx
   { ctx'vars       :: !(Map VarName Lang)  -- ^ global bindings (outer scope)
-  , ctx'userArgs   :: !Args                -- ^ list user arguments for transaction
-  , ctx'height     :: !Int64               -- ^ height of blockchain
-  , ctx'inputs     :: !(Vector Box)        -- ^ vector of input boxes
-  , ctx'outputs    :: !(Vector Box)        -- ^ vector of ouptut boxes
+  , ctx'env        :: !InputEnv            -- ^ input environment
   , ctx'debug      :: !Text                -- ^ debug log for executed expression
   , ctx'freshVarId :: !Int                 -- ^ counter for allocation of fresh variables
   }
@@ -91,13 +84,16 @@ instance Alternative Exec where
             Left _    -> runStateT stB s
 
 getHeight :: Exec Int64
-getHeight = fmap ctx'height get
+getHeight = fmap (inputEnv'height . ctx'env) get
 
 getInputs :: Exec (Vector Box)
-getInputs = fmap ctx'inputs get
+getInputs = fmap (inputEnv'inputs . ctx'env) get
 
 getOutputs :: Exec (Vector Box)
-getOutputs = fmap ctx'outputs get
+getOutputs = fmap (inputEnv'outputs . ctx'env) get
+
+getSelf :: Exec Box
+getSelf = fmap (inputEnv'self . ctx'env) get
 
 instance MonadFreshVar Exec where
   getFreshVarName = do
@@ -110,21 +106,18 @@ instance MonadFreshVar Exec where
 instance MonadLang Exec where
 
 getUserArgs :: Exec Args
-getUserArgs = fmap  ctx'userArgs get
+getUserArgs = fmap (inputEnv'args . ctx'env) get
 
 saveTrace :: Text -> Exec ()
 saveTrace msg =
   modify' $ \st -> st { ctx'debug = T.unlines [ctx'debug st, msg] }
 
 -- | Run execution monad.
-runExec :: ExecCtx -> Args -> Int64 -> Vector Box -> Vector Box -> Exec a -> Either Error (a, Text)
-runExec (ExecCtx binds) args height inputs outputs (Exec st) =
+runExec :: ExecCtx -> InputEnv -> Exec a -> Either Error (a, Text)
+runExec (ExecCtx binds) env (Exec st) =
   fmap (second ctx'debug) $ runStateT st emptyCtx
   where
-    emptyCtx = Ctx binds args height inputs outputs mempty 0
-
-applyBase :: Expr a -> Expr a
-applyBase (Expr a) = Expr $ importBase a
+    emptyCtx = Ctx binds env mempty 0
 
 -- | Performs execution of expression.
 execLang :: Lang -> Exec Lang
@@ -156,6 +149,7 @@ execLang (Fix topExpr) = case topExpr of
     SigmaE loc sigma -> fromSigma loc sigma
     VecE loc vec -> fromVec loc vec
     TextE loc txt -> fromText loc txt
+    BytesE loc bs -> fromBytes loc bs
     Trace loc str a -> fromTrace loc str a
     AltE loc a b -> rec a <|> rec b <|>  (throwError $ ExecError $ Undefined loc)
     FailCase loc -> throwError $ ExecError $ Undefined loc
@@ -232,9 +226,8 @@ execLang (Fix topExpr) = case topExpr of
         TupleAt _ n -> fromTupleAt n x'
       where
         fromNot expr = case expr of
-          Fix (PrimE loc1 (PrimBool b))  -> prim loc1 $ PrimBool $ not b
-          Fix (PrimE loc1 (PrimSigma b)) -> prim loc1 $ either PrimBool PrimSigma $ notSigma b
-          _                                   -> thisShouldNotHappen x
+          Fix (PrimE loc1 (PrimBool b)) -> prim loc1 $ PrimBool $ not b
+          _                             -> thisShouldNotHappen x
 
         fromNeg expr = case expr of
           Fix (PrimE loc1 a) -> case a of
@@ -435,12 +428,6 @@ execLang (Fix topExpr) = case topExpr of
       Fix (TextE _ (ConvertToText _ _)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ convertToText arg'
-      Fix (TextE _ (TextHash _ Sha256)) -> do
-        arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ sha256 arg'
-      Fix (TextE _ (TextHash _ Blake2b256)) -> do
-        arg' <- rec arg
-        maybe (thisShouldNotHappen arg') (prim loc . PrimString) $ blake2b256 arg'
       Fix (Cons src name vs) -> rec $ Fix $ Cons src name (mappend vs $ V.singleton arg)
       _ -> do
         Fix fun' <- rec fun
@@ -489,12 +476,14 @@ execLang (Fix topExpr) = case topExpr of
         Output loc1 (Fix (PrimE _ (PrimInt n))) -> toBox loc1 n =<< getOutputs
         Inputs loc1  -> fmap (toBoxes loc1) getInputs
         Outputs loc1 -> fmap (toBoxes loc1) getOutputs
+        Self loc1 -> fmap (Fix . BoxE loc1 . PrimBox loc1) getSelf
         GetVar varLoc argType -> do
           args <- getUserArgs
           return $ case argType of
-            IntArg  -> toArgField varLoc PrimInt  $ args'ints args
-            TextArg -> toArgField varLoc PrimString $ args'texts args
-            BoolArg -> toArgField varLoc PrimBool $ args'bools args
+            IntArg   -> toArgField varLoc PrimInt  $ args'ints args
+            TextArg  -> toArgField varLoc PrimString $ args'texts args
+            BoolArg  -> toArgField varLoc PrimBool $ args'bools args
+            BytesArg -> toArgField varLoc PrimBytes $ args'bytes args
         _ -> thisShouldNotHappen $ Fix $ GetEnv loc idx
       where
         toBox loc1 n v = maybe (outOfBound $ Fix $ GetEnv loc idx) (pure . Fix . BoxE loc1 . PrimBox loc1) $ v V.!? (fromIntegral n)
@@ -513,13 +502,14 @@ execLang (Fix topExpr) = case topExpr of
 
     getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
-      BoxFieldId         -> prim loc $ PrimString $ unBoxId box'id
+      BoxFieldId         -> prim loc $ PrimBytes $ unBoxId box'id
       BoxFieldValue      -> prim loc $ PrimInt $ box'value
-      BoxFieldScript     -> prim loc $ PrimString $ unScript $ box'script
+      BoxFieldScript     -> prim loc $ PrimBytes $ unScript $ box'script
       BoxFieldArgList ty -> return $ case ty of
-        IntArg  -> toArgField loc PrimInt    $ args'ints box'args
-        TextArg -> toArgField loc PrimString $ args'texts box'args
-        BoolArg -> toArgField loc PrimBool   $ args'bools box'args
+        IntArg   -> toArgField loc PrimInt    $ args'ints box'args
+        TextArg  -> toArgField loc PrimString $ args'texts box'args
+        BoolArg  -> toArgField loc PrimBool   $ args'bools box'args
+        BytesArg -> toArgField loc PrimBytes  $ args'bytes box'args
 
     fromSigma _ x = do
       x' <- mapM rec x
@@ -571,9 +561,41 @@ execLang (Fix topExpr) = case topExpr of
             _                                                              -> TextE loc $ TextAppend loc a' b'
         ConvertToText loc1 tag  -> returnText $ ConvertToText loc1 tag
         TextLength loc1         -> returnText $ TextLength loc1
-        TextHash loc1 algo      -> returnText $ TextHash loc1 algo
         where
           returnText = return . Fix . TextE loc
+
+    fromBytes loc x = do
+      x' <- mapM rec x
+      case x' of
+        BytesAppend _ a b -> do
+          a' <- rec a
+          b' <- rec b
+          return $ Fix $ case (a', b') of
+            (Fix (PrimE _ (PrimBytes t1)), Fix (PrimE _ (PrimBytes t2))) -> PrimE loc $ PrimBytes $ mappend t1 t2
+            _                                                            -> BytesE loc $ BytesAppend loc a' b'
+        SerialiseToBytes src typeTag a -> fromSerialiseToBytes src typeTag a
+        DeserialiseFromBytes src typeTag a -> fromDeserialiseFromBytes src typeTag a
+        BytesHash src algo a -> case algo of
+          Sha256 -> do
+            bs <- getPrimBytesOrFail =<< rec a
+            return $ Fix $ PrimE src $ PrimBytes $ getSha256 bs
+
+
+    fromSerialiseToBytes src typeTag a =
+      case typeTag of
+        IntArg   -> serialiseBy getPrimIntOrFail
+        TextArg  -> serialiseBy getPrimTextOrFail
+        BoolArg  -> serialiseBy getPrimBoolOrFail
+        BytesArg -> serialiseBy getPrimBytesOrFail
+      where
+        serialiseBy :: Serialise a => (Lang -> Exec a) -> Exec Lang
+        serialiseBy getter = do
+          n <- getter =<< rec a
+          return $ Fix $ PrimE src $ PrimBytes $ LB.toStrict $ serialise n
+
+
+    fromDeserialiseFromBytes _loc _typeTag _a = undefined
+
 
     textSize (Fix x) = case x of
       PrimE _ (PrimString txt) -> Just $ T.length txt
@@ -593,19 +615,7 @@ execLang (Fix topExpr) = case topExpr of
           PrimString t    -> t
           PrimBool b      -> showt b
           PrimSigma s     -> showt s
-
-    sha256 (Fix x) = case x of
-      PrimE _ (PrimString t) -> Just $ hashText t
-      _                        -> Nothing
-      where
-        hashText = showt . hashWith SHA256 . T.encodeUtf8
-
-    blake2b256 (Fix x) = case x of
-      PrimE _ (PrimString t) -> Just $ hashText t
-      _                        -> Nothing
-      where
-        hashText = showt . hashWith Blake2b_256 . T.encodeUtf8
-
+          PrimBytes bs    -> showt bs
 
 prim :: Loc -> Prim -> Exec Lang
 prim loc p = return $ Fix $ PrimE loc p
@@ -631,35 +641,6 @@ data NumOp2 = NumOp2
   { numOp2'int    :: Mono2 Int64
   }
 
-getInputExpr :: TxArg -> Expr Bool
-getInputExpr tx@TxArg{..}
-  | V.null inputs = onEmptyInputs
-  | otherwise     = V.foldl1' (&&*) inputs
-  where
-    inputs = V.zipWith substSelfIndex (V.fromList [0..]) $ fmap (either (const false) applyBase . fromScript . box'script) txArg'inputs
-
-    onEmptyInputs
-      | isStartEpoch tx = true
-      | otherwise       = false
-
-substSelfIndex :: Int -> Expr a -> Expr a
-substSelfIndex selfId (Expr x) = Expr $ cata phi x
-  where
-    phi = \case
-      GetEnv loc idx -> Fix $ GetEnv loc $ case idx of
-        Self src -> Input src $ Fix $ PrimE src $ PrimInt $ fromIntegral selfId
-        _        -> idx
-      other  -> Fix other
-
-isStartEpoch :: TxArg -> Bool
-isStartEpoch TxArg{..} = env'height txArg'env == 0
-
-txPreservesValue :: TxArg -> Bool
-txPreservesValue tx@TxArg{..}
-  | isStartEpoch tx = True
-  | otherwise       = toSum txArg'inputs == toSum txArg'outputs
-  where
-    toSum xs = getSum $ foldMap (Sum . box'value) xs
 
 getPrim :: Lang -> Maybe (Loc, Prim)
 getPrim (Fix a) = case a of
@@ -676,66 +657,38 @@ getPrimBool = \case
   PrimBool b -> Just b
   _          -> Nothing
 
+getPrimInt :: Prim -> Maybe Int64
+getPrimInt = \case
+  PrimInt b -> Just b
+  _         -> Nothing
+
+getPrimText :: Prim -> Maybe Text
+getPrimText = \case
+  PrimString b -> Just b
+  _            -> Nothing
+
+getPrimBytes :: Prim -> Maybe ByteString
+getPrimBytes = \case
+  PrimBytes b -> Just b
+  _           -> Nothing
+
 getPrimSigmaOrFail :: Lang -> Exec (Sigma PublicKey)
 getPrimSigmaOrFail x = maybe (thisShouldNotHappen x) pure $
   getPrim x >>= (\(_, p) -> getPrimSigma p)
 
+getPrimOrFailBy :: (Prim -> Maybe a) -> Lang -> Exec a
+getPrimOrFailBy getter x = maybe (thisShouldNotHappen x) pure $
+  getPrim x >>= (\(_, p) -> getter p)
+
 getPrimBoolOrFail :: Lang -> Exec Bool
-getPrimBoolOrFail x = maybe (thisShouldNotHappen x) pure $
-  getPrim x >>= (\(_, p) -> getPrimBool p)
+getPrimBoolOrFail = getPrimOrFailBy getPrimBool
 
-{- for debug
-traceFun :: (Show a, Show b) => String -> (a -> b) -> a -> b
-traceFun name f x =
-  let res = f x
-  in  trace (mconcat ["\n\nTRACE: " , name, "(", show x, ") = ", show res]) (f x)
--}
+getPrimTextOrFail :: Lang -> Exec Text
+getPrimTextOrFail = getPrimOrFailBy getPrimText
 
--- | We verify that expression is evaluated to the sigma-value that is
--- supplied by the proposer and then verify the proof itself.
-exec :: ExecCtx -> TxArg -> (Bool, Text)
-exec ctx tx
-  | txPreservesValue tx = case res of
-        Right (SigmaResult sigmaWithBools) -> case eliminateSigmaBool sigmaWithBools of
-          Right sigma -> maybe (False, "No proof submitted") (\proof -> (S.equalSigmaProof sigma proof && S.verifyProof proof, debug)) mProof
-          Left bool   -> (bool, "")
-        Right (ConstBool bool)  -> (bool, "")
-        Left err    -> (False, err)
-  | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
-  where
-    (res, debug) = execToSigma ctx tx
-    mProof = txArg'proof tx
+getPrimIntOrFail :: Lang -> Exec Int64
+getPrimIntOrFail = getPrimOrFailBy getPrimInt
 
--- | Result of the script can be boolean constant or sigma-expression
--- that user have to prove.
-data BoolExprResult
-  = ConstBool Bool
-  | SigmaResult (Sigma PublicKey)
-  deriving (Show, Eq)
-
-instance ToJSON BoolExprResult where
-  toJSON = \case
-    ConstBool b -> object ["bool"  .= b]
-    SigmaResult s -> object ["sigma" .= s]
-
-instance FromJSON BoolExprResult where
-  parseJSON = withObject "BoolExprResult" $ \obj ->
-        (ConstBool <$> obj .: "bool")
-    <|> (SigmaResult <$> obj .: "sigma")
-
-
--- | Executes expression to sigma-expression
-execToSigma :: ExecCtx -> TxArg -> (Either Text BoolExprResult, Text)
-execToSigma ctx tx@TxArg{..} = execExpr $ getInputExpr tx
-  where
-    execExpr (Expr x) =
-      case runExec ctx txArg'args (env'height txArg'env) txArg'inputs txArg'outputs $ execLang x of
-        Right (Fix (PrimE _ (PrimSigma b)), msg)  -> case eliminateSigmaBool b of
-          Left bool                               -> (Right $ ConstBool bool, msg)
-          Right sigma                             -> (Right $ SigmaResult sigma, msg)
-        Right (Fix (PrimE _ (PrimBool b)), msg)   -> (Right $ ConstBool b, msg)
-        Right _                                   -> (Left noSigmaExpr, noSigmaExpr)
-        Left err                                  -> (Left (showt err), showt err)
-
-    noSigmaExpr = "Error: Script does not evaluate to sigma expression"
+getPrimBytesOrFail :: Lang -> Exec ByteString
+getPrimBytesOrFail = getPrimOrFailBy getPrimBytes
 

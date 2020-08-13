@@ -1,4 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines AST for the language
 module Hschain.Utxo.Lang.Expr where
@@ -12,6 +11,8 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
+import Data.ByteString (ByteString)
+import Data.Coerce
 import Data.Fix
 import Data.Function (on)
 import Data.Foldable
@@ -28,9 +29,12 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
+import HSChain.Crypto.Classes (encodeBase58, decodeBase58)
+import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
+import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -38,6 +42,8 @@ import qualified Language.Haskell.Exts.SrcLoc as Hask
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
+import qualified Data.ByteString.Lazy as LB
+
 
 import qualified Hschain.Utxo.Lang.Const as Const
 
@@ -226,14 +232,15 @@ data Args = Args
   { args'ints  :: Vector Int64
   , args'bools :: Vector Bool
   , args'texts :: Vector Text
+  , args'bytes :: Vector ByteString
   } deriving (Show, Eq, Ord, Generic, NFData, Serialise)
 
 instance Semigroup Args where
-  (Args intsA boolsA textsA) <> (Args intsB boolsB textsB) =
-    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB)
+  (Args intsA boolsA textsA bytesA) <> (Args intsB boolsB textsB bytesB) =
+    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB) (bytesA <> bytesB)
 
 instance Monoid Args where
-  mempty = Args mempty mempty mempty
+  mempty = Args mempty mempty mempty mempty
 
 -- | Construct args that contain only integers
 intArgs :: [Int64] -> Args
@@ -241,6 +248,7 @@ intArgs xs = Args
   { args'ints  = V.fromList xs
   , args'bools = mempty
   , args'texts = mempty
+  , args'bytes = mempty
   }
 
 -- | Construct args that contain only booleans
@@ -249,6 +257,7 @@ boolArgs xs = Args
   { args'ints  = mempty
   , args'bools = V.fromList xs
   , args'texts = mempty
+  , args'bytes = mempty
   }
 
 -- | Construct args that contain only texts
@@ -257,19 +266,46 @@ textArgs xs = Args
   { args'ints  = mempty
   , args'bools = mempty
   , args'texts = V.fromList xs
+  , args'bytes = mempty
   }
 
--- | Identifier of the box. Box holds value protected by the script.
-newtype BoxId = BoxId { unBoxId :: Text }
-  deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+-- | Construct args that contain only bytestrings
+byteArgs :: [ByteString] -> Args
+byteArgs xs = Args
+  { args'ints  = mempty
+  , args'bools = mempty
+  , args'texts = mempty
+  , args'bytes = V.fromList xs
+  }
+
+-- | Identifier of TX. We can derive it from the PreTx.
+--  It equals to hash of serialised PreTx
+newtype TxId = TxId { unTxId :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
+
+-- | Identifier of the box. Box holds value protected by the script.
+-- It equals to the hash of Box-content.
+newtype BoxId = BoxId { unBoxId :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
+
+instance ToText BoxId where
+  toText (BoxId bs) = encodeBase58 bs
+
+instance FromText BoxId where
+  fromText txt = fmap BoxId $ decodeBase58 txt
 
 -- | Type for script that goes over the wire.
-newtype Script = Script { unScript :: Text }
-  deriving newtype  (Show, Eq, Ord, NFData, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+newtype Script = Script { unScript :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
 
 -- | Box holds the value protected by the script.
 -- We use boxes as inputs for transaction and create new output boxes
@@ -279,6 +315,34 @@ data Box = Box
   , box'value  :: !Money    -- ^ Value of the box
   , box'script :: !Script   -- ^ Protecting script
   , box'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | PreBox holds all meaningfull data of the Box.
+-- we use it to get Hashes for transaction and Box itself.
+-- Comparing to Box it omits identifier that is generated from PreBox
+-- and origin that can be derived from TX identifier (hash of @getTxBytes tx@).
+data PreBox = PreBox
+  { preBox'value  :: !Money    -- ^ Value of the box
+  , preBox'script :: !Script   -- ^ Protecting script
+  , preBox'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+getBoxToHashId :: BoxToHash -> BoxId
+getBoxToHashId = BoxId . getSha256 . LB.toStrict . serialise
+
+-- | Values that are used to get the hash of the box to create identifier for it.
+data BoxToHash = BoxToHash
+  { boxToHash'content  :: !PreBox  -- ^ meaningful data of the box
+  , boxToHash'origin   :: !BoxOrigin   -- ^ origin of the box
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Data encodes the source of the Box when it was produced.
+data BoxOrigin = BoxOrigin
+  { boxOrigin'txId        :: !TxId   -- ^ identifier of TX that produced the Box
+  , boxOrigin'outputIndex :: !Int64  -- ^ index in the vector of outputs for the box
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
@@ -307,13 +371,7 @@ type TypeContext = H.Context Loc Text
 -- | Context for execution (reduction) of expressions of the language
 newtype ExecCtx = ExecCtx
   { execCtx'vars  :: Map VarName Lang  -- ^ bindings for free variables, outer scope of the execution
-  } deriving newtype (Show, Eq)
-
-instance Semigroup ExecCtx where
-  ExecCtx a1 <> ExecCtx a2 = ExecCtx (a1 <> a2)
-
-instance Monoid ExecCtx where
-  mempty = ExecCtx mempty
+  } deriving newtype (Show, Eq, Semigroup, Monoid)
 
 -- | Type-inference context.
 data InferCtx = InferCtx
@@ -447,6 +505,9 @@ data E a
   -- text
   | TextE Loc (TextExpr a)
   -- ^ Text expression
+  -- Bytes
+  | BytesE Loc (BytesExpr a)
+  -- ^ bytes expression
   -- boxes
   | BoxE Loc (BoxExpr a)
   -- ^ Box-expression
@@ -507,17 +568,18 @@ data BoxField a
 
 -- | Types that we can store as arguments in transactions.
 -- We store lists of them.
-data ArgType = IntArg | TextArg | BoolArg
-  deriving (Show, Eq)
+data ArgType = IntArg | TextArg | BoolArg | BytesArg
+  deriving (Show, Eq, Generic, NFData)
 
 argTypes :: [ArgType]
-argTypes = [IntArg, TextArg, BoolArg]
+argTypes = [IntArg, TextArg, BoolArg, BytesArg]
 
 argTagToType :: ArgType -> Type
 argTagToType = \case
-  IntArg  -> intT
-  TextArg -> textT
-  BoolArg -> boolT
+  IntArg   -> intT
+  TextArg  -> textT
+  BoolArg  -> boolT
+  BytesArg -> bytesT
 
 getBoxArgVar :: ArgType -> Text
 getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
@@ -571,14 +633,22 @@ data TextExpr a
   -- ^ Convert some value to text (@showType a@)
   | TextLength Loc
   -- ^ Get textlength (@lengthText a@)
-  | TextHash Loc HashAlgo
-  -- ^ Get hash-value of the given text (sevral algorithms are supported)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
+
+data BytesExpr a
+  = BytesAppend Loc a a
+  -- ^ append bytes
+  | SerialiseToBytes Loc ArgType a
+  -- ^ serialise primitive types to bytes
+  | DeserialiseFromBytes Loc ArgType a
+  -- ^ deserialise values from bytes
+  | BytesHash Loc HashAlgo a
+  -- ^ get hash for the given ByteString.
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Hashing algorithm tag
 data HashAlgo
   = Sha256
-  | Blake2b256
   deriving (Eq, Show)
 
 -- | Primitive values of the language (constants).
@@ -591,7 +661,26 @@ data Prim
   -- ^ Booleans
   | PrimSigma   (Sigma PublicKey)
   -- ^ Sigma-expressions
+  | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Result of the script can be boolean constant or sigma-expression
+-- that user have to prove.
+data BoolExprResult
+  = ConstBool Bool
+  | SigmaResult (Sigma PublicKey)
+  deriving (Show, Eq)
+
+instance ToJSON BoolExprResult where
+  toJSON = \case
+    ConstBool b -> object ["bool"  .= b]
+    SigmaResult s -> object ["sigma" .= s]
+
+instance FromJSON BoolExprResult where
+  parseJSON = withObject "BoolExprResult" $ \obj ->
+        (ConstBool <$> obj .: "bool")
+    <|> (SigmaResult <$> obj .: "sigma")
+
 
 -- | Environment fields. Info that we can query from blockchain state
 data EnvId a
@@ -617,9 +706,10 @@ getEnvVarName ty = Const.getArgs $ argTypeName ty
 
 argTypeName :: ArgType -> Text
 argTypeName = \case
-  IntArg  -> "Int"
-  TextArg -> "Text"
-  BoolArg -> "Bool"
+  IntArg   -> "Int"
+  TextArg  -> "Text"
+  BoolArg  -> "Bool"
+  BytesArg -> "Bytes"
 
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
@@ -627,6 +717,7 @@ instance ToJSON Prim where
     PrimString txt -> "text"   .= txt
     PrimBool b     -> "bool"   .= b
     PrimSigma s    -> "sigma"  .= toJSON s
+    PrimBytes s    -> "bytes"  .= toJSON (ViaBase58 s)
 
 -- todo: rewrite this instance
 -- to distinguish between numeric types of int, double and money
@@ -634,16 +725,18 @@ instance FromJSON Prim where
   parseJSON = withObject "prim" $ \v ->
         fmap PrimInt    (v .: "int")
     <|> fmap PrimString (v .: "text")
+    <|> fmap (\(ViaBase58 s :: ViaBase58 "Prim" ByteString) -> PrimBytes s) (v .: "bytes")
     <|> fmap PrimBool   (v .: "bool")
     <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))
 
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT, sigmaT :: Type
+intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: Type
 
 intT = intT' noLoc
 boolT = boolT' noLoc
+bytesT = bytesT' noLoc
 boxT  = boxT' noLoc
 scriptT = scriptT' noLoc
 textT = textT' noLoc
@@ -657,6 +750,9 @@ boxT' = constType "Box"
 
 textT' :: Loc -> Type
 textT' = constType "Text"
+
+bytesT' :: Loc -> Type
+bytesT' = constType "Bytes"
 
 intT' :: Loc -> Type
 intT' = constType "Int"
@@ -741,6 +837,8 @@ instance Show a => H.HasLoc (E a) where
     VecE loc _ -> loc
     -- text
     TextE loc _ -> loc
+    -- bytes
+    BytesE loc _ -> loc
     -- boxes
     BoxE loc _ -> loc
     -- debug
@@ -812,6 +910,7 @@ freeVars = cata $ \case
   SigmaE _ sigma   -> fold sigma
   VecE _ vec       -> fold vec
   TextE _ txt      -> fold txt
+  BytesE _ bs      -> fold bs
   BoxE _ box       -> fold box
   Trace _ a b      -> mconcat [a, b]
   AltE _ a b       -> mappend a b
@@ -873,6 +972,7 @@ $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
 $(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
+$(deriveShow1 ''BytesExpr)
 $(deriveShow1 ''SigmaExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
@@ -895,5 +995,21 @@ instance CryptoHashable Box where
 instance CryptoHashable Args where
   hashStep = genericHashStep hashDomain
 
-$(deriveJSON dropPrefixOptions ''Args)
+instance FromJSON Args where
+  parseJSON = withObject "Args" $ \o -> do
+    args'ints  <- o .: "ints"
+    args'bools <- o .: "bools"
+    args'texts <- o .: "texts"
+    bytes      <- o .: "bytes"
+    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
+               , ..
+               }
+instance ToJSON Args where
+  toJSON Args{..} = object
+    [ "ints"  .= args'ints
+    , "bools" .= args'bools
+    , "texts" .= args'texts
+    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
+    ]
+
 $(deriveJSON dropPrefixOptions ''Box)

@@ -7,16 +7,15 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , ExprCore(..)
   , CaseAlt(..)
   , CompiledScomb(..)
-  , coreProgToText
-  , coreProgFromText
+  , coreProgToScript
+  , coreProgFromScript
   , coreProgToHumanText
   , coreProgFromHumanText
 ) where
 
-import Hex.Common.Serialise
-
 import Codec.Serialise
 
+import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -25,17 +24,21 @@ import GHC.Generics
 import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
+import Hschain.Utxo.Lang.Expr (Script(..))
+
+import qualified Data.ByteString.Lazy as LB
+
 -- | core program is a sequence of supercombinator definitions
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
   deriving newtype (Generic, Semigroup, Monoid, Show)
 
-coreProgToText :: CoreProg -> Text
-coreProgToText = serialiseToText
+coreProgToScript :: CoreProg -> Script
+coreProgToScript = Script . LB.toStrict . serialise
 
-coreProgFromText :: Text -> Maybe CoreProg
-coreProgFromText = serialiseFromText
+coreProgFromScript :: Script -> Maybe CoreProg
+coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
 
 -- | TODO: it would be useful for testing to
 -- have human readable versions of to/from script functions
@@ -49,24 +52,30 @@ coreProgFromHumanText = undefined -- renderText
 --
 -- > S a1 a2 a3 = expr
 data Scomb = Scomb
-  { scomb'name :: Name                 -- ^ name of supercombinator
-  , scomb'args :: Vector (Typed Name)  -- ^ list of arguments
-  , scomb'body :: Typed ExprCore       -- ^ body
+  { scomb'name   :: Name                 -- ^ name of supercombinator
+  , scomb'forall :: Vector Name          -- ^ names of type variables. It is empty if type is monomorphic.
+  , scomb'args   :: Vector (Typed Name)  -- ^ list of arguments
+  , scomb'body   :: Typed ExprCore       -- ^ body
   } deriving (Show, Eq, Generic)
+
+instance IsString ExprCore where
+  fromString = EVar . fromString
 
 -- | Expressions of the Core-language
 data ExprCore
-  = EVar !(Typed Name)
+  = EVar !Name
   -- ^ variables
+  | EPolyVar Name [TypeCore]
+  -- ^ polymorphic variables which require explicit instantioation of type variables
   | EPrim !Prim
   -- ^ constant primitive
   | EAp  ExprCore ExprCore
   -- ^ application
-  | ELet [(Typed Name, ExprCore)] ExprCore
+  | ELet [(Name, ExprCore)] ExprCore
   -- ^ lent bindings
   | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
-  | ECase !(Typed ExprCore) [CaseAlt]
+  | ECase !ExprCore [CaseAlt]
   -- ^ case alternatives
   | EConstr TypeCore !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type

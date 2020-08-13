@@ -18,21 +18,17 @@ import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
-import Hschain.Utxo.Lang.Infer.Pretty ()
 
 import qualified Data.Vector as V
 
+import HSChain.Crypto.Classes (encodeBase58)
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 
 import qualified Language.HM as H
-import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
-
-instance H.HasPrefix Text where
-  getFixity = const Nothing
 
 -- | Convenience function to render pretty-printable value to text.
 renderText :: Pretty a => a -> Text
@@ -49,12 +45,10 @@ instance Pretty Lang where
   pretty = pretty . P.prettyExp
 
 instance Pretty BoxId where
-  pretty (BoxId txt) = pretty txt
+  pretty (BoxId txt) = pretty $ encodeBase58 txt
 
 instance Pretty Script where
-  pretty = either err pretty . fromScript
-    where
-      err = pretty . mappend "Failed to parse script: "
+  pretty = pretty . scriptToText
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
@@ -83,16 +77,26 @@ instance Pretty Tx where
   pretty Tx{..} = prettyRecord "Tx"
     [ ("inputs", brackets $ hsep $ punctuate comma $ V.toList $ fmap pretty tx'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList tx'outputs )
-    , ("proof", pretty tx'proof)
-    , ("args", prettyArgs tx'args)
     ]
 
 instance Pretty TxArg where
   pretty TxArg{..} = prettyRecord "TxArg"
     [ ("inputs",  vsep $ fmap pretty $ V.toList txArg'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList txArg'outputs )
-    , ("proof", pretty txArg'proof)
-    , ("args", prettyArgs txArg'args)
+    ]
+
+instance Pretty BoxInput where
+  pretty BoxInput{..} = prettyRecord "BoxInput"
+    [ ("box",   pretty boxInput'box)
+    , ("args",  prettyArgs boxInput'args)
+    , ("proof", pretty boxInput'proof)
+    ]
+
+instance Pretty BoxInputRef where
+  pretty BoxInputRef{..} = prettyRecord "BoxInputRef"
+    [ ("id",    pretty boxInputRef'id)
+    , ("args",  prettyArgs boxInputRef'args)
+    , ("proof", pretty boxInputRef'proof)
     ]
 
 instance Pretty Env where
@@ -154,6 +158,7 @@ instance Pretty Prim where
     PrimBool     b -> pretty b
     PrimString   s -> hcat [dquote, pretty s, dquote]
     PrimSigma    s -> pretty $ show s
+    PrimBytes    s -> pretty $ encodeBase58 s
 
 instance Pretty a => Pretty (EnvId a) where
   pretty = prettyId . fmap pretty
@@ -237,9 +242,19 @@ instance Pretty CoreScriptError where
   pretty = \case
     NoMainFunction                 -> "Error: No main function is defined"
     ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
-    CoreTypeError                  -> "Error: Type of the core program is incorrect"
+    TypeCoreError err              -> pretty err
     NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
     RecursiveScript                -> "Error: Recursive script is not allowed"
+
+instance Pretty TypeCoreError where
+  pretty = \case
+    NotMonomorphicType v t   -> hsep ["Error: variable", pretty v, "is not monomorphic. Got type", pretty t]
+    VarIsNotDefined v        -> hsep ["Error: variable", pretty v, "is not defined"]
+    ArrowTypeExpected t      -> hsep ["Error: arrow type expected, but got", pretty t]
+    TypeCoreMismatch ta tb   -> hsep ["Error: type mismatch. Got", pretty ta, "expected", pretty tb]
+    SubtypeError ta tb       -> hsep ["Error: subtype error.", pretty ta, "is not a subtype of", pretty tb]
+    EmptyCaseExpression      -> "Error: empty case alternatives"
+    PolymorphicLet           -> "polymorphic type in the let binding"
 
 instance Pretty InternalError where
   pretty = \case

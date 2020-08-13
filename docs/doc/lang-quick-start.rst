@@ -233,13 +233,15 @@ call the API method ``api/tx-sigma/get`` with our transaction but we omit proof.
 
 Once we get the expression. We can sign it with compiler command ``sign``::
 
-  > hschain-utxo-compiler sign --secret secret.txt --input sigma-expr.txt --output signed-sigma.txt
+  > hschain-utxo-compiler sign --secret secret.txt --expression sigma-expr.txt --tx tx.txt --output signed-sigma.txt
 
 This command expects three inputs:
 
 * ``--secret`` the file that contains secret key of the user
 
-* ``--sigma-expr.txt`` the file that contains the ouptut of the API call to tx-sigma method.
+* ``--expression sigma-expr.txt`` the file that contains the ouptut of the API call to tx-sigma method.
+
+  ``--tx tx.txt`` the file that contains serialised code for TX without a proof.
 
 * ``--signed-sigma.txt`` the file to dump the output, i.e. signed sigma expression or proof of the ownership.
 

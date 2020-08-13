@@ -28,6 +28,7 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , bytestring
                      , hex-common
                      , hschain
                      , hschain-logger
@@ -45,6 +46,7 @@ library
                      , filepath
                      , hspec
                      , immortal
+                     , serialise
                      , servant
                      , servant-client
                      , mtl
@@ -64,6 +66,7 @@ library
     GeneralizedNewtypeDeriving
     MultiParamTypeClasses
     TypeFamilies
+    OverloadedLists
     OverloadedStrings
     RecordWildCards
     ScopedTypeVariables

@@ -1,12 +1,15 @@
 -- | Errors for our language
 module Hschain.Utxo.Lang.Error where
 
+import Control.DeepSeq (NFData)
 import Control.Monad.Except
 
 import Data.String
 import Data.Text (Text)
+import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore)
 
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Parser as H
@@ -22,7 +25,7 @@ data Error
   | InternalError InternalError     -- ^ errors of this type should not happen in production
   | MonoError MonoError             -- ^ errors during monomorphizing
   | CoreScriptError CoreScriptError -- ^ errors of core scripts
-  deriving (Show)
+  deriving stock    (Show,Eq,Generic)
 
 -- | Execution errors
 -- TODO source locations
@@ -40,7 +43,7 @@ data ExecError
   | NoSigmaScript
   | GmachineError G.Error
   | FailedToDecodeScript
-  deriving (Show)
+  deriving stock    (Show,Eq,Generic)
 
 -- | Errors that can arise during transformation of patterns in the bindings
 -- to case-expressions.
@@ -53,26 +56,50 @@ data PatError
   | EmptyArgument
   | WrongPatPrimMixture Loc
   | WrongPatConsMixture Loc
-  deriving (Show)
+  deriving stock    (Show,Eq,Generic)
 
 data InternalError
   = FailedToEliminate Text
   | NonIntegerConstrTag Text
   | NonLamType
-  deriving (Show)
+  deriving stock    (Show,Eq,Generic)
+  deriving anyclass (NFData)
 
 data MonoError
   = FailedToFindMonoType Loc Text
   | CompareForNonPrim Loc
-  deriving (Show)
+  deriving stock    (Show,Eq,Generic)
 
 data CoreScriptError =
     NoMainFunction
   | ResultIsNotSigma
-  | CoreTypeError
+  | TypeCoreError TypeCoreError
   | RecursiveScript
   | NotMonomorphicTypes
-  deriving (Show)
+  deriving stock    (Show,Eq,Generic)
+  deriving anyclass (NFData)
+
+-- | Errors for core language type-checker.
+data TypeCoreError
+  = NotMonomorphicType Text TypeCore
+  | VarIsNotDefined Text
+  | ArrowTypeExpected TypeCore
+  | TypeCoreMismatch TypeCore TypeCore
+  | SubtypeError TypeCore TypeCore
+  | EmptyCaseExpression
+  | PolymorphicLet
+  deriving stock    (Show,Eq,Generic)
+  deriving anyclass (NFData)
+
+notMonomorphicType :: MonadError TypeCoreError m => Text -> TypeCore -> m a
+notMonomorphicType name ty = throwError $ NotMonomorphicType name ty
+
+typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
+typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb
+
+subtypeError :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
+subtypeError ta tb = throwError $ SubtypeError ta tb
+
 
 -- pretty message
 -- "There is no main expression defined in the module"

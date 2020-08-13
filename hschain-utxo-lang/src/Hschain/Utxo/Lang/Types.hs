@@ -3,9 +3,9 @@ module Hschain.Utxo.Lang.Types where
 
 import Hex.Common.Aeson
 import Hex.Common.Serialise
-import Hex.Common.Text
 import Control.DeepSeq (NFData)
 import Control.Monad
+import Control.Monad.Except
 
 import Codec.Serialise
 
@@ -13,20 +13,21 @@ import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
 import Data.Int
+import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import GHC.Generics
 
+import HSChain.Crypto.Classes (encodeBase58)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
-import Hschain.Utxo.Lang.Parser.Hask
+import Hschain.Utxo.Lang.Utils.ByteString
 
-import qualified Crypto.Hash as C
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.Vector as V
 
 -- | User identifier.
 newtype UserId = UserId { unUserId :: Text }
@@ -60,74 +61,250 @@ instance FromJSONKey TxHash where
 -- send API-query to know the sigma-expression that is going to be result
 -- of the calculation of the input scripts within the context of the current blockchain state.
 data Tx = Tx
-  { tx'inputs  :: !(Vector BoxId)   -- ^ List of identifiers of input boxes in blockchain
-  , tx'outputs :: !(Vector Box)     -- ^ List of outputs
-  , tx'proof   :: !(Maybe Proof)    -- ^ Proof of the resulting sigma expression
-  , tx'args    :: !Args             -- ^ Arguments for the scripts
+  { tx'inputs  :: !(Vector BoxInputRef)   -- ^ List of inputs
+  , tx'outputs :: !(Vector Box)           -- ^ List of outputs
   }
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
+data TxSignMessage = TxSignMessage { unTxSignMessage :: ByteString }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
+-- | Input is an unspent Box that exists in blockchain.
+-- To spend the input we need to provide right arguments and proof
+-- of reulting sigma expression.
+data BoxInputRef = BoxInputRef
+  { boxInputRef'id    :: BoxId
+  , boxInputRef'args  :: Args
+  , boxInputRef'proof :: Maybe Proof
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
+appendProofs :: Vector (Maybe Proof) -> Tx -> Tx
+appendProofs proofs Tx{..} = Tx
+  { tx'inputs  = V.zipWith appendProofToBox proofs tx'inputs
+  , tx'outputs = tx'outputs
+  }
+
+appendProofToBox :: Maybe Proof -> BoxInputRef -> BoxInputRef
+appendProofToBox proof BoxInputRef{..} = BoxInputRef
+  { boxInputRef'id    = boxInputRef'id
+  , boxInputRef'args  = boxInputRef'args
+  , boxInputRef'proof = proof
+  }
+
+-- | This is used for hashing the TX, to get it's id and
+-- for serialization to get message to be signed for verification.
+data PreTx a = PreTx
+  { preTx'inputs  :: !(Vector a)
+  , preTx'outputs :: !(Vector PreBox)
+  }
+  deriving stock    (Show, Eq, Ord, Generic, Functor)
+  deriving anyclass (Serialise, NFData)
+
+getPreTx :: Tx -> PreTx BoxInputRef
+getPreTx Tx{..} = clearProofs $ PreTx
+  { preTx'inputs  = tx'inputs
+  , preTx'outputs = fmap toPreBox tx'outputs
+  }
+
+toPreBox :: Box -> PreBox
+toPreBox Box{..} = PreBox
+  { preBox'value  = box'value
+  , preBox'script = box'script
+  , preBox'args   = box'args
+  }
+
+clearProofs :: PreTx BoxInputRef -> PreTx BoxInputRef
+clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
+  where
+    clearProof box = box { boxInputRef'proof = Nothing }
+
+getTxBytes :: Tx -> SignMessage
+getTxBytes = getPreTxBytes . getPreTx
+
+getPreTxBytes :: PreTx BoxInputRef -> SignMessage
+getPreTxBytes = SignMessage . LB.toStrict . serialise . clearProofs
+
+getTxId :: SignMessage -> TxId
+getTxId (SignMessage bs) = TxId $ getSha256 bs
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
-  { txArg'inputs  :: !(Vector Box)
-  , txArg'outputs :: !(Vector Box)
-  , txArg'proof   :: !(Maybe Proof)
-  , txArg'args    :: !Args
-  , txArg'env     :: !Env
+  { txArg'inputs   :: !(Vector BoxInput)
+  , txArg'outputs  :: !(Vector Box)
+  , txArg'env      :: !Env
+  , txArg'txBytes  :: !SignMessage -- ^ serialised content of TX (it's used to verify the proof)
   }
   deriving (Show, Eq)
+
+data BoxInput = BoxInput
+  { boxInput'box   :: !Box
+  , boxInput'args  :: !Args
+  , boxInput'proof :: !(Maybe Proof)
+  }
+  deriving (Show, Eq, Generic)
 
 -- | Blockchain environment variables.
 data Env = Env
   { env'height   :: !Int64    -- ^ blockchain height
   } deriving (Show, Eq)
 
--- | Transaction environment. All values that user can read
--- from the script
-data TxEnv = TxEnv
-  { txEnv'height   :: !Int64
-  , txEnv'self     :: !Box
-  , txEnv'inputs   :: !(Vector Box)
-  , txEnv'outputs  :: !(Vector Box)
-  , txEnv'args     :: !Args
+-- | Input environment contains all data that have to be used
+-- during execution of the script.
+data InputEnv = InputEnv
+  { inputEnv'height  :: !Int64
+  , inputEnv'self    :: !Box
+  , inputEnv'inputs  :: !(Vector Box)
+  , inputEnv'outputs :: !(Vector Box)
+  , inputEnv'args    :: !Args
+  }
+  deriving (Show, Eq)
+
+splitInputs :: TxArg -> Vector (Maybe Proof, InputEnv)
+splitInputs tx = fmap (\input -> (boxInput'proof input, getInputEnv tx input)) $ txArg'inputs tx
+
+getInputEnv :: TxArg -> BoxInput -> InputEnv
+getInputEnv TxArg{..} input = InputEnv
+  { inputEnv'self    = boxInput'box input
+  , inputEnv'height  = env'height txArg'env
+  , inputEnv'inputs  = fmap boxInput'box txArg'inputs
+  , inputEnv'outputs = txArg'outputs
+  , inputEnv'args    = boxInput'args input
   }
 
+txPreservesValue :: TxArg -> Bool
+txPreservesValue tx@TxArg{..}
+  | isStartEpoch tx = True
+  | otherwise       = toSum (fmap boxInput'box txArg'inputs) == toSum txArg'outputs
+  where
+    toSum xs = getSum $ foldMap (Sum . box'value) xs
+
+isStartEpoch :: TxArg -> Bool
+isStartEpoch TxArg{..} = env'height txArg'env == 0
+
+---------------------------------------------------------------------
+-- smartconstructors to create boxes and transactions
+
+-- | Creates TX and assigns properly all box identifiers.
+-- It does not creates the proofs.
+newTx :: PreTx BoxInputRef -> Tx
+newTx tx = Tx
+  { tx'inputs  = preTx'inputs tx
+  , tx'outputs = makeOutputs txId $ preTx'outputs tx
+  }
+  where
+    txId = getTxId $ getPreTxBytes tx
+
+makeOutputs :: TxId -> Vector PreBox -> Vector Box
+makeOutputs txId outputs = V.imap toBox outputs
+  where
+    toBox outputIndex box@PreBox{..} = Box
+      { box'id     = boxId
+      , box'value  = preBox'value
+      , box'script = preBox'script
+      , box'args   = preBox'args
+      }
+      where
+        boxId = getBoxToHashId $ BoxToHash
+            { boxToHash'origin  = BoxOrigin
+                { boxOrigin'outputIndex = fromIntegral outputIndex
+                , boxOrigin'txId        = txId
+                }
+            , boxToHash'content = box
+            }
+
+makeInputs :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Vector BoxInputRef)
+makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
+  where
+    toInput ExpectedBox{..} = do
+      mProof <- mapM (\sigma -> newProof proofEnv sigma message) expectedBox'sigma
+      return $ expectedBox'input { boxInputRef'proof = either (const Nothing) Just =<< mProof }
+
+makeInputsOrFail :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Either Text (Vector BoxInputRef))
+makeInputsOrFail proofEnv message expectedInputs = runExceptT $ mapM toInput expectedInputs
+  where
+    toInput ExpectedBox{..} = do
+      mProof <- mapM (\sigma -> ExceptT $ newProof proofEnv sigma message) expectedBox'sigma
+      return $ expectedBox'input { boxInputRef'proof = mProof }
+
+-- | Expectation of the result of the box.
+-- We use it when we know to what sigma expression input box script is going to be executed.
+-- Then we can generate proofs with function @newProofTx@.
+data ExpectedBox = ExpectedBox
+  { expectedBox'sigma   :: Maybe (Sigma PublicKey)
+    -- ^ Expected result of sigma expression (Nothing if result is constant boolean)
+  , expectedBox'input   :: BoxInputRef
+    -- ^ content of box input reference (id, arguments)
+  }
+
+-- | If we now the expected sigma expressions for the inputs
+-- we can create transaction with all proofs supplied.
+--
+-- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
+-- over API.
+--
+-- Note: If it can not produce the proof (user don't have corresponding private key)
+-- it produces @Nothing@ in the @boxInputRef'proof@.
+newProofTx :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io Tx
+newProofTx proofEnv tx = liftIO $ do
+  inputs <- makeInputs proofEnv message $ preTx'inputs tx
+  return $ Tx
+    { tx'inputs  = inputs
+    , tx'outputs = makeOutputs txId $ preTx'outputs tx
+    }
+  where
+    txId      = getTxId message
+    message   = getPreTxBytes preTx
+    preTx = fmap expectedBox'input tx
+
+-- | If we now the expected sigma expressions for the inputs
+-- we can create transaction with all proofs supplied.
+-- Whole function fails if any of the proof can not be produced
+--
+-- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
+-- over API.
+newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io (Either Text Tx)
+newProofTxOrFail proofEnv tx = liftIO $ do
+  eInputs <- makeInputsOrFail proofEnv message $ preTx'inputs tx
+  return $ fmap (\inputs -> Tx
+    { tx'inputs  = inputs
+    , tx'outputs = makeOutputs txId $ preTx'outputs tx
+    }) eInputs
+  where
+    txId      = getTxId message
+    message   = getPreTxBytes preTx
+    preTx = fmap expectedBox'input tx
+
 --------------------------------------------
+-- box ids validation
 
--- | Parses script from text.
-parseScript :: Text -> Either Text (Expr Bool)
-parseScript txt =
-  case parseExp (Just "<parseSrcipt>") $ T.unpack txt of
-    ParseOk expr        -> Right $ Expr expr
-    ParseFailed loc msg -> Left $ mconcat ["Parse failed at ", showt loc, " with ", T.pack msg]
+-- | Checks that all output boxes have correct identifiers that are based on hashes.
+validateOutputBoxIds :: Tx -> Bool
+validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
+  where
+    txId = getTxId $ getTxBytes tx
 
--- | Convert script to boolean expression.
-fromScript :: Script -> Either Text (Expr Bool)
-fromScript (Script txt) = parseScript txt
+    checkBoxId n box@Box{..} = box'id == getId n box
 
--- | Convert boolean expression to script.
-toScript :: Expr SigmaBool -> Script
-toScript (Expr expr) = Script $ T.pack $ prettyExp expr
-
-encodeScript :: ExecCtx -> Lang -> Text
-encodeScript = undefined
-
-decodeScript :: Text -> Either Text (ExecCtx, Lang)
-decodeScript = undefined
+    getId n box = getBoxToHashId $ BoxToHash
+      { boxToHash'origin  = BoxOrigin
+                              { boxOrigin'outputIndex = fromIntegral n
+                              , boxOrigin'txId        = txId
+                              }
+      , boxToHash'content = toPreBox box
+      }
 
 -- | Claculate the hash of the script.
-hashScript ::  C.HashAlgorithm a => a -> Script -> Text
-hashScript algo = hash . unScript
-  where
-    hash :: Text -> Text
-    hash txt = showt $ C.hashWith algo $ T.encodeUtf8 txt
+hashScript :: Script -> ByteString
+hashScript = getSha256 . unScript
 
 scriptToText :: Script -> Text
-scriptToText = unScript
+scriptToText = encodeBase58 . unScript
 
 --------------------------------------------
 -- JSON instnaces
@@ -135,7 +312,15 @@ scriptToText = unScript
 $(deriveJSON dropPrefixOptions ''Tx)
 $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
+$(deriveJSON dropPrefixOptions ''BoxInput)
+$(deriveJSON dropPrefixOptions ''BoxInputRef)
 
 instance CryptoHashable Tx where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxInput where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxInputRef where
   hashStep = genericHashStep hashDomain
 

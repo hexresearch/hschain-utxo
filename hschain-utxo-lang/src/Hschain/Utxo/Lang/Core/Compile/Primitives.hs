@@ -1,3 +1,4 @@
+{-# Language OverloadedLists #-}
 -- | Built-in language primitives
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
     preludeLib
@@ -9,34 +10,42 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , environmentFunctions
 ) where
 
-import Data.Fix
 import Data.Int
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Hschain.Utxo.Lang.Expr (Box(..), BoxId(..), Script(..), Args(..), ArgType(..), argTypeName)
+import Hschain.Utxo.Lang.Expr (Box(..), BoxId(..), Script(..), Args(..), ArgType(..), argTypeName, argTypes)
+import Hschain.Utxo.Lang.Core.Compile.Build
+  hiding (getBoxId, getBoxScript, getBoxValue, getHeight, getSelf, getInputs, getOutputs)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Code (Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Types (TxEnv(..))
+import Hschain.Utxo.Lang.Types (InputEnv(..))
 
-import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-import qualified Language.HM as H
+import Language.HM (monoT)
+
 import qualified Hschain.Utxo.Lang.Const as Const
 
-preludeLib :: TxEnv -> CoreProg
+fromArgType :: ArgType -> TypeCore
+fromArgType = \case
+  IntArg   -> intT
+  BoolArg  -> boolT
+  TextArg  -> textT
+  BytesArg -> bytesT
+
+preludeLib :: InputEnv -> CoreProg
 preludeLib env = CoreProg $ environmentFunctions env ++ primitives
 
 preludeTypeContext :: TypeContext
 preludeTypeContext = primitivesCtx <> environmentTypes
   where
     primitivesCtx = TypeContext $ M.fromList $
-      fmap (\sc -> (scomb'name sc, getScombType sc)) primitives
+      fmap (\sc -> (scomb'name sc, getScombSignature sc)) primitives
 
 -- | Built-in functions that read environment.
 -- We create set of global constants in the script
@@ -44,23 +53,25 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 --
 -- So we create library functions that contain concrete
 -- constants for current state of our blockchain.
-environmentFunctions :: TxEnv -> [Scomb]
-environmentFunctions TxEnv{..} =
-  [ getHeight txEnv'height
-  , getInputs txEnv'inputs
-  , getOutputs txEnv'outputs
-  ] ++ getArgs txEnv'args
+environmentFunctions :: InputEnv -> [Scomb]
+environmentFunctions InputEnv{..} =
+  [ getHeight inputEnv'height
+  , getSelf inputEnv'self
+  , getInputs inputEnv'inputs
+  , getOutputs inputEnv'outputs
+  ] ++ getArgs inputEnv'args
 
 environmentTypes :: TypeContext
 environmentTypes = TypeContext $ M.fromList $
-  [ (Const.getHeight,  intT)
-  , (Const.getInputs,  listT boxT)
-  , (Const.getOutputs, listT boxT)
+  [ (Const.getHeight,  monoT intT)
+  , (Const.getSelf,    monoT boxT)
+  , (Const.getInputs,  monoT $ listT boxT)
+  , (Const.getOutputs, monoT $ listT boxT)
   ] ++ getArgsTypes
   where
-    getArgsTypes = fmap toArgType [ (IntArg, intT), (TextArg, textT), (BoolArg, boolT)]
+    getArgsTypes = fmap toArgType argTypes
 
-    toArgType (typeTag, ty) = (Const.getArgs $ argTypeName typeTag, listT ty)
+    toArgType typeTag = (Const.getArgs $ argTypeName typeTag, monoT $ listT $ fromArgType typeTag)
 
 -- | Built-in language primitives
 primitives :: [Scomb]
@@ -84,30 +95,52 @@ primitives =
   -- text
   , op1 "lengthText" textT intT
   , op2 "<>" (textT, textT) textT
-  , op1 "hashBlake" textT textT
-  , op1 "hashSha" textT textT
+  , op1 "hashBlake" bytesT bytesT
+  , op1 "hashSha"   bytesT bytesT
+
+  -- lists
+  , nilComb
+  , consComb
+  , foldrComb
+  , mapComb
+  , listAppendComb
+  , listAtComb
+  , filterComb
+  , foldlComb
+  , lengthComb
+  , sumComb
+  , productComb
+  , andComb
+  , orComb
+  , sigmaAndComb
+  , sigmaOrComb
+  , allComb
+  , anyComb
+  , sigmaAllComb
+  , sigmaAnyComb
 
   -- sigma-expressions
-  , sigmaOp2 "&"
-  , sigmaOp2 "|"
+  , sigmaOp2 "&&&"
+  , sigmaOp2 "|||"
   , op1 "pk" textT sigmaT
   , op1 "toSigma" boolT sigmaT
 
   -- boxes
   , boxCons
-  , getBoxName
+  , getBoxId
   , getBoxScript
   , getBoxValue
   ]
-  ++ (comparePack =<< [intT, boolT, textT])
+  ++ (comparePack =<< argTypes)
   ++ getBoxArgs
+  ++ byteCombs
 
 ------------------------------------------------------------
 -- generic utilities
 
 -- | comparision operators per type
-comparePack :: TypeCore -> [Scomb]
-comparePack ty =
+comparePack :: ArgType -> [Scomb]
+comparePack tyTag =
   [ compareOp ty (toCompareName ty "equals")
   , compareOp ty (toCompareName ty "notEquals")
   , compareOp ty (toCompareName ty "greaterThan")
@@ -115,114 +148,73 @@ comparePack ty =
   , compareOp ty (toCompareName ty "lessThan")
   , compareOp ty (toCompareName ty "lessThanEquals")
   ]
-
-ap :: ExprCore -> [ExprCore] -> ExprCore
-ap f args = L.foldl' (\op a -> EAp op a) f args
-
--- | Application of function to two arguments
-ap2 :: ExprCore -> ExprCore -> ExprCore -> ExprCore
-ap2 f a b = EAp (EAp f a) b
-
-constant :: Name -> Prim -> Scomb
-constant name val = Scomb
-  { scomb'name = name
-  , scomb'args = V.empty
-  , scomb'body = Typed (EPrim val) (primToType val)
-  }
-
-op1 :: Name -> TypeCore -> TypeCore -> Scomb
-op1 name argT resT = Scomb
-  { scomb'name = name
-  , scomb'args = V.fromList $ [Typed "x" argT]
-  , scomb'body = Typed (EAp (EVar $ Typed name (arrowT argT resT)) (EVar $ Typed "x" argT)) resT
-  }
-
-intOp2 :: Name -> Scomb
-intOp2 name = op2 name (intT, intT) intT
-
-boolOp2 :: Name -> Scomb
-boolOp2 name = op2 name (boolT, boolT) boolT
-
-sigmaOp2 :: Name -> Scomb
-sigmaOp2 name = op2 name (sigmaT, sigmaT) sigmaT
-
--- | TODO: do we need polymorphic comparison?
-compareOp :: TypeCore -> Name -> Scomb
-compareOp ty name = op2 name (ty, ty) boolT
-
-op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
-op2 name (xT, yT) resT = Scomb
-  { scomb'name = name
-  , scomb'args = V.fromList [Typed "x" xT, Typed "y" yT]
-  , scomb'body = Typed (ap2 (EVar $ Typed name (funT [xT, yT] resT)) (EVar $ Typed "x" xT) (EVar $ Typed "y" yT)) resT
-  }
+  where
+    ty = fromArgType tyTag
 
 ------------------------------------------------------------
 -- boxes
-
-toCompareName :: TypeCore -> Name -> Name
-toCompareName ty name = mconcat [primName ty, ".", name]
-  where
-    primName (H.Type (Fix x)) = case x of
-      H.ConT _ prim _ -> prim
-      _               -> error "Non-primitive type"
 
 -- | Low level representation of Box is a tuple of four elements:
 -- > (name, script, value, args)
 boxCons :: Scomb
 boxCons = Scomb
-  { scomb'name = "Box"
-  , scomb'args = V.fromList boxArgs
-  , scomb'body = Typed (ap (EConstr consTy 0 4) $ fmap EVar boxArgs) boxT
+  { scomb'name   = "Box"
+  , scomb'forall = []
+  , scomb'args   = V.fromList boxArgs
+  , scomb'body   = Typed (ap (EConstr consTy 0 4) $ fmap (EVar . typed'value) boxArgs) boxT
   }
   where
     consTy = funT (fmap typed'type boxArgs) boxT
 
-getBoxField :: Name -> Typed Name -> TypeCore -> Scomb
+getBoxField :: Name -> Name -> TypeCore -> Scomb
 getBoxField name field resT = Scomb
-  { scomb'name = name
-  , scomb'args = V.fromList [Typed "box" boxT]
-  , scomb'body =
+  { scomb'name   = name
+  , scomb'forall = []
+  , scomb'args   = [Typed "box" boxT]
+  , scomb'body   =
       Typed
-        (ECase (Typed (EVar $ Typed "box" boxT) boxT) [CaseAlt 0 boxArgs (EVar field)])
+        (ECase "box" [CaseAlt 0 boxArgs (EVar field)])
         resT
   }
   where
 
 boxArgs :: [Typed Name]
 boxArgs =
-  [ Typed "name"   textT
-  , Typed "script" textT
+  [ Typed "name"   bytesT
+  , Typed "script" bytesT
   , Typed "value"  intT
-  , Typed "args"   (tupleT argsTypes)
+  , Typed "args"   argsT
   ]
 
-getBoxName :: Scomb
-getBoxName = getBoxField Const.getBoxName (Typed "name" textT) textT
+getBoxId :: Scomb
+getBoxId = getBoxField Const.getBoxId "name" bytesT
 
 getBoxScript :: Scomb
-getBoxScript = getBoxField Const.getBoxScript (Typed "script" textT) textT
+getBoxScript = getBoxField Const.getBoxScript "script" bytesT
 
 getBoxValue :: Scomb
-getBoxValue = getBoxField Const.getBoxValue (Typed "value" intT) intT
+getBoxValue = getBoxField Const.getBoxValue "value" intT
 
 getBoxArgs :: [Scomb]
-getBoxArgs = [ getBoxIntArgs, getBoxTextArgs, getBoxBoolArgs ]
+getBoxArgs =
+  [ getBoxArgsBy IntArg   "ints"
+  , getBoxArgsBy TextArg  "texts"
+  , getBoxArgsBy BoolArg  "bools"
+  , getBoxArgsBy BytesArg "bytes"
+  ]
   where
-    getBoxIntArgs  = getBoxArgsBy IntArg  intT  "ints"
-    getBoxTextArgs = getBoxArgsBy TextArg textT "texts"
-    getBoxBoolArgs = getBoxArgsBy BoolArg boolT "bools"
-
-    getBoxArgsBy typeTag resType resVar = Scomb
-      { scomb'name = Const.getBoxArgs $ argTypeName typeTag
-      , scomb'args = V.fromList [Typed "x" argT]
-      , scomb'body = Typed
-          (ECase (Typed (EVar $ Typed "x" argT) argT)
-            [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] (EVar $ Typed resVar resType)])
+    getBoxArgsBy typeTag resVar = Scomb
+      { scomb'name   = Const.getBoxArgs $ argTypeName typeTag
+      , scomb'forall = []
+      , scomb'args   = [Typed "x" boxT]
+      , scomb'body   = Typed
+          (onBox $ onArgs $ EVar resVar)
           (listT resType)
       }
-
-    argT = tupleT argsTypes
+      where
+        resType = fromArgType typeTag
+        onBox e  = ECase "x" [CaseAlt 0 boxArgs e]
+        onArgs e = ECase "args" [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] e]
 
 boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
 boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]
@@ -233,9 +225,9 @@ boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value,
 toBox :: Box -> ExprCore
 toBox Box{..} = boxConstr name script value args
   where
-    name   = EPrim $ PrimText $ unBoxId box'id
-    script = EPrim $ PrimText $ unScript box'script
-    value  = EPrim $ PrimInt  $ box'value
+    name   = EPrim $ PrimBytes $ unBoxId box'id
+    script = EPrim $ PrimBytes $ unScript box'script
+    value  = EPrim $ PrimInt   $ box'value
     args   = toArgs box'args
 
 toArgs :: Args -> ExprCore
@@ -246,15 +238,15 @@ toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
     texts  = toVec textT $ fmap (EPrim . PrimText) args'texts
     bools  = toVec boolT $ fmap (EPrim . PrimBool) args'bools
 
-argsTypes :: [TypeCore]
-argsTypes = [listT intT, listT textT, listT boolT]
-
 
 ------------------------------------------------------------
 -- environment
 
 getHeight :: Int64 -> Scomb
 getHeight height = constant Const.getHeight (PrimInt height)
+
+getSelf :: Box -> Scomb
+getSelf b = constantComb "getSelf" boxT $ toBox b
 
 getInputs :: Vector Box -> Scomb
 getInputs = getBoxes Const.getInputs
@@ -263,13 +255,7 @@ getOutputs :: Vector Box -> Scomb
 getOutputs = getBoxes Const.getOutputs
 
 getBoxes :: Text -> Vector Box -> Scomb
-getBoxes name boxes = Scomb
-  { scomb'name = name
-  , scomb'args = V.empty
-  , scomb'body = Typed
-      (toVec boxT $ fmap toBox boxes)
-      (listT boxT)
-  }
+getBoxes name boxes = constantComb name (listT boxT) (toVec boxT $ fmap toBox boxes)
 
 toVec :: TypeCore -> Vector ExprCore -> ExprCore
 toVec t vs = V.foldr cons nil vs
@@ -281,18 +267,320 @@ toVec t vs = V.foldr cons nil vs
 
 getArgs :: Args -> [Scomb]
 getArgs Args{..} =
-  [ argComb PrimInt  intT  IntArg  args'ints
-  , argComb PrimText textT TextArg args'texts
-  , argComb PrimBool boolT BoolArg args'bools
+  [ argComb PrimInt   IntArg   args'ints
+  , argComb PrimText  TextArg  args'texts
+  , argComb PrimBool  BoolArg  args'bools
+  , argComb PrimBytes BytesArg args'bytes
   ]
   where
-    argComb cons ty tyTag vals = Scomb
-      { scomb'name = Const.getArgs $ argTypeName tyTag
-      , scomb'args = V.empty
-      , scomb'body = Typed
-          (toVec ty $ fmap (EPrim . cons) vals)
-          (listT ty)
-      }
+    argComb cons tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
+      where
+        ty = fromArgType tyTag
+
+------------------------------------------------------------
+-- bytes
+
+byteCombs :: [Scomb]
+byteCombs = appendByteComb : sha256 : (fmap toBytes argTypes ++ fmap fromBytes argTypes)
+
+appendByteComb :: Scomb
+appendByteComb = op2 Const.appendBytes (bytesT, bytesT) bytesT
+
+sha256 :: Scomb
+sha256 = op1 Const.sha256 bytesT bytesT
+
+toBytes :: ArgType -> Scomb
+toBytes tag = op1 (Const.serialiseBytes $ argTypeName tag) (fromArgType tag) bytesT
+
+fromBytes :: ArgType -> Scomb
+fromBytes tag = op1 (Const.deserialiseBytes $ argTypeName tag) bytesT (fromArgType tag)
+
+------------------------------------------------------------
+-- lists
+
+nilComb :: Scomb
+nilComb = constantComb "nil" nilTy (EConstr nilTy 0 0)
+  where
+    nilTy = listT (varT "a")
+
+consComb :: Scomb
+consComb = Scomb
+  { scomb'name   = "cons"
+  , scomb'forall = ["a"]
+  , scomb'args   = [x, xs]
+  , scomb'body   = Typed
+      (ap (EConstr consT 1 2) ["x", "xs"])
+      asT
+  }
+  where
+    x  = Typed "x" aT
+    xs = Typed "xs" asT
+    consT = funT [aT, asT] asT
+
+    aT  = varT "a"
+    asT = listT aT
+
+foldrComb :: Scomb
+foldrComb = Scomb
+  { scomb'name   = "foldr"
+  , scomb'forall = ["a", "b"]
+  , scomb'args   = [f, z, as]
+  , scomb'body   = Typed
+      (ECase "as"
+        [ CaseAlt 0 [] "z"
+        , CaseAlt 1 [x, xs] (ap "f" ["x", ap "foldr" ["f", "z", "xs"]])
+        ])
+      bT
+  }
+  where
+    f = Typed "f" fT
+    z = Typed "z" zT
+    as = Typed "as" asT
+    x = Typed "x" aT
+    xs = Typed "xs" asT
+
+    fT = aT `arrowT` (bT `arrowT` bT)
+    asT = listT aT
+    zT = bT
+    aT = varT "a"
+    bT = varT "b"
+
+lengthComb :: Scomb
+lengthComb = Scomb
+  { scomb'name   = Const.length
+  , scomb'forall = ["a"]
+  , scomb'args   = [Typed "as" (listT aT)]
+  , scomb'body   = Typed
+      (ECase "as"
+        [ CaseAlt 0 [] (EPrim $ PrimInt 0)
+        , CaseAlt 1 [x, xs] (add one (EAp (EVar Const.length) "xs"))
+        ])
+      intT
+  }
+  where
+    aT  = varT "a"
+
+    x      = Typed "x" aT
+    xs     = Typed "xs" (listT aT)
+
+mapComb :: Scomb
+mapComb = Scomb
+  { scomb'name   = Const.map
+  , scomb'forall = ["a", "b"]
+  , scomb'args   = [f, as]
+  , scomb'body   = Typed
+      (ECase "as"
+        [ CaseAlt 0 [] (EConstr nilT 0 0)
+        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) [EAp "f" "x", ap "map" ["f", "xs"]])
+        ])
+      bsT
+  }
+  where
+    f      = Typed "f" fT
+    as     = Typed "as" asT
+    x      = Typed "x" aT
+    xs     = Typed "xs" asT
+
+    nilT = listT aT
+    consT = bT `arrowT` (listT bT `arrowT` listT bT)
+    fT = aT `arrowT` bT
+    asT = listT aT
+    bsT = listT bT
+    aT = varT "a"
+    bT = varT "b"
+
+listAtComb :: Scomb
+listAtComb = Scomb
+  { scomb'name   = Const.listAt
+  , scomb'forall = ["a"]
+  , scomb'args   = [as, n]
+  , scomb'body   = Typed
+
+      (ECase "as"
+        [ CaseAlt 0 [] EBottom
+        , CaseAlt 1 [x, xs] (EIf (lessThanEquals intT "n" zero) "x" (ap (EVar Const.listAt) ["xs", sub "n" one]))
+        ])
+      aT
+  }
+  where
+    n      = Typed "n" intT
+    as     = Typed "as" asT
+    x      = Typed "x" aT
+    xs     = Typed "xs" asT
+
+    asT = listT aT
+    aT = varT "a"
+
+listAppendComb :: Scomb
+listAppendComb = Scomb
+  { scomb'name   = Const.appendList
+  , scomb'forall = ["a"]
+  , scomb'args   = [as, bs]
+  , scomb'body   = Typed
+      (ECase "as"
+        [ CaseAlt 0 [] "bs"
+        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) ["x", ap (EVar Const.appendList) ["xs", "bs"]])
+        ])
+      asT
+  }
+  where
+    as     = Typed "as" asT
+    bs     = Typed "bs" asT
+    x      = Typed "x" aT
+    xs     = Typed "xs" asT
+
+    consT = aT `arrowT` (listT aT `arrowT` listT aT)
+    asT = listT aT
+    aT = varT "a"
+
+
+filterComb :: Scomb
+filterComb = Scomb
+  { scomb'name   = Const.filter
+  , scomb'forall = ["a"]
+  , scomb'args   = [f, as]
+  , scomb'body   = Typed
+      (ECase "as"
+        [ CaseAlt 0 [] (EConstr nilT 0 0)
+        , CaseAlt 1 [x, xs]
+            (ELet [("ys", ap "filter" ["f", "xs"])]
+                  (EIf (EAp "f" "x")
+                       (ap (EConstr consT 1 2) ["x", "ys"])
+                       "ys"
+                  ))
+        ])
+      asT
+  }
+  where
+    f      = Typed "f" fT
+    as     = Typed "as" asT
+    x      = Typed "x" aT
+    xs     = Typed "xs" asT
+
+    nilT = listT aT
+    consT = aT `arrowT` (listT aT `arrowT` listT aT)
+    fT = aT `arrowT` boolT
+    asT = listT aT
+    aT = varT "a"
+
+foldlComb :: Scomb
+foldlComb = Scomb
+  { scomb'name   = Const.foldl
+  , scomb'forall = ["a", "b"]
+  , scomb'args   = [f, z, as]
+  , scomb'body   = Typed
+      (ECase "as"
+        [ CaseAlt 0 [] "z"
+        , CaseAlt 1 [x, xs] (ap foldlv ["f", ap "f" ["z", "x"], "xs"])
+        ])
+      bT
+  }
+  where
+    f  = Typed "f" fT
+    z  = Typed "z" zT
+    as = Typed "as" asT
+    x  = Typed "x"  aT
+    xs = Typed "xs" asT
+
+    foldlv = EVar Const.foldl
+
+    asT = listT asT
+    zT  = bT
+    fT  = bT `arrowT` (aT `arrowT` bT)
+
+    aT = varT "a"
+    bT = varT "b"
+
+
+genFoldrComb :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
+genFoldrComb aT bT f z name = Scomb
+  { scomb'name   = name
+  , scomb'forall = []
+  , scomb'args   = [as]
+  , scomb'body   = Typed
+      (ap foldrV [f, z, "as"])
+      bT
+  }
+  where
+    as = Typed "as" (listT aT)
+    foldrV = EVar Const.foldr
+
+sumComb :: Scomb
+sumComb = genFoldrComb intT intT "+" zero "sum"
+
+productComb :: Scomb
+productComb = genFoldrComb intT intT "*" one "product"
+
+orComb :: Scomb
+orComb = genFoldrComb boolT boolT "||" (bool False) "or"
+
+andComb :: Scomb
+andComb = genFoldrComb boolT boolT "&&" (bool True) "and"
+
+sigmaOrComb :: Scomb
+sigmaOrComb = genFoldrComb sigmaT sigmaT sigmaOrV (sigmaBool False) "sigmaOr"
+
+sigmaOrV :: ExprCore
+sigmaOrV = "|||"
+
+sigmaAndComb :: Scomb
+sigmaAndComb = genFoldrComb sigmaT sigmaT sigmaAndV (sigmaBool False) "sigmaAnd"
+
+sigmaAndV :: ExprCore
+sigmaAndV = "&&&"
+
+genFoldrMapComb :: TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
+genFoldrMapComb bT append z name = Scomb
+  { scomb'name   = name
+  , scomb'forall = ["a"]
+  , scomb'args   = [f, as]
+  , scomb'body   = Typed
+      (ECase "as"
+        [ CaseAlt 0 [] z
+        , CaseAlt 1 [x, xs] (ap append [EAp "f" "x", ap nameV ["f", "xs"]])
+        ])
+      bT
+  }
+  where
+    f = Typed "f" fT
+    as = Typed "as" asT
+    x = Typed "x" aT
+    xs = Typed "xs" asT
+
+    nameV  = EVar name
+
+    fT = aT `arrowT` bT
+    aT = varT "a"
+    asT = listT aT
+
+allComb :: Scomb
+allComb = genFoldrMapComb boolT "&&" (bool True) "all"
+
+anyComb :: Scomb
+anyComb = genFoldrMapComb boolT "||" (bool False) "any"
+
+sigmaAllComb :: Scomb
+sigmaAllComb = genFoldrMapComb sigmaT sigmaAndV (sigmaBool True) "sigmaAll"
+
+sigmaAnyComb :: Scomb
+sigmaAnyComb = genFoldrMapComb sigmaT sigmaOrV (sigmaBool False) "sigmaAny"
+
+one :: ExprCore
+one = EPrim $ PrimInt 1
+
+zero :: ExprCore
+zero = EPrim $ PrimInt 0
+
+add :: ExprCore -> ExprCore -> ExprCore
+add a b = ap "+" [a, b]
+
+sub :: ExprCore -> ExprCore -> ExprCore
+sub a b = ap "-" [a, b]
+
+lessThanEquals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
+lessThanEquals ty a b = ap lteV [a, b]
+  where
+    lteV = EVar (toCompareName ty "lessThanEquals")
 
 ------------------------------------------------------------
 -- prim ops
@@ -306,10 +594,11 @@ builtInDiadic = M.fromList $
   , ("&&", And)
   , ("||", Or)
   , ("^^", Xor)
-  , ("&", SigAnd)
-  , ("|", SigOr)
+  , ("&&&", SigAnd)
+  , ("|||", SigOr)
   , ("<>", TextAppend)
-  ] ++ (compareNames =<< [intT, boolT, textT])
+  , (Const.appendBytes, BytesAppend)
+  ] ++ (compareNames =<< [intT, boolT, textT, bytesT])
   where
     compareNames ty =
       [ (toCompareName ty "equals", Eq)
@@ -321,7 +610,7 @@ builtInDiadic = M.fromList $
       ]
 
 builtInUnary :: Map Name Instr
-builtInUnary = M.fromList
+builtInUnary = M.fromList $
   [ ("negate", Neg)
   , ("not", Not)
   , ("pk", SigPk)
@@ -329,5 +618,7 @@ builtInUnary = M.fromList
   , ("lengthText", TextLength)
   , ("hashBlake", HashBlake)
   , ("hashSha", HashSha)
-  ]
+  , (Const.sha256, Sha256)]
+  ++ (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)
+  ++ (fmap (\tag -> (Const.deserialiseBytes $ argTypeName tag, FromBytes tag)) argTypes)
 

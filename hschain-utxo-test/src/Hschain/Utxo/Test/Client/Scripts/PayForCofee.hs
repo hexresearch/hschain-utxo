@@ -16,7 +16,7 @@ import Data.Text (Text)
 
 import Text.Show.Pretty
 
-import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle, getTxSigma)
+import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
@@ -38,10 +38,10 @@ payForCofeeBob :: App ()
 payForCofeeBob = do
   testTitle "Pay with delay: Bob gets his money."
   Scene{..} <- initUsers
-  let (User alice  aliceBox1)  = scene'alice
+  let (User alice  (Just aliceBox1))  = scene'alice
       (User bob    _bobBox1)    = scene'bob
       (User john   _johnBox1)   = scene'john
-      (User master masterBox1) = scene'master
+      (User master (Just masterBox1)) = scene'master
   mSendDelAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
@@ -49,7 +49,7 @@ payForCofeeBob = do
       SendResult _bobBox3 _johnBox2 _  <- debugSend False
             "Bob tries to send 2 coins to john (it should fail on delayed condition)"
             bob aliceOrBobBox john 2
-      SendResult masterBox2 _johnBox3 _ <- debugSend True
+      SendResult (Just masterBox2) _johnBox3 _ <- debugSend True
             "Master sends to john 1 coin"
             master masterBox1 john 1
       SendResult _masterBox3 _johnBox4 _ <- debugSend True
@@ -66,10 +66,10 @@ payForCofeeAlice :: App ()
 payForCofeeAlice = do
   testTitle "Pay with delay: Alice gets her money back."
   Scene{..} <- initUsers
-  let (User alice  aliceBox1)  = scene'alice
+  let (User alice  (Just aliceBox1))  = scene'alice
       (User bob   _bobBox1)    = scene'bob
       (User john  _johnBox1)   = scene'john
-      (User master masterBox1) = scene'master
+      (User master (Just masterBox1)) = scene'master
   mDelSendAlice <- debugSendDelayed True
         "Message alice sends to bob 2 coins delayed by 2 steps of blockchain"
         alice aliceBox1 bob 2 2
@@ -90,9 +90,6 @@ payForCofeeAlice = do
 
 data SendDelayed = SendDelayed
   { sendDelayed'from   :: !BoxId
-  , sendDelayed'to     :: !BoxId
-  , sendDelayed'back   :: !BoxId
-  , sendDelayed'refund :: !BoxId
   , sendDelayed'amount :: !Money
   , sendDelayed'remain :: !Money
   , sendDelayed'height :: !Int64
@@ -100,7 +97,7 @@ data SendDelayed = SendDelayed
   }
 
 data SendResultDelayed = SendRes
-  { sendRes'from        :: BoxId
+  { sendRes'from        :: Maybe BoxId
   , sendRes'refundOrTo  :: BoxId
   , sendRes'txHash      :: !(Maybe TxHash)
   } deriving (Show, Eq)
@@ -130,35 +127,30 @@ debugSendDelayed isSuccess msg from fromBox to heightDiff amount = do
 
 sendTxDelayed :: Wallet -> BoxId -> Wallet -> Int64 -> Money -> App (Either Text SendResultDelayed)
 sendTxDelayed from fromBox to delayDiff amount = do
-  toBox     <- allocAddress to
-  backBox   <- allocAddress from
-  refundBox <- allocAddress from
   currentHeight <- M.getHeight
   totalAmount <- fmap (fromMaybe 0) $ M.getBoxBalance fromBox
-  let sendTx = SendDelayed fromBox toBox backBox refundBox amount (totalAmount - amount) (currentHeight + delayDiff) to
-      preTx = toSendTxDelayed from sendTx Nothing
-      proofEnv = getProofEnv from
-  eSigma <- getTxSigma preTx
-  eProof <- fmap join $ mapM (liftIO . newProof proofEnv) eSigma
-  case eProof of
-    Right proof -> do
-      let tx = toSendTxDelayed from sendTx (Just proof)
-      logTest $ renderText tx
-      txResp <- M.postTx tx
-      logTest $ fromString $ ppShow txResp
-      return $ Right $ SendRes backBox toBox $ getTxHash txResp
-    Left err -> return $ Left err
+  let sendTx = SendDelayed fromBox amount (totalAmount - amount) (currentHeight + delayDiff) to
+  (tx, backBox, toBox) <- toSendTxDelayed from sendTx
+  logTest $ renderText tx
+  txResp <- M.postTx tx
+  logTest $ fromString $ ppShow txResp
+  return $ Right $ SendRes backBox toBox $ getTxHash txResp
 
-toSendTxDelayed :: Wallet -> SendDelayed -> Maybe Proof -> Tx
-toSendTxDelayed wallet SendDelayed{..} mProof = do
-    Tx
-      { tx'inputs   = V.fromList [inputBox]
-      , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
-      , tx'proof    = mProof
-      , tx'args     = mempty
-      }
+toSendTxDelayed :: Wallet -> SendDelayed -> App (Tx, Maybe BoxId, BoxId)
+toSendTxDelayed wallet SendDelayed{..} = do
+  fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
   where
-    inputBox = sendDelayed'from
+    preTx = PreTx
+      { preTx'inputs   = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      , preTx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      }
+
+    inputBox = BoxInputRef
+      { boxInputRef'id   = sendDelayed'from
+      , boxInputRef'args = mempty
+      , boxInputRef'proof = Nothing
+      }
+
     height = sendDelayed'height
 
     spendHeightId = 0
@@ -166,11 +158,10 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
     senderPk = pk' $ getWalletPublicKey wallet
 
     senderUtxo
-      | sendDelayed'remain > 0 = Just $ Box
-                { box'id     = sendDelayed'back
-                , box'value  = sendDelayed'remain
-                , box'script = toScript backScript
-                , box'args   = mempty
+      | sendDelayed'remain > 0 = Just $ PreBox
+                { preBox'value  = sendDelayed'remain
+                , preBox'script = mainScriptUnsafe backScript
+                , preBox'args   = mempty
                 }
       | otherwise                 = Nothing
 
@@ -178,14 +169,13 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
     -- or just the rest of it if it's greater than the limit
     backScript = senderPk
 
-    receiverUtxo = Box
-      { box'id     = sendDelayed'to
-      , box'value  = sendDelayed'amount
-      , box'script = toScript $ receiverScript ||* refundScript
-      , box'args   = intArgs [height]
+    receiverUtxo = PreBox
+      { preBox'value  = sendDelayed'amount
+      , preBox'script = mainScriptUnsafe $ receiverScript ||* refundScript
+      , preBox'args   = intArgs [height]
       }
 
-    getSpendHeight = vecAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
+    getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
 
     -- receiver can get money only hieght is greater than specified limit
     receiverScript =
@@ -196,4 +186,3 @@ toSendTxDelayed wallet SendDelayed{..} mProof = do
     refundScript =
             senderPk
         &&* toSigma (getSpendHeight >=* getHeight)
-

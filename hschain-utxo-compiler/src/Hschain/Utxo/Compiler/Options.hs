@@ -36,7 +36,8 @@ data Options
   -- ^ convert private key to public key
   | SignSigma
       { signSigma'secret     :: FilePath        -- ^ file with private key
-      , signSigma'input      :: FilePath        -- ^ file with sigma-expression
+      , signSigma'expression :: FilePath        -- ^ file with sigma-expression
+      , signSigma'tx         :: FilePath        -- ^ file with TX
       , signSigma'output     :: Maybe FilePath  -- ^ file for signed sigma-expression (proof)
       }
   -- ^ sign sigma-expression
@@ -102,10 +103,15 @@ options = subparser
                 <> short 's'
                 <> help "file with private key")
             <*> strOption
-                (  metavar "INPUT_FILE_PATH"
-                <> long "input"
-                <> short 'i'
-                <> help "input script")
+                (  metavar "EXPRESSION_FILE_PATH"
+                <> long "expression"
+                <> short 'e'
+                <> help "expression file")
+            <*> strOption
+                (  metavar "TX_FILE_PATH"
+                <> long "tx"
+                <> short 't'
+                <> help "transaction file")
             <*> optional (strOption
                 (  metavar "OUTPUT_FILE_PATH"
                 <> long "output"

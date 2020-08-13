@@ -19,7 +19,6 @@ library
   Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Back.App
                        Hschain.Utxo.Back.Config
-                       Hschain.Utxo.Back.Env
                        Hschain.Utxo.Back.Monad
                        Hschain.Utxo.Back.Server
   -- other-modules:
@@ -28,6 +27,7 @@ library
                      , hex-common
                      , hschain
                      , hschain-logger
+                     , hschain-db
                      , hschain-control
                      , hschain-utxo-api-rest
                      , hschain-utxo-blockchain

@@ -30,7 +30,7 @@ import qualified Hschain.Utxo.Lang.Core.Data.Stat   as Stat
 -- | Evaluates code for Gmachine and returns the final state
 -- and possible errors. If there are no errors then code was successfully executed.
 eval :: Gmachine -> Either Error Gmachine
-eval = runExec loop
+eval = runExec $ loop
   where
     loop = fix $ \rec -> do
       mCode <- getNextInstr
@@ -82,6 +82,11 @@ dispatch = \case
   HashSha      -> hashSha
   ShowInt      -> showInt
   ShowBool     -> showBool
+  -- bytes
+  BytesAppend  -> binBytesOp mappend
+  ToBytes tag  -> serialiseToBytes tag
+  FromBytes tag -> deserialiseFromBytes tag
+  Sha256       -> hashSha
   -- sigma expressions
   SigAnd       -> binSigmaOp (\a b -> Fix $ SigmaAnd [a, b])
   SigOr        -> binSigmaOp (\a b -> Fix $ SigmaOr  [a, b])

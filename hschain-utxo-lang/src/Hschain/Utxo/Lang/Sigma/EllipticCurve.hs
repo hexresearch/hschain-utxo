@@ -29,6 +29,7 @@ import HSChain.Crypto.Classes.Hash
 class ( ByteRepr (ECPoint   a)
       , ByteRepr (ECScalar  a)
       , ByteRepr (Challenge a)
+      , Eq (ECPoint a)
       ) => EC a where
   data ECPoint   a
   data ECScalar  a
@@ -123,7 +124,6 @@ instance EC Ed25519 where
   (^+^)   = coerce Ed.pointAdd
   (.*^)   = coerce Ed.pointMul
   negateP = coerce Ed.pointNegate
-
 
 instance Ord (ECPoint   Ed25519) where
   compare = coerce (compare `on` (Ed.pointEncode :: Ed.Point -> BS.ByteString))
