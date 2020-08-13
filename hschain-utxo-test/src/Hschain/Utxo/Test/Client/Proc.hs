@@ -7,15 +7,9 @@ module Hschain.Utxo.Test.Client.Proc(
 import Hex.Common.Yaml
 
 import Control.Concurrent
-
 import Control.Timeout
-
-import Data.Maybe
-
-import System.Directory
 import Test.Hspec
 
-import Hschain.Utxo.Blockchain
 import Hschain.Utxo.Back.App
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Lang.Sigma (newSecret)
@@ -27,13 +21,11 @@ import qualified Hschain.Utxo.API.Client as C
 -- | Resources of children processes
 data Resource = Resource
   { resource'threads :: [ThreadId]
-  , resource'dbs     :: [FilePath]
   } deriving (Show)
 
 clearResource :: Resource -> IO ()
 clearResource Resource{..} = do
   mapM_ killThread resource'threads
-  mapM_ clearDb resource'dbs
 
 -- | configs for tests
 data Options = Options
@@ -81,7 +73,6 @@ app opt genesisTx = do
   webThread  <- forkIO $ runWebNode nodeCfg genesisTx
   return $ Resource
     { resource'threads = webThread : valThreads
-    , resource'dbs     = catMaybes $ fmap nspec'dbName $ config'node nodeCfg : valCfgs
     }
 
 
@@ -98,7 +89,3 @@ runTestProc testApp = do
   return $ toHspec $ test
   where
     wait = sleep 1
-
-
-clearDb :: FilePath -> IO ()
-clearDb path = removeFile path
