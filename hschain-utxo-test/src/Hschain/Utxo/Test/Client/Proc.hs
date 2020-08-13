@@ -20,10 +20,9 @@ import qualified Hschain.Utxo.API.Client as C
 
 -- | configs for tests
 data Options = Options
-  { configValidatorPath  :: ![FilePath]  -- ^ validator configs
-  , configWebnodePath    :: !FilePath    -- ^ config for webnode
-  , genesisPath          :: !FilePath    -- ^ path to genesis
-  , testDir              :: !FilePath    -- ^ path to keep data for nodes
+  { configWebnodePath :: !FilePath    -- ^ config for webnode
+  , genesisPath       :: !FilePath    -- ^ path to genesis
+  , testDir           :: !FilePath    -- ^ path to keep data for nodes
   }
   deriving (Show)
 
@@ -39,15 +38,9 @@ poolConfigDir = configDir . mappend "pool/"
 
 defaultServiceOptions :: Options
 defaultServiceOptions = Options
-  { configValidatorPath  = fmap nodeConfigDir
-        [ "node-val1.yaml"
-        , "node-val2.yaml"
-        , "node-val3.yaml"
-        , "node-val4.yaml"
-        ]
-  , configWebnodePath = nodeConfigDir "node-web.yaml"
-  , genesisPath = poolConfigDir "genesis.json"
-  , testDir = "./test-craddle"
+  { configWebnodePath = nodeConfigDir "node-web.yaml"
+  , genesisPath       = poolConfigDir "genesis.json"
+  , testDir           = "./test-craddle"
   }
 
 defaultTestSpec :: TestSpec
@@ -58,11 +51,9 @@ defaultTestSpec = TestSpec
 
 app :: Options -> Genesis -> IO [ThreadId]
 app opt genesisTx = do
-  valCfgs <- mapM readYaml $ configValidatorPath opt
-  nodeCfg <- readYaml $ configWebnodePath opt
-  valThreads <- mapM (\cfg -> forkIO $ runValidator cfg genesisTx) valCfgs
-  webThread  <- forkIO $ runWebNode nodeCfg genesisTx
-  return $ webThread : valThreads
+  nodeCfg   <- readYaml $ configWebnodePath opt
+  webThread <- forkIO $ runWebNode nodeCfg genesisTx
+  return [webThread]
 
 
 runTestProc :: App () -> IO Spec
