@@ -22,25 +22,13 @@ import qualified Hschain.Utxo.API.Client as C
 data Options = Options
   { configWebnodePath :: !FilePath    -- ^ config for webnode
   , genesisPath       :: !FilePath    -- ^ path to genesis
-  , testDir           :: !FilePath    -- ^ path to keep data for nodes
   }
   deriving (Show)
 
-configDir :: FilePath -> FilePath
-configDir = mappend "./config/"
-
-nodeConfigDir :: FilePath -> FilePath
-nodeConfigDir = configDir . mappend "main/"
-
-poolConfigDir :: FilePath -> FilePath
-poolConfigDir = configDir . mappend "pool/"
-
-
 defaultServiceOptions :: Options
 defaultServiceOptions = Options
-  { configWebnodePath = nodeConfigDir "node-web.yaml"
-  , genesisPath       = poolConfigDir "genesis.json"
-  , testDir           = "./test-craddle"
+  { configWebnodePath = "config/main/node-web.yaml"
+  , genesisPath       = "config/pool/genesis.json"
   }
 
 defaultTestSpec :: TestSpec
