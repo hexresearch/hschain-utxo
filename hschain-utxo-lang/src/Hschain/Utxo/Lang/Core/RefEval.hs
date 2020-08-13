@@ -110,7 +110,7 @@ evalExpr genv = recur
       -- FIXME: Here we assume that let is completely nonrecursive
       --        (For simplicity)
       ELet binds body ->
-        let lenv' = Map.fromList [ (nm, recur lenv' e) | (nm,e) <- binds ]
+        let lenv' = MapL.fromList [ (nm, recur lenv' e) | (nm,e) <- binds ]
                  <> lenv
         in recur lenv' body
       --
