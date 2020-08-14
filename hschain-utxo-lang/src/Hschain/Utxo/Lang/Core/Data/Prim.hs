@@ -7,12 +7,7 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
   , Typed(..)
   , Addr
   , Prim(..)
-  , getPrimInt
-  , getPrimText
-  , getPrimBool
-  , getPrimBytes
-  , getPrimSigma
-) where
+  ) where
 
 import Codec.Serialise
 import Control.DeepSeq
@@ -57,36 +52,6 @@ data Prim
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData, Serialise)
 
--- | Extract integer primitive
-getPrimInt :: Prim -> Maybe Int64
-getPrimInt = \case
-  PrimInt n -> Just n
-  _         -> Nothing
-
--- | Extract boolean primitive
-getPrimBool :: Prim -> Maybe Bool
-getPrimBool = \case
-  PrimBool b -> Just b
-  _          -> Nothing
-
--- | Extract textual primitive
-getPrimText :: Prim -> Maybe Text
-getPrimText = \case
-  PrimText t -> Just t
-  _          -> Nothing
-
--- | Extract textual primitive
-getPrimBytes :: Prim -> Maybe ByteString
-getPrimBytes = \case
-  PrimBytes t -> Just t
-  _           -> Nothing
-
--- | Extract textual primitive
-getPrimSigma :: Prim -> Maybe (Sigma PublicKey)
-getPrimSigma = \case
-  PrimSigma t -> Just t
-  _           -> Nothing
-
 -----------------------------------------------------
 -- instnaces
 
@@ -100,20 +65,6 @@ instance HasPrefix Name where
 instance PrintCons Name where
   printCons name args = hsep $ pretty name : args
 
-{-
-instance PrintCons Text where
-  printCons name args
-    | isTupleName name = parens $ hsep $ punctuate comma args
-    | otherwise        = hsep $ pretty name : args
-    where
-      isTupleName str = (pre == "Tuple") && isInt post
-        where
-          (pre, post) = T.splitAt 5 str
-          isInt = T.all isDigit
--}
-
 instance Serialise (Fix (H.TypeF () Text))
 instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
 instance Serialise TypeCore
---  encode = encode . toTypeSer
---  decode = fmap fromTypeSer decode
