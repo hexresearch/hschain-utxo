@@ -33,7 +33,6 @@ import qualified Data.Vector     as V
 
 import qualified Hschain.Utxo.Lang.Core.Data.Code as Code
 import qualified Hschain.Utxo.Lang.Core.Data.Heap as Heap
-import qualified Hschain.Utxo.Lang.Core.Data.Output as Output
 import qualified Hschain.Utxo.Lang.Core.Data.Stat as Stat
 import qualified Hschain.Utxo.Lang.Error as E
 import qualified Hschain.Utxo.Lang.Core.RefEval as Ref
@@ -45,19 +44,10 @@ import qualified Hschain.Utxo.Lang.Core.RefEval as Ref
 -- contain no recursion.
 execScriptToSigma :: InputEnv -> CoreProg -> Either E.Error (Sigma PublicKey)
 execScriptToSigma env prog = case isSigmaScript prog of
-  Nothing
-    | refRes /= gmRes -> error (show gmRes)
-    | otherwise       -> gmRes
+  Nothing  -> refRes
   Just err -> Left err
   where
-    gmRes  = either (Left . E.ExecError . E.GmachineError) getSigmaOutput
-           $ eval $ compile $ removeDeadCode $ addPrelude env prog
-    getSigmaOutput st = case Output.toList $ gmachine'output st of
-      [PrimSigma sigma] -> Right $ either (Fix . SigmaBool) id $ eliminateSigmaBool sigma
-      [PrimBool b]      -> Right $ Fix $ SigmaBool b
-      _                 -> Left $ E.CoreScriptError E.ResultIsNotSigma
-    -- Reference eval
-    refRes = case Ref.evalProg env $ removeDeadCode $ addPrelude env prog of
+    refRes = case Ref.evalProg env $ addPrelude env prog of
       Ref.EvalPrim (PrimBool  b) -> Right $ Fix $ SigmaBool b
       Ref.EvalPrim (PrimSigma s) -> case eliminateSigmaBool s of
         Left  b  -> Right $ Fix $ SigmaBool b
@@ -66,12 +56,6 @@ execScriptToSigma env prog = case isSigmaScript prog of
 
 addPrelude :: InputEnv -> CoreProg -> CoreProg
 addPrelude inputEnv prog = preludeLib inputEnv <> prog
-
--- | TODO: implement the function to remove unreachable code.
--- We start from main and then include only functions that are needed by finding free variables.
--- or maybe we can include it as a filter in prelude import.
-removeDeadCode :: CoreProg -> CoreProg
-removeDeadCode = id
 
 -- | the program is sigma script if
 --
