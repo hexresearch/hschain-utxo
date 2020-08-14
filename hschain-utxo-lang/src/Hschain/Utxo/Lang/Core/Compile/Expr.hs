@@ -8,20 +8,16 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , CaseAlt(..)
   , coreProgToScript
   , coreProgFromScript
-  , coreProgToHumanText
-  , coreProgFromHumanText
 ) where
 
 import Codec.Serialise
 
 import Data.String
-import Data.Text (Text)
 import Data.Vector (Vector)
 
 import GHC.Generics
 
 import Hschain.Utxo.Lang.Core.Data.Prim
-
 import Hschain.Utxo.Lang.Expr (Script(..))
 
 import qualified Data.ByteString.Lazy as LB
@@ -37,14 +33,6 @@ coreProgToScript = Script . LB.toStrict . serialise
 
 coreProgFromScript :: Script -> Maybe CoreProg
 coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
-
--- | TODO: it would be useful for testing to
--- have human readable versions of to/from script functions
-coreProgToHumanText :: CoreProg -> Text
-coreProgToHumanText = undefined -- renderText
-
-coreProgFromHumanText :: CoreProg -> Text
-coreProgFromHumanText = undefined -- renderText
 
 -- | Supercobinators do not contain free variables except for references to other supercombinators.
 --
