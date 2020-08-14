@@ -6,7 +6,6 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , TypeCore
   , ExprCore(..)
   , CaseAlt(..)
-  , CompiledScomb(..)
   , coreProgToScript
   , coreProgFromScript
   , coreProgToHumanText
@@ -21,7 +20,6 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
 
 import Hschain.Utxo.Lang.Expr (Script(..))
@@ -94,13 +92,6 @@ data CaseAlt = CaseAlt
   , caseAlt'rhs   :: ExprCore
   -- ^ right-hand side of the case-alternative
   } deriving (Show, Eq, Generic)
-
--- | Compiled supercombinator
-data CompiledScomb = CompiledScomb
-  { compiledScomb'name  :: Name   -- ^ name
-  , compiledScomb'arity :: Int    -- ^ size of argument list
-  , compiledScomb'code  :: Code   -- ^ code to instantiate combinator
-  } deriving (Show, Eq)
 
 ---------------------------------------------
 -- instances
