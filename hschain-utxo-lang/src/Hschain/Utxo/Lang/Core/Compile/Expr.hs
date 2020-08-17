@@ -26,7 +26,8 @@ import qualified Data.ByteString.Lazy as LB
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
-  deriving newtype (Generic, Semigroup, Monoid, Show)
+  deriving newtype  (Generic, Semigroup, Monoid, Show)
+  deriving anyclass (Serialise)
 
 coreProgToScript :: CoreProg -> Script
 coreProgToScript = Script . LB.toStrict . serialise
@@ -42,7 +43,9 @@ data Scomb = Scomb
   , scomb'forall :: Vector Name          -- ^ names of type variables. It is empty if type is monomorphic.
   , scomb'args   :: Vector (Typed Name)  -- ^ list of arguments
   , scomb'body   :: Typed ExprCore       -- ^ body
-  } deriving (Show, Eq, Generic)
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (Serialise)
 
 instance IsString ExprCore where
   fromString = EVar . fromString
@@ -68,7 +71,8 @@ data ExprCore
   -- of constructor as afunction for a type-checker
   | EBottom
   -- ^ failed termination for the program
-  deriving (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (Serialise)
 
 -- | Case alternatives
 data CaseAlt = CaseAlt
@@ -79,13 +83,6 @@ data CaseAlt = CaseAlt
   -- ^ arguments of the pattern matching
   , caseAlt'rhs   :: ExprCore
   -- ^ right-hand side of the case-alternative
-  } deriving (Show, Eq, Generic)
-
----------------------------------------------
--- instances
-
-instance Serialise CaseAlt
-instance Serialise ExprCore
-instance Serialise Scomb
-instance Serialise CoreProg
-
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (Serialise)
