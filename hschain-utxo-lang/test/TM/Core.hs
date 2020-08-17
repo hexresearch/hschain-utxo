@@ -11,9 +11,7 @@ import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.RefEval
-import qualified Hschain.Utxo.Lang.Core.Data.Output as O
 import Examples.SKI
 import Examples.Simple
 
@@ -46,7 +44,6 @@ tests = testGroup "core"
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
   [ testCase "typecheck" $ Nothing       @=? typeCheck preludeTypeContext prog
-  , testCase "eval"      $ Right   [res] @=? run (prog <> CoreProg (environmentFunctions env))
   , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
   ]
 
@@ -79,13 +76,6 @@ progEquality p = CoreProg
   where
     ty = primToType p
     eq = toCompareName ty "equals"
-
-
-run :: CoreProg -> Either Error [Prim]
-run
-  = fmap (O.toList . gmachine'output)
-  . eval
-  . compile
 
 
 ----------------------------------------------------------------
