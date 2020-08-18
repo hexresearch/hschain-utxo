@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
   , TypeCore
   , SignatureCore
   , Typed(..)
-  , Addr
   , Prim(..)
   ) where
 
@@ -38,9 +37,6 @@ data Typed a = Typed
 
 -- | Name identifiers for variables or global functions
 type Name = Text
-
--- | Address on the heap
-type Addr = Int
 
 -- | Primitive types
 data Prim
