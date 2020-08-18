@@ -206,7 +206,6 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
       Sha256      -> lift1 $ \bs -> let Hash h = hashBlob @SHA256 bs in h
       ShowInt     -> lift1 (T.pack . show @Int64)
       ShowBool    -> lift1 (T.pack . show @Bool)
-      Bottom      -> ValBottom $ EvalErr "Bottom encountered"
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList

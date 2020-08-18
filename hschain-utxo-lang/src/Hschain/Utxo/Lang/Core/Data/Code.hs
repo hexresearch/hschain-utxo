@@ -24,8 +24,6 @@ data Instr
   -- ^ text operators
   | BytesAppend | ToBytes ArgType | FromBytes ArgType | Sha256
   -- ^ bytes operations
-  | Bottom
-  -- ^ Failed termination
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (NFData)
 
