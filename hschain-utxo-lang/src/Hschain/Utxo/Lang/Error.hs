@@ -14,7 +14,6 @@ import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore)
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Parser as H
 
-import qualified Hschain.Utxo.Lang.Core.Gmachine.Monad as G(Error)
 
 -- | errors for our language
 data Error
@@ -41,7 +40,6 @@ data ExecError
   | NoField VarName
   | NonExaustiveCase Loc Lang
   | NoSigmaScript
-  | GmachineError G.Error
   | FailedToDecodeScript
   deriving stock    (Show,Eq,Generic)
 
