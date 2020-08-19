@@ -77,8 +77,7 @@ environmentTypes = TypeContext $ M.fromList $
 primitives :: [Scomb]
 primitives =
   -- numeric operators
-  [ intOp2 "+"
-  , intOp2 "*"
+  [ intOp2 "*"
   , intOp2 "-"
   , intOp2 "/"
   , op1 "negate" intT intT
@@ -573,7 +572,7 @@ zero :: ExprCore
 zero = EPrim $ PrimInt 0
 
 add :: ExprCore -> ExprCore -> ExprCore
-add a b = ap "+" [a, b]
+add a b = ap (EPrimOp OpAdd) [a, b]
 
 sub :: ExprCore -> ExprCore -> ExprCore
 sub a b = ap "-" [a, b]
@@ -588,8 +587,7 @@ lessThanEquals ty a b = ap lteV [a, b]
 
 builtInDiadic :: Map Name Instr
 builtInDiadic = M.fromList $
-  [ ("+", Add)
-  , ("*", Mul)
+  [ ("*", Mul)
   , ("-", Sub)
   , ("/", Div)
   , ("&&", And)

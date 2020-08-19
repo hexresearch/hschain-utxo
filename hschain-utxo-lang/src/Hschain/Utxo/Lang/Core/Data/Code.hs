@@ -12,7 +12,7 @@ import Hschain.Utxo.Lang.Expr (ArgType)
 
 -- | Instructions for G-machine
 data Instr
-  = Add | Sub | Mul | Div | Neg
+  = Sub | Mul | Div | Neg
   -- ^ Arithmetic operations
   | Eq | Ne | Lt | Le | Gt | Ge
   -- ^ Comparison operations

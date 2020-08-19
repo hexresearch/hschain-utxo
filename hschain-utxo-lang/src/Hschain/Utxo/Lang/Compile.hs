@@ -9,6 +9,7 @@ import Control.Monad
 
 import Data.Fix
 import Data.Foldable
+import qualified Data.Functor.Foldable as RS
 
 import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
@@ -37,12 +38,27 @@ toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m CoreProg
 compile
-  =  toCoreProg
+  =  return . substPrimOp
+ <=< toCoreProg
 -- <=< makeMonomorphic
  <=< specifyCompareOps
  <=< annotateTypes
   .  lambdaLifting
  <=< toExtendedLC
+
+-- | Perform sunbstiturion of primops
+substPrimOp :: CoreProg -> CoreProg
+substPrimOp (CoreProg sc) = CoreProg (subst <$> sc)
+  where
+    subst Core.Scomb{..} = Core.Scomb{ scomb'body = go1 scomb'body
+                                     , ..
+                                     }
+    go1 (Typed a ty) = Typed (go2 a) ty
+    go2 = RS.cata $ \case
+      Core.EVarF v -> case v of
+        "+" -> Core.EPrimOp Core.OpAdd
+        _   -> Core.EVar v
+      e            -> RS.embed e
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.

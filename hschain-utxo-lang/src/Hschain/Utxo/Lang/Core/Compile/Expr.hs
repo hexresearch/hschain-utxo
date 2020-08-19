@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 -- | Types for core language and its compiled form.
 module Hschain.Utxo.Lang.Core.Compile.Expr(
     CoreProg(..)
@@ -9,13 +10,15 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , CaseAlt(..)
   , coreProgToScript
   , coreProgFromScript
+    -- * Recursion schemes stuff
+  , ExprCoreF(..)
 ) where
 
 import Codec.Serialise
 
 import Data.String
 import Data.Vector (Vector)
-
+import Data.Functor.Foldable.TH
 import GHC.Generics
 
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -94,3 +97,5 @@ data CaseAlt = CaseAlt
   }
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
+
+makeBaseFunctor ''ExprCore

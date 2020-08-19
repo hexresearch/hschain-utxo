@@ -157,7 +157,6 @@ primVals :: Map.Map Name Val
 primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
   where
     evalD = \case
-      Add -> lift2 ((+) @Int64)
       Mul -> lift2 ((*) @Int64)
       Sub -> lift2 ((-) @Int64)
       Div -> lift2 (div @Int64)

@@ -95,6 +95,7 @@ library
                      , deepseq
                      , deriving-compat
                      , extra
+                     , recursion-schemes
                      , groom
                      , haskell-src-exts
                      , hex-common
