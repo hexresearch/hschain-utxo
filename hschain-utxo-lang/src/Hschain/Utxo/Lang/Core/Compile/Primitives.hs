@@ -77,26 +77,8 @@ environmentTypes = TypeContext $ M.fromList $
 primitives :: [Scomb]
 primitives =
   -- numeric operators
-  [ intOp2 "+"
-  , intOp2 "*"
-  , intOp2 "-"
-  , intOp2 "/"
-  , op1 "negate" intT intT
-
-
-  -- booleans
-  , constant "true"  (PrimBool True)
+  [ constant "true"  (PrimBool True)
   , constant "false" (PrimBool False)
-  , boolOp2 "&&"
-  , boolOp2 "||"
-  , boolOp2 "^^"
-  , op1 "not" boolT boolT
-
-  -- text
-  , op1 "lengthText" textT intT
-  , op2 "<>" (textT, textT) textT
-  , op1 "hashBlake" bytesT bytesT
-  , op1 "hashSha"   bytesT bytesT
 
   -- lists
   , nilComb
@@ -118,38 +100,13 @@ primitives =
   , anyComb
   , sigmaAllComb
   , sigmaAnyComb
-
-  -- sigma-expressions
-  , sigmaOp2 "&&&"
-  , sigmaOp2 "|||"
-  , op1 "pk" textT sigmaT
-  , op1 "toSigma" boolT sigmaT
-
   -- boxes
   , boxCons
   , getBoxId
   , getBoxScript
   , getBoxValue
   ]
-  ++ (comparePack =<< argTypes)
   ++ getBoxArgs
-  ++ byteCombs
-
-------------------------------------------------------------
--- generic utilities
-
--- | comparision operators per type
-comparePack :: ArgType -> [Scomb]
-comparePack tyTag =
-  [ compareOp ty (toCompareName ty "equals")
-  , compareOp ty (toCompareName ty "notEquals")
-  , compareOp ty (toCompareName ty "greaterThan")
-  , compareOp ty (toCompareName ty "greaterThanEquals")
-  , compareOp ty (toCompareName ty "lessThan")
-  , compareOp ty (toCompareName ty "lessThanEquals")
-  ]
-  where
-    ty = fromArgType tyTag
 
 ------------------------------------------------------------
 -- boxes
@@ -276,24 +233,6 @@ getArgs Args{..} =
     argComb cons tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
       where
         ty = fromArgType tyTag
-
-------------------------------------------------------------
--- bytes
-
-byteCombs :: [Scomb]
-byteCombs = appendByteComb : sha256 : (fmap toBytes argTypes ++ fmap fromBytes argTypes)
-
-appendByteComb :: Scomb
-appendByteComb = op2 Const.appendBytes (bytesT, bytesT) bytesT
-
-sha256 :: Scomb
-sha256 = op1 Const.sha256 bytesT bytesT
-
-toBytes :: ArgType -> Scomb
-toBytes tag = op1 (Const.serialiseBytes $ argTypeName tag) (fromArgType tag) bytesT
-
-fromBytes :: ArgType -> Scomb
-fromBytes tag = op1 (Const.deserialiseBytes $ argTypeName tag) bytesT (fromArgType tag)
 
 ------------------------------------------------------------
 -- lists

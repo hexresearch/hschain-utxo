@@ -75,7 +75,6 @@ evalProg env (CoreProg prog) =
   where
     genv = MapL.fromList [ (scomb'name s, evalScomb genv s)
                          | s <- prog ++ environmentFunctions env
-                         , not $ scomb'name s `MapL.member` primVals
                          ]
     --
     con2list 0 []                   = Just []
