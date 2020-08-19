@@ -101,7 +101,7 @@ inferLet nm expr body = do
     AnyType     -> throwError PolymorphicLet
   nm .:. ty $ inferExpr body
 
-inferCase :: ExprCore -> [CaseAlt] -> Check MonoType
+inferCase :: ExprCore -> [CaseAlt Name] -> Check MonoType
 inferCase expr alts = inferExpr expr >>= \case
   -- Tuple
   MonoType (TupleT ts) -> case alts of

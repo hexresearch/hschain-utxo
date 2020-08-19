@@ -4,12 +4,13 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
     PrimOp(..)
   , Typed(..)
   , TypeCore
-  , ExprCore(..)
+  , Core(..)
+  , ExprCore
   , CaseAlt(..)
   , coreProgToScript
   , coreProgFromScript
     -- * Recursion schemes stuff
-  , ExprCoreF(..)
+  , CoreF(..)
   ) where
 
 import Codec.Serialise
@@ -99,22 +100,22 @@ data PrimOp a
   deriving anyclass (Serialise)
 
 -- | Expressions of the Core-language
-data ExprCore
-  = EVar !Name
+data Core a
+  = EVar !a
   -- ^ variables
   | EPrim !Prim
   -- ^ constant primitive
   | EPrimOp !(PrimOp TypeCore)
   -- ^ Primitive operation
-  | ELam !Name !TypeCore ExprCore
+  | ELam !a !TypeCore (Core a)
   -- ^ Lambda abstraction
-  | EAp  ExprCore ExprCore
+  | EAp  (Core a) (Core a)
   -- ^ application
-  | ELet Name ExprCore ExprCore
+  | ELet a (Core a) (Core a)
   -- ^ Let bindings
-  | EIf ExprCore ExprCore ExprCore
+  | EIf (Core a) (Core a) (Core a)
   -- ^ if expressions
-  | ECase !ExprCore [CaseAlt]
+  | ECase !(Core a) [CaseAlt a]
   -- ^ case alternatives
   | EConstr TypeCore !Int
   -- ^ Constructor of ADT. First field is a type of value being
@@ -122,23 +123,25 @@ data ExprCore
   --   have that type as parameter. Second is constructor's tag.
   | EBottom
   -- ^ failed termination for the program
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
-instance IsString ExprCore where
+instance IsString a => IsString (Core a) where
   fromString = EVar . fromString
 
+type ExprCore = Core Name
+
 -- | Case alternatives
-data CaseAlt = CaseAlt
+data CaseAlt a = CaseAlt
   { caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [Name]
+  , caseAlt'args  :: [a]
   -- ^ arguments of the pattern matching
-  , caseAlt'rhs   :: ExprCore
+  , caseAlt'rhs   :: Core a
   -- ^ right-hand side of the case-alternative
   }
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
-makeBaseFunctor ''ExprCore
+makeBaseFunctor ''Core
