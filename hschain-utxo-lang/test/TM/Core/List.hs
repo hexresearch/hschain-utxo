@@ -5,7 +5,6 @@ module TM.Core.List(
   , progMapList
   , progSumList
   , progOrList
-  , run
   , listConsts
 ) where
 
@@ -22,9 +21,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.RefEval
-import qualified Hschain.Utxo.Lang.Core.Data.Output as O
 import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
@@ -35,7 +32,7 @@ tests = testGroup "core-lists"
   [ testGroup "list-functions"
     [ testProgram     "listAt 0"               (progListAt 0) [PrimInt 1]
     , testProgram     "listAt 1"               (progListAt 1) [PrimInt 2]
-    , testProgramFail "listAt out of bound"    (progListAt 4) BottomTerm
+    , testProgramFail "listAt out of bound"    (progListAt 4)
     , testProgram     "Typecheck concat lists" progConcatList (fmap PrimInt [1..6])
     , testProgram     "Typecheck map lists"    progMapList (fmap PrimInt [10, 20, 30])
     , testProgram     "Typecheck sum lists"    progSumList [PrimInt 21]
@@ -50,13 +47,12 @@ tests = testGroup "core-lists"
 testProgram :: String -> CoreProg -> [Prim] -> TestTree
 testProgram nm prog res = testProgramBy nm prog (Right res)
 
-testProgramFail :: String -> CoreProg -> Error -> TestTree
-testProgramFail nm prog res = testProgramBy nm prog (Left res)
+testProgramFail :: String -> CoreProg -> TestTree
+testProgramFail nm prog = testProgramBy nm prog (Left ())
 
-testProgramBy :: String -> CoreProg -> Either Error [Prim] -> TestTree
+testProgramBy :: String -> CoreProg -> Either e [Prim] -> TestTree
 testProgramBy nm prog res = testGroup nm
   [ testTypeCheckCase "typecheck" prog
-  , testCase "eval"   $ res @=? run prog
   , testCase "simple" $ case res of
       Left  _   -> return ()
       Right [r] -> EvalPrim r @=? evalProg env prog
@@ -132,12 +128,6 @@ progSigmaAllList = mainProg $ Typed (ap (EPolyVar "sigmaAll" [boolT]) ["toSigma"
 
 mainProg :: Typed ExprCore -> CoreProg
 mainProg expr = listConsts <> CoreProg [mkMain expr]
-
-run :: CoreProg -> Either Error [Prim]
-run
-  = fmap (O.toList . gmachine'output)
-  . eval
-  . compile . (CoreProg primitives <> )
 
 env :: InputEnv
 env = InputEnv
