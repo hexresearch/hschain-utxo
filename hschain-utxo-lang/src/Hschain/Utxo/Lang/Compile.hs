@@ -36,9 +36,13 @@ toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m CoreProg
-compile =
-      toCoreProg <=< {- makeMonomorphic <=< -} specifyCompareOps
-  <=< annotateTypes . lambdaLifting <=< toExtendedLC
+compile
+  =  toCoreProg
+-- <=< makeMonomorphic
+ <=< specifyCompareOps
+ <=< annotateTypes
+  .  lambdaLifting
+ <=< toExtendedLC
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
