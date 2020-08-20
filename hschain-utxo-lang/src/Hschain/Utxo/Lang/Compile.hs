@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Compile(
   , toCoreScript
 ) where
 
+import Control.Lens
 import Control.Monad
 
 import Data.Fix
@@ -17,8 +18,8 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
-import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore, Name)
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, coreProgToScript)
+import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore, Name, typed'valueL)
+import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, scomb'bodyL, coreProgToScript)
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
@@ -48,13 +49,10 @@ compile
 
 -- | Perform sunbstiturion of primops
 substPrimOp :: CoreProg -> CoreProg
-substPrimOp (CoreProg sc) = CoreProg (subst <$> sc)
+substPrimOp
+  = _Wrapped' . each . scomb'bodyL . typed'valueL %~ go
   where
-    subst Core.Scomb{..} = Core.Scomb{ scomb'body = go1 scomb'body
-                                     , ..
-                                     }
-    go1 (Typed a ty) = Typed (go2 a) ty
-    go2 = RS.cata $ \case
+    go = RS.cata $ \case
       Core.EVarF v -> case v of
         "+" -> Core.EPrimOp Core.OpAdd
         _   -> Core.EVar v

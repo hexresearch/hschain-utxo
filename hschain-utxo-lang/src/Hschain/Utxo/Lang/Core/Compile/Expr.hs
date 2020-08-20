@@ -36,8 +36,9 @@ import qualified Data.ByteString.Lazy as LB
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
-  deriving newtype  (Generic, Semigroup, Monoid, Show)
-  deriving anyclass (Serialise)
+  deriving stock    (Generic)
+  deriving newtype  (Semigroup, Monoid, Show, Serialise)
+instance Wrapped CoreProg
 
 coreProgToScript :: CoreProg -> Script
 coreProgToScript = Script . LB.toStrict . serialise
