@@ -265,6 +265,11 @@ primopToType = \case
   OpMul -> funT [intT,intT] intT
   OpDiv -> funT [intT,intT] intT
   OpNeg -> funT [intT]      intT
+  --
+  OpBoolAnd -> funT [boolT, boolT] boolT
+  OpBoolOr  -> funT [boolT, boolT] boolT
+  OpBoolXor -> funT [boolT, boolT] boolT
+  OpBoolNot -> funT [boolT]        boolT
 
 intT :: TypeCore
 intT = primT "Int"

@@ -59,6 +59,11 @@ substPrimOp
         "*"      -> Core.EPrimOp Core.OpMul
         "/"      -> Core.EPrimOp Core.OpDiv
         "negate" -> Core.EPrimOp Core.OpNeg
+        --
+        "&&" -> Core.EPrimOp Core.OpBoolAnd
+        "||" -> Core.EPrimOp Core.OpBoolOr
+        "^^" -> Core.EPrimOp Core.OpBoolXor
+        "not" -> Core.EPrimOp Core.OpBoolNot
         _   -> Core.EVar v
       e            -> RS.embed e
 

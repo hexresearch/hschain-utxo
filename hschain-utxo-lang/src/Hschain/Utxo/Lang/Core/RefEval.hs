@@ -10,6 +10,7 @@ module Hschain.Utxo.Lang.Core.RefEval
 
 import Codec.Serialise (Serialise,serialise,deserialiseOrFail)
 import Data.Int
+import Data.Bits       (xor)
 import Data.ByteString (ByteString)
 import Data.Text       (Text)
 import Data.Fix
@@ -165,11 +166,6 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
       Gt -> opComparison (>)
       Ge -> opComparison (>=)
       --
-      And -> lift2 (&&)
-      Or  -> lift2 (||)
-      Xor -> lift2 $ \a b -> (a || b) && not (a && b)
-      Not -> lift1 not
-      --
       SigAnd  -> lift2 $ \a b -> Fix $ SigmaAnd [a,b]
       SigOr   -> lift2 $ \a b -> Fix $ SigmaOr  [a,b]
       SigPk   -> lift1 $ \t   -> case publicKeyFromText t of
@@ -209,6 +205,11 @@ evalPrimOp = \case
   OpMul -> lift2 ((*) @Int64)
   OpDiv -> lift2 (div @Int64)
   OpNeg -> lift1 (negate @Int64)
+  --
+  OpBoolAnd -> lift2 (&&)
+  OpBoolOr  -> lift2 (||)
+  OpBoolXor -> lift2 (xor @Bool)
+  OpBoolNot -> lift1 not
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList

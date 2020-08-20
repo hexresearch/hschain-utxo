@@ -587,10 +587,7 @@ lessThanEquals ty a b = ap lteV [a, b]
 
 builtInDiadic :: Map Name Instr
 builtInDiadic = M.fromList $
-  [ ("&&", And)
-  , ("||", Or)
-  , ("^^", Xor)
-  , ("&&&", SigAnd)
+  [ ("&&&", SigAnd)
   , ("|||", SigOr)
   , ("<>", TextAppend)
   , (Const.appendBytes, BytesAppend)
@@ -607,8 +604,7 @@ builtInDiadic = M.fromList $
 
 builtInUnary :: Map Name Instr
 builtInUnary = M.fromList $
-  [ ("not", Not)
-  , ("pk", SigPk)
+  [ ("pk", SigPk)
   , ("toSigma", SigBool)
   , ("lengthText", TextLength)
   , ("hashBlake", HashBlake)

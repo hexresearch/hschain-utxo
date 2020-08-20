@@ -67,6 +67,11 @@ data PrimOp
   | OpMul                       -- ^ Multiplication
   | OpDiv                       -- ^ Division
   | OpNeg                       -- ^ Negation
+
+  | OpBoolAnd                   -- ^ Boolean AND
+  | OpBoolOr                    -- ^ Boolean OR
+  | OpBoolXor                   -- ^ Boolean XOR
+  | OpBoolNot                   -- ^ Boolean negation
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

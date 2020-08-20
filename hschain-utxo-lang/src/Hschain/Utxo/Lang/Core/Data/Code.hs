@@ -14,8 +14,6 @@ import Hschain.Utxo.Lang.Expr (ArgType)
 data Instr
   = Eq | Ne | Lt | Le | Gt | Ge
   -- ^ Comparison operations
-  | And | Or | Not | Xor
-  -- ^ boolean operators
   | SigAnd | SigOr | SigPk | SigBool
   -- ^ sigma operators
   | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
