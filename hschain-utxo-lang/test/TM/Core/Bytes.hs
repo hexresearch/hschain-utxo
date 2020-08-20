@@ -1,6 +1,5 @@
 module TM.Core.Bytes(
     tests
-  , run
 ) where
 
 import Data.ByteString (ByteString)
@@ -18,9 +17,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.RefEval
-import qualified Hschain.Utxo.Lang.Core.Data.Output as O
 import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
@@ -94,15 +91,8 @@ testTypeCheckCase testName prog =
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram name prog res = testGroup name
   [ testTypeCheckCase "typecheck" prog
-  , testCase          "eval"      $ Right [res]  @=? run prog
   , testCase          "simple"    $ EvalPrim res @=? evalProg env prog
   ]
-
-run :: CoreProg -> Either Error [Prim]
-run
-  = fmap (O.toList . gmachine'output)
-  . eval
-  . compile . (CoreProg primitives <> )
 
 env :: InputEnv
 env = InputEnv

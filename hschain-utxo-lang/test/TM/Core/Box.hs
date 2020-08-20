@@ -1,6 +1,5 @@
 module TM.Core.Box(
     tests
-  , run
 ) where
 
 import Data.Int
@@ -15,9 +14,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Gmachine
 import Hschain.Utxo.Lang.Core.RefEval
-import qualified Hschain.Utxo.Lang.Core.Data.Output as O
 import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
@@ -78,7 +75,6 @@ testTypeCheckCase testName prog =
 testProg :: String -> Prim -> CoreProg -> TestTree
 testProg name res prog = testGroup name
   [ testTypeCheckCase "typecheck" prog
-  , testCase          "eval"      $ Right   [res] @=? run prog
   , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
   ]
 
@@ -110,9 +106,3 @@ progGetInputLastTextArg = mainProg $
 
 mainProg :: Typed ExprCore -> CoreProg
 mainProg expr = CoreProg [mkMain expr]
-
-run :: CoreProg -> Either Error [Prim]
-run
-  = fmap (O.toList . gmachine'output)
-  . eval
-  . compile . (preludeLib txEnv <> )

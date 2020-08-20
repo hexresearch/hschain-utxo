@@ -206,28 +206,6 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
       Sha256      -> lift1 $ \bs -> let Hash h = hashBlob @SHA256 bs in h
       ShowInt     -> lift1 (T.pack . show @Int64)
       ShowBool    -> lift1 (T.pack . show @Bool)
-      Bottom      -> ValBottom $ EvalErr "Bottom encountered"
-      -- G-machine primitives      
-      Unwind       -> gerr
-      PushGlobal{} -> gerr
-      PushPrim{}   -> gerr
-      PushBasic{}  -> gerr
-      Push{}       -> gerr
-      Mkap         -> gerr
-      Update{}     -> gerr
-      Pop{}        -> gerr
-      Slide{}      -> gerr
-      Alloc{}      -> gerr
-      Eval         -> gerr
-      Cond{}       -> gerr
-      Pack{}       -> gerr
-      CaseJump{}   -> gerr
-      Split{}      -> gerr
-      Print        -> gerr
-      MkPrim       -> gerr
-      Get          -> gerr
-      UpdatePrim{} -> gerr
-    gerr = error "GMachine primitive"
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList
