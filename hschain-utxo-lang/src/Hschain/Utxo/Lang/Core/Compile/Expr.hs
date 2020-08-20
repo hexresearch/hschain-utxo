@@ -12,9 +12,15 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , coreProgFromScript
     -- * Recursion schemes stuff
   , ExprCoreF(..)
+    -- * Lens
+  , scomb'nameL
+  , scomb'forallL
+  , scomb'argsL
+  , scomb'bodyL
 ) where
 
 import Codec.Serialise
+import Control.Lens
 
 import Data.String
 import Data.Vector (Vector)
@@ -99,3 +105,7 @@ data CaseAlt = CaseAlt
   deriving anyclass (Serialise)
 
 makeBaseFunctor ''ExprCore
+
+$(makeLensesWith
+   (defaultFieldRules & lensField .~ (mappingNamer (\nm -> [nm++"L"])))
+   ''Scomb)

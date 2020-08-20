@@ -95,6 +95,7 @@ library
                      , deepseq
                      , deriving-compat
                      , extra
+                     , lens
                      , recursion-schemes
                      , groom
                      , haskell-src-exts
