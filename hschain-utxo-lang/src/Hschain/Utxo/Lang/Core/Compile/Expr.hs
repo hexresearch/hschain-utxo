@@ -62,7 +62,11 @@ instance IsString ExprCore where
   fromString = EVar . fromString
 
 data PrimOp
-  = OpAdd
+  = OpAdd                       -- ^ Addition
+  | OpSub                       -- ^ Subtraction
+  | OpMul                       -- ^ Multiplication
+  | OpDiv                       -- ^ Division
+  | OpNeg                       -- ^ Negation
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

@@ -261,6 +261,10 @@ primToType = \case
 primopToType :: PrimOp -> TypeCore
 primopToType = \case
   OpAdd -> funT [intT,intT] intT
+  OpSub -> funT [intT,intT] intT
+  OpMul -> funT [intT,intT] intT
+  OpDiv -> funT [intT,intT] intT
+  OpNeg -> funT [intT]      intT
 
 intT :: TypeCore
 intT = primT "Int"

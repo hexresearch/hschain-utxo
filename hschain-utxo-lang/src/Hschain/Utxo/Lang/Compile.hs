@@ -54,7 +54,11 @@ substPrimOp
   where
     go = RS.cata $ \case
       Core.EVarF v -> case v of
-        "+" -> Core.EPrimOp Core.OpAdd
+        "+"      -> Core.EPrimOp Core.OpAdd
+        "-"      -> Core.EPrimOp Core.OpSub
+        "*"      -> Core.EPrimOp Core.OpMul
+        "/"      -> Core.EPrimOp Core.OpDiv
+        "negate" -> Core.EPrimOp Core.OpNeg
         _   -> Core.EVar v
       e            -> RS.embed e
 

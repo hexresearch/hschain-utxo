@@ -157,10 +157,6 @@ primVals :: Map.Map Name Val
 primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
   where
     evalD = \case
-      Mul -> lift2 ((*) @Int64)
-      Sub -> lift2 ((-) @Int64)
-      Div -> lift2 (div @Int64)
-      Neg -> lift1 (negate @Int64)
       -- Polymorphic ops
       Eq -> opComparison (==)
       Ne -> opComparison (/=)
@@ -209,6 +205,10 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
 evalPrimOp :: PrimOp -> Val
 evalPrimOp = \case
   OpAdd -> lift2 ((+) @Int64)
+  OpSub -> lift2 ((-) @Int64)
+  OpMul -> lift2 ((*) @Int64)
+  OpDiv -> lift2 (div @Int64)
+  OpNeg -> lift1 (negate @Int64)
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList
