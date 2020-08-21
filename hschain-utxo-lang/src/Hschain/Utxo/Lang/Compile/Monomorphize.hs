@@ -158,19 +158,22 @@ substExpr env (Fix (Ann ty expr)) =
     -- | TODO: consider rewrite for poly to mono-types
     onVar loc name =
       case M.lookup name $ substCtx'types env of
-        Just varTy -> do
-          if isMonoT varTy
-            then do
-              let letSubsts = if isLetLocal then (singletonLetSubst name LocalIdentitySubst) else mempty
+        Just varTy
+          | isMonoT varTy -> do
+              let letSubsts | isLetLocal = singletonLetSubst name LocalIdentitySubst
+                            | otherwise  = mempty
               return $ SubstResult (seeds varTy) letSubsts (Fix $ Ann varTy $ EVar loc name)
-            else do
+          | otherwise -> do
               (ty', subst) <- unifySubst ty varTy
               if isMonoT ty'
                 then do
                   let name' = varName'name $ getSubstName subst (VarName loc name)
                       resE = Fix $ Ann ty' $ EVar loc name'
                   globalSeeds <- checkGlobalSubst subst ty' loc name
-                  let localSubst = if isLetLocal then singletonLetSubst name (LocalSubst { localSubst'subst = subst, localSubst'name = name'}) else mempty
+                  let localSubst | isLetLocal = singletonLetSubst name
+                                              $ LocalSubst { localSubst'subst = subst
+                                                           , localSubst'name = name'}
+                                 | otherwise  = mempty
                   return (SubstResult (globalSeeds <> seeds ty') localSubst resE)
                 else failedToFindMonoType noLoc name
         Nothing -> unboundVariable $ VarName loc name
