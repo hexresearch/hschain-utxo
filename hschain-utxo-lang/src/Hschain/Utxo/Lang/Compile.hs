@@ -92,8 +92,9 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
       where
         convert (Ann exprTy val) = case val of
-          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
+          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name          
           EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
+          EPrimOp _ primOp     -> pure $ Core.EPrimOp primOp
           EAp _  f a           -> pure $ Core.EAp f a
           -- FIXME: We don't take recurion between let bindings into account
           ELet _ binds body    -> pure $

@@ -46,6 +46,7 @@ renameExpr env (Fix expr) =
   case expr of
     EVar loc v          -> var loc v
     EPrim loc p         -> prim loc p
+    EPrimOp loc op      -> primOp loc op
     EAp loc f a         -> app loc f a
     EIf loc a b c       -> iff loc a b c
     ELam loc args e     -> lam loc args e
@@ -58,6 +59,7 @@ renameExpr env (Fix expr) =
     var loc v = return $ Fix $ EVar loc $ fromMaybe v $ M.lookup v env
 
     prim loc p = return $ Fix $ EPrim loc p
+    primOp loc p = return $ Fix $ EPrimOp loc p
 
     app loc f a = do
       f' <- renameExpr env f

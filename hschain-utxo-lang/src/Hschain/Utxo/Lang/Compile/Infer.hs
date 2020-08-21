@@ -100,6 +100,7 @@ annotateTypes =
     toInferExpr = cata $ \case
       EVar loc name   -> H.varE loc (VarTag name)
       EPrim loc prim  -> H.primE loc prim
+      EPrimOp{}       -> error "No primop are accessible before type checking"
       EAp loc a b     -> H.appE loc a b
       ELam loc args e -> foldr (H.lamE loc) e (fmap VarTag args)
       EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c

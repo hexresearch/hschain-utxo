@@ -22,6 +22,7 @@ freeVars :: ExprLam Name -> Set Name
 freeVars = cata $ \case
   EVar _ var        -> S.singleton var
   EPrim _ _         -> mempty
+  EPrimOp _ _       -> mempty
   EAp _ a b         -> a <> b
   ELet _ bs e       -> freeLet bs e
   ELam _ as e       -> e `S.difference` (S.fromList as)
