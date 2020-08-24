@@ -248,3 +248,12 @@ data UTXONodeState = UTXONodeState
   }
   deriving (Eq, Ord, Show)
 
+initialUTXONodeState :: UTXONodeState
+initialUTXONodeState = UTXONodeState
+  { unsTransactions   = Set.empty
+  , unsUTXOSet        = Set.empty
+  , unsUTXORandomness = BS.fromString "randomness!! Here you come!!"
+  , unsUTXOIndex      = 0
+  }
+
+

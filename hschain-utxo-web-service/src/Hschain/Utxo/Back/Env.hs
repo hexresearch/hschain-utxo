@@ -57,7 +57,6 @@ initEnvBy conn logenv nspec genesis = do
   let appStateM = AppStateM mempty logenv conn cached
       run :: AppT m x -> m x
       run = runAppT appStateM
-          --runLoggerT logenv . runDBT conn
   (bchain, acts) <- run $ interpretSpec (const $ pure ()) nspec genesis
   return $ (AppEnv $ hoistBchain run bchain, fmap run acts)
   where

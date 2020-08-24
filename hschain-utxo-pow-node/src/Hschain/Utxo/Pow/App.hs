@@ -136,15 +136,13 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine) = do
             box = Box
                   { box'id     = BoxId "master:box-0"
                   , box'value  = 1
-                  , box'script = toScript $ pk' publicKey
+                  , box'script = mainScriptUnsafe $ pk' publicKey
                   , box'args   = mempty
                   }
 
             tx proof = Tx
                        { tx'inputs  = V.empty
                        , tx'outputs = V.fromList [box]
-                       , tx'proof   = Just proof
-                       , tx'args    = mempty
                        }
 
         currentSecret = getHashBytes (hash (unsUTXORandomness, blockHeight) :: Hash SHA256) -- ^ currentSecret depends on height and randomness and can be computed knowing both. Height is open to wide world, randomness is not.
@@ -153,8 +151,6 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine) = do
         miningTx = Tx
                    { tx'inputs  = V.empty   -- ^ List of identifiers of input boxes in blockchain 
                    , tx'outputs = V.fromList []    -- ^ List of outputs 
-                   , tx'proof   = Nothing    -- ^ Proof of the resulting sigma expression 
-                   , tx'args    = mempty            -- ^ Arguments for the scripts 
                    }
          
 

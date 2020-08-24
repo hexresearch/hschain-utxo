@@ -64,6 +64,10 @@ let
         (builtins.fetchGit pkgConfig.hschain)
         ("--subpath " + name)
         {};
+      callHSChainWithDir = name: dir: hsNew.callCabal2nixWithOptions name
+        (builtins.fetchGit pkgConfig.hschain)
+        ("--subpath " + dir)
+        {};
     in
       derivations // locals // {
         mkDerivation = args: hsOld.mkDerivation (args // {
@@ -74,13 +78,14 @@ let
         # HSChain dependencies
         hschain-control = callHSChain "hschain-control";
         hschain-config  = callHSChain "hschain-config";
+        hschain-mempool  = callHSChain "hschain-mempool";
         hschain-merkle  = callHSChain "hschain-merkle";
         hschain-logger  = callHSChain "hschain-logger";
         hschain-crypto  = callHSChain "hschain-crypto";
         hschain-types   = callHSChain "hschain-types";
         hschain-net     = callHSChain "hschain-net";
         hschain-db      = callHSChain "hschain-db";
-        hschain-pow-func = callHSChain "proof-of-work";
+        hschain-pow-func = callHSChainWithDir "hschain-pow-func" "proof-of-work/full-mining";
         hschain-PoW      = callHSChain "hschain-PoW";
         hschain         = callHSChain "hschain";
         # Disable tests
