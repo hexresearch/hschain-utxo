@@ -60,12 +60,13 @@ substPrimOp
         "/"      -> Core.EPrimOp Core.OpDiv
         "negate" -> Core.EPrimOp Core.OpNeg
         --
-        "&&" -> Core.EPrimOp Core.OpBoolAnd
-        "||" -> Core.EPrimOp Core.OpBoolOr
-        "^^" -> Core.EPrimOp Core.OpBoolXor
+        "&&"  -> Core.EPrimOp Core.OpBoolAnd
+        "||"  -> Core.EPrimOp Core.OpBoolOr
+        "^^"  -> Core.EPrimOp Core.OpBoolXor
         "not" -> Core.EPrimOp Core.OpBoolNot
-        _   -> Core.EVar v
-      e            -> RS.embed e
+        --
+        _ -> Core.EVar v
+      e -> RS.embed e
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
