@@ -16,7 +16,6 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , bytes
   , sigmaBool
   , equals
-  , toCompareName
   , listAt
   , appendList
   , mapList
@@ -117,14 +116,7 @@ sigmaBool :: Bool -> ExprCore
 sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
 
 equals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-equals t a b = ap (EVar (toCompareName t "equals")) [a, b]
-
-toCompareName :: TypeCore -> Name -> Name
-toCompareName ty name = mconcat [primName ty, ".", name]
-  where
-    primName (H.Type (Fix x)) = case x of
-      H.ConT _ prim _ -> prim
-      _               -> error "Non-primitive type"
+equals t a b = ap (EPrimOp (OpEQ t)) [a, b]
 
 listAt :: TypeCore -> ExprCore -> ExprCore -> ExprCore
 listAt ty as n = ap (EPolyVar Const.listAt [ty]) [as, n]

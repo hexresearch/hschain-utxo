@@ -12,9 +12,7 @@ import Hschain.Utxo.Lang.Expr (ArgType)
 
 -- | Instructions for G-machine
 data Instr
-  = Eq | Ne | Lt | Le | Gt | Ge
-  -- ^ Comparison operations
-  | SigAnd | SigOr | SigPk | SigBool
+  = SigAnd | SigOr | SigPk | SigBool
   -- ^ sigma operators
   | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
   -- ^ text operators

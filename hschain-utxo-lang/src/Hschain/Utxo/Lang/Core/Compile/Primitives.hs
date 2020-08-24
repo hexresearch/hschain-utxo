@@ -6,7 +6,6 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , builtInUnary
   , builtInDiadic
   , preludeTypeContext
-  , toCompareName
   , environmentFunctions
 ) where
 
@@ -130,26 +129,9 @@ primitives =
   , getBoxScript
   , getBoxValue
   ]
-  ++ (comparePack =<< argTypes)
   ++ getBoxArgs
   ++ byteCombs
 
-
-------------------------------------------------------------
--- generic utilities
-
--- | comparision operators per type
-comparePack :: ArgType -> [Scomb]
-comparePack tyTag =
-  [ compareOp ty (toCompareName ty "equals")
-  , compareOp ty (toCompareName ty "notEquals")
-  , compareOp ty (toCompareName ty "greaterThan")
-  , compareOp ty (toCompareName ty "greaterThanEquals")
-  , compareOp ty (toCompareName ty "lessThan")
-  , compareOp ty (toCompareName ty "lessThanEquals")
-  ]
-  where
-    ty = fromArgType tyTag
 
 ------------------------------------------------------------
 -- boxes
@@ -398,7 +380,10 @@ listAtComb = Scomb
 
       (ECase "as"
         [ CaseAlt 0 [] EBottom
-        , CaseAlt 1 [x, xs] (EIf (lessThanEquals intT "n" zero) "x" (ap (EVar Const.listAt) ["xs", sub "n" one]))
+        , CaseAlt 1 [x, xs] (EIf
+                             (ap2 (EPrimOp (OpLE intT)) (EVar "n") zero)
+                             "x"
+                             (ap (EVar Const.listAt) ["xs", sub "n" one]))
         ])
       aT
   }
@@ -577,11 +562,6 @@ add a b = ap (EPrimOp OpAdd) [a, b]
 sub :: ExprCore -> ExprCore -> ExprCore
 sub a b = ap "-" [a, b]
 
-lessThanEquals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-lessThanEquals ty a b = ap lteV [a, b]
-  where
-    lteV = EVar (toCompareName ty "lessThanEquals")
-
 ------------------------------------------------------------
 -- prim ops
 
@@ -591,16 +571,7 @@ builtInDiadic = M.fromList $
   , ("|||", SigOr)
   , ("<>", TextAppend)
   , (Const.appendBytes, BytesAppend)
-  ] ++ (compareNames =<< [intT, boolT, textT, bytesT])
-  where
-    compareNames ty =
-      [ (toCompareName ty "equals", Eq)
-      , (toCompareName ty "notEquals", Ne)
-      , (toCompareName ty "lessThan", Lt)
-      , (toCompareName ty "lessThanEquals", Le)
-      , (toCompareName ty "greaterThan", Gt)
-      , (toCompareName ty "greaterThanEquals", Ge)
-      ]
+  ]
 
 builtInUnary :: Map Name Instr
 builtInUnary = M.fromList $

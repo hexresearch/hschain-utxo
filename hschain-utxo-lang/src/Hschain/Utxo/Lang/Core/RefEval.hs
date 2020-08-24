@@ -158,13 +158,6 @@ primVals :: Map.Map Name Val
 primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
   where
     evalD = \case
-      -- Polymorphic ops
-      Eq -> opComparison (==)
-      Ne -> opComparison (/=)
-      Lt -> opComparison (<)
-      Le -> opComparison (<=)
-      Gt -> opComparison (>)
-      Ge -> opComparison (>=)
       --
       SigAnd  -> lift2 $ \a b -> Fix $ SigmaAnd [a,b]
       SigOr   -> lift2 $ \a b -> Fix $ SigmaOr  [a,b]
