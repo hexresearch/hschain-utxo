@@ -60,7 +60,7 @@ data ExprCore
   -- ^ constant primitive
   | EAp  ExprCore ExprCore
   -- ^ application
-  | ELet [(Name, ExprCore)] ExprCore
+  | ELet Name ExprCore ExprCore
   -- ^ lent bindings
   | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions

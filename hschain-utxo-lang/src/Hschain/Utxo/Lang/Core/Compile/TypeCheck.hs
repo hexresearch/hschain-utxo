@@ -130,7 +130,7 @@ inferExpr = \case
     EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
     EAp  f a       -> inferAp f a
-    ELet es e      -> inferLet es e
+    ELet nm e body -> inferLet nm e body
     ECase e alts   -> inferCase e alts
     EConstr ty _ _ -> pure $ MonoType ty
     EIf c t e      -> inferIf c t e
@@ -187,13 +187,12 @@ inferAp f a = do
           H.ArrowT () arg res -> return (MonoType $ H.Type arg, MonoType $ H.Type res)
           _                   -> throwError $ ArrowTypeExpected $ H.Type $ Fix t
 
-inferLet :: [(Name, ExprCore)] -> ExprCore -> Check MonoType
-inferLet binds body = do
-  typeMap <- forM binds $ \(nm, e) -> do ty <- inferExpr e >>= \case
-                                           MonoType ty -> pure ty
-                                           AnyType     -> throwError PolymorphicLet
-                                         return $ Typed nm ty
-  local (loadArgs typeMap) $ inferExpr body
+inferLet :: Name -> ExprCore -> ExprCore -> Check MonoType
+inferLet nm expr body = do
+  ty <- inferExpr expr >>= \case
+    MonoType ty -> pure ty
+    AnyType     -> throwError PolymorphicLet
+  local (loadName (Typed nm ty)) $ inferExpr body
 
 inferCase :: ExprCore -> [CaseAlt] -> Check MonoType
 inferCase e alts = do
