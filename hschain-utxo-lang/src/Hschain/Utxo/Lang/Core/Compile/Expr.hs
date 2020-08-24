@@ -72,6 +72,13 @@ data PrimOp
   | OpBoolOr                    -- ^ Boolean OR
   | OpBoolXor                   -- ^ Boolean XOR
   | OpBoolNot                   -- ^ Boolean negation
+
+  | OpEQ !TypeCore              -- ^ Equal
+  | OpNE !TypeCore              -- ^ Not equal
+  | OpGT !TypeCore              -- ^ Greater then
+  | OpGE !TypeCore              -- ^ Greater or equal
+  | OpLT !TypeCore              -- ^ Less then
+  | OpLE !TypeCore              -- ^ Less or equal
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

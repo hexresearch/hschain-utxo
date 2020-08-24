@@ -130,7 +130,7 @@ inferExpr = \case
     EVar var       -> inferVar var
     EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
-    EPrimOp op     -> pure $ MonoType $ primopToType op
+    EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
     ELet nm e body -> inferLet nm e body
     ECase e alts   -> inferCase e alts
@@ -258,18 +258,35 @@ primToType = \case
   PrimSigma _ -> sigmaT
   PrimBytes _ -> bytesT
 
-primopToType :: PrimOp -> TypeCore
+primopToType :: PrimOp -> Check TypeCore
 primopToType = \case
-  OpAdd -> funT [intT,intT] intT
-  OpSub -> funT [intT,intT] intT
-  OpMul -> funT [intT,intT] intT
-  OpDiv -> funT [intT,intT] intT
-  OpNeg -> funT [intT]      intT
+  OpAdd -> pure $ funT [intT,intT] intT
+  OpSub -> pure $ funT [intT,intT] intT
+  OpMul -> pure $ funT [intT,intT] intT
+  OpDiv -> pure $ funT [intT,intT] intT
+  OpNeg -> pure $ funT [intT]      intT
   --
-  OpBoolAnd -> funT [boolT, boolT] boolT
-  OpBoolOr  -> funT [boolT, boolT] boolT
-  OpBoolXor -> funT [boolT, boolT] boolT
-  OpBoolNot -> funT [boolT]        boolT
+  OpBoolAnd -> pure $ funT [boolT, boolT] boolT
+  OpBoolOr  -> pure $ funT [boolT, boolT] boolT
+  OpBoolXor -> pure $ funT [boolT, boolT] boolT
+  OpBoolNot -> pure $ funT [boolT]        boolT
+  --
+  OpEQ ty -> compareType ty
+  OpNE ty -> compareType ty
+  OpGT ty -> compareType ty
+  OpGE ty -> compareType ty
+  OpLT ty -> compareType ty
+  OpLE ty -> compareType ty
+
+compareType :: TypeCore -> Check TypeCore
+compareType ty
+  | ty == intT   = pure r
+  | ty == textT  = pure r
+  | ty == bytesT = pure r
+  | ty == boolT  = pure r
+  | otherwise    = throwError $ BadEquality ty
+  where
+    r = funT [ty,ty] boolT
 
 intT :: TypeCore
 intT = primT "Int"

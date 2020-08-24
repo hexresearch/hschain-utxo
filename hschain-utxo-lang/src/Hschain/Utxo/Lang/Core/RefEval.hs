@@ -210,6 +210,13 @@ evalPrimOp = \case
   OpBoolOr  -> lift2 (||)
   OpBoolXor -> lift2 (xor @Bool)
   OpBoolNot -> lift1 not
+  --
+  OpEQ _ -> opComparison (==)
+  OpNE _ -> opComparison (/=)
+  OpLT _ -> opComparison (<)
+  OpLE _ -> opComparison (<=)
+  OpGT _ -> opComparison (>)
+  OpGE _ -> opComparison (>=)
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList

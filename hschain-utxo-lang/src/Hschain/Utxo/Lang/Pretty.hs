@@ -254,6 +254,7 @@ instance Pretty TypeCoreError where
     SubtypeError ta tb       -> hsep ["Error: subtype error.", pretty ta, "is not a subtype of", pretty tb]
     EmptyCaseExpression      -> "Error: empty case alternatives"
     PolymorphicLet           -> "polymorphic type in the let binding"
+    BadEquality ty           -> hsep ["Error: non comparable type:", pretty ty]
 
 instance Pretty InternalError where
   pretty = \case

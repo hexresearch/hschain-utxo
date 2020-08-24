@@ -19,10 +19,9 @@ import Data.Sequence (Seq)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType, funT)
+import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..), argTypeName, argTypes)
-
-import Hschain.Utxo.Lang.Core.Compile.Primitives(toCompareName)
 
 import qualified Language.HM as H
 import qualified Language.HM.Subst as H
@@ -437,20 +436,20 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
     checkCompOp ty loc name = do
       mOp <- toCompOp loc ty name
       return $ case mOp of
-        Just newName -> EVar loc newName
-        Nothing      -> EVar loc name
+        Just op -> EPrimOp loc op
+        Nothing -> EVar    loc name
 
-    toCompOp loc ty name = forM (fromCompName name) $ \opName -> do
+    toCompOp loc ty name = forM (fromCompName name) $ \op -> do
       cmpT <- fromCompType name loc ty
-      return $ toCompareName (H.mapLoc (const ()) cmpT) opName
+      return $ op (H.mapLoc (const ()) cmpT)
 
     fromCompName name = case name of
-      "==" -> Just "equals"
-      "/=" -> Just "notEquals"
-      "<"  -> Just "lessThan"
-      "<=" -> Just "lessThanEquals"
-      ">"  -> Just "greaterThan"
-      ">=" -> Just "greaterThanEquals"
+      "==" -> Just OpEQ
+      "/=" -> Just OpNE
+      "<"  -> Just OpLT
+      "<=" -> Just OpLE
+      ">"  -> Just OpGT
+      ">=" -> Just OpGE
       _    -> Nothing
 
     fromCompType name loc (H.Type (Fix ty)) = case ty of
