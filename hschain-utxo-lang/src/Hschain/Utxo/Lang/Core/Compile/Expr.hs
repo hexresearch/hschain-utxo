@@ -73,6 +73,11 @@ data PrimOp
   | OpBoolXor                   -- ^ Boolean XOR
   | OpBoolNot                   -- ^ Boolean negation
 
+  | OpSigAnd                    -- ^ AND for sigma expressions 
+  | OpSigOr                     -- ^ OR for sigma expressions
+  | OpSigPK                     -- ^ Proof of key possession
+  | OpSigBool                   -- ^ Lift boolean to the sigma expression
+
   | OpEQ !TypeCore              -- ^ Equal
   | OpNE !TypeCore              -- ^ Not equal
   | OpGT !TypeCore              -- ^ Greater then

@@ -271,6 +271,11 @@ primopToType = \case
   OpBoolXor -> pure $ funT [boolT, boolT] boolT
   OpBoolNot -> pure $ funT [boolT]        boolT
   --
+  OpSigPK   -> pure $ funT [textT] sigmaT
+  OpSigBool -> pure $ funT [boolT] sigmaT
+  OpSigAnd  -> pure $ funT [sigmaT,sigmaT] sigmaT
+  OpSigOr   -> pure $ funT [sigmaT,sigmaT] sigmaT
+  --
   OpEQ ty -> compareType ty
   OpNE ty -> compareType ty
   OpGT ty -> compareType ty

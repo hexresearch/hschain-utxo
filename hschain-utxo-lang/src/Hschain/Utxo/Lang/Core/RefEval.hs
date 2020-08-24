@@ -159,13 +159,6 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
   where
     evalD = \case
       --
-      SigAnd  -> lift2 $ \a b -> Fix $ SigmaAnd [a,b]
-      SigOr   -> lift2 $ \a b -> Fix $ SigmaOr  [a,b]
-      SigPk   -> lift1 $ \t   -> case publicKeyFromText t of
-                                   Nothing -> Left  $ EvalErr "Can't parse public key"
-                                   Just k  -> Right $ Fix $ SigmaPk k
-      SigBool -> lift1 $ Fix . SigmaBool
-      --
       TextLength  -> lift1 (fromIntegral @_ @Int64 . T.length)
       TextAppend  -> lift2 ((<>) @Text)
       BytesAppend -> lift2 ((<>) @ByteString)
@@ -202,6 +195,14 @@ evalPrimOp = \case
   OpBoolOr  -> lift2 (||)
   OpBoolXor -> lift2 (xor @Bool)
   OpBoolNot -> lift1 not
+  --
+  OpSigBool -> lift1 $ Fix . SigmaBool
+  OpSigAnd  -> lift2 $ \a b -> Fix $ SigmaAnd [a,b]
+  OpSigOr   -> lift2 $ \a b -> Fix $ SigmaOr  [a,b]
+  OpSigPK   -> lift1 $ \t   -> case publicKeyFromText t of
+                                 Nothing -> Left  $ EvalErr "Can't parse public key"
+                                 Just k  -> Right $ Fix $ SigmaPk k
+      
   --
   OpEQ _ -> opComparison (==)
   OpNE _ -> opComparison (/=)

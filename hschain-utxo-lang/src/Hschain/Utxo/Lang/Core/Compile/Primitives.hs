@@ -567,17 +567,13 @@ sub a b = ap (EPrimOp OpSub) [a, b]
 
 builtInDiadic :: Map Name Instr
 builtInDiadic = M.fromList $
-  [ ("&&&", SigAnd)
-  , ("|||", SigOr)
-  , ("<>", TextAppend)
+  [ ("<>", TextAppend)
   , (Const.appendBytes, BytesAppend)
   ]
 
 builtInUnary :: Map Name Instr
 builtInUnary = M.fromList $
-  [ ("pk", SigPk)
-  , ("toSigma", SigBool)
-  , ("lengthText", TextLength)
+  [ ("lengthText", TextLength)
   , ("hashSha", HashSha)
   , (Const.sha256, Sha256)]
   ++ (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)
