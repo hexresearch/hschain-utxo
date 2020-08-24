@@ -14,7 +14,7 @@ import Hschain.Utxo.Lang.Expr (ArgType)
 data Instr
   = SigAnd | SigOr | SigPk | SigBool
   -- ^ sigma operators
-  | TextLength | TextAppend | HashBlake| HashSha | ShowInt | ShowBool
+  | TextLength | TextAppend | HashSha | ShowInt | ShowBool
   -- ^ text operators
   | BytesAppend | ToBytes ArgType | FromBytes ArgType | Sha256
   -- ^ bytes operations

@@ -578,7 +578,6 @@ builtInUnary = M.fromList $
   [ ("pk", SigPk)
   , ("toSigma", SigBool)
   , ("lengthText", TextLength)
-  , ("hashBlake", HashBlake)
   , ("hashSha", HashSha)
   , (Const.sha256, Sha256)]
   ++ (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)

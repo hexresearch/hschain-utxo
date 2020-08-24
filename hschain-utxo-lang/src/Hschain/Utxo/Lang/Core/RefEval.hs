@@ -185,7 +185,6 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
             Right a -> Right a
             Left  _ -> Left $ EvalErr "Deserialize failed"
       -- FromBytes tag -> deserialiseFromBytes tag
-      HashBlake   -> error "Blake2b is not implemented yet"
       HashSha     -> lift1 $ \bs -> let Hash h = hashBlob @SHA256 bs in h
       Sha256      -> lift1 $ \bs -> let Hash h = hashBlob @SHA256 bs in h
       ShowInt     -> lift1 (T.pack . show @Int64)
