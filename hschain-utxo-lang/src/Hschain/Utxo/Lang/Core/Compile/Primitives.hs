@@ -560,7 +560,7 @@ add :: ExprCore -> ExprCore -> ExprCore
 add a b = ap (EPrimOp OpAdd) [a, b]
 
 sub :: ExprCore -> ExprCore -> ExprCore
-sub a b = ap "-" [a, b]
+sub a b = ap (EPrimOp OpSub) [a, b]
 
 ------------------------------------------------------------
 -- prim ops
