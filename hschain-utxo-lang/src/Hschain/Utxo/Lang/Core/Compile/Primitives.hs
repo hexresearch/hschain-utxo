@@ -491,28 +491,28 @@ genFoldrComb aT bT f z name = Scomb
     foldrV = EVar Const.foldr
 
 sumComb :: Scomb
-sumComb = genFoldrComb intT intT "+" zero "sum"
+sumComb = genFoldrComb intT intT (EPrimOp OpAdd) zero "sum"
 
 productComb :: Scomb
-productComb = genFoldrComb intT intT "*" one "product"
+productComb = genFoldrComb intT intT (EPrimOp OpMul) one "product"
 
 orComb :: Scomb
-orComb = genFoldrComb boolT boolT "||" (bool False) "or"
+orComb = genFoldrComb boolT boolT (EPrimOp OpBoolOr) (bool False) "or"
 
 andComb :: Scomb
-andComb = genFoldrComb boolT boolT "&&" (bool True) "and"
+andComb = genFoldrComb boolT boolT (EPrimOp OpBoolAnd) (bool True) "and"
 
 sigmaOrComb :: Scomb
 sigmaOrComb = genFoldrComb sigmaT sigmaT sigmaOrV (sigmaBool False) "sigmaOr"
 
 sigmaOrV :: ExprCore
-sigmaOrV = "|||"
+sigmaOrV = EPrimOp OpSigOr
 
 sigmaAndComb :: Scomb
 sigmaAndComb = genFoldrComb sigmaT sigmaT sigmaAndV (sigmaBool False) "sigmaAnd"
 
 sigmaAndV :: ExprCore
-sigmaAndV = "&&&"
+sigmaAndV = EPrimOp OpSigAnd
 
 genFoldrMapComb :: TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
 genFoldrMapComb bT append z name = Scomb
@@ -539,10 +539,10 @@ genFoldrMapComb bT append z name = Scomb
     asT = listT aT
 
 allComb :: Scomb
-allComb = genFoldrMapComb boolT "&&" (bool True) "all"
+allComb = genFoldrMapComb boolT (EPrimOp OpBoolAnd) (bool True) "all"
 
 anyComb :: Scomb
-anyComb = genFoldrMapComb boolT "||" (bool False) "any"
+anyComb = genFoldrMapComb boolT (EPrimOp OpBoolOr) (bool False) "any"
 
 sigmaAllComb :: Scomb
 sigmaAllComb = genFoldrMapComb sigmaT sigmaAndV (sigmaBool True) "sigmaAll"
