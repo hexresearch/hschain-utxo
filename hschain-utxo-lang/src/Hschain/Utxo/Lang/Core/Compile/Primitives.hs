@@ -75,21 +75,8 @@ environmentTypes = TypeContext $ M.fromList $
 -- | Built-in language primitives
 primitives :: [Scomb]
 primitives =
-  -- numeric operators
-  [ intOp2 "*"
-  , intOp2 "-"
-  , intOp2 "/"
-  , op1 "negate" intT intT
-
-
-  -- booleans
-  , constant "true"  (PrimBool True)
+  [ constant "true"  (PrimBool True)
   , constant "false" (PrimBool False)
-  , boolOp2 "&&"
-  , boolOp2 "||"
-  , boolOp2 "^^"
-  , op1 "not" boolT boolT
-
   -- text
   , op1 "lengthText" textT intT
   , op2 "<>" (textT, textT) textT
@@ -116,12 +103,6 @@ primitives =
   , anyComb
   , sigmaAllComb
   , sigmaAnyComb
-
-  -- sigma-expressions
-  , sigmaOp2 "&&&"
-  , sigmaOp2 "|||"
-  , op1 "pk" textT sigmaT
-  , op1 "toSigma" boolT sigmaT
 
   -- boxes
   , boxCons
