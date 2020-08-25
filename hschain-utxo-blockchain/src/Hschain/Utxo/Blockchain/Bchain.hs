@@ -5,13 +5,14 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
+
 import Data.Coerce
 
+import HSChain.Crypto.Classes.Hash
 import HSChain.Mempool
 import HSChain.Types.Blockchain
 import HSChain.Types.Merkle.Types
 import HSChain.Store
-import qualified HSChain.Crypto as Crypto
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.State.Types
@@ -22,7 +23,7 @@ import Hschain.Utxo.Blockchain.Logic
 -- Low level API to post transactions.
 data Bchain m = Bchain
   { bchain'conn          :: Connection 'RO
-  , bchain'mempoolCursor :: MempoolCursor (Alg BData) Tx
+  , bchain'mempoolCursor :: MempoolCursor (Hashed (Alg BData) Tx) Tx
   , bchain'state         :: m BoxChain
   , bchain'waitForTx     :: m (TxHash -> m Bool)
   }
