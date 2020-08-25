@@ -254,37 +254,13 @@ allVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "all") v
 anyVec :: Expr (Vector Bool) -> Expr Bool
 anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
 
-type instance BooleanOf (Expr Bool) = Expr Bool
-type instance BooleanOf (Expr Int) = Expr Bool
-type instance BooleanOf (Expr Text) = Expr Bool
-type instance BooleanOf (Expr Script) = Expr Bool
-type instance BooleanOf (Expr ByteString) = Expr Bool
-type instance BooleanOf (Expr (a, b)) = Expr Bool
-type instance BooleanOf (Expr (a, b, c)) = Expr Bool
+type instance BooleanOf (Expr a) = Expr Bool
 
-instance IfB (Expr Int) where
-  ifB = ifExpr
-
-instance IfB (Expr Bool) where
-  ifB = ifExpr
-
-instance IfB (Expr Text) where
-  ifB = ifExpr
-
-instance IfB (Expr ByteString) where
-  ifB = ifExpr
-
-instance IfB (Expr Script) where
-  ifB = ifExpr
-
-instance IfB (Expr (a, b)) where
-  ifB = ifExpr
-
-instance IfB (Expr (a, b, c)) where
+instance IfB (Expr a) where
   ifB = ifExpr
 
 ifExpr :: Expr Bool -> Expr a -> Expr a -> Expr a
-ifExpr (Expr c) (Expr t) (Expr e) =  Expr $ ifExprLang c t e
+ifExpr (Expr c) (Expr t) (Expr e) = Expr $ ifExprLang c t e
 
 ifExprLang :: Lang -> Lang -> Lang -> Lang
 ifExprLang c t e = Fix $ If noLoc c t e
