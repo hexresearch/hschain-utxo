@@ -12,11 +12,8 @@ import Hschain.Utxo.Lang.Expr (ArgType)
 
 -- | Instructions for G-machine
 data Instr
-  = TextLength
-  | TextAppend
-  | ShowInt
+  = ShowInt
   | ShowBool
-  | BytesAppend
   | ToBytes ArgType
   | FromBytes ArgType
   deriving stock    (Show, Eq, Generic)

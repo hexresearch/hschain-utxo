@@ -70,7 +70,11 @@ substPrimOp
         "pk"      -> Core.EPrimOp Core.OpSigPK
         "toSigma" -> Core.EPrimOp Core.OpSigBool
         --
-        "sha256"  -> Core.EPrimOp Core.OpSHA256
+        "appendBytes" -> Core.EPrimOp Core.OpBytesAppend
+        "<>"          -> Core.EPrimOp Core.OpTextAppend
+        "lengthText"  -> Core.EPrimOp Core.OpTextLength
+        "bytesText"   -> Core.EPrimOp Core.OpBytesLength
+        "sha256"      -> Core.EPrimOp Core.OpSHA256
         _ -> Core.EVar v
       e -> RS.embed e
 

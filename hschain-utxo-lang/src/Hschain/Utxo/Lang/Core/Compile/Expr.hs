@@ -86,6 +86,11 @@ data PrimOp
   | OpLE !TypeCore              -- ^ Less or equal
 
   | OpSHA256                    -- ^ SHA256 hash
+
+  | OpTextLength                -- ^ Text length
+  | OpBytesLength               -- ^ Bytes length
+  | OpTextAppend                -- ^ Text concatenation
+  | OpBytesAppend               -- ^ Bytes concatenation
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

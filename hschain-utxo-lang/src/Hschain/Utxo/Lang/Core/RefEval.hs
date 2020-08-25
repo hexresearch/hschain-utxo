@@ -18,6 +18,7 @@ import qualified Data.Vector     as V
 import qualified Data.Text       as T
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Lazy   as MapL
+import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LB
 
 import HSChain.Crypto     (Hash(..),hashBlob)
@@ -155,13 +156,9 @@ build step fini = go
 ----------------------------------------------------------------
 
 primVals :: Map.Map Name Val
-primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
+primVals = fmap evalD builtInUnary
   where
     evalD = \case
-      --
-      TextLength  -> lift1 (fromIntegral @_ @Int64 . T.length)
-      TextAppend  -> lift2 ((<>) @Text)
-      BytesAppend -> lift2 ((<>) @ByteString)
       ToBytes   tag -> case tag of
         IntArg   -> lift1 $ serialise @Int64
         TextArg  -> lift1 $ serialise @Text
@@ -208,7 +205,11 @@ evalPrimOp = \case
   OpGT _ -> opComparison (>)
   OpGE _ -> opComparison (>=)
 
-  OpSHA256 -> lift1 (hashBlob @SHA256)
+  OpTextLength  -> lift1 (fromIntegral @_ @Int64 . T.length)
+  OpTextAppend  -> lift2 ((<>) @Text)
+  OpBytesLength -> lift1 (fromIntegral @_ @Int64 . BS.length)
+  OpBytesAppend -> lift2 ((<>) @ByteString)
+  OpSHA256      -> lift1 (hashBlob @SHA256)
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList

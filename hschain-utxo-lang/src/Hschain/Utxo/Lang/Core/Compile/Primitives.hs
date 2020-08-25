@@ -4,7 +4,6 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
     preludeLib
   , primitives
   , builtInUnary
-  , builtInDiadic
   , preludeTypeContext
   , environmentFunctions
 ) where
@@ -546,16 +545,8 @@ sub a b = ap (EPrimOp OpSub) [a, b]
 ------------------------------------------------------------
 -- prim ops
 
-builtInDiadic :: Map Name Instr
-builtInDiadic = M.fromList $
-  [ ("<>", TextAppend)
-  , (Const.appendBytes, BytesAppend)
-  ]
-
 builtInUnary :: Map Name Instr
-builtInUnary = M.fromList $
-  [ ("lengthText", TextLength)
-  ]
-  ++ (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)
+builtInUnary = M.fromList
+  $  (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)
   ++ (fmap (\tag -> (Const.deserialiseBytes $ argTypeName tag, FromBytes tag)) argTypes)
 

@@ -276,6 +276,12 @@ primopToType = \case
   OpSigAnd  -> pure $ funT [sigmaT,sigmaT] sigmaT
   OpSigOr   -> pure $ funT [sigmaT,sigmaT] sigmaT
   --
+  OpSHA256      -> pure $ funT [bytesT]         bytesT
+  OpTextLength  -> pure $ funT [textT]          intT
+  OpTextAppend  -> pure $ funT [textT,  textT]  textT
+  OpBytesLength -> pure $ funT [bytesT]         intT
+  OpBytesAppend -> pure $ funT [bytesT, bytesT] bytesT
+  --
   OpEQ ty -> compareType ty
   OpNE ty -> compareType ty
   OpGT ty -> compareType ty
