@@ -257,13 +257,7 @@ anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
 type instance BooleanOf (Expr a) = Expr Bool
 
 instance IfB (Expr a) where
-  ifB = ifExpr
-
-ifExpr :: Expr Bool -> Expr a -> Expr a -> Expr a
-ifExpr (Expr c) (Expr t) (Expr e) = Expr $ ifExprLang c t e
-
-ifExprLang :: Lang -> Lang -> Lang -> Lang
-ifExprLang c t e = Fix $ If noLoc c t e
+  ifB (Expr c) (Expr t) (Expr e) = Expr $ Fix $ If noLoc c t e
 
 -------------------------------------------------
 -- numeric
@@ -365,5 +359,3 @@ instance Monoid (Expr (Vector a)) where
 
 trace :: Expr Text -> Expr a -> Expr a
 trace (Expr str) (Expr a) = Expr $ Fix $ Trace noLoc str a
-
-
