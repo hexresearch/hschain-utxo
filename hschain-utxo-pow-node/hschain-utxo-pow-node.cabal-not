@@ -1,0 +1,97 @@
+cabal-version:       >=1.10
+name:                hschain-utxo-pow-node
+version:             0.1.0.0
+synopsis:            UTXO node in PoW consensus
+-- description:
+-- bug-reports:
+-- license:
+license-file:        LICENSE
+author:              anton-k
+maintainer:          sergueyz@gmail.com
+-- copyright:
+-- category:
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+library
+  exposed-modules:     Hschain.Utxo.Pow.App
+                     , Hschain.Utxo.Pow.App.Options
+                     , Hschain.Utxo.Pow.App.Types
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , aeson
+                     , bytestring
+                     , cryptonite
+                     , data-fix
+                     , hex-common
+                     , hschain-crypto
+                     , hschain-merkle
+                     , hschain-types
+                     , hschain-utxo-lang
+                     , hschain-utxo-api-rest
+                     , hschain-utxo-state
+                     , hschain-PoW
+                     , hschain-pow-func
+                     , containers
+                     , exceptions
+                     , monad-control
+                     , mtl
+                     , optparse-applicative
+                     , serialise
+                     , servant
+                     , servant-server
+                     , stm
+                     , text
+                     , transformers
+                     , transformers-base
+                     , vector
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  default-extensions:
+    DataKinds
+    DeriveGeneric
+    DerivingStrategies
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    TypeFamilies
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    TemplateHaskell
+
+
+executable hschain-utxo-pow-node-app
+  main-is:             Main.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , hschain-utxo
+                     , hschain-utxo-pow-node
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+
+executable hschain-utxo-pow-generate-genesis
+  main-is:             Genesis.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , aeson
+                     , aeson-pretty
+                     , bytestring
+                     , containers
+                     , data-default
+                     , data-fix
+                     , hschain-utxo-lang
+                     , hschain-utxo-pow-node
+                     , hschain-PoW
+                     , hschain-merkle
+                     , vector
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+  default-extensions:
+    OverloadedStrings
+
