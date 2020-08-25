@@ -3,13 +3,11 @@
 module Hschain.Utxo.Lang.Core.Compile.Primitives(
     preludeLib
   , primitives
-  , builtInUnary
   , preludeTypeContext
   , environmentFunctions
 ) where
 
 import Data.Int
-import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -18,7 +16,6 @@ import Hschain.Utxo.Lang.Core.Compile.Build
   hiding (getBoxId, getBoxScript, getBoxValue, getHeight, getSelf, getInputs, getOutputs)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
-import Hschain.Utxo.Lang.Core.Data.Code (Instr(..))
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 
@@ -541,12 +538,3 @@ add a b = ap (EPrimOp OpAdd) [a, b]
 
 sub :: ExprCore -> ExprCore -> ExprCore
 sub a b = ap (EPrimOp OpSub) [a, b]
-
-------------------------------------------------------------
--- prim ops
-
-builtInUnary :: Map Name Instr
-builtInUnary = M.fromList
-  $  (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)
-  ++ (fmap (\tag -> (Const.deserialiseBytes $ argTypeName tag, FromBytes tag)) argTypes)
-

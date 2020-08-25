@@ -39,6 +39,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Expr (argTagToType)
 
 import qualified Data.Map.Strict as M
 import qualified Data.List as L
@@ -289,7 +290,12 @@ primopToType = \case
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
   --
-  OpShow ty -> showType ty
+  OpShow      ty  -> showType ty
+  OpToBytes   tag -> pure $ funT [tagToType tag] bytesT
+  -- FIXME: Function is in fact partial
+  OpFromBytes tag -> pure $ funT [bytesT] (tagToType tag)
+  where
+    tagToType = H.mapLoc (const ()) . argTagToType
 
 compareType :: TypeCore -> Check TypeCore
 compareType ty

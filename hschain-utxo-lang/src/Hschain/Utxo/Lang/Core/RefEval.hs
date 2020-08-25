@@ -24,7 +24,6 @@ import qualified Data.ByteString.Lazy as LB
 import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT,boolT)
@@ -78,7 +77,6 @@ evalProg env (CoreProg prog) =
   where
     genv = MapL.fromList [ (scomb'name s, evalScomb genv s)
                          | s <- prog ++ environmentFunctions env
-                         , not $ scomb'name s `MapL.member` primVals
                          ]
     --
     con2list 0 []                   = Just []
@@ -97,7 +95,6 @@ evalExpr genv = recur
     evalVar lenv x
       | Just v <- x `Map.lookup` lenv          = v
       | Just v <- x `Map.lookup` genv          = v
-      | Just v <- x `Map.lookup` primVals      = v
       | Just v <- x `Map.lookup` primitivesMap = v
       | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
     recur lenv = \case
@@ -156,26 +153,6 @@ build step fini = go
 -- Primitives
 ----------------------------------------------------------------
 
-primVals :: Map.Map Name Val
-primVals = fmap evalD builtInUnary
-  where
-    evalD = \case
-      ToBytes   tag -> case tag of
-        IntArg   -> lift1 $ serialise @Int64
-        TextArg  -> lift1 $ serialise @Text
-        BoolArg  -> lift1 $ serialise @Bool
-        BytesArg -> lift1 $ serialise @ByteString
-      FromBytes tag -> case tag of
-        IntArg   -> lift1 $ decode @Int64
-        TextArg  -> lift1 $ decode @Text
-        BoolArg  -> lift1 $ decode @Bool
-        BytesArg -> lift1 $ decode @ByteString
-        where
-          decode :: Serialise a => LB.ByteString -> Either EvalErr a
-          decode bs = case deserialiseOrFail bs of
-            Right a -> Right a
-            Left  _ -> Left $ EvalErr "Deserialize failed"
-
 evalPrimOp :: PrimOp -> Val
 evalPrimOp = \case
   OpAdd -> lift2 ((+) @Int64)
@@ -213,6 +190,22 @@ evalPrimOp = \case
     | t == intT  -> lift1 (T.pack . show @Int64)
     | t == boolT -> lift1 (T.pack . show @Bool)
     | otherwise  -> ValBottom $ EvalErr "Invalid show"
+
+  OpToBytes   tag -> case tag of
+    IntArg   -> lift1 $ serialise @Int64
+    TextArg  -> lift1 $ serialise @Text
+    BoolArg  -> lift1 $ serialise @Bool
+    BytesArg -> lift1 $ serialise @ByteString
+  OpFromBytes tag -> case tag of
+    IntArg   -> lift1 $ decode @Int64
+    TextArg  -> lift1 $ decode @Text
+    BoolArg  -> lift1 $ decode @Bool
+    BytesArg -> lift1 $ decode @ByteString
+  where
+    decode :: Serialise a => LB.ByteString -> Either EvalErr a
+    decode bs = case deserialiseOrFail bs of
+      Right a -> Right a
+      Left  _ -> Left $ EvalErr "Deserialize failed"
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList

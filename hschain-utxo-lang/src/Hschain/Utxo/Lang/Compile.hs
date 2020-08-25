@@ -75,6 +75,16 @@ substPrimOp
         "lengthText"  -> Core.EPrimOp Core.OpTextLength
         "bytesText"   -> Core.EPrimOp Core.OpBytesLength
         "sha256"      -> Core.EPrimOp Core.OpSHA256
+        -- FIXME: repretition
+        "serialiseInt"     -> Core.EPrimOp $ Core.OpToBytes IntArg
+        "serialiseText"    -> Core.EPrimOp $ Core.OpToBytes TextArg
+        "serialiseBytes"   -> Core.EPrimOp $ Core.OpToBytes BytesArg
+        "serialiseBool"    -> Core.EPrimOp $ Core.OpToBytes BoolArg
+        "deserialiseInt"   -> Core.EPrimOp $ Core.OpFromBytes IntArg
+        "deserialiseText"  -> Core.EPrimOp $ Core.OpFromBytes TextArg
+        "deserialiseBytes" -> Core.EPrimOp $ Core.OpFromBytes BytesArg
+        "deserialiseBool"  -> Core.EPrimOp $ Core.OpFromBytes BoolArg
+        --
         _ -> Core.EVar v
       e -> RS.embed e
 

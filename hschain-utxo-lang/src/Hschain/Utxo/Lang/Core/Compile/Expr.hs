@@ -28,7 +28,7 @@ import Data.Functor.Foldable.TH
 import GHC.Generics
 
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Expr (Script(..))
+import Hschain.Utxo.Lang.Expr (Script(..), ArgType)
 
 import qualified Data.ByteString.Lazy as LB
 
@@ -91,6 +91,8 @@ data PrimOp
   | OpBytesLength               -- ^ Bytes length
   | OpTextAppend                -- ^ Text concatenation
   | OpBytesAppend               -- ^ Bytes concatenation
+  | OpToBytes   !ArgType
+  | OpFromBytes !ArgType
 
   | OpShow !TypeCore            -- ^ Polymorphic show
   deriving stock    (Show, Eq, Generic)
