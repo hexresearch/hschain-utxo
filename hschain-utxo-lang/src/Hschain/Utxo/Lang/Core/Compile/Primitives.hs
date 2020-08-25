@@ -555,8 +555,7 @@ builtInDiadic = M.fromList $
 builtInUnary :: Map Name Instr
 builtInUnary = M.fromList $
   [ ("lengthText", TextLength)
-  , ("hashSha", HashSha)
-  , (Const.sha256, Sha256)]
+  ]
   ++ (fmap (\tag -> (Const.serialiseBytes $ argTypeName tag, ToBytes tag)) argTypes)
   ++ (fmap (\tag -> (Const.deserialiseBytes $ argTypeName tag, FromBytes tag)) argTypes)
 

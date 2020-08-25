@@ -84,6 +84,8 @@ data PrimOp
   | OpGE !TypeCore              -- ^ Greater or equal
   | OpLT !TypeCore              -- ^ Less then
   | OpLE !TypeCore              -- ^ Less or equal
+
+  | OpSHA256                    -- ^ SHA256 hash
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

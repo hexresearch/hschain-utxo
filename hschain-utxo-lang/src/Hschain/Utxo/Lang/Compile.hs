@@ -69,6 +69,8 @@ substPrimOp
         "|||"     -> Core.EPrimOp Core.OpSigOr
         "pk"      -> Core.EPrimOp Core.OpSigPK
         "toSigma" -> Core.EPrimOp Core.OpSigBool
+        --
+        "sha256"  -> Core.EPrimOp Core.OpSHA256
         _ -> Core.EVar v
       e -> RS.embed e
 

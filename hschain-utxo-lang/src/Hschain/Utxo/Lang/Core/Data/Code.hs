@@ -12,10 +12,13 @@ import Hschain.Utxo.Lang.Expr (ArgType)
 
 -- | Instructions for G-machine
 data Instr
-  = TextLength | TextAppend | HashSha | ShowInt | ShowBool
-  -- ^ text operators
-  | BytesAppend | ToBytes ArgType | FromBytes ArgType | Sha256
-  -- ^ bytes operations
+  = TextLength
+  | TextAppend
+  | ShowInt
+  | ShowBool
+  | BytesAppend
+  | ToBytes ArgType
+  | FromBytes ArgType
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (NFData)
 

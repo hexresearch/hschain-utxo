@@ -178,8 +178,6 @@ primVals = fmap evalD builtInDiadic <> fmap evalD builtInUnary
             Right a -> Right a
             Left  _ -> Left $ EvalErr "Deserialize failed"
       -- FromBytes tag -> deserialiseFromBytes tag
-      HashSha     -> lift1 $ \bs -> let Hash h = hashBlob @SHA256 bs in h
-      Sha256      -> lift1 $ \bs -> let Hash h = hashBlob @SHA256 bs in h
       ShowInt     -> lift1 (T.pack . show @Int64)
       ShowBool    -> lift1 (T.pack . show @Bool)
 
@@ -202,7 +200,6 @@ evalPrimOp = \case
   OpSigPK   -> lift1 $ \t   -> case publicKeyFromText t of
                                  Nothing -> Left  $ EvalErr "Can't parse public key"
                                  Just k  -> Right $ Fix $ SigmaPk k
-      
   --
   OpEQ _ -> opComparison (==)
   OpNE _ -> opComparison (/=)
@@ -210,6 +207,8 @@ evalPrimOp = \case
   OpLE _ -> opComparison (<=)
   OpGT _ -> opComparison (>)
   OpGE _ -> opComparison (>=)
+
+  OpSHA256 -> lift1 (hashBlob @SHA256)
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList
@@ -268,6 +267,7 @@ instance InjPrim Bool          where inj = ValP . PrimBool
 instance InjPrim Text          where inj = ValP . PrimText
 instance InjPrim ByteString    where inj = ValP . PrimBytes
 instance InjPrim LB.ByteString where inj = inj . LB.toStrict
+instance InjPrim (Hash a)      where inj (Hash h) = inj h
 
 instance k ~ PublicKey => InjPrim (Sigma k) where
   inj = ValP . PrimSigma
