@@ -18,7 +18,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCor
 import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, TypeContext(..))
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, textT, sigmaT, TypeContext(..))
 
 import qualified Language.HM as H
 import qualified Data.Sequence as S
@@ -175,6 +175,9 @@ annotateTypes =
 libTypeContext :: H.Context Loc Tag
 libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
+    -- FIXME: we need to derive types from core language but as
+    --        temporary measure they're just listed explicitly
+  , (VarTag "pk", H.Signature $ Fix $ H.MonoT $ funT' [textT'] sigmaT')
   ])
   <> genericCompareOps
   <> fromCoreContext preludeTypeContext
@@ -200,3 +203,9 @@ varT'   a   = H.varT noLoc $ VarTag a
 
 boolT' :: H.Type Loc Tag
 boolT' = eraseLoc boolT
+
+textT' :: H.Type Loc Tag
+textT' = eraseLoc textT
+
+sigmaT' :: H.Type Loc Tag
+sigmaT' = eraseLoc sigmaT
