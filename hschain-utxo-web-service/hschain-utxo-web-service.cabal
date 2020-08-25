@@ -28,6 +28,7 @@ library
                      , hschain
                      , hschain-logger
                      , hschain-control
+                     , hschain-mempool
                      , hschain-utxo-api-rest
                      , hschain-utxo-blockchain
                      , hschain-utxo-lang
