@@ -68,14 +68,12 @@ progHeight = CoreProg
 progEquality :: Prim -> CoreProg
 progEquality p = CoreProg
   [ mkMain $ Typed
-    { typed'value =
-        (EVar eq `EAp` EPrim p) `EAp` EPrim p
+    { typed'value = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
     , typed'type  = boolT
     }
   ]
   where
     ty = primToType p
-    eq = toCompareName ty "equals"
 
 
 ----------------------------------------------------------------
