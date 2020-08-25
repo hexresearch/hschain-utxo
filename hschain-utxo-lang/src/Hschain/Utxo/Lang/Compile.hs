@@ -65,6 +65,10 @@ substPrimOp
         "^^"  -> Core.EPrimOp Core.OpBoolXor
         "not" -> Core.EPrimOp Core.OpBoolNot
         --
+        "&&&"     -> Core.EPrimOp Core.OpSigOr
+        "|||"     -> Core.EPrimOp Core.OpSigOr
+        "pk"      -> Core.EPrimOp Core.OpSigPK
+        "toSigma" -> Core.EPrimOp Core.OpSigBool
         _ -> Core.EVar v
       e -> RS.embed e
 
