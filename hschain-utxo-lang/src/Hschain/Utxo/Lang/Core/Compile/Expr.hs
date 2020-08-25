@@ -91,6 +91,8 @@ data PrimOp
   | OpBytesLength               -- ^ Bytes length
   | OpTextAppend                -- ^ Text concatenation
   | OpBytesAppend               -- ^ Bytes concatenation
+
+  | OpShow !TypeCore            -- ^ Polymorphic show
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

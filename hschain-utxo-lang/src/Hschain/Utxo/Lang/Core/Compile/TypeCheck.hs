@@ -262,7 +262,7 @@ primopToType :: PrimOp -> Check TypeCore
 primopToType = \case
   OpAdd -> pure $ funT [intT,intT] intT
   OpSub -> pure $ funT [intT,intT] intT
-  OpMul -> pure $ funT [intT,intT] intT
+  OpMul -> pure $ funT [intT,intT] intT 
   OpDiv -> pure $ funT [intT,intT] intT
   OpNeg -> pure $ funT [intT]      intT
   --
@@ -288,6 +288,8 @@ primopToType = \case
   OpGE ty -> compareType ty
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
+  --
+  OpShow ty -> showType ty
 
 compareType :: TypeCore -> Check TypeCore
 compareType ty
@@ -298,6 +300,14 @@ compareType ty
   | otherwise    = throwError $ BadEquality ty
   where
     r = funT [ty,ty] boolT
+
+showType :: TypeCore -> Check TypeCore
+showType ty
+  | ty == intT  = pure r
+  | ty == boolT = pure r
+  | otherwise   = throwError $ BadEquality ty
+  where
+    r = funT [ty] textT
 
 intT :: TypeCore
 intT = primT "Int"

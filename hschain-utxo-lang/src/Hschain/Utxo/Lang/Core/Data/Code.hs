@@ -12,9 +12,7 @@ import Hschain.Utxo.Lang.Expr (ArgType)
 
 -- | Instructions for G-machine
 data Instr
-  = ShowInt
-  | ShowBool
-  | ToBytes ArgType
+  = ToBytes ArgType
   | FromBytes ArgType
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (NFData)

@@ -255,6 +255,7 @@ instance Pretty TypeCoreError where
     EmptyCaseExpression      -> "Error: empty case alternatives"
     PolymorphicLet           -> "polymorphic type in the let binding"
     BadEquality ty           -> hsep ["Error: non comparable type:", pretty ty]
+    BadShow     ty           -> hsep ["Error: non showable type:", pretty ty]
 
 instance Pretty InternalError where
   pretty = \case

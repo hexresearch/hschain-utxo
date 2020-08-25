@@ -27,6 +27,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Data.Code
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Primitives
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT,boolT)
 import Hschain.Utxo.Lang.Expr  (ArgType(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (InputEnv)
@@ -174,9 +175,6 @@ primVals = fmap evalD builtInUnary
           decode bs = case deserialiseOrFail bs of
             Right a -> Right a
             Left  _ -> Left $ EvalErr "Deserialize failed"
-      -- FromBytes tag -> deserialiseFromBytes tag
-      ShowInt     -> lift1 (T.pack . show @Int64)
-      ShowBool    -> lift1 (T.pack . show @Bool)
 
 evalPrimOp :: PrimOp -> Val
 evalPrimOp = \case
@@ -210,6 +208,11 @@ evalPrimOp = \case
   OpBytesLength -> lift1 (fromIntegral @_ @Int64 . BS.length)
   OpBytesAppend -> lift2 ((<>) @ByteString)
   OpSHA256      -> lift1 (hashBlob @SHA256)
+
+  OpShow t
+    | t == intT  -> lift1 (T.pack . show @Int64)
+    | t == boolT -> lift1 (T.pack . show @Bool)
+    | otherwise  -> ValBottom $ EvalErr "Invalid show"
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList
