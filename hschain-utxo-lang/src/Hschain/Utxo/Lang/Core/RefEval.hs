@@ -264,6 +264,8 @@ instance k ~ PublicKey => MatchPrim (Sigma k) where
   matchP (PrimSigma a) = Right a
   matchP _             = Left $ EvalErr "Expecting Sigma"
 
+
+instance InjPrim Val           where inj = id
 instance InjPrim Int64         where inj = ValP . PrimInt
 instance InjPrim Bool          where inj = ValP . PrimBool
 instance InjPrim Text          where inj = ValP . PrimText
