@@ -569,7 +569,7 @@ data BoxField a
 -- | Types that we can store as arguments in transactions.
 -- We store lists of them.
 data ArgType = IntArg | TextArg | BoolArg | BytesArg
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic, Enum, Bounded)
   deriving anyclass (NFData, Serialise)
 
 argTypes :: [ArgType]
