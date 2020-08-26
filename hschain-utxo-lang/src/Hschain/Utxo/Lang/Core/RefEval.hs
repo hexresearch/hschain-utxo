@@ -10,6 +10,7 @@ module Hschain.Utxo.Lang.Core.RefEval
 
 import Codec.Serialise (Serialise,serialise,deserialiseOrFail)
 import Control.Applicative
+import Control.Monad
 import Data.Int
 import Data.Bits       (xor)
 import Data.ByteString (ByteString)
@@ -222,6 +223,10 @@ evalPrimOp env = \case
           Right f2 -> f2 b
           Left  e  -> ValBottom e
     return $ foldl step valZ xs
+  OpListFilter _ -> Val2F $ \valF valXS -> inj $ do
+    xs <- matchP @[Val]        valXS
+    p  <- matchP @(Val -> Val) valF
+    return $ filterM (matchP . p) xs
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
