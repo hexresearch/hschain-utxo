@@ -33,7 +33,7 @@ import qualified Data.Map.Strict as Map
 import GHC.Generics
 
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypeName)
+import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypes, argTypeName)
 
 import qualified Data.ByteString.Lazy as LB
 
@@ -196,8 +196,8 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   ]
-  ++ (OpToBytes <$> [minBound ..])
-  ++ (OpFromBytes <$> [minBound ..])
+  ++ (OpToBytes <$> argTypes)
+  ++ (OpFromBytes <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops
 monoPrimopNameMap :: Map.Map Name PrimOp
