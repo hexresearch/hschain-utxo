@@ -5,11 +5,12 @@ module Hschain.Utxo.Lang.Compile(
   , toCoreScript
 ) where
 
-import Control.Lens
+import Control.Lens hiding (op)
 import Control.Monad
 
 import Data.Fix
 import Data.Foldable
+import qualified Data.Map.Strict       as Map
 import qualified Data.Functor.Foldable as RS
 
 import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
@@ -53,39 +54,9 @@ substPrimOp
   = _Wrapped' . each . scomb'bodyL . typed'valueL %~ go
   where
     go = RS.cata $ \case
-      Core.EVarF v -> case v of
-        "+"      -> Core.EPrimOp Core.OpAdd
-        "-"      -> Core.EPrimOp Core.OpSub
-        "*"      -> Core.EPrimOp Core.OpMul
-        "/"      -> Core.EPrimOp Core.OpDiv
-        "negate" -> Core.EPrimOp Core.OpNeg
-        --
-        "&&"  -> Core.EPrimOp Core.OpBoolAnd
-        "||"  -> Core.EPrimOp Core.OpBoolOr
-        "^^"  -> Core.EPrimOp Core.OpBoolXor
-        "not" -> Core.EPrimOp Core.OpBoolNot
-        --
-        "&&&"     -> Core.EPrimOp Core.OpSigOr
-        "|||"     -> Core.EPrimOp Core.OpSigOr
-        "pk"      -> Core.EPrimOp Core.OpSigPK
-        "toSigma" -> Core.EPrimOp Core.OpSigBool
-        --
-        "appendBytes" -> Core.EPrimOp Core.OpBytesAppend
-        "<>"          -> Core.EPrimOp Core.OpTextAppend
-        "lengthText"  -> Core.EPrimOp Core.OpTextLength
-        "bytesText"   -> Core.EPrimOp Core.OpBytesLength
-        "sha256"      -> Core.EPrimOp Core.OpSHA256
-        -- FIXME: repretition
-        "serialiseInt"     -> Core.EPrimOp $ Core.OpToBytes IntArg
-        "serialiseText"    -> Core.EPrimOp $ Core.OpToBytes TextArg
-        "serialiseBytes"   -> Core.EPrimOp $ Core.OpToBytes BytesArg
-        "serialiseBool"    -> Core.EPrimOp $ Core.OpToBytes BoolArg
-        "deserialiseInt"   -> Core.EPrimOp $ Core.OpFromBytes IntArg
-        "deserialiseText"  -> Core.EPrimOp $ Core.OpFromBytes TextArg
-        "deserialiseBytes" -> Core.EPrimOp $ Core.OpFromBytes BytesArg
-        "deserialiseBool"  -> Core.EPrimOp $ Core.OpFromBytes BoolArg
-        --
-        _ -> Core.EVar v
+      Core.EVarF v
+        | Just op <- Map.lookup v Core.monoPrimopNameMap
+          -> Core.EPrimOp op
       e -> RS.embed e
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)

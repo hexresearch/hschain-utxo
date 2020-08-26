@@ -17,18 +17,23 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , scomb'forallL
   , scomb'argsL
   , scomb'bodyL
+    -- * Primop names for higher level lnaguage
+  , monoPrimopName
+  , monomorphicPrimops
+  , monoPrimopNameMap
 ) where
 
 import Codec.Serialise
-import Control.Lens
+import Control.Lens  hiding (op)
 
 import Data.String
 import Data.Vector (Vector)
 import Data.Functor.Foldable.TH
+import qualified Data.Map.Strict as Map
 import GHC.Generics
 
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Expr (Script(..), ArgType)
+import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypeName)
 
 import qualified Data.ByteString.Lazy as LB
 
@@ -73,7 +78,7 @@ data PrimOp
   | OpBoolXor                   -- ^ Boolean XOR
   | OpBoolNot                   -- ^ Boolean negation
 
-  | OpSigAnd                    -- ^ AND for sigma expressions 
+  | OpSigAnd                    -- ^ AND for sigma expressions
   | OpSigOr                     -- ^ OR for sigma expressions
   | OpSigPK                     -- ^ Proof of key possession
   | OpSigBool                   -- ^ Lift boolean to the sigma expression
@@ -142,3 +147,61 @@ makeBaseFunctor ''ExprCore
 $(makeLensesWith
    (defaultFieldRules & lensField .~ (mappingNamer (\nm -> [nm++"L"])))
    ''Scomb)
+
+
+----------------------------------------------------------------
+-- Names
+----------------------------------------------------------------
+
+-- | Name of monomorphic primop which is used in high level language
+monoPrimopName :: PrimOp -> Maybe Name
+monoPrimopName = \case
+  OpAdd         -> Just "+"
+  OpSub         -> Just "-"
+  OpMul         -> Just "*"
+  OpDiv         -> Just "/"
+  OpNeg         -> Just "negate"
+  --
+  OpBoolAnd     -> Just "&&"
+  OpBoolOr      -> Just "||"
+  OpBoolXor     -> Just "^^"
+  OpBoolNot     -> Just "not"
+  --
+  OpSigAnd      -> Just "&&&"
+  OpSigOr       -> Just "|||"
+  OpSigPK       -> Just "pk"
+  OpSigBool     -> Just "toSigma"
+  --
+  OpSHA256      -> Just "sha256"
+  OpTextLength  -> Just "textLength"
+  OpBytesLength -> Just "bytesLength"
+  OpTextAppend  -> Just "<>"
+  OpBytesAppend -> Just "bytesAppend"
+  OpToBytes   t -> Just $ "serialise"   <> argTypeName t
+  OpFromBytes t -> Just $ "deserialise" <> argTypeName t
+  -- Polymorphic functions
+  OpShow _ -> Nothing
+  OpEQ _   -> Nothing
+  OpNE _   -> Nothing
+  OpGT _   -> Nothing
+  OpGE _   -> Nothing
+  OpLT _   -> Nothing
+  OpLE _   -> Nothing
+
+-- | List of all monomorphic primops
+monomorphicPrimops :: [PrimOp]
+monomorphicPrimops =
+  [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
+  , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
+  , OpSigAnd, OpSigOr, OpSigPK, OpSigBool
+  , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
+  ]
+  ++ (OpToBytes <$> [minBound ..])
+  ++ (OpFromBytes <$> [minBound ..])
+
+-- | Name map for substitution of monomorphic primops
+monoPrimopNameMap :: Map.Map Name PrimOp
+monoPrimopNameMap = Map.fromList
+  [ (nm,op) | op      <- monomorphicPrimops
+            , Just nm <- [ monoPrimopName op ]
+            ]
