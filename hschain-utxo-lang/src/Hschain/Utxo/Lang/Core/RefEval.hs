@@ -285,6 +285,11 @@ instance k ~ PublicKey => InjPrim (Sigma k) where
 instance InjPrim a => InjPrim (Either EvalErr a) where
   inj = either ValBottom inj
 
+instance InjPrim a => InjPrim [a] where
+  inj []     = ValCon 0 []
+  inj (x:xs) = ValCon 1 [ inj x, inj xs ]
+
+
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
 lift1 f = ValF go
   where
