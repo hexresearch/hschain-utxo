@@ -302,6 +302,14 @@ primopToType = \case
   OpListAt     a   -> pure $ funT [ listT a, intT ] a
   OpListAppend a   -> pure $ funT [ listT a, listT a ] (listT a)
   OpListLength a   -> pure $ funT [ listT a ] intT
+  OpListFoldr  a b -> pure $ funT [ funT [a, b] b
+                                  , b
+                                  , listT a
+                                  ] b
+  OpListFoldl  a b -> pure $ funT [ funT [b, a] b
+                                  , b
+                                  , listT a
+                                  ] b
   where
     tagToType = H.mapLoc (const ()) . argTagToType
 

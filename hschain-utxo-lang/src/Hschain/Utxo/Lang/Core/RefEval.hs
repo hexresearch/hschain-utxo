@@ -206,6 +206,22 @@ evalPrimOp env = \case
   OpListAt  _    -> lift2 lookAt
   OpListAppend _ -> lift2 ((<>) @[Val])
   OpListLength _ -> lift1 (fromIntegral @_ @Int64 . length @[] @Val)
+  OpListFoldr{}  -> ValF $ \valF -> ValF $ \valZ -> ValF $ \valXS -> inj $ do
+    xs <- matchP @[Val] valXS
+    f1 <- matchP @(Val -> Val) valF
+    let step :: Val -> Val -> Val
+        step a b = case matchP (f1 a) of
+          Right f2 -> f2 b
+          Left  e  -> ValBottom e
+    return $ foldr step valZ xs
+  OpListFoldl{}  -> ValF $ \valF -> ValF $ \valZ -> ValF $ \valXS -> inj $ do
+    xs <- matchP @[Val] valXS
+    f1 <- matchP @(Val -> Val) valF
+    let step :: Val -> Val -> Val
+        step a b = case matchP (f1 a) of
+          Right f2 -> f2 b
+          Left  e  -> ValBottom e
+    return $ foldl step valZ xs
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of

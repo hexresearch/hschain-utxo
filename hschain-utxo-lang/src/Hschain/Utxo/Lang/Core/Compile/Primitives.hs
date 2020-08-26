@@ -71,9 +71,7 @@ primitives =
   [ -- lists
     nilComb
   , consComb
-  , foldrComb
   , filterComb
-  , foldlComb
   , sumComb
   , productComb
   , andComb
@@ -242,30 +240,6 @@ consComb = Scomb
     aT  = varT "a"
     asT = listT aT
 
-foldrComb :: Scomb
-foldrComb = Scomb
-  { scomb'name   = "foldr"
-  , scomb'forall = ["a", "b"]
-  , scomb'args   = [f, z, as]
-  , scomb'body   = Typed
-      (ECase "as"
-        [ CaseAlt 0 [] "z"
-        , CaseAlt 1 [x, xs] (ap "f" ["x", ap "foldr" ["f", "z", "xs"]])
-        ])
-      bT
-  }
-  where
-    f = Typed "f" fT
-    z = Typed "z" zT
-    as = Typed "as" asT
-    x = Typed "x" aT
-    xs = Typed "xs" asT
-
-    fT = aT `arrowT` (bT `arrowT` bT)
-    asT = listT aT
-    zT = bT
-    aT = varT "a"
-    bT = varT "b"
 
 filterComb :: Scomb
 filterComb = Scomb
@@ -296,34 +270,6 @@ filterComb = Scomb
     asT = listT aT
     aT = varT "a"
 
-foldlComb :: Scomb
-foldlComb = Scomb
-  { scomb'name   = Const.foldl
-  , scomb'forall = ["a", "b"]
-  , scomb'args   = [f, z, as]
-  , scomb'body   = Typed
-      (ECase "as"
-        [ CaseAlt 0 [] "z"
-        , CaseAlt 1 [x, xs] (ap foldlv ["f", ap "f" ["z", "x"], "xs"])
-        ])
-      bT
-  }
-  where
-    f  = Typed "f" fT
-    z  = Typed "z" zT
-    as = Typed "as" asT
-    x  = Typed "x"  aT
-    xs = Typed "xs" asT
-
-    foldlv = EVar Const.foldl
-
-    asT = listT asT
-    zT  = bT
-    fT  = bT `arrowT` (aT `arrowT` bT)
-
-    aT = varT "a"
-    bT = varT "b"
-
 
 genFoldrComb :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
 genFoldrComb aT bT f z name = Scomb
@@ -331,12 +277,12 @@ genFoldrComb aT bT f z name = Scomb
   , scomb'forall = []
   , scomb'args   = [as]
   , scomb'body   = Typed
-      (ap foldrV [f, z, "as"])
+      (ap (EPrimOp (OpListFoldr aT bT)) [f, z, "as"])
       bT
   }
   where
     as = Typed "as" (listT aT)
-    foldrV = EVar Const.foldr
+
 
 sumComb :: Scomb
 sumComb = genFoldrComb intT intT (EPrimOp OpAdd) zero "sum"
@@ -403,6 +349,3 @@ one = EPrim $ PrimInt 1
 
 zero :: ExprCore
 zero = EPrim $ PrimInt 0
-
-add :: ExprCore -> ExprCore -> ExprCore
-add a b = ap (EPrimOp OpAdd) [a, b]

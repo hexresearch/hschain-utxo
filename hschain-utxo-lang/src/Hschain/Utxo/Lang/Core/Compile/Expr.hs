@@ -107,6 +107,8 @@ data PrimOp
   | OpListAt     !TypeCore           -- ^ Index list
   | OpListAppend !TypeCore           -- ^ Append lists
   | OpListLength !TypeCore           -- ^ Length of list
+  | OpListFoldr  !TypeCore !TypeCore -- ^ Foldr
+  | OpListFoldl  !TypeCore !TypeCore -- ^ Foldl
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 
