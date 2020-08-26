@@ -16,9 +16,10 @@ import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, textT, sigmaT, TypeContext(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
 
 import qualified Language.HM as H
 import qualified Data.Sequence as S
@@ -175,12 +176,11 @@ annotateTypes =
 libTypeContext :: H.Context Loc Tag
 libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
-    -- FIXME: we need to derive types from core language but as
-    --        temporary measure they're just listed explicitly
   , (VarTag "pk", H.Signature $ Fix $ H.MonoT $ funT' [textT'] sigmaT')
   ])
   <> genericCompareOps
   <> fromCoreContext preludeTypeContext
+  <> fromPrimOps
   where
     aT = varT' "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
@@ -191,6 +191,12 @@ libTypeContext = (H.Context $ M.fromList
       [ "==", "/=", "<", ">", "<=", ">=" ]
 
     cmpT = forA $ arrowT' aT (arrowT' aT boolT')
+
+    fromPrimOps = H.Context $ M.fromList
+      [ (VarTag nm, H.monoT $ eraseLoc ty)
+      | (nm,op) <- M.toList monoPrimopNameMap
+      , let Right ty = runCheck mempty $ primopToType op
+      ]
 
 funT' :: [H.Type Loc Tag] -> H.Type Loc Tag -> H.Type Loc Tag
 funT' args res = foldr arrowT' res args

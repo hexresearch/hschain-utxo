@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , TypeContext(..)
   , lookupSignature
   , getScombSignature
+  , runCheck
   -- * primitive types
   , intT
   , boolT
