@@ -107,7 +107,6 @@ primitives =
   , getBoxValue
   ]
   ++ getBoxArgs
-  ++ byteCombs
 
 
 ------------------------------------------------------------
@@ -235,24 +234,6 @@ getArgs Args{..} =
     argComb cons tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
       where
         ty = fromArgType tyTag
-
-------------------------------------------------------------
--- bytes
-
-byteCombs :: [Scomb]
-byteCombs = appendByteComb : sha256 : (fmap toBytes argTypes ++ fmap fromBytes argTypes)
-
-appendByteComb :: Scomb
-appendByteComb = op2 Const.appendBytes (bytesT, bytesT) bytesT
-
-sha256 :: Scomb
-sha256 = op1 Const.sha256 bytesT bytesT
-
-toBytes :: ArgType -> Scomb
-toBytes tag = op1 (Const.serialiseBytes $ argTypeName tag) (fromArgType tag) bytesT
-
-fromBytes :: ArgType -> Scomb
-fromBytes tag = op1 (Const.deserialiseBytes $ argTypeName tag) bytesT (fromArgType tag)
 
 ------------------------------------------------------------
 -- lists
