@@ -74,7 +74,6 @@ primitives =
   , foldrComb
   , filterComb
   , foldlComb
-  , lengthComb
   , sumComb
   , productComb
   , andComb
@@ -267,24 +266,6 @@ foldrComb = Scomb
     zT = bT
     aT = varT "a"
     bT = varT "b"
-
-lengthComb :: Scomb
-lengthComb = Scomb
-  { scomb'name   = Const.length
-  , scomb'forall = ["a"]
-  , scomb'args   = [Typed "as" (listT aT)]
-  , scomb'body   = Typed
-      (ECase "as"
-        [ CaseAlt 0 [] (EPrim $ PrimInt 0)
-        , CaseAlt 1 [x, xs] (add one (EAp (EVar Const.length) "xs"))
-        ])
-      intT
-  }
-  where
-    aT  = varT "a"
-
-    x      = Typed "x" aT
-    xs     = Typed "xs" (listT aT)
 
 filterComb :: Scomb
 filterComb = Scomb

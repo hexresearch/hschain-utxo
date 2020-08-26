@@ -106,6 +106,7 @@ data PrimOp
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
   | OpListAppend !TypeCore           -- ^ Append lists
+  | OpListLength !TypeCore           -- ^ Length of list
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

@@ -205,6 +205,7 @@ evalPrimOp env = \case
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
   OpListAt  _    -> lift2 lookAt
   OpListAppend _ -> lift2 ((<>) @[Val])
+  OpListLength _ -> lift1 (fromIntegral @_ @Int64 . length @[] @Val)
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
