@@ -295,6 +295,8 @@ primopToType = \case
   OpToBytes   tag -> pure $ funT [tagToType tag] bytesT
   -- FIXME: Function is in fact partial
   OpFromBytes tag -> pure $ funT [bytesT] (tagToType tag)
+  --
+  OpEnvGetHeight -> pure intT
   where
     tagToType = H.mapLoc (const ()) . argTagToType
 

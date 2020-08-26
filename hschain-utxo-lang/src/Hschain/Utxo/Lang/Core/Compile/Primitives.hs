@@ -7,13 +7,12 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , environmentFunctions
 ) where
 
-import Data.Int
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Expr (Box(..), BoxId(..), Script(..), Args(..), ArgType(..), argTypeName, argTypes)
 import Hschain.Utxo.Lang.Core.Compile.Build
-  hiding (getBoxId, getBoxScript, getBoxValue, getHeight, getSelf, getInputs, getOutputs)
+  hiding (getBoxId, getBoxScript, getBoxValue, getSelf, getInputs, getOutputs)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -50,16 +49,14 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 -- constants for current state of our blockchain.
 environmentFunctions :: InputEnv -> [Scomb]
 environmentFunctions InputEnv{..} =
-  [ getHeight inputEnv'height
-  , getSelf inputEnv'self
+  [ getSelf inputEnv'self
   , getInputs inputEnv'inputs
   , getOutputs inputEnv'outputs
   ] ++ getArgs inputEnv'args
 
 environmentTypes :: TypeContext
 environmentTypes = TypeContext $ M.fromList $
-  [ (Const.getHeight,  monoT intT)
-  , (Const.getSelf,    monoT boxT)
+  [ (Const.getSelf,    monoT boxT)
   , (Const.getInputs,  monoT $ listT boxT)
   , (Const.getOutputs, monoT $ listT boxT)
   ] ++ getArgsTypes
@@ -191,9 +188,6 @@ toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
 
 ------------------------------------------------------------
 -- environment
-
-getHeight :: Int64 -> Scomb
-getHeight height = constant Const.getHeight (PrimInt height)
 
 getSelf :: Box -> Scomb
 getSelf b = constantComb "getSelf" boxT $ toBox b

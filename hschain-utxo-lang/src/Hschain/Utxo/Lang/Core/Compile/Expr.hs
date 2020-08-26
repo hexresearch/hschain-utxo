@@ -100,6 +100,8 @@ data PrimOp
   | OpFromBytes !ArgType
 
   | OpShow !TypeCore            -- ^ Polymorphic show
+
+  | OpEnvGetHeight              -- ^ Current height
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 
@@ -179,6 +181,8 @@ monoPrimopName = \case
   OpBytesAppend -> Just "appendBytes"
   OpToBytes   t -> Just $ "serialise"   <> argTypeName t
   OpFromBytes t -> Just $ "deserialise" <> argTypeName t
+  --
+  OpEnvGetHeight -> Just "getHeight"
   -- Polymorphic functions
   OpShow _ -> Nothing
   OpEQ _   -> Nothing
@@ -195,6 +199,7 @@ monomorphicPrimops =
   , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
+  , OpEnvGetHeight
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)

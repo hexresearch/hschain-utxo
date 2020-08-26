@@ -149,11 +149,10 @@ getBoxBoolArgs :: ExprCore -> ExprCore
 getBoxBoolArgs = EAp "getBoxBoolArgs"
 
 getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
-
 getInputs = "getInputs"
 getOutputs = "getOutputs"
 getSelf = "getSelf"
-getHeight = "getHeight"
+getHeight = EPrimOp OpEnvGetHeight
 getIntArgs = "getIntArgs"
 getTextArgs = "getTextArgs"
 getByteArgs = "getByteArgs"

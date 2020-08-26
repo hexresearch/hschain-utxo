@@ -29,7 +29,7 @@ import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT,boolT)
 import Hschain.Utxo.Lang.Expr  (ArgType(..))
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (InputEnv)
+import Hschain.Utxo.Lang.Types (InputEnv(..))
 
 
 -- | Value hanled by evaluator
@@ -75,7 +75,7 @@ evalProg env (CoreProg prog) =
       ValCon i xs -> maybe (EvalFail $ EvalErr "Not a list") EvalList
                    $ con2list i xs
   where
-    genv = MapL.fromList [ (scomb'name s, evalScomb genv s)
+    genv = MapL.fromList [ (scomb'name s, evalScomb env genv s)
                          | s <- prog ++ environmentFunctions env
                          ]
     --
@@ -83,14 +83,14 @@ evalProg env (CoreProg prog) =
     con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
     con2list _ _                    = Nothing
 
-evalScomb :: GEnv -> Scomb -> Val
-evalScomb genv Scomb{..} = buildArg Map.empty (V.toList scomb'args)
+evalScomb :: InputEnv -> GEnv -> Scomb -> Val
+evalScomb inpEnv genv Scomb{..} = buildArg Map.empty (V.toList scomb'args)
   where
     buildArg e (x:xs) = ValF $ \a -> buildArg (Map.insert (typed'value x) a e) xs
-    buildArg e []     = evalExpr genv e $ typed'value scomb'body
+    buildArg e []     = evalExpr inpEnv genv e $ typed'value scomb'body
 
-evalExpr :: GEnv -> LEnv -> ExprCore -> Val
-evalExpr genv = recur
+evalExpr :: InputEnv -> GEnv -> LEnv -> ExprCore -> Val
+evalExpr inpEnv genv = recur
   where
     evalVar lenv x
       | Just v <- x `Map.lookup` lenv          = v
@@ -101,7 +101,7 @@ evalExpr genv = recur
       EVar     x   -> evalVar lenv x
       EPolyVar x _ -> evalVar lenv x
       EPrim p      -> ValP p
-      EPrimOp op   -> evalPrimOp op
+      EPrimOp op   -> evalPrimOp inpEnv op
       EAp f x -> case recur lenv f of
                    ValF  valF  -> valF $ recur lenv x
                    Val2F valF  -> ValF $ valF $ recur lenv x
@@ -153,8 +153,8 @@ build step fini = go
 -- Primitives
 ----------------------------------------------------------------
 
-evalPrimOp :: PrimOp -> Val
-evalPrimOp = \case
+evalPrimOp :: InputEnv -> PrimOp -> Val
+evalPrimOp env = \case
   OpAdd -> lift2 ((+) @Int64)
   OpSub -> lift2 ((-) @Int64)
   OpMul -> lift2 ((*) @Int64)
@@ -179,18 +179,18 @@ evalPrimOp = \case
   OpLE _ -> opComparison (<=)
   OpGT _ -> opComparison (>)
   OpGE _ -> opComparison (>=)
-
+  --
   OpTextLength  -> lift1 (fromIntegral @_ @Int64 . T.length)
   OpTextAppend  -> lift2 ((<>) @Text)
   OpBytesLength -> lift1 (fromIntegral @_ @Int64 . BS.length)
   OpBytesAppend -> lift2 ((<>) @ByteString)
   OpSHA256      -> lift1 (hashBlob @SHA256)
-
+  --
   OpShow t
     | t == intT  -> lift1 (T.pack . show @Int64)
     | t == boolT -> lift1 (T.pack . show @Bool)
     | otherwise  -> ValBottom $ EvalErr "Invalid show"
-
+  --
   OpToBytes   tag -> case tag of
     IntArg   -> lift1 $ serialise @Int64
     TextArg  -> lift1 $ serialise @Text
@@ -201,6 +201,8 @@ evalPrimOp = \case
     TextArg  -> lift1 $ decode @Text
     BoolArg  -> lift1 $ decode @Bool
     BytesArg -> lift1 $ decode @ByteString
+  --
+  OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
@@ -209,7 +211,10 @@ evalPrimOp = \case
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList
-  [ (scomb'name s, evalScomb mempty s) | s <- primitives ]
+  [ (scomb'name s, evalScomb dummyEnv mempty s) | s <- primitives ]
+
+dummyEnv :: InputEnv
+dummyEnv = error "Environment is inaccessible in the library functions"
 
 opComparison :: (forall a. Ord a => a -> a -> Bool) -> Val
 opComparison (#) = primFun2 go

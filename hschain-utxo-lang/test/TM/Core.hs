@@ -60,7 +60,7 @@ progLiteral p = CoreProg
 progHeight :: CoreProg
 progHeight = CoreProg
   [ mkMain $ Typed
-    { typed'value = EVar "getHeight"
+    { typed'value = EPrimOp OpEnvGetHeight
     , typed'type  = intT
     }
   ]
