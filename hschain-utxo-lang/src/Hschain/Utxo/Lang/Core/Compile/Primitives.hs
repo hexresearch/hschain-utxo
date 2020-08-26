@@ -72,7 +72,6 @@ primitives =
     nilComb
   , consComb
   , foldrComb
-  , listAppendComb
   , filterComb
   , foldlComb
   , lengthComb
@@ -286,30 +285,6 @@ lengthComb = Scomb
 
     x      = Typed "x" aT
     xs     = Typed "xs" (listT aT)
-
-
-listAppendComb :: Scomb
-listAppendComb = Scomb
-  { scomb'name   = Const.appendList
-  , scomb'forall = ["a"]
-  , scomb'args   = [as, bs]
-  , scomb'body   = Typed
-      (ECase "as"
-        [ CaseAlt 0 [] "bs"
-        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) ["x", ap (EVar Const.appendList) ["xs", "bs"]])
-        ])
-      asT
-  }
-  where
-    as     = Typed "as" asT
-    bs     = Typed "bs" asT
-    x      = Typed "x" aT
-    xs     = Typed "xs" asT
-
-    consT = aT `arrowT` (listT aT `arrowT` listT aT)
-    asT = listT aT
-    aT = varT "a"
-
 
 filterComb :: Scomb
 filterComb = Scomb

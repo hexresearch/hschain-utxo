@@ -51,8 +51,6 @@ import qualified Data.Vector as V
 
 import qualified Language.HM as H
 
-import qualified Hschain.Utxo.Lang.Const as Const
-
 ap :: ExprCore -> [ExprCore] -> ExprCore
 ap f args = L.foldl' (\op a -> EAp op a) f args
 
@@ -122,7 +120,7 @@ listAt :: TypeCore -> ExprCore -> ExprCore -> ExprCore
 listAt ty as n = ap (EPrimOp (OpListAt ty)) [as, n]
 
 appendList :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-appendList ty as bs = ap (EPolyVar Const.appendList [ty]) [as, bs]
+appendList ty as bs = ap (EPrimOp (OpListAppend ty)) [as, bs]
 
 mapList :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> ExprCore
 mapList ta tb f as = ap (EPrimOp (OpListMap ta tb)) [f, as]

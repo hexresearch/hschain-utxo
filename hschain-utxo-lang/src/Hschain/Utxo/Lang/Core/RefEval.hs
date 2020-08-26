@@ -204,6 +204,7 @@ evalPrimOp env = \case
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
   OpListAt  _    -> lift2 lookAt
+  OpListAppend _ -> lift2 ((<>) @[Val])
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
