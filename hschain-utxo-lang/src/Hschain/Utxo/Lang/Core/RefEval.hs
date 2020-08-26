@@ -256,29 +256,37 @@ instance MatchPrim Val where
   matchP = Right
 instance MatchPrim Int64 where
   matchP (ValP (PrimInt a)) = Right a
+  matchP (ValBottom e)      = Left e
   matchP _                  = Left $ EvalErr "Expecting Int"
 instance MatchPrim Bool where
   matchP (ValP (PrimBool a)) = Right a
+  matchP (ValBottom e)       = Left e
   matchP _                   = Left $ EvalErr "Expecting Bool"
 instance MatchPrim Text where
   matchP (ValP (PrimText a))  = Right a
+  matchP (ValBottom e)        = Left e
   matchP _                    = Left $ EvalErr "Expecting Text"
 instance MatchPrim ByteString where
   matchP (ValP (PrimBytes a)) = Right a
+  matchP (ValBottom e)        = Left e
   matchP _                    = Left $ EvalErr "Expecting Bytes"
 instance MatchPrim LB.ByteString where
   matchP (ValP (PrimBytes a)) = Right $ LB.fromStrict a
+  matchP (ValBottom e)        = Left e
   matchP _                    = Left $ EvalErr "Expecting Bytes"
 
 instance k ~ PublicKey => MatchPrim (Sigma k) where
   matchP (ValP (PrimSigma a)) = Right a
+  matchP (ValBottom e)        = Left e
   matchP _                    = Left $ EvalErr "Expecting Sigma"
 
 instance MatchPrim (Val -> Val) where
   matchP = \case
-    ValF  f -> Right f
-    Val2F f -> Right $ ValF . f
-    _       -> Left TypeMismatch
+    ValF      f -> Right f
+    Val2F     f -> Right $ ValF . f
+    ValBottom e -> Left e
+    v           -> Left $ EvalErr $ "Expecting function, got " ++ conName v
+
 
 instance MatchPrim a => MatchPrim [a] where
   matchP (ValCon 0 [])     = Right []
@@ -313,3 +321,12 @@ lift2 :: (MatchPrim a, MatchPrim b, InjPrim c) => (a -> b -> c) -> Val
 lift2 f = Val2F go
   where
     go a b = inj $ f <$> matchP a <*> matchP b
+
+
+conName :: Val -> String
+conName = \case
+  ValP p      -> "Primitive: " ++ show p
+  ValBottom e -> "Bottom: " ++ show e
+  ValF{}      -> "ValF"
+  Val2F{}     -> "Val2F"
+  ValCon{}    -> "ValCon"
