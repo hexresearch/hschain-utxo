@@ -102,11 +102,9 @@ evalExpr inpEnv genv = recur
       EPolyVar x _ -> evalVar lenv x
       EPrim p      -> ValP p
       EPrimOp op   -> evalPrimOp inpEnv op
-      EAp f x -> case recur lenv f of
-                   ValF  valF  -> valF $ recur lenv x
-                   Val2F valF  -> ValF $ valF $ recur lenv x
-                   ValBottom e -> ValBottom e
-                   _           -> ValBottom TypeMismatch
+      EAp f x -> inj $ do
+        valF <- matchFun $ recur lenv f
+        return $ valF (recur lenv x)
       EIf e a b -> case recur lenv e of
         ValP (PrimBool f) -> recur lenv $ if f then a else b
         ValBottom err     -> ValBottom err
@@ -237,6 +235,12 @@ primFun2 f = Val2F go
 ----------------------------------------------------------------
 -- Lifting of functions
 ----------------------------------------------------------------
+
+matchFun :: Val -> Either EvalErr (Val -> Val)
+matchFun = \case
+  ValF  f -> Right f
+  Val2F f -> Right $ ValF . f
+  _       -> Left TypeMismatch
 
 class MatchPrim a where
   matchP :: Prim -> Either EvalErr a
