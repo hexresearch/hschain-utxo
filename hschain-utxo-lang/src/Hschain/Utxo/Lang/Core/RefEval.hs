@@ -270,6 +270,10 @@ instance MatchPrim (Val -> Val) where
     Val2F f -> Right $ ValF . f
     _       -> Left TypeMismatch
 
+instance MatchPrim a => MatchPrim [a] where
+  matchP (ValCon 0 [])     = Right []
+  matchP (ValCon 1 [x,xs]) = liftA2 (:) (matchP x) (matchP xs)
+  matchP _ = Left $ EvalErr "Expecting list"
 
 instance InjPrim Val           where inj = id
 instance InjPrim Int64         where inj = ValP . PrimInt
