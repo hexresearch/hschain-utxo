@@ -103,8 +103,8 @@ evalExpr inpEnv genv = recur
       EPrim p      -> ValP p
       EPrimOp op   -> evalPrimOp inpEnv op
       EAp f x -> inj $ do
-        valF <- matchFun $ recur lenv f
-        return $ valF (recur lenv x)
+        valF <- matchP $ recur lenv f
+        return (valF $ recur lenv x :: Val)
       EIf e a b -> case recur lenv e of
         ValP (PrimBool f) -> recur lenv $ if f then a else b
         ValBottom err     -> ValBottom err
@@ -236,37 +236,37 @@ primFun2 f = Val2F go
 -- Lifting of functions
 ----------------------------------------------------------------
 
-matchFun :: Val -> Either EvalErr (Val -> Val)
-matchFun = \case
-  ValF  f -> Right f
-  Val2F f -> Right $ ValF . f
-  _       -> Left TypeMismatch
-
 class MatchPrim a where
-  matchP :: Prim -> Either EvalErr a
+  matchP :: Val -> Either EvalErr a
 
 class InjPrim a where
   inj :: a -> Val
 
 instance MatchPrim Int64 where
-  matchP (PrimInt a) = Right a
-  matchP _           = Left $ EvalErr "Expecting Int"
+  matchP (ValP (PrimInt a)) = Right a
+  matchP _                  = Left $ EvalErr "Expecting Int"
 instance MatchPrim Bool where
-  matchP (PrimBool a) = Right a
-  matchP _            = Left $ EvalErr "Expecting Bool"
+  matchP (ValP (PrimBool a)) = Right a
+  matchP _                   = Left $ EvalErr "Expecting Bool"
 instance MatchPrim Text where
-  matchP (PrimText a) = Right a
-  matchP _            = Left $ EvalErr "Expecting Text"
+  matchP (ValP (PrimText a))  = Right a
+  matchP _                    = Left $ EvalErr "Expecting Text"
 instance MatchPrim ByteString where
-  matchP (PrimBytes a) = Right a
-  matchP _             = Left $ EvalErr "Expecting Bytes"
+  matchP (ValP (PrimBytes a)) = Right a
+  matchP _                    = Left $ EvalErr "Expecting Bytes"
 instance MatchPrim LB.ByteString where
-  matchP (PrimBytes a) = Right $ LB.fromStrict a
-  matchP _             = Left $ EvalErr "Expecting Bytes"
+  matchP (ValP (PrimBytes a)) = Right $ LB.fromStrict a
+  matchP _                    = Left $ EvalErr "Expecting Bytes"
 
 instance k ~ PublicKey => MatchPrim (Sigma k) where
-  matchP (PrimSigma a) = Right a
-  matchP _             = Left $ EvalErr "Expecting Sigma"
+  matchP (ValP (PrimSigma a)) = Right a
+  matchP _                    = Left $ EvalErr "Expecting Sigma"
+
+instance MatchPrim (Val -> Val) where
+  matchP = \case
+    ValF  f -> Right f
+    Val2F f -> Right $ ValF . f
+    _       -> Left TypeMismatch
 
 
 instance InjPrim Val           where inj = id
@@ -286,11 +286,10 @@ instance InjPrim a => InjPrim (Either EvalErr a) where
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
 lift1 f = ValF go
   where
-    go (ValP a) = inj $ f <$> matchP a
-    go _        = ValBottom TypeMismatch
+    go a = inj $ f <$> matchP a
 
 lift2 :: (MatchPrim a, MatchPrim b, InjPrim c) => (a -> b -> c) -> Val
 lift2 f = Val2F go
   where
-    go (ValP a) (ValP b) = inj $ f <$> matchP a <*> matchP b
-    go _        _        = ValBottom TypeMismatch
+    go a b = inj $ f <$> matchP a <*> matchP b
+
