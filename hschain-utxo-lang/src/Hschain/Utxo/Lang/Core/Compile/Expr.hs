@@ -176,7 +176,7 @@ monoPrimopName = \case
   OpTextLength  -> Just "textLength"
   OpBytesLength -> Just "bytesLength"
   OpTextAppend  -> Just "<>"
-  OpBytesAppend -> Just "bytesAppend"
+  OpBytesAppend -> Just "appendBytes"
   OpToBytes   t -> Just $ "serialise"   <> argTypeName t
   OpFromBytes t -> Just $ "deserialise" <> argTypeName t
   -- Polymorphic functions
