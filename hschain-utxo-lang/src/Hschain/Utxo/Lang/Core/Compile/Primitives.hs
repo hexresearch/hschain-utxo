@@ -73,7 +73,6 @@ primitives =
   , consComb
   , foldrComb
   , listAppendComb
-  , listAtComb
   , filterComb
   , foldlComb
   , lengthComb
@@ -289,31 +288,6 @@ lengthComb = Scomb
     xs     = Typed "xs" (listT aT)
 
 
-listAtComb :: Scomb
-listAtComb = Scomb
-  { scomb'name   = Const.listAt
-  , scomb'forall = ["a"]
-  , scomb'args   = [as, n]
-  , scomb'body   = Typed
-
-      (ECase "as"
-        [ CaseAlt 0 [] EBottom
-        , CaseAlt 1 [x, xs] (EIf
-                             (ap2 (EPrimOp (OpLE intT)) (EVar "n") zero)
-                             "x"
-                             (ap (EVar Const.listAt) ["xs", sub "n" one]))
-        ])
-      aT
-  }
-  where
-    n      = Typed "n" intT
-    as     = Typed "as" asT
-    x      = Typed "x" aT
-    xs     = Typed "xs" asT
-
-    asT = listT aT
-    aT = varT "a"
-
 listAppendComb :: Scomb
 listAppendComb = Scomb
   { scomb'name   = Const.appendList
@@ -476,6 +450,3 @@ zero = EPrim $ PrimInt 0
 
 add :: ExprCore -> ExprCore -> ExprCore
 add a b = ap (EPrimOp OpAdd) [a, b]
-
-sub :: ExprCore -> ExprCore -> ExprCore
-sub a b = ap (EPrimOp OpSub) [a, b]

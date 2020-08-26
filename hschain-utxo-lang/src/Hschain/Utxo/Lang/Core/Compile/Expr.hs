@@ -103,6 +103,7 @@ data PrimOp
 
   | OpEnvGetHeight              -- ^ Current height
   | OpListMap !TypeCore !TypeCore -- ^ Map over list
+  | OpListAt  !TypeCore           -- ^ Index list
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

@@ -119,7 +119,7 @@ equals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
 equals t a b = ap (EPrimOp (OpEQ t)) [a, b]
 
 listAt :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-listAt ty as n = ap (EPolyVar Const.listAt [ty]) [as, n]
+listAt ty as n = ap (EPrimOp (OpListAt ty)) [as, n]
 
 appendList :: TypeCore -> ExprCore -> ExprCore -> ExprCore
 appendList ty as bs = ap (EPolyVar Const.appendList [ty]) [as, bs]

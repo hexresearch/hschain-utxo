@@ -203,11 +203,17 @@ evalPrimOp env = \case
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
+  OpListAt  _    -> lift2 lookAt
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
       Right a -> Right a
       Left  _ -> Left $ EvalErr "Deserialize failed"
+    --
+    lookAt :: [Val] -> Int64 -> Val
+    lookAt []    !_ = ValBottom $ EvalErr "Runtime error: lookAt"
+    lookAt (x:_)  0 = x
+    lookAt (_:xs) n = lookAt xs (n-1)
 
 primitivesMap :: Map.Map Name Val
 primitivesMap = MapL.fromList
