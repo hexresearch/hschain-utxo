@@ -224,7 +224,7 @@ opComparison (#) = primFun2 go
     -- FIXME: Comparison for sigma expressions?
     go (PrimSigma _) (PrimSigma _) = ValBottom TypeMismatch
     go _ _ = ValBottom TypeMismatch
-    
+
 primFun2 :: (Prim -> Prim -> Val) -> Val
 primFun2 f = Val2F go
   where
@@ -242,6 +242,8 @@ class MatchPrim a where
 class InjPrim a where
   inj :: a -> Val
 
+instance MatchPrim Val where
+  matchP = Right
 instance MatchPrim Int64 where
   matchP (ValP (PrimInt a)) = Right a
   matchP _                  = Left $ EvalErr "Expecting Int"
@@ -292,4 +294,3 @@ lift2 :: (MatchPrim a, MatchPrim b, InjPrim c) => (a -> b -> c) -> Val
 lift2 f = Val2F go
   where
     go a b = inj $ f <$> matchP a <*> matchP b
-
