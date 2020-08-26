@@ -102,6 +102,7 @@ data PrimOp
   | OpShow !TypeCore            -- ^ Polymorphic show
 
   | OpEnvGetHeight              -- ^ Current height
+  | OpListMap !TypeCore !TypeCore -- ^ Map over list
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 

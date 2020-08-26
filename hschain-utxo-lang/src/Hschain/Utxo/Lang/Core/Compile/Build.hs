@@ -125,7 +125,7 @@ appendList :: TypeCore -> ExprCore -> ExprCore -> ExprCore
 appendList ty as bs = ap (EPolyVar Const.appendList [ty]) [as, bs]
 
 mapList :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> ExprCore
-mapList ta tb f as = ap (EPolyVar Const.map [ta, tb]) [f, as]
+mapList ta tb f as = ap (EPrimOp (OpListMap ta tb)) [f, as]
 
 getBoxId :: ExprCore -> ExprCore
 getBoxId = EAp "getBoxId"

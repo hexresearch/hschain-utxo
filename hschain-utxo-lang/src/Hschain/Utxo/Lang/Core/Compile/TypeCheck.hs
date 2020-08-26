@@ -297,6 +297,7 @@ primopToType = \case
   OpFromBytes tag -> pure $ funT [bytesT] (tagToType tag)
   --
   OpEnvGetHeight -> pure intT
+  OpListMap a b  -> pure $ funT [ funT [a] b , listT a ] (listT b)
   where
     tagToType = H.mapLoc (const ()) . argTagToType
 

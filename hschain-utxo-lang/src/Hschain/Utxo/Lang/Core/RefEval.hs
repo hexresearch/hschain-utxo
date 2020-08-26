@@ -9,6 +9,7 @@ module Hschain.Utxo.Lang.Core.RefEval
   ) where
 
 import Codec.Serialise (Serialise,serialise,deserialiseOrFail)
+import Control.Applicative
 import Data.Int
 import Data.Bits       (xor)
 import Data.ByteString (ByteString)
@@ -201,6 +202,7 @@ evalPrimOp env = \case
     BytesArg -> lift1 $ decode @ByteString
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
+  OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of

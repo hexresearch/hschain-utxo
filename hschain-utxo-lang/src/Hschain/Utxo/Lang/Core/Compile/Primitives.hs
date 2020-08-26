@@ -72,7 +72,6 @@ primitives =
     nilComb
   , consComb
   , foldrComb
-  , mapComb
   , listAppendComb
   , listAtComb
   , filterComb
@@ -289,31 +288,6 @@ lengthComb = Scomb
     x      = Typed "x" aT
     xs     = Typed "xs" (listT aT)
 
-mapComb :: Scomb
-mapComb = Scomb
-  { scomb'name   = Const.map
-  , scomb'forall = ["a", "b"]
-  , scomb'args   = [f, as]
-  , scomb'body   = Typed
-      (ECase "as"
-        [ CaseAlt 0 [] (EConstr nilT 0 0)
-        , CaseAlt 1 [x, xs] (ap (EConstr consT 1 2) [EAp "f" "x", ap "map" ["f", "xs"]])
-        ])
-      bsT
-  }
-  where
-    f      = Typed "f" fT
-    as     = Typed "as" asT
-    x      = Typed "x" aT
-    xs     = Typed "xs" asT
-
-    nilT = listT aT
-    consT = bT `arrowT` (listT bT `arrowT` listT bT)
-    fT = aT `arrowT` bT
-    asT = listT aT
-    bsT = listT bT
-    aT = varT "a"
-    bT = varT "b"
 
 listAtComb :: Scomb
 listAtComb = Scomb
