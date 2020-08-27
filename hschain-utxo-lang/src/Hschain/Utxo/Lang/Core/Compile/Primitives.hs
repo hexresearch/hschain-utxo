@@ -75,8 +75,6 @@ primitives =
   , productComb
   , andComb
   , orComb
-  , sigmaAndComb
-  , sigmaOrComb
   , allComb
   , anyComb
   -- boxes
@@ -261,18 +259,6 @@ orComb = genFoldrComb boolT boolT (EPrimOp OpBoolOr) (bool False) "or"
 
 andComb :: Scomb
 andComb = genFoldrComb boolT boolT (EPrimOp OpBoolAnd) (bool True) "and"
-
-sigmaOrComb :: Scomb
-sigmaOrComb = genFoldrComb sigmaT sigmaT sigmaOrV (sigmaBool False) "sigmaOr"
-
-sigmaOrV :: ExprCore
-sigmaOrV = EPrimOp OpSigOr
-
-sigmaAndComb :: Scomb
-sigmaAndComb = genFoldrComb sigmaT sigmaT sigmaAndV (sigmaBool False) "sigmaAnd"
-
-sigmaAndV :: ExprCore
-sigmaAndV = EPrimOp OpSigAnd
 
 genFoldrMapComb :: TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
 genFoldrMapComb bT append z name = Scomb

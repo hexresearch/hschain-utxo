@@ -273,10 +273,12 @@ primopToType = \case
   OpBoolXor -> pure $ funT [boolT, boolT] boolT
   OpBoolNot -> pure $ funT [boolT]        boolT
   --
-  OpSigPK   -> pure $ funT [textT] sigmaT
-  OpSigBool -> pure $ funT [boolT] sigmaT
-  OpSigAnd  -> pure $ funT [sigmaT,sigmaT] sigmaT
-  OpSigOr   -> pure $ funT [sigmaT,sigmaT] sigmaT
+  OpSigPK      -> pure $ funT [textT] sigmaT
+  OpSigBool    -> pure $ funT [boolT] sigmaT
+  OpSigAnd     -> pure $ funT [sigmaT,sigmaT] sigmaT
+  OpSigOr      -> pure $ funT [sigmaT,sigmaT] sigmaT
+  OpSigListAnd -> pure $ funT [listT sigmaT] sigmaT
+  OpSigListOr  -> pure $ funT [listT sigmaT] sigmaT
   --
   OpSHA256      -> pure $ funT [bytesT]         bytesT
   OpTextLength  -> pure $ funT [textT]          intT

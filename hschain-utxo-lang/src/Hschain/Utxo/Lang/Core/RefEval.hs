@@ -172,6 +172,8 @@ evalPrimOp env = \case
   OpSigPK   -> lift1 $ \t   -> case publicKeyFromText t of
                                  Nothing -> Left  $ EvalErr "Can't parse public key"
                                  Just k  -> Right $ Fix $ SigmaPk k
+  OpSigListAnd -> lift1 $ Fix . SigmaAnd
+  OpSigListOr  -> lift1 $ Fix . SigmaOr
   --
   OpEQ _ -> opComparison (==)
   OpNE _ -> opComparison (/=)

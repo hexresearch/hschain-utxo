@@ -82,6 +82,8 @@ data PrimOp
   | OpSigOr                     -- ^ OR for sigma expressions
   | OpSigPK                     -- ^ Proof of key possession
   | OpSigBool                   -- ^ Lift boolean to the sigma expression
+  | OpSigListAnd                -- ^ AND for list of sigma expression
+  | OpSigListOr                 -- ^ OR for list of sigma expression
 
   | OpEQ !TypeCore              -- ^ Equal
   | OpNE !TypeCore              -- ^ Not equal
