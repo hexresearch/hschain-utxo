@@ -79,9 +79,6 @@ primitives =
   , sigmaOrComb
   , allComb
   , anyComb
-  , sigmaAllComb
-  , sigmaAnyComb
-
   -- boxes
   , boxCons
   , getBoxId
@@ -306,12 +303,6 @@ allComb = genFoldrMapComb boolT (EPrimOp OpBoolAnd) (bool True) "all"
 
 anyComb :: Scomb
 anyComb = genFoldrMapComb boolT (EPrimOp OpBoolOr) (bool False) "any"
-
-sigmaAllComb :: Scomb
-sigmaAllComb = genFoldrMapComb sigmaT sigmaAndV (sigmaBool True) "sigmaAll"
-
-sigmaAnyComb :: Scomb
-sigmaAnyComb = genFoldrMapComb sigmaT sigmaOrV (sigmaBool False) "sigmaAny"
 
 one :: ExprCore
 one = EPrim $ PrimInt 1
