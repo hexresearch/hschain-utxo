@@ -72,7 +72,6 @@ primitives =
     nilComb
   , consComb
   , sumComb
-  , productComb
   , andComb
   , orComb
   , allComb
@@ -251,9 +250,6 @@ genFoldrComb aT bT f z name = Scomb
 sumComb :: Scomb
 sumComb = genFoldrComb intT intT (EPrimOp OpAdd) zero "sum"
 
-productComb :: Scomb
-productComb = genFoldrComb intT intT (EPrimOp OpMul) one "product"
-
 orComb :: Scomb
 orComb = genFoldrComb boolT boolT (EPrimOp OpBoolOr) (bool False) "or"
 
@@ -289,9 +285,6 @@ allComb = genFoldrMapComb boolT (EPrimOp OpBoolAnd) (bool True) "all"
 
 anyComb :: Scomb
 anyComb = genFoldrMapComb boolT (EPrimOp OpBoolOr) (bool False) "any"
-
-one :: ExprCore
-one = EPrim $ PrimInt 1
 
 zero :: ExprCore
 zero = EPrim $ PrimInt 0
