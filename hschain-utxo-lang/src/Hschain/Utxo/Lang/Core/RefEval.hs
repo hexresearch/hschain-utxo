@@ -172,8 +172,16 @@ evalPrimOp env = \case
   OpSigPK   -> lift1 $ \t   -> case publicKeyFromText t of
                                  Nothing -> Left  $ EvalErr "Can't parse public key"
                                  Just k  -> Right $ Fix $ SigmaPk k
-  OpSigListAnd -> lift1 $ Fix . SigmaAnd
-  OpSigListOr  -> lift1 $ Fix . SigmaOr
+  OpSigListAnd   -> lift1 $ Fix . SigmaAnd
+  OpSigListOr    -> lift1 $ Fix . SigmaOr
+  OpSigListAll _ -> Val2F $ \valF valXS -> inj $ do
+    f  <- matchP @(Val -> Val) valF
+    xs <- matchP @[Val]        valXS
+    Fix . SigmaAnd <$> mapM (matchP . f) xs
+  OpSigListAny _ -> Val2F $ \valF valXS -> inj $ do
+    f  <- matchP @(Val -> Val) valF
+    xs <- matchP @[Val]        valXS
+    Fix . SigmaOr <$> mapM (matchP . f) xs
   --
   OpEQ _ -> opComparison (==)
   OpNE _ -> opComparison (/=)

@@ -84,6 +84,8 @@ data PrimOp
   | OpSigBool                   -- ^ Lift boolean to the sigma expression
   | OpSigListAnd                -- ^ AND for list of sigma expression
   | OpSigListOr                 -- ^ OR for list of sigma expression
+  | OpSigListAll !TypeCore      -- ^ AND for list of sigma expression
+  | OpSigListAny !TypeCore      -- ^ OR for list of sigma expression
 
   | OpEQ !TypeCore              -- ^ Equal
   | OpNE !TypeCore              -- ^ Not equal
@@ -104,7 +106,7 @@ data PrimOp
   | OpShow !TypeCore            -- ^ Polymorphic show
 
   | OpEnvGetHeight              -- ^ Current height
-  
+
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
   | OpListAppend !TypeCore           -- ^ Append lists
@@ -179,10 +181,14 @@ monoPrimopName = \case
   OpBoolXor     -> Just "^^"
   OpBoolNot     -> Just "not"
   --
-  OpSigAnd      -> Just "&&&"
-  OpSigOr       -> Just "|||"
-  OpSigPK       -> Just "pk"
-  OpSigBool     -> Just "toSigma"
+  OpSigAnd       -> Just "&&&"
+  OpSigOr        -> Just "|||"
+  OpSigPK        -> Just "pk"
+  OpSigBool      -> Just "toSigma"
+  OpSigListAnd   -> Just "sigmaAnd"
+  OpSigListOr    -> Just "sigmaOr"
+  OpSigListAll _ -> Nothing
+  OpSigListAny _ -> Nothing
   --
   OpSHA256      -> Just "sha256"
   OpTextLength  -> Just "textLength"
@@ -201,13 +207,21 @@ monoPrimopName = \case
   OpGE _   -> Nothing
   OpLT _   -> Nothing
   OpLE _   -> Nothing
+  --
+  OpListMap{}    -> Nothing
+  OpListAt{}     -> Nothing
+  OpListAppend{} -> Nothing
+  OpListLength{} -> Nothing
+  OpListFoldr{}  -> Nothing
+  OpListFoldl{}  -> Nothing
+  OpListFilter{} -> Nothing
 
 -- | List of all monomorphic primops
 monomorphicPrimops :: [PrimOp]
 monomorphicPrimops =
   [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
   , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
-  , OpSigAnd, OpSigOr, OpSigPK, OpSigBool
+  , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight
   ]
