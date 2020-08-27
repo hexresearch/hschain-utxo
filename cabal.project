@@ -12,4 +12,5 @@ packages:
   hschain-utxo-state
   hschain-utxo-test
   hschain-utxo-web-service
+  hschain-utxo-pow-node
 

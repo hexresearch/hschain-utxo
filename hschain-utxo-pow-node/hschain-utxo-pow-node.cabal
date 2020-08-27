@@ -26,6 +26,7 @@ library
                      , data-fix
                      , hex-common
                      , hschain-crypto
+                     , hschain-db
                      , hschain-merkle
                      , hschain-types
                      , hschain-utxo-lang
@@ -41,6 +42,7 @@ library
                      , serialise
                      , servant
                      , servant-server
+                     , sqlite-simple
                      , stm
                      , text
                      , transformers

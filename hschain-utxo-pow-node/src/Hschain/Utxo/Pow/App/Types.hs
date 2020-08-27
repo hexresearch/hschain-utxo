@@ -9,9 +9,13 @@
 -- scalar (Ed.Scalarbelow ) provided by very much external package.
 -- We cannot fork that package and add an instance there.
 
-{-# OPTIONS  -Wno-orphans               #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# OPTIONS  -Wno-orphans                                    #-}
+{-# LANGUAGE DataKinds                                       #-}
+{-# LANGUAGE DeriveAnyClass, DerivingVia, DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts                                #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving                      #-}
+{-# LANGUAGE MultiWayIf                                      #-}
+{-# LANGUAGE UndecidableInstances                            #-}
 module Hschain.Utxo.Pow.App.Types where
 
 import Hex.Common.Aeson
@@ -52,6 +56,9 @@ import qualified Data.Vector as V
 
 import Data.Word
 
+import qualified Database.SQLite.Simple.ToField   as SQL
+import qualified Database.SQLite.Simple.FromField as SQL
+
 import GHC.Generics
 
 import Servant.API
@@ -71,6 +78,8 @@ import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
 import HSChain.Types
 import HSChain.Types.Merkle.Types
+
+import HSChain.Store.Query
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.Lang.Build
@@ -178,27 +187,39 @@ instance POWTypes.BlockData UTXOBlock where
 
   newtype BlockID UTXOBlock = UB'BID { fromUBBID :: Crypto.Hash SHA256 }
     deriving newtype
-      (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON)
+      (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON, ByteRepr)
+    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POWTypes.BlockID UTXOBlock)
 
   type Tx UTXOBlock = Tx
 
+  newtype TxID UTXOBlock = UTXOTxID (Hash SHA256)
+    deriving newtype ( Show, Eq, Ord, CryptoHashable, Serialise, ByteRepr
+                     , JSON.ToJSON, JSON.FromJSON)
+    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POWTypes.TxID UTXOBlock)
+
+  data BlockException UTXOBlock =
+                                  WrongAnswer
+                                | WrongTarget
+                                | AheadOfTime
+    deriving stock    (Show,Generic)
+    deriving anyclass (Exception,JSON.ToJSON)
+
   blockID b = let Hashed h = hashed b in UB'BID h
   validateHeader bh (POWTypes.Time now) header
-    | POWTypes.blockHeight header == 0 = return True -- skip genesis check.
+    | POWTypes.blockHeight header == 0 = return $ Right () -- skip genesis check.
     | otherwise = do
       answerIsGood <- error "no puzzle check right now"
-      return
-        $ and
-              [ answerIsGood
-              , ubpTarget (ubProper $ POWTypes.blockData header) == POWTypes.retarget bh
-              -- Time checks
-              , t <= now + (2*60*60*1000)
-              -- FIXME: Check that we're ahead of median time of N prev block
-              ]
+      return $ if
+         | not answerIsGood -> Left WrongAnswer
+         | ubpTarget (ubProper $ POWTypes.blockData header) /= POWTypes.retarget bh
+                            -> Left WrongTarget
+         | t > now + (2 * 60 * 60 * 1000)
+                            -> Left AheadOfTime
+         | otherwise        -> Right ()
     where
       POWTypes.Time t = POWTypes.blockTime header
 
-  validateBlock = const $ return True
+  validateBlock = const $ return $ Right ()
 
   blockWork b = POWTypes.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
                               $ POWTypes.targetInteger $ ubpTarget $ ubProper
@@ -252,7 +273,7 @@ initialUTXONodeState :: UTXONodeState
 initialUTXONodeState = UTXONodeState
   { unsTransactions   = Set.empty
   , unsUTXOSet        = Set.empty
-  , unsUTXORandomness = BS.fromString "randomness!! Here you come!!"
+  , unsUTXORandomness = BS.pack $ replicate 32 71
   , unsUTXOIndex      = 0
   }
 
