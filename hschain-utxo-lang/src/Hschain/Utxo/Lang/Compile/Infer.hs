@@ -18,7 +18,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCor
 import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, textT, sigmaT, TypeContext(..))
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT, boolT, textT, sigmaT, TypeContext(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
 
 import qualified Language.HM as H
@@ -176,7 +176,8 @@ annotateTypes =
 libTypeContext :: H.Context Loc Tag
 libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
-  , (VarTag "pk", H.Signature $ Fix $ H.MonoT $ funT' [textT'] sigmaT')
+  , (VarTag "pk", H.monoT $ funT' [textT'] sigmaT')
+  , (VarTag "listAt", H.forAllT noLoc "a" $ H.monoT $ funT' [listT' (varT' "a"), intT'] (varT' "a"))
   ])
   <> genericCompareOps
   <> fromCoreContext preludeTypeContext
@@ -207,6 +208,9 @@ arrowT' a b = H.arrowT noLoc a b
 varT' :: Name -> H.Type Loc Tag
 varT'   a   = H.varT noLoc $ VarTag a
 
+intT' :: H.Type Loc Tag
+intT'  = eraseLoc intT
+
 boolT' :: H.Type Loc Tag
 boolT' = eraseLoc boolT
 
@@ -215,3 +219,6 @@ textT' = eraseLoc textT
 
 sigmaT' :: H.Type Loc Tag
 sigmaT' = eraseLoc sigmaT
+
+listT' :: H.Type Loc Tag -> H.Type Loc Tag
+listT' = H.listT noLoc
