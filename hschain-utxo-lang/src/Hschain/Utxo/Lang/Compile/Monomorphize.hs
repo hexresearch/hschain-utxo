@@ -430,19 +430,12 @@ unifySubst tA tB = case H.unifyTypes tA tB of
 specifyCompareOps :: MonadLang m => TypedLamProg -> m TypedLamProg
 specifyCompareOps = liftTypedLamProg $ cataM $ \case
   Ann ty expr -> fmap (Fix . Ann ty) $ case expr of
-    EVar loc name -> checkCompOp ty loc name
-    other         -> pure other
+    EVar loc name
+      | Just op <- fromCompName name -> do
+          cmpT <- fromCompType name loc ty
+          return $ EPrimOp loc $ op (H.mapLoc (const ()) cmpT)
+    other -> pure other
   where
-    checkCompOp ty loc name = do
-      mOp <- toCompOp loc ty name
-      return $ case mOp of
-        Just op -> EPrimOp loc op
-        Nothing -> EVar    loc name
-
-    toCompOp loc ty name = forM (fromCompName name) $ \op -> do
-      cmpT <- fromCompType name loc ty
-      return $ op (H.mapLoc (const ()) cmpT)
-
     fromCompName name = case name of
       "==" -> Just OpEQ
       "/=" -> Just OpNE
