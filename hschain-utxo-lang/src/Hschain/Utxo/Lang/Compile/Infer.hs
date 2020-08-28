@@ -178,6 +178,7 @@ libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
   , (VarTag "pk", H.monoT $ funT' [textT'] sigmaT')
   , (VarTag "listAt", H.forAllT noLoc "a" $ H.monoT $ funT' [listT' (varT' "a"), intT'] (varT' "a"))
+  , (VarTag "length", H.forAllT noLoc "a" $ H.monoT $ funT' [listT' (varT' "a")] intT')
   ])
   <> genericCompareOps
   <> fromCoreContext preludeTypeContext

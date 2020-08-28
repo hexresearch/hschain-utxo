@@ -430,9 +430,8 @@ unifySubst tA tB = case H.unifyTypes tA tB of
 specifyCompareOps :: MonadLang m => TypedLamProg -> m TypedLamProg
 specifyCompareOps = liftTypedLamProg $ cataM $ \case
   Ann ty expr -> fmap (Fix . Ann ty) $ case expr of
-    EVar loc "listAt" -> do
-      tyL <- fromListAt loc ty
-      return $ EPrimOp loc $ OpListAt tyL
+    EVar loc "listAt" -> EPrimOp loc . OpListAt     <$> getParam1 "listAt" loc ty
+    EVar loc "length" -> EPrimOp loc . OpListLength <$> getParam1 "length" loc ty
     EVar loc name
       | Just op <- fromCompName name -> do
           cmpT <- fromCompType name loc ty
@@ -448,9 +447,10 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
       ">=" -> Just OpGE
       _    -> Nothing
 
-    fromListAt loc (H.Type (Fix ty)) = case ty of
+    getParam1 name loc (H.Type (Fix ty)) = case ty of
       H.ArrowT _ t _ -> return (H.Type t)
-      _              -> failedToFindMonoType loc "listAt"
+      _              -> failedToFindMonoType loc name
+
     fromCompType name loc (H.Type (Fix ty)) = case ty of
       H.ArrowT _ a (Fix (H.ArrowT _ b (Fix (H.ConT _ "Bool" [])))) ->
         if (isPrimType a && a == b)
