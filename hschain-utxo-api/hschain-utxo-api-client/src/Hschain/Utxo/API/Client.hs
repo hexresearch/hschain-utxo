@@ -86,6 +86,9 @@ liftClientM = ClientM . lift . lift
 postTx :: Tx -> ClientM PostTxResponse
 postTx tx = liftClientM (postTx' tx)
 
+getBox :: BoxId -> ClientM (Maybe Box)
+getBox boxId = liftClientM (getBox' boxId)
+
 getBoxBalance :: BoxId -> ClientM (Maybe Money)
 getBoxBalance boxId = liftClientM (getBoxBalance' boxId)
 
@@ -110,6 +113,7 @@ hasUtxo boxId = liftClientM (hasUtxo' boxId)
 -- Client auto implementation
 --
 postTx' :: Tx -> C.ClientM PostTxResponse
+getBox' :: BoxId -> C.ClientM (Maybe Box)
 getBoxBalance' :: BoxId -> C.ClientM (Maybe Money)
 getTxSigma' :: Tx -> C.ClientM SigmaTxResponse
 getEnv' :: C.ClientM GetEnvResponse
@@ -117,6 +121,7 @@ getState' :: C.ClientM BoxChain
 getUtxos' :: C.ClientM [BoxId]
 hasUtxo' :: BoxId -> C.ClientM Bool
 (      postTx'
+  :<|> getBox'
   :<|> getBoxBalance'
   :<|> getTxSigma'
   :<|> getEnv'

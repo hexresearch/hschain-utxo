@@ -20,6 +20,7 @@ import qualified Hschain.Utxo.State.Query as S
 utxoServer :: ServerT UtxoAPI ServerM
 utxoServer =
        postTxEndpoint          -- posts transaction
+  :<|> getBoxEndpoint          -- gets box by id
   :<|> getBoxBalanceEndpoint   -- reads balance for a box
   :<|> getTxSigmaEndpoint      -- executes script to sigma-expression without commiting
   :<|> getEnvEndpoint          -- reads blockchain environment
@@ -29,6 +30,9 @@ utxoServer =
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
 postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
+
+getBoxEndpoint :: BoxId -> ServerM (Maybe Box)
+getBoxEndpoint boxId = fmap (\bch -> S.getBox bch boxId) readBoxChain
 
 getBoxBalanceEndpoint :: BoxId -> ServerM (Maybe Money)
 getBoxBalanceEndpoint boxId =

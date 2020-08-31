@@ -19,6 +19,7 @@ import Hschain.Utxo.State.Types
 
 type UtxoAPI = "api" :>
   (    PostTxEndpoint
+  :<|> GetBoxEndpoint
   :<|> GetBoxBalanceEndpoint
   :<|> GetTxSigmaEndpoint
   :<|> GetEnvEndpoint
@@ -31,6 +32,11 @@ type UtxoAPI = "api" :>
 type PostTxEndpoint = "tx" :> Summary "Post Tx" :> "post"
   :> ReqBody '[JSON] Tx
   :> Post '[JSON] PostTxResponse
+
+-- | Query box by identifier
+type GetBoxEndpoint = "box" :> Summary "Gets the box by identifier" :> "get"
+  :> Capture "box-id" BoxId
+  :> Get '[JSON] (Maybe Box)
 
 -- | Query box balance by identifier
 type GetBoxBalanceEndpoint = "box-balance" :> Summary "Gets the balance inside UTXO box" :> "get"
