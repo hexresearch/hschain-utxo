@@ -19,16 +19,24 @@ import Hschain.Utxo.State.Types
 
 type UtxoAPI = "api" :>
   (    PostTxEndpoint
+  :<|> GetBoxEndpoint
   :<|> GetBoxBalanceEndpoint
   :<|> GetTxSigmaEndpoint
   :<|> GetEnvEndpoint
   :<|> GetStateEndpoint
+  :<|> GetUtxos
+  :<|> HasUtxo
   )
 
 -- | Post transaction
 type PostTxEndpoint = "tx" :> Summary "Post Tx" :> "post"
   :> ReqBody '[JSON] Tx
   :> Post '[JSON] PostTxResponse
+
+-- | Query box by identifier
+type GetBoxEndpoint = "box" :> Summary "Gets the box by identifier" :> "get"
+  :> Capture "box-id" BoxId
+  :> Get '[JSON] (Maybe Box)
 
 -- | Query box balance by identifier
 type GetBoxBalanceEndpoint = "box-balance" :> Summary "Gets the balance inside UTXO box" :> "get"
@@ -48,6 +56,15 @@ type GetEnvEndpoint = "env"
 -- | Debug api method
 type GetStateEndpoint = "debug" :> "state" :> Summary "Gets the state of box-chain" :> "get"
   :> Get '[JSON] BoxChain
+
+-- | Reads all BoxId's that are available as inputs (UTXOs)
+type GetUtxos = "utxos" :> Summary "Reads all UTXOs" :> "get"
+  :> Get '[JSON] [BoxId]
+
+-- | Checks weather we can spend given @BoxId@.
+type HasUtxo = "has-utxo" :> Summary "Checks waether UTXO is avaiable"
+  :> Capture "box-id" BoxId
+  :> Get '[JSON] Bool
 
 -- | Result of posted transaction. Contains TX-hash if it was approved.
 data PostTxResponse = PostTxResponse

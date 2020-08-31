@@ -66,6 +66,12 @@ toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
           , boxInput'proof = boxInputRef'proof
           }
 
+hasBoxId :: BoxChain -> BoxId -> Bool
+hasBoxId BoxChain{..} boxId = M.member boxId boxChain'boxes
+
+getBoxIds :: BoxChain -> [BoxId]
+getBoxIds BoxChain{..} = M.keys boxChain'boxes
+
 -- | Read blockchain environment.
 getEnv :: BoxChain -> Env
 getEnv BoxChain{..} = Env { env'height = boxChain'height }
