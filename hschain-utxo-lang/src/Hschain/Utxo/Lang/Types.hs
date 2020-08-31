@@ -2,15 +2,10 @@
 module Hschain.Utxo.Lang.Types where
 
 import Hex.Common.Aeson
-import Hex.Common.Serialise
 import Control.DeepSeq (NFData)
-import Control.Monad
 import Control.Monad.Except
 
 import Codec.Serialise
-
-import Data.Aeson
-import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
 import Data.Int
 import Data.Monoid
@@ -19,7 +14,7 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (encodeBase58)
+import HSChain.Crypto.Classes (encodeBase58, ViaBase58(..), ByteRepr)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
@@ -36,20 +31,10 @@ newtype UserId = UserId { unUserId :: Text }
 
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
-  deriving newtype  (Show, Eq, Ord, Serialise)
+  deriving newtype  (Show, Eq, Ord, Serialise, ByteRepr)
   deriving stock    (Generic)
-
-instance ToJSON TxHash where
-  toJSON = serialiseToJSON
-
-instance FromJSON TxHash where
-  parseJSON = serialiseFromJSON
-
-instance ToJSONKey TxHash where
-  toJSONKey = ToJSONKeyText serialiseToText (text . serialiseToText)
-
-instance FromJSONKey TxHash where
-  fromJSONKey = FromJSONKeyTextParser  (maybe mzero return . serialiseFromText)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+       via ViaBase58 "TxHash" TxHash
 
 -- | Type for transactions.
 --
@@ -82,20 +67,7 @@ data BoxInputRef = BoxInputRef
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
-appendProofs :: Vector (Maybe Proof) -> Tx -> Tx
-appendProofs proofs Tx{..} = Tx
-  { tx'inputs  = V.zipWith appendProofToBox proofs tx'inputs
-  , tx'outputs = tx'outputs
-  }
-
-appendProofToBox :: Maybe Proof -> BoxInputRef -> BoxInputRef
-appendProofToBox proof BoxInputRef{..} = BoxInputRef
-  { boxInputRef'id    = boxInputRef'id
-  , boxInputRef'args  = boxInputRef'args
-  , boxInputRef'proof = proof
-  }
-
--- | This is used for hashing the TX, to get it's id and
+-- | This is used for hashing the TX, to get its id and
 -- for serialization to get message to be signed for verification.
 data PreTx a = PreTx
   { preTx'inputs  :: !(Vector a)
@@ -191,7 +163,7 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 -- smartconstructors to create boxes and transactions
 
 -- | Creates TX and assigns properly all box identifiers.
--- It does not creates the proofs.
+-- It does not create the proofs.
 newTx :: PreTx BoxInputRef -> Tx
 newTx tx = Tx
   { tx'inputs  = preTx'inputs tx
@@ -232,8 +204,8 @@ makeInputsOrFail proofEnv message expectedInputs = runExceptT $ mapM toInput exp
       mProof <- mapM (\sigma -> ExceptT $ newProof proofEnv sigma message) expectedBox'sigma
       return $ expectedBox'input { boxInputRef'proof = mProof }
 
--- | Expectation of the result of the box.
--- We use it when we know to what sigma expression input box script is going to be executed.
+-- | Expectation of the result of the box. We use it when we know to
+-- what sigma expression input box script is going to be executed.
 -- Then we can generate proofs with function @newProofTx@.
 data ExpectedBox = ExpectedBox
   { expectedBox'sigma   :: Maybe (Sigma PublicKey)
