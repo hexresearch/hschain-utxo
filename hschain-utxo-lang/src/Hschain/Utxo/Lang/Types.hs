@@ -82,19 +82,6 @@ data BoxInputRef = BoxInputRef
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
-appendProofs :: Vector (Maybe Proof) -> Tx -> Tx
-appendProofs proofs Tx{..} = Tx
-  { tx'inputs  = V.zipWith appendProofToBox proofs tx'inputs
-  , tx'outputs = tx'outputs
-  }
-
-appendProofToBox :: Maybe Proof -> BoxInputRef -> BoxInputRef
-appendProofToBox proof BoxInputRef{..} = BoxInputRef
-  { boxInputRef'id    = boxInputRef'id
-  , boxInputRef'args  = boxInputRef'args
-  , boxInputRef'proof = proof
-  }
-
 -- | This is used for hashing the TX, to get its id and
 -- for serialization to get message to be signed for verification.
 data PreTx a = PreTx
