@@ -101,6 +101,12 @@ getHeight = fmap (\(GetEnvResponse env) -> env'height env) getEnv
 getState :: ClientM BoxChain
 getState = liftClientM getState'
 
+getUtxos :: ClientM [BoxId]
+getUtxos = liftClientM getUtxos'
+
+hasUtxo :: BoxId -> ClientM Bool
+hasUtxo boxId = liftClientM (hasUtxo' boxId)
+
 -- Client auto implementation
 --
 postTx' :: Tx -> C.ClientM PostTxResponse
@@ -108,11 +114,15 @@ getBoxBalance' :: BoxId -> C.ClientM (Maybe Money)
 getTxSigma' :: Tx -> C.ClientM SigmaTxResponse
 getEnv' :: C.ClientM GetEnvResponse
 getState' :: C.ClientM BoxChain
+getUtxos' :: C.ClientM [BoxId]
+hasUtxo' :: BoxId -> C.ClientM Bool
 (      postTx'
   :<|> getBoxBalance'
   :<|> getTxSigma'
   :<|> getEnv'
   :<|> getState'
+  :<|> getUtxos'
+  :<|> hasUtxo'
   ) = C.client (Proxy :: Proxy UtxoAPI)
 
 data HttpQueryOps =
