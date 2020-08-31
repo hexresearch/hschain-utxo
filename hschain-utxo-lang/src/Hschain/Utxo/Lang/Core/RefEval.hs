@@ -270,6 +270,27 @@ evalPrimOp env = \case
     xs <- matchP @[Val]        valXS
     p  <- matchP @(Val -> Val) valF
     return $ filterM (matchP . p) xs
+  OpListSum   -> lift1 (sum @[] @Int64)
+  OpListAnd   -> lift1 (and @[])
+  OpListOr    -> lift1 (or  @[])
+  OpListAll _ -> Val2F $ \valF valXS -> inj $ do
+    f  <- matchP @(Val -> Val) valF
+    xs <- matchP @[Val] valXS
+    let step []                 = inj True
+        step (Right True  : as) = step as
+        step (Right False : _ ) = inj False
+        step (Left e      : _ ) = ValBottom e
+    return $ step $ map (matchP . f) xs
+  OpListAny _ -> Val2F $ \valF valXS -> inj $ do
+    f  <- matchP @(Val -> Val) valF
+    xs <- matchP @[Val] valXS
+    let step []                 = inj False
+        step (Right True  : _ ) = inj True
+        step (Right False : as) = step as
+        step (Left e      : _ ) = ValBottom e
+    return $ step $ map (matchP . f) xs
+  OpListNil  _ -> inj ([] @Val)
+  OpListCons _ -> Val2F $ \x xs -> ValCon 1 [x , xs]
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of

@@ -317,6 +317,13 @@ primopToType = \case
                                   , listT a
                                   ] b
   OpListFilter a   -> pure $ funT [ funT [a] boolT, listT a] (listT a)
+  OpListSum        -> pure $ funT [ listT intT ] intT
+  OpListAnd        -> pure $ funT [ listT boolT ] boolT
+  OpListOr         -> pure $ funT [ listT boolT ] boolT
+  OpListAll    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
+  OpListAny    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
+  OpListNil    a   -> pure $ listT a
+  OpListCons   a   -> pure $ funT [ a , listT a ] (listT a)
   where
     tagToType = H.mapLoc (const ()) . argTagToType
 

@@ -116,6 +116,13 @@ data PrimOp
   | OpListFoldr  !TypeCore !TypeCore -- ^ Foldr
   | OpListFoldl  !TypeCore !TypeCore -- ^ Foldl
   | OpListFilter !TypeCore
+  | OpListSum                   -- ^ Sum
+  | OpListAnd                   -- ^ AND for all elements
+  | OpListOr                    -- ^ OR for all elements
+  | OpListAll    !TypeCore      -- ^ Every element of list satisfy predicate
+  | OpListAny    !TypeCore      -- ^ Any element of list satisfy predicate
+  | OpListNil    !TypeCore
+  | OpListCons   !TypeCore
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 
@@ -219,6 +226,13 @@ monoPrimopName = \case
   OpListFoldr{}  -> Nothing
   OpListFoldl{}  -> Nothing
   OpListFilter{} -> Nothing
+  OpListSum      -> Just "sum"
+  OpListAnd      -> Just "and"
+  OpListOr       -> Just "or"
+  OpListAll{}    -> Nothing
+  OpListAny{}    -> Nothing
+  OpListNil{}    -> Nothing
+  OpListCons{}   -> Nothing
 
 -- | List of all monomorphic primops
 monomorphicPrimops :: [PrimOp]
@@ -228,6 +242,9 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf
+  , OpListSum
+  , OpListAnd
+  , OpListOr
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)

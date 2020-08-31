@@ -66,16 +66,7 @@ environmentTypes = TypeContext $ M.fromList $
 -- | Built-in language primitives
 primitives :: [Scomb]
 primitives =
-  [ -- lists
-    nilComb
-  , consComb
-  , sumComb
-  , andComb
-  , orComb
-  , allComb
-  , anyComb
-  -- boxes
-  , boxCons
+  [ boxCons
   , getBoxId
   , getBoxScript
   , getBoxValue
@@ -181,84 +172,3 @@ getArgs Args{..} =
     argComb cons tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
       where
         ty = fromArgType tyTag
-
-------------------------------------------------------------
--- lists
-
-nilComb :: Scomb
-nilComb = constantComb "nil" nilTy (EConstr nilTy 0 0)
-  where
-    nilTy = listT (varT "a")
-
-consComb :: Scomb
-consComb = Scomb
-  { scomb'name   = "cons"
-  , scomb'forall = ["a"]
-  , scomb'args   = [x, xs]
-  , scomb'body   = Typed
-      (ap (EConstr consT 1 2) ["x", "xs"])
-      asT
-  }
-  where
-    x  = Typed "x" aT
-    xs = Typed "xs" asT
-    consT = funT [aT, asT] asT
-
-    aT  = varT "a"
-    asT = listT aT
-
-
-genFoldrComb :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
-genFoldrComb aT bT f z name = Scomb
-  { scomb'name   = name
-  , scomb'forall = []
-  , scomb'args   = [as]
-  , scomb'body   = Typed
-      (ap (EPrimOp (OpListFoldr aT bT)) [f, z, "as"])
-      bT
-  }
-  where
-    as = Typed "as" (listT aT)
-
-
-sumComb :: Scomb
-sumComb = genFoldrComb intT intT (EPrimOp OpAdd) zero "sum"
-
-orComb :: Scomb
-orComb = genFoldrComb boolT boolT (EPrimOp OpBoolOr) (bool False) "or"
-
-andComb :: Scomb
-andComb = genFoldrComb boolT boolT (EPrimOp OpBoolAnd) (bool True) "and"
-
-genFoldrMapComb :: TypeCore -> ExprCore -> ExprCore -> Name -> Scomb
-genFoldrMapComb bT append z name = Scomb
-  { scomb'name   = name
-  , scomb'forall = ["a"]
-  , scomb'args   = [f, as]
-  , scomb'body   = Typed
-      (ECase "as"
-        [ CaseAlt 0 [] z
-        , CaseAlt 1 [x, xs] (ap append [EAp "f" "x", ap nameV ["f", "xs"]])
-        ])
-      bT
-  }
-  where
-    f = Typed "f" fT
-    as = Typed "as" asT
-    x = Typed "x" aT
-    xs = Typed "xs" asT
-
-    nameV  = EVar name
-
-    fT = aT `arrowT` bT
-    aT = varT "a"
-    asT = listT aT
-
-allComb :: Scomb
-allComb = genFoldrMapComb boolT (EPrimOp OpBoolAnd) (bool True) "all"
-
-anyComb :: Scomb
-anyComb = genFoldrMapComb boolT (EPrimOp OpBoolOr) (bool False) "any"
-
-zero :: ExprCore
-zero = EPrim $ PrimInt 0
