@@ -19,6 +19,7 @@ data Options
       , options'genesis  :: FilePath
       , options'nodeName :: String
       , options'mine     :: Bool
+      , options'dbPath   :: FilePath
       }
 
 options :: Parser Options
@@ -43,4 +44,8 @@ options = Options
               <> short 'm'
               <> help "enables mining alongside full node functionality"
               )
+          <*> strOption
+              (  metavar "DB_PATH"
+              <> long "db"
+              <> help "path to database files")
 

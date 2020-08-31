@@ -100,9 +100,10 @@ import Hschain.Utxo.Pow.App.Types
 
 -- |Run the PoW node.
 runNode :: Options -> IO ()
-runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine) = do
+runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine dbPath) = do
   genesisBlock <- readGenesis pathToGenesis
-  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep getBlockToMine (UTXONodeState Set.empty Set.empty (getHashBytes (hash nodeSecret :: Hash SHA256)) 0)
+  db <- POWNode.inMemoryDB genesisBlock --POWNode.blockDatabase genesisBlock
+  POWNode.runNode [cfgConfigPath] optMine undefined db
   where
     readGenesis :: FilePath -> IO (POWTypes.Block UTXOBlock)
     readGenesis = fmap (fromMaybe err) . readJson
@@ -127,8 +128,8 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine) = do
       where
         blockHeight = succ $ POWTypes.bhHeight bh
         withSecret secret = do
-          Right proof <- newProof env (Fix $ SigmaPk publicKey)
-          return $ [tx proof]
+          Right proof <- newProof env (Fix $ SigmaPk publicKey) $ getTxBytes tx
+          return $ [tx]
           where
             publicKey = getPublicKey secret
             env = proofEnvFromKeys [getKeyPair secret]
@@ -140,7 +141,7 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine) = do
                   , box'args   = mempty
                   }
 
-            tx proof = Tx
+            tx = Tx
                        { tx'inputs  = V.empty
                        , tx'outputs = V.fromList [box]
                        }
