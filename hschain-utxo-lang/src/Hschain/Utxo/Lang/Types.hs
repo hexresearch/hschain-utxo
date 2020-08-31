@@ -2,15 +2,10 @@
 module Hschain.Utxo.Lang.Types where
 
 import Hex.Common.Aeson
-import Hex.Common.Serialise
 import Control.DeepSeq (NFData)
-import Control.Monad
 import Control.Monad.Except
 
 import Codec.Serialise
-
-import Data.Aeson
-import Data.Aeson.Encoding (text)
 import Data.ByteString (ByteString)
 import Data.Int
 import Data.Monoid
@@ -19,7 +14,7 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (encodeBase58)
+import HSChain.Crypto.Classes (encodeBase58, ViaBase58(..), ByteRepr)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
@@ -36,20 +31,10 @@ newtype UserId = UserId { unUserId :: Text }
 
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
-  deriving newtype  (Show, Eq, Ord, Serialise)
+  deriving newtype  (Show, Eq, Ord, Serialise, ByteRepr)
   deriving stock    (Generic)
-
-instance ToJSON TxHash where
-  toJSON = serialiseToJSON
-
-instance FromJSON TxHash where
-  parseJSON = serialiseFromJSON
-
-instance ToJSONKey TxHash where
-  toJSONKey = ToJSONKeyText serialiseToText (text . serialiseToText)
-
-instance FromJSONKey TxHash where
-  fromJSONKey = FromJSONKeyTextParser  (maybe mzero return . serialiseFromText)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+       via ViaBase58 "TxHash" TxHash
 
 -- | Type for transactions.
 --
