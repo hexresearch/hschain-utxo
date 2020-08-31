@@ -42,6 +42,19 @@ data Val
   | Val2F (Val -> Val -> Val)   -- ^ Binary function. Added in order to make defining primops easier
   | ValCon Int [Val]            -- ^ Constructor cell
 
+instance Show Val where
+  showsPrec n v
+    = showParen (n >= 11)
+    $ case v of
+        ValP      p -> showsPrec 11 p
+        ValBottom e -> showsPrec 11 e
+        ValF  _     -> showString "Function"
+        Val2F _     -> showString "Function"
+        ValCon i xs -> showString "CON "
+                     . showsPrec 11 i
+                     . showChar ' '
+                     . showsPrec 11 xs
+
 -- | Result of evaluation. It exisit in current form in order to be
 --   able to test list based function.
 data EvalResult
