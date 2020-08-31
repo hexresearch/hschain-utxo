@@ -107,6 +107,7 @@ data PrimOp
 
   | OpEnvGetHeight              -- ^ Current height
   | OpEnvGetSelf                -- ^ Reference to box being evaluated
+  | OpEnvGetArgs !ArgType       -- ^ Get arguments from box
 
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
@@ -201,6 +202,7 @@ monoPrimopName = \case
   --
   OpEnvGetHeight -> Just "getHeight"
   OpEnvGetSelf   -> Just "getSelf"
+  OpEnvGetArgs t -> Just $ "getBox" <> argTypeName t <> "Args"
   -- Polymorphic functions
   OpShow _ -> Nothing
   OpEQ _   -> Nothing
@@ -229,6 +231,7 @@ monomorphicPrimops =
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)
+  ++ (OpEnvGetArgs <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops
 monoPrimopNameMap :: Map.Map Name PrimOp

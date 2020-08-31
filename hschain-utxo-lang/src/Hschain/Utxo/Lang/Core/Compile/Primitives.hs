@@ -80,7 +80,7 @@ primitives =
   , getBoxScript
   , getBoxValue
   ]
-  ++ getBoxArgs
+
 
 
 ------------------------------------------------------------
@@ -126,27 +126,6 @@ getBoxScript = getBoxField Const.getBoxScript "script" bytesT
 
 getBoxValue :: Scomb
 getBoxValue = getBoxField Const.getBoxValue "value" intT
-
-getBoxArgs :: [Scomb]
-getBoxArgs =
-  [ getBoxArgsBy IntArg   "ints"
-  , getBoxArgsBy TextArg  "texts"
-  , getBoxArgsBy BoolArg  "bools"
-  , getBoxArgsBy BytesArg "bytes"
-  ]
-  where
-    getBoxArgsBy typeTag resVar = Scomb
-      { scomb'name   = Const.getBoxArgs $ argTypeName typeTag
-      , scomb'forall = []
-      , scomb'args   = [Typed "x" boxT]
-      , scomb'body   = Typed
-          (onBox $ onArgs $ EVar resVar)
-          (listT resType)
-      }
-      where
-        resType = fromArgType typeTag
-        onBox e  = ECase "x" [CaseAlt 0 boxArgs e]
-        onArgs e = ECase "args" [CaseAlt 0 [Typed "ints" (listT intT), Typed "texts" (listT textT), Typed "bools" (listT boolT)] e]
 
 boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
 boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]

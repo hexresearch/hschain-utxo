@@ -15,6 +15,7 @@ import Data.Int
 import Data.Bits       (xor)
 import Data.ByteString (ByteString)
 import Data.Text       (Text)
+import Data.Typeable
 import Data.Fix
 import qualified Data.Vector     as V
 import qualified Data.Text       as T
@@ -237,6 +238,13 @@ evalPrimOp env = \case
     ]
     where Box{..}  = inputEnv'self env
           Args{..} = box'args
+  OpEnvGetArgs t -> ValF $ \case
+    ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools]] -> case t of
+      IntArg   -> ints
+      TextArg  -> txts
+      BoolArg  -> bools
+      BytesArg -> ValBottom $ EvalErr "No bytes arguments"
+    p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
   --
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
   OpListAt  _    -> lift2 lookAt
@@ -344,10 +352,11 @@ instance MatchPrim (Val -> Val) where
     v           -> Left $ EvalErr $ "Expecting function, got " ++ conName v
 
 
-instance MatchPrim a => MatchPrim [a] where
+instance (Typeable a, MatchPrim a) => MatchPrim [a] where
   matchP (ValCon 0 [])     = Right []
   matchP (ValCon 1 [x,xs]) = liftA2 (:) (matchP x) (matchP xs)
-  matchP _ = Left $ EvalErr "Expecting list"
+  matchP (ValBottom e)     = Left e
+  matchP p = Left $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
 
 instance InjPrim Val           where inj = id
 instance InjPrim Int64         where inj = ValP . PrimInt

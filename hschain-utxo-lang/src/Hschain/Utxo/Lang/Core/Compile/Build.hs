@@ -41,6 +41,7 @@ import Data.Int
 import Data.Fix
 import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Expr (ArgType(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -134,17 +135,11 @@ getBoxValue = EAp "getBoxValue"
 getBoxScript :: ExprCore -> ExprCore
 getBoxScript = EAp "getBoxScript"
 
-getBoxIntArgs :: ExprCore -> ExprCore
-getBoxIntArgs = EAp "getBoxIntArgs"
-
-getBoxTextArgs :: ExprCore -> ExprCore
-getBoxTextArgs = EAp "getBoxTextArgs"
-
-getBoxByteArgs :: ExprCore -> ExprCore
-getBoxByteArgs = EAp "getBoxByteArgs"
-
-getBoxBoolArgs :: ExprCore -> ExprCore
-getBoxBoolArgs = EAp "getBoxBoolArgs"
+getBoxIntArgs,getBoxTextArgs,getBoxByteArgs,getBoxBoolArgs :: ExprCore -> ExprCore
+getBoxIntArgs  = EAp (EPrimOp $ OpEnvGetArgs IntArg)
+getBoxTextArgs = EAp (EPrimOp $ OpEnvGetArgs TextArg)
+getBoxByteArgs = EAp (EPrimOp $ OpEnvGetArgs BytesArg)
+getBoxBoolArgs = EAp (EPrimOp $ OpEnvGetArgs BoolArg)
 
 getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
 getInputs = "getInputs"
