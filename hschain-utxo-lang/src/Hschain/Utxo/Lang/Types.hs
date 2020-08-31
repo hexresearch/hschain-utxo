@@ -219,8 +219,8 @@ makeInputsOrFail proofEnv message expectedInputs = runExceptT $ mapM toInput exp
       mProof <- mapM (\sigma -> ExceptT $ newProof proofEnv sigma message) expectedBox'sigma
       return $ expectedBox'input { boxInputRef'proof = mProof }
 
--- | Expectation of the result of the box.
--- We use it when we know to what sigma expression input box script is going to be executed.
+-- | Expectation of the result of the box. We use it when we know to
+-- what sigma expression input box script is going to be executed.
 -- Then we can generate proofs with function @newProofTx@.
 data ExpectedBox = ExpectedBox
   { expectedBox'sigma   :: Maybe (Sigma PublicKey)
