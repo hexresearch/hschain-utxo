@@ -300,9 +300,11 @@ primopToType = \case
   -- FIXME: Function is in fact partial
   OpFromBytes tag -> pure $ funT [bytesT] (tagToType tag)
   --
-  OpEnvGetHeight -> pure intT
-  OpEnvGetSelf   -> pure boxT
-  OpEnvGetArgs t -> pure $ funT [ boxT ] (listT $ tagToType t)
+  OpEnvGetHeight  -> pure intT
+  OpEnvGetSelf    -> pure boxT
+  OpEnvGetArgs t  -> pure $ funT [ boxT ] (listT $ tagToType t)
+  OpEnvGetInputs  -> pure $ listT boxT
+  OpEnvGetOutputs -> pure $ listT boxT
   --
   OpListMap    a b -> pure $ funT [ funT [a] b , listT a ] (listT b)
   OpListAt     a   -> pure $ funT [ listT a, intT ] a

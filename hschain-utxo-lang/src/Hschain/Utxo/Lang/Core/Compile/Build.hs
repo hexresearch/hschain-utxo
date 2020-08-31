@@ -142,11 +142,11 @@ getBoxByteArgs = EAp (EPrimOp $ OpEnvGetArgs BytesArg)
 getBoxBoolArgs = EAp (EPrimOp $ OpEnvGetArgs BoolArg)
 
 getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
-getInputs = "getInputs"
-getOutputs = "getOutputs"
-getSelf = EPrimOp OpEnvGetSelf
-getHeight = EPrimOp OpEnvGetHeight
-getIntArgs = "getIntArgs"
+getInputs   = EPrimOp OpEnvGetInputs
+getOutputs  = EPrimOp OpEnvGetOutputs
+getSelf     = EPrimOp OpEnvGetSelf
+getHeight   = EPrimOp OpEnvGetHeight
+getIntArgs  = "getIntArgs"
 getTextArgs = "getTextArgs"
 getByteArgs = "getByteArgs"
 getBoolArgs = "getBoolArgs"

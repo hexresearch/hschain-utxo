@@ -7,10 +7,9 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , environmentFunctions
 ) where
 
-import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Hschain.Utxo.Lang.Expr (Box(..), BoxId(..), Script(..), Args(..), ArgType(..), argTypeName, argTypes)
+import Hschain.Utxo.Lang.Expr (Args(..), ArgType(..), argTypeName, argTypes)
 import Hschain.Utxo.Lang.Core.Compile.Build
   hiding (getBoxId, getBoxScript, getBoxValue, getSelf, getInputs, getOutputs)
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -48,16 +47,10 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 -- So we create library functions that contain concrete
 -- constants for current state of our blockchain.
 environmentFunctions :: InputEnv -> [Scomb]
-environmentFunctions InputEnv{..} =
-  [ getInputs inputEnv'inputs
-  , getOutputs inputEnv'outputs
-  ] ++ getArgs inputEnv'args
+environmentFunctions InputEnv{..} = getArgs inputEnv'args
 
 environmentTypes :: TypeContext
-environmentTypes = TypeContext $ M.fromList $
-  [ (Const.getInputs,  monoT $ listT boxT)
-  , (Const.getOutputs, monoT $ listT boxT)
-  ] ++ getArgsTypes
+environmentTypes = TypeContext $ M.fromList getArgsTypes
   where
     getArgsTypes = fmap toArgType argTypes
 
@@ -118,40 +111,10 @@ getBoxScript = getBoxField Const.getBoxScript "script" bytesT
 getBoxValue :: Scomb
 getBoxValue = getBoxField Const.getBoxValue "value" intT
 
-boxConstr :: ExprCore -> ExprCore -> ExprCore -> ExprCore -> ExprCore
-boxConstr name script value args = ap (EConstr consTy 0 4) [name, script, value, args]
-  where
-    consTy = funT (fmap typed'type boxArgs) boxT
-
-
-toBox :: Box -> ExprCore
-toBox Box{..} = boxConstr name script value args
-  where
-    name   = EPrim $ PrimBytes $ unBoxId box'id
-    script = EPrim $ PrimBytes $ unScript box'script
-    value  = EPrim $ PrimInt   $ box'value
-    args   = toArgs box'args
-
-toArgs :: Args -> ExprCore
-toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
-  where
-    consTy = funT argsTypes (tupleT argsTypes)
-    ints   = toVec intT  $ fmap (EPrim . PrimInt)  args'ints
-    texts  = toVec textT $ fmap (EPrim . PrimText) args'texts
-    bools  = toVec boolT $ fmap (EPrim . PrimBool) args'bools
 
 
 ------------------------------------------------------------
 -- environment
-
-getInputs :: Vector Box -> Scomb
-getInputs = getBoxes Const.getInputs
-
-getOutputs :: Vector Box -> Scomb
-getOutputs = getBoxes Const.getOutputs
-
-getBoxes :: Text -> Vector Box -> Scomb
-getBoxes name boxes = constantComb name (listT boxT) (toVec boxT $ fmap toBox boxes)
 
 toVec :: TypeCore -> Vector ExprCore -> ExprCore
 toVec t vs = V.foldr cons nil vs

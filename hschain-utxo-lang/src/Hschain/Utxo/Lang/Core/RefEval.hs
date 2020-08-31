@@ -227,17 +227,7 @@ evalPrimOp env = \case
     BytesArg -> lift1 $ decode @ByteString
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
-  OpEnvGetSelf   -> ValCon 0
-    [ inj $ unBoxId box'id
-    , inj $ unScript box'script
-    , inj $ box'value
-    , ValCon 0 [ inj args'ints
-               , inj args'texts
-               , inj args'bools
-               ]
-    ]
-    where Box{..}  = inputEnv'self env
-          Args{..} = box'args
+  OpEnvGetSelf   -> inj $ inputEnv'self env
   OpEnvGetArgs t -> ValF $ \case
     ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools]] -> case t of
       IntArg   -> ints
@@ -245,6 +235,8 @@ evalPrimOp env = \case
       BoolArg  -> bools
       BytesArg -> ValBottom $ EvalErr "No bytes arguments"
     p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
+  OpEnvGetInputs  -> inj $ inputEnv'inputs  env
+  OpEnvGetOutputs -> inj $ inputEnv'outputs env
   --
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
   OpListAt  _    -> lift2 lookAt
@@ -399,6 +391,21 @@ instance InjPrim a => InjPrim [a] where
 
 instance InjPrim a => InjPrim (V.Vector a) where
   inj = inj . V.toList
+
+instance InjPrim Box where
+  inj Box{..} = ValCon 0
+    [ inj $ unBoxId box'id
+    , inj $ unScript box'script
+    , inj box'value
+    , inj box'args
+    ]
+
+instance InjPrim Args where
+  inj Args{..} = ValCon 0
+    [ inj args'ints
+    , inj args'texts
+    , inj args'bools
+    ]
 
 
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
