@@ -43,6 +43,7 @@ library
                      , hschain-crypto
                      , hschain-control
                      , hschain-logger
+                     , hschain-mempool
                      , hschain-merkle
                      , hschain-net
                      , hschain-utxo-lang

@@ -77,7 +77,7 @@ interpretSpec callBackOnCommit nodeSpec@NodeSpec{..} genesisTx = do
 
 getTxWait :: (Monad m, MonadIO m)
   => TChan [Hash UtxoAlg]
-  -> Mempool m UtxoAlg Tx
+  -> Mempool m (Hashed UtxoAlg Tx) Tx
   -> m (TxHash -> m Bool)
 getTxWait txWaitChan mempool = do
   ch <- liftIO $ atomically $ dupTChan txWaitChan

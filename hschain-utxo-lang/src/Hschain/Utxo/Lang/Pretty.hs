@@ -211,7 +211,6 @@ instance Pretty ExecError where
     NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
     NoSigmaScript                  -> "Error: Script does not contain main function or does not terminate"
     FailedToDecodeScript           -> "Error: Failed to decode script"
-    GmachineError e                -> pretty $ show e
     where
       err msg val = hsep [mconcat [msg, ":"], pretty val]
       unboundedVar VarName{..} = hsep [hcat [pretty varName'loc, ":"], "Unbound variable:", pretty varName'name]

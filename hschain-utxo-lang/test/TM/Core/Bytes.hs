@@ -1,6 +1,5 @@
 module TM.Core.Bytes(
     tests
-  , run
 ) where
 
 import Data.ByteString (ByteString)
@@ -12,12 +11,13 @@ import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Utils.ByteString
 
+import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
+import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Gmachine
-import qualified Hschain.Utxo.Lang.Core.Data.Output as O
+import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
@@ -91,11 +91,19 @@ testTypeCheckCase testName prog =
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram name prog res = testGroup name
   [ testTypeCheckCase "typecheck" prog
-  , testCase          "eval"      $ Right [res] @=? run prog
+  , testCase          "simple"    $ EvalPrim res @=? evalProg env prog
   ]
 
-run :: CoreProg -> Either Error [Prim]
-run
-  = fmap (O.toList . gmachine'output)
-  . eval
-  . compile . (CoreProg primitives <> )
+env :: InputEnv
+env = InputEnv
+  { inputEnv'height   = 123
+  , inputEnv'self     = Box
+    { box'id     = BoxId ""
+    , box'value  = 100
+    , box'script = Script ""
+    , box'args   = mempty
+    }
+  , inputEnv'inputs   = mempty
+  , inputEnv'outputs  = mempty
+  , inputEnv'args     = mempty
+  }

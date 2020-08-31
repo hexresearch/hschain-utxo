@@ -6,24 +6,18 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , TypeCore
   , ExprCore(..)
   , CaseAlt(..)
-  , CompiledScomb(..)
   , coreProgToScript
   , coreProgFromScript
-  , coreProgToHumanText
-  , coreProgFromHumanText
 ) where
 
 import Codec.Serialise
 
 import Data.String
-import Data.Text (Text)
 import Data.Vector (Vector)
 
 import GHC.Generics
 
-import Hschain.Utxo.Lang.Core.Data.Code (Code)
 import Hschain.Utxo.Lang.Core.Data.Prim
-
 import Hschain.Utxo.Lang.Expr (Script(..))
 
 import qualified Data.ByteString.Lazy as LB
@@ -32,21 +26,14 @@ import qualified Data.ByteString.Lazy as LB
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
-  deriving newtype (Generic, Semigroup, Monoid, Show)
+  deriving newtype  (Generic, Semigroup, Monoid, Show)
+  deriving anyclass (Serialise)
 
 coreProgToScript :: CoreProg -> Script
 coreProgToScript = Script . LB.toStrict . serialise
 
 coreProgFromScript :: Script -> Maybe CoreProg
 coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
-
--- | TODO: it would be useful for testing to
--- have human readable versions of to/from script functions
-coreProgToHumanText :: CoreProg -> Text
-coreProgToHumanText = undefined -- renderText
-
-coreProgFromHumanText :: CoreProg -> Text
-coreProgFromHumanText = undefined -- renderText
 
 -- | Supercobinators do not contain free variables except for references to other supercombinators.
 --
@@ -56,7 +43,9 @@ data Scomb = Scomb
   , scomb'forall :: Vector Name          -- ^ names of type variables. It is empty if type is monomorphic.
   , scomb'args   :: Vector (Typed Name)  -- ^ list of arguments
   , scomb'body   :: Typed ExprCore       -- ^ body
-  } deriving (Show, Eq, Generic)
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (Serialise)
 
 instance IsString ExprCore where
   fromString = EVar . fromString
@@ -71,7 +60,7 @@ data ExprCore
   -- ^ constant primitive
   | EAp  ExprCore ExprCore
   -- ^ application
-  | ELet [(Name, ExprCore)] ExprCore
+  | ELet Name ExprCore ExprCore
   -- ^ lent bindings
   | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
@@ -82,7 +71,8 @@ data ExprCore
   -- of constructor as afunction for a type-checker
   | EBottom
   -- ^ failed termination for the program
-  deriving (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (Serialise)
 
 -- | Case alternatives
 data CaseAlt = CaseAlt
@@ -93,20 +83,6 @@ data CaseAlt = CaseAlt
   -- ^ arguments of the pattern matching
   , caseAlt'rhs   :: ExprCore
   -- ^ right-hand side of the case-alternative
-  } deriving (Show, Eq, Generic)
-
--- | Compiled supercombinator
-data CompiledScomb = CompiledScomb
-  { compiledScomb'name  :: Name   -- ^ name
-  , compiledScomb'arity :: Int    -- ^ size of argument list
-  , compiledScomb'code  :: Code   -- ^ code to instantiate combinator
-  } deriving (Show, Eq)
-
----------------------------------------------
--- instances
-
-instance Serialise CaseAlt
-instance Serialise ExprCore
-instance Serialise Scomb
-instance Serialise CoreProg
-
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (Serialise)

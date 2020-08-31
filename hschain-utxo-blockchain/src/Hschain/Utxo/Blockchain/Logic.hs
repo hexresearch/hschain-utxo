@@ -57,7 +57,7 @@ inMemoryView
   -> m (StateView m BData, IORef BoxChain, [m ()])
 inMemoryView valSet0 = do
   stateRef <- liftIO $ newIORef initialState
-  (mem@Mempool{..}, memThr) <- newMempool (const True)
+  (mem@Mempool{..}, memThr) <- newMempool (hashed) (const True)
   let make mh valSet txList st = r where
         r = StateView
           { stateHeight   = mh
@@ -81,7 +81,7 @@ inMemoryView valSet0 = do
                     Right c' -> let (c'', b  ) = selectTx c' tx
                                 in  (c'', t:b)
               let (st', dat) = selectTx st
-                             $ map merkleValue
+                             $ map snd
                              $ toList
                              $ mempFIFO memSt
               return

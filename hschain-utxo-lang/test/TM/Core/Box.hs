@@ -1,6 +1,5 @@
 module TM.Core.Box(
     tests
-  , run
 ) where
 
 import Data.Int
@@ -15,8 +14,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Core.Gmachine
-import qualified Hschain.Utxo.Lang.Core.Data.Output as O
+import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
 
 import Hschain.Utxo.Lang.Pretty
@@ -57,14 +55,14 @@ txEnv = InputEnv
 
 tests :: TestTree
 tests = testGroup "core-boxes"
-    [ testProg "get height"         [PrimInt blockChainHeight] progGetHeight
-    , testProg "get self id"        [PrimBytes "box-2"] progGetSelfId
-    , testProg "get self script"    [PrimBytes "in2"]  progGetSelfScript
-    , testProg "get tx arg"         [PrimInt 2]        progGetTxArg
-    , testProg "get input id"       [PrimBytes "box-1"] progGetInputId
-    , testProg "get output id"      [PrimBytes "box-3"] progGetOutputId
-    , testProg "get output arg"     [PrimInt 9] progGetOutputLastIntArg
-    , testProg "get input text arg" [PrimText "neil"] progGetInputLastTextArg
+    [ testProg "get height"         (PrimInt blockChainHeight) progGetHeight
+    , testProg "get self id"        (PrimBytes "box-2") progGetSelfId
+    , testProg "get self script"    (PrimBytes "in2")  progGetSelfScript
+    , testProg "get tx arg"         (PrimInt 2)        progGetTxArg
+    , testProg "get input id"       (PrimBytes "box-1") progGetInputId
+    , testProg "get output id"      (PrimBytes "box-3") progGetOutputId
+    , testProg "get output arg"     (PrimInt 9) progGetOutputLastIntArg
+    , testProg "get input text arg" (PrimText "neil") progGetInputLastTextArg
     ]
 
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
@@ -74,10 +72,10 @@ testTypeCheckCase testName prog =
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 
-testProg :: String -> [Prim] -> CoreProg -> TestTree
+testProg :: String -> Prim -> CoreProg -> TestTree
 testProg name res prog = testGroup name
   [ testTypeCheckCase "typecheck" prog
-  , testCase          "eval"      $ Right res @=? run prog
+  , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
   ]
 
 progGetHeight :: CoreProg
@@ -108,9 +106,3 @@ progGetInputLastTextArg = mainProg $
 
 mainProg :: Typed ExprCore -> CoreProg
 mainProg expr = CoreProg [mkMain expr]
-
-run :: CoreProg -> Either Error [Prim]
-run
-  = fmap (O.toList . gmachine'output)
-  . eval
-  . compile . (preludeLib txEnv <> )

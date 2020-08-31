@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Compile(
   , toCoreScript
 ) where
 
-import Control.Arrow (first)
 import Control.Monad
 
 import Data.Fix
@@ -37,9 +36,13 @@ toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m CoreProg
-compile =
-      toCoreProg <=< {- makeMonomorphic <=< -} specifyCompareOps
-  <=< annotateTypes . lambdaLifting <=< toExtendedLC
+compile
+  =  toCoreProg
+-- <=< makeMonomorphic
+ <=< specifyCompareOps
+ <=< annotateTypes
+  .  lambdaLifting
+ <=< toExtendedLC
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
@@ -69,7 +72,10 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
           EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
           EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
           EAp _  f a           -> pure $ Core.EAp f a
-          ELet _ binds e       -> pure $ Core.ELet (first typed'value <$> binds) e
+          -- FIXME: We don't take recurion between let bindings into account
+          ELet _ binds body    -> pure $
+            let addLet (nm, e) = Core.ELet (typed'value nm) e
+            in foldr addLet body binds
           ELam _ _ _           -> eliminateLamError
           EIf _ c t e          -> pure $ Core.EIf c t e
           ECase _ e alts       -> pure $ Core.ECase e (fmap convertAlt alts)
@@ -108,4 +114,3 @@ specifyPolyFun loc ctx ty name = do
       case mapM (H.applyToVar subst) argOrder of
         Just ts -> return $ Core.EPolyVar name ts
         Nothing -> failedToFindMonoType loc name
-
