@@ -95,7 +95,7 @@ appendProofToBox proof BoxInputRef{..} = BoxInputRef
   , boxInputRef'proof = proof
   }
 
--- | This is used for hashing the TX, to get it's id and
+-- | This is used for hashing the TX, to get its id and
 -- for serialization to get message to be signed for verification.
 data PreTx a = PreTx
   { preTx'inputs  :: !(Vector a)
@@ -191,7 +191,7 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 -- smartconstructors to create boxes and transactions
 
 -- | Creates TX and assigns properly all box identifiers.
--- It does not creates the proofs.
+-- It does not create the proofs.
 newTx :: PreTx BoxInputRef -> Tx
 newTx tx = Tx
   { tx'inputs  = preTx'inputs tx
