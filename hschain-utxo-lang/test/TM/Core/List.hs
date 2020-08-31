@@ -40,7 +40,8 @@ tests = testGroup "core-lists"
     , testProgram     "Or lists is false"      (progOrList (-2)) [PrimBool False]
     , testProgram     "Any list"               (progAnyList 2) [PrimBool True]
     , testProgram     "All list"               (progAllList 2) [PrimBool False]
-    , testProgram     "All sigma list"         progSigmaAllList [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True),Fix (SigmaAnd [Fix (SigmaBool False),Fix (SigmaAnd [Fix (SigmaBool True),Fix (SigmaBool True)])])]))]
+    , testProgram     "All sigma list"         progSigmaAllList
+      [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)]))]
     ]
   ]
 
@@ -103,7 +104,7 @@ progConcatList = mainProg $ Typed (appendList intT "xs" "ys") (listT intT)
 
 -- | Map over list
 progMapList :: CoreProg
-progMapList = mainProg $ Typed (mapList intT intT (EAp "*" (int 10)) "xs") (listT intT)
+progMapList = mainProg $ Typed (mapList intT intT (EAp (EPrimOp OpMul) (int 10)) "xs") (listT intT)
 
 progSumList :: CoreProg
 progSumList = mainProg $ Typed (ap "sum" ["zs"]) intT
@@ -115,7 +116,7 @@ progOrList n = listConsts <>
     orExpr = Typed (ap "or" [mapList intT boolT (isIntV n) "zs"]) boolT
 
 isIntV :: Int64 -> ExprCore
-isIntV n = EAp "Int.equals" (int n)
+isIntV n = EAp (EPrimOp (OpEQ intT)) (int n)
 
 progAnyList :: Int64 -> CoreProg
 progAnyList n = mainProg $ Typed (ap (EPolyVar "any" [intT]) [isIntV n, "xs"]) boolT
@@ -124,7 +125,8 @@ progAllList :: Int64 -> CoreProg
 progAllList n = mainProg $ Typed (ap (EPolyVar "all" [intT]) [isIntV n, "xs"]) boolT
 
 progSigmaAllList :: CoreProg
-progSigmaAllList = mainProg $ Typed (ap (EPolyVar "sigmaAll" [boolT]) ["toSigma", "bs"]) sigmaT
+progSigmaAllList = mainProg $ Typed
+  (ap (EPrimOp (OpSigListAll boolT)) [EPrimOp OpSigBool, "bs"]) sigmaT
 
 mainProg :: Typed ExprCore -> CoreProg
 mainProg expr = listConsts <> CoreProg [mkMain expr]

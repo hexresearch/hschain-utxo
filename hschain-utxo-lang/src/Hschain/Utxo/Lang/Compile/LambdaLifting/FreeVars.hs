@@ -27,6 +27,7 @@ getLocals = ann'note . unFix
 getFreeVars :: Set Name -> ExprLam Name -> AnnExprLam (Set Name) Name
 getFreeVars localVars (Fix x) = case x of
   EPrim loc p -> prim loc p
+  EPrimOp loc op -> primOp loc op
   EVar loc v  -> var loc v
   EAp loc a b -> app loc a b
   ELam loc as e -> lam loc as e
@@ -39,6 +40,7 @@ getFreeVars localVars (Fix x) = case x of
   where
 
     prim loc p = Fix $ Ann S.empty (EPrim loc p)
+    primOp loc op = Fix $ Ann S.empty (EPrimOp loc op)
 
     var loc v = Fix $
       if (S.member v localVars)

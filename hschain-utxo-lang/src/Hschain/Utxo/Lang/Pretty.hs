@@ -6,10 +6,12 @@ module Hschain.Utxo.Lang.Pretty(
   , prettyRecord
 ) where
 
+import Codec.Serialise (deserialiseOrFail)
 import Hex.Common.Serialise
 
+import Data.String
+import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
-
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 
@@ -24,6 +26,7 @@ import qualified Data.Vector as V
 import HSChain.Crypto.Classes (encodeBase58)
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
+import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg)
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -48,7 +51,9 @@ instance Pretty BoxId where
   pretty (BoxId txt) = pretty $ encodeBase58 txt
 
 instance Pretty Script where
-  pretty = pretty . scriptToText
+  pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
+    Left  _ -> "Left: " <> pretty (scriptToText (Script bs))
+    Right e -> fromString $ show (e :: CoreProg)
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
@@ -254,6 +259,8 @@ instance Pretty TypeCoreError where
     SubtypeError ta tb       -> hsep ["Error: subtype error.", pretty ta, "is not a subtype of", pretty tb]
     EmptyCaseExpression      -> "Error: empty case alternatives"
     PolymorphicLet           -> "polymorphic type in the let binding"
+    BadEquality ty           -> hsep ["Error: non comparable type:", pretty ty]
+    BadShow     ty           -> hsep ["Error: non showable type:", pretty ty]
 
 instance Pretty InternalError where
   pretty = \case

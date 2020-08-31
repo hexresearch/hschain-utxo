@@ -16,7 +16,6 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , bytes
   , sigmaBool
   , equals
-  , toCompareName
   , listAt
   , appendList
   , mapList
@@ -51,8 +50,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
-
-import qualified Hschain.Utxo.Lang.Const as Const
 
 ap :: ExprCore -> [ExprCore] -> ExprCore
 ap f args = L.foldl' (\op a -> EAp op a) f args
@@ -117,23 +114,16 @@ sigmaBool :: Bool -> ExprCore
 sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
 
 equals :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-equals t a b = ap (EVar (toCompareName t "equals")) [a, b]
-
-toCompareName :: TypeCore -> Name -> Name
-toCompareName ty name = mconcat [primName ty, ".", name]
-  where
-    primName (H.Type (Fix x)) = case x of
-      H.ConT _ prim _ -> prim
-      _               -> error "Non-primitive type"
+equals t a b = ap (EPrimOp (OpEQ t)) [a, b]
 
 listAt :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-listAt ty as n = ap (EPolyVar Const.listAt [ty]) [as, n]
+listAt ty as n = ap (EPrimOp (OpListAt ty)) [as, n]
 
 appendList :: TypeCore -> ExprCore -> ExprCore -> ExprCore
-appendList ty as bs = ap (EPolyVar Const.appendList [ty]) [as, bs]
+appendList ty as bs = ap (EPrimOp (OpListAppend ty)) [as, bs]
 
 mapList :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> ExprCore
-mapList ta tb f as = ap (EPolyVar Const.map [ta, tb]) [f, as]
+mapList ta tb f as = ap (EPrimOp (OpListMap ta tb)) [f, as]
 
 getBoxId :: ExprCore -> ExprCore
 getBoxId = EAp "getBoxId"
@@ -157,11 +147,10 @@ getBoxBoolArgs :: ExprCore -> ExprCore
 getBoxBoolArgs = EAp "getBoxBoolArgs"
 
 getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
-
 getInputs = "getInputs"
 getOutputs = "getOutputs"
 getSelf = "getSelf"
-getHeight = "getHeight"
+getHeight = EPrimOp OpEnvGetHeight
 getIntArgs = "getIntArgs"
 getTextArgs = "getTextArgs"
 getByteArgs = "getByteArgs"

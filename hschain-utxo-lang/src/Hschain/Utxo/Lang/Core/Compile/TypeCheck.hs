@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , TypeContext(..)
   , lookupSignature
   , getScombSignature
+  , runCheck
   -- * primitive types
   , intT
   , boolT
@@ -18,6 +19,7 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , boxT
   , envT
   , primToType
+  , primopToType
   , varT
   , listT
   , argsT
@@ -38,6 +40,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Expr (argTagToType)
 
 import qualified Data.Map.Strict as M
 import qualified Data.List as L
@@ -129,6 +132,7 @@ inferExpr = \case
     EVar var       -> inferVar var
     EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
+    EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
     ELet nm e body -> inferLet nm e body
     ECase e alts   -> inferCase e alts
@@ -255,6 +259,82 @@ primToType = \case
   PrimBool  _ -> boolT
   PrimSigma _ -> sigmaT
   PrimBytes _ -> bytesT
+
+primopToType :: PrimOp -> Check TypeCore
+primopToType = \case
+  OpAdd -> pure $ funT [intT,intT] intT
+  OpSub -> pure $ funT [intT,intT] intT
+  OpMul -> pure $ funT [intT,intT] intT 
+  OpDiv -> pure $ funT [intT,intT] intT
+  OpNeg -> pure $ funT [intT]      intT
+  --
+  OpBoolAnd -> pure $ funT [boolT, boolT] boolT
+  OpBoolOr  -> pure $ funT [boolT, boolT] boolT
+  OpBoolXor -> pure $ funT [boolT, boolT] boolT
+  OpBoolNot -> pure $ funT [boolT]        boolT
+  --
+  OpSigPK        -> pure $ funT [textT] sigmaT
+  OpSigBool      -> pure $ funT [boolT] sigmaT
+  OpSigAnd       -> pure $ funT [sigmaT,sigmaT] sigmaT
+  OpSigOr        -> pure $ funT [sigmaT,sigmaT] sigmaT
+  OpSigListAnd   -> pure $ funT [listT sigmaT] sigmaT
+  OpSigListOr    -> pure $ funT [listT sigmaT] sigmaT
+  OpSigListAll a -> pure $ funT [funT [a] sigmaT, listT a] sigmaT
+  OpSigListAny a -> pure $ funT [funT [a] sigmaT, listT a] sigmaT
+  --
+  OpSHA256      -> pure $ funT [bytesT]         bytesT
+  OpTextLength  -> pure $ funT [textT]          intT
+  OpTextAppend  -> pure $ funT [textT,  textT]  textT
+  OpBytesLength -> pure $ funT [bytesT]         intT
+  OpBytesAppend -> pure $ funT [bytesT, bytesT] bytesT
+  --
+  OpEQ ty -> compareType ty
+  OpNE ty -> compareType ty
+  OpGT ty -> compareType ty
+  OpGE ty -> compareType ty
+  OpLT ty -> compareType ty
+  OpLE ty -> compareType ty
+  --
+  OpShow      ty  -> showType ty
+  OpToBytes   tag -> pure $ funT [tagToType tag] bytesT
+  -- FIXME: Function is in fact partial
+  OpFromBytes tag -> pure $ funT [bytesT] (tagToType tag)
+  --
+  OpEnvGetHeight -> pure intT
+  --
+  OpListMap    a b -> pure $ funT [ funT [a] b , listT a ] (listT b)
+  OpListAt     a   -> pure $ funT [ listT a, intT ] a
+  OpListAppend a   -> pure $ funT [ listT a, listT a ] (listT a)
+  OpListLength a   -> pure $ funT [ listT a ] intT
+  OpListFoldr  a b -> pure $ funT [ funT [a, b] b
+                                  , b
+                                  , listT a
+                                  ] b
+  OpListFoldl  a b -> pure $ funT [ funT [b, a] b
+                                  , b
+                                  , listT a
+                                  ] b
+  OpListFilter a   -> pure $ funT [ funT [a] boolT, listT a] (listT a)
+  where
+    tagToType = H.mapLoc (const ()) . argTagToType
+
+compareType :: TypeCore -> Check TypeCore
+compareType ty
+  | ty == intT   = pure r
+  | ty == textT  = pure r
+  | ty == bytesT = pure r
+  | ty == boolT  = pure r
+  | otherwise    = throwError $ BadEquality ty
+  where
+    r = funT [ty,ty] boolT
+
+showType :: TypeCore -> Check TypeCore
+showType ty
+  | ty == intT  = pure r
+  | ty == boolT = pure r
+  | otherwise   = throwError $ BadEquality ty
+  where
+    r = funT [ty] textT
 
 intT :: TypeCore
 intT = primT "Int"

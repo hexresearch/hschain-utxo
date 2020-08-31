@@ -16,9 +16,10 @@ import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, TypeContext(..))
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT, boolT, textT, sigmaT, TypeContext(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
 
 import qualified Language.HM as H
 import qualified Data.Sequence as S
@@ -100,6 +101,7 @@ annotateTypes =
     toInferExpr = cata $ \case
       EVar loc name   -> H.varE loc (VarTag name)
       EPrim loc prim  -> H.primE loc prim
+      EPrimOp{}       -> error "No primop are accessible before type checking"
       EAp loc a b     -> H.appE loc a b
       ELam loc args e -> foldr (H.lamE loc) e (fmap VarTag args)
       EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
@@ -174,9 +176,13 @@ annotateTypes =
 libTypeContext :: H.Context Loc Tag
 libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
+  , (VarTag "pk", H.monoT $ funT' [textT'] sigmaT')
+  , (VarTag "listAt", H.forAllT noLoc "a" $ H.monoT $ funT' [listT' (varT' "a"), intT'] (varT' "a"))
+  , (VarTag "length", H.forAllT noLoc "a" $ H.monoT $ funT' [listT' (varT' "a")] intT')
   ])
   <> genericCompareOps
   <> fromCoreContext preludeTypeContext
+  <> fromPrimOps
   where
     aT = varT' "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
@@ -188,6 +194,12 @@ libTypeContext = (H.Context $ M.fromList
 
     cmpT = forA $ arrowT' aT (arrowT' aT boolT')
 
+    fromPrimOps = H.Context $ M.fromList
+      [ (VarTag nm, H.monoT $ eraseLoc ty)
+      | (nm,op) <- M.toList monoPrimopNameMap
+      , let Right ty = runCheck mempty $ primopToType op
+      ]
+
 funT' :: [H.Type Loc Tag] -> H.Type Loc Tag -> H.Type Loc Tag
 funT' args res = foldr arrowT' res args
 
@@ -197,5 +209,17 @@ arrowT' a b = H.arrowT noLoc a b
 varT' :: Name -> H.Type Loc Tag
 varT'   a   = H.varT noLoc $ VarTag a
 
+intT' :: H.Type Loc Tag
+intT'  = eraseLoc intT
+
 boolT' :: H.Type Loc Tag
 boolT' = eraseLoc boolT
+
+textT' :: H.Type Loc Tag
+textT' = eraseLoc textT
+
+sigmaT' :: H.Type Loc Tag
+sigmaT' = eraseLoc sigmaT
+
+listT' :: H.Type Loc Tag -> H.Type Loc Tag
+listT' = H.listT noLoc

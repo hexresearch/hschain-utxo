@@ -37,6 +37,7 @@ freeVars = \case
   EVar name       -> fromVar name
   EPolyVar name _ -> fromVar name
   EPrim _         -> S.empty
+  EPrimOp{}     -> S.empty
   EAp f a         -> freeVars f <> freeVars a
   ELet nm e body  -> freeLetVars nm e body
   EIf a b c       -> freeVars a <> freeVars b <> freeVars c
@@ -69,6 +70,7 @@ checkLetExpr = \case
   EPolyVar _ _   -> True
   EConstr _ _ _  -> True
   EPrim _        -> True
+  EPrimOp{}     -> True
   EBottom        -> True
 
   

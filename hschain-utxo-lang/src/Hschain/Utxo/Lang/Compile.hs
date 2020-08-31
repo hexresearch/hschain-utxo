@@ -5,10 +5,13 @@ module Hschain.Utxo.Lang.Compile(
   , toCoreScript
 ) where
 
+import Control.Lens hiding (op)
 import Control.Monad
 
 import Data.Fix
 import Data.Foldable
+import qualified Data.Map.Strict       as Map
+import qualified Data.Functor.Foldable as RS
 
 import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
@@ -16,8 +19,8 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
-import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore, Name)
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, coreProgToScript)
+import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore, Name, typed'valueL)
+import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, scomb'bodyL, coreProgToScript)
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
@@ -37,12 +40,24 @@ toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m CoreProg
 compile
-  =  toCoreProg
+  =  return . substPrimOp
+ <=< toCoreProg
 -- <=< makeMonomorphic
  <=< specifyCompareOps
  <=< annotateTypes
   .  lambdaLifting
  <=< toExtendedLC
+
+-- | Perform sunbstiturion of primops
+substPrimOp :: CoreProg -> CoreProg
+substPrimOp
+  = _Wrapped' . each . scomb'bodyL . typed'valueL %~ go
+  where
+    go = RS.cata $ \case
+      Core.EVarF v
+        | Just op <- Map.lookup v Core.monoPrimopNameMap
+          -> Core.EPrimOp op
+      e -> RS.embed e
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
@@ -69,8 +84,9 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
       where
         convert (Ann exprTy val) = case val of
-          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
+          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name          
           EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
+          EPrimOp _ primOp     -> pure $ Core.EPrimOp primOp
           EAp _  f a           -> pure $ Core.EAp f a
           -- FIXME: We don't take recurion between let bindings into account
           ELet _ binds body    -> pure $

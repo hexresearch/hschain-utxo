@@ -6,10 +6,14 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
   , SignatureCore
   , Typed(..)
   , Prim(..)
+    -- * Lens
+  , typed'typeL
+  , typed'valueL
   ) where
 
 import Codec.Serialise
 import Control.DeepSeq
+import Control.Lens
 
 import Data.Fix
 import Data.Int
@@ -64,3 +68,7 @@ instance PrintCons Name where
 instance Serialise (Fix (H.TypeF () Text))
 instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
 instance Serialise TypeCore
+
+$(makeLensesWith
+   (defaultFieldRules & lensField .~ (mappingNamer (\nm -> [nm++"L"])))
+   ''Typed)

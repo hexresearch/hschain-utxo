@@ -29,6 +29,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
 
 import Data.Fix
 import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
 import Hschain.Utxo.Lang.Expr (Loc, VarName)
 
 import qualified Language.HM as H
@@ -82,6 +83,7 @@ data ExprLamF bind a
   -- ^ variables
   | EPrim !Loc !PrimLoc
   -- ^ constant primitive
+  | EPrimOp !Loc !PrimOp
   | EAp !Loc a a
   -- ^ application
   | ELet !Loc [(bind, a)] a
@@ -132,6 +134,7 @@ instance H.HasLoc (ExprLamF bind a) where
   getLoc = \case
     EVar loc _          -> loc
     EPrim loc _         -> loc
+    EPrimOp loc _       -> loc
     EAp loc _ _         -> loc
     ELet loc _ _        -> loc
     ELam loc _ _        -> loc
