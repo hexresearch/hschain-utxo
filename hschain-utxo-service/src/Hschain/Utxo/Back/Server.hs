@@ -56,4 +56,3 @@ getUtxosEndpoint = fmap getBoxIds readBoxChain
 hasUtxoEndpoint :: BoxId -> ServerM Bool
 hasUtxoEndpoint boxId = fmap (\boxChain -> hasBoxId boxChain boxId) readBoxChain
 
-
