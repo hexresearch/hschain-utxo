@@ -106,6 +106,7 @@ data PrimOp
   | OpShow !TypeCore            -- ^ Polymorphic show
 
   | OpEnvGetHeight              -- ^ Current height
+  | OpEnvGetSelf                -- ^ Reference to box being evaluated
 
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
@@ -199,6 +200,7 @@ monoPrimopName = \case
   OpFromBytes t -> Just $ "deserialise" <> argTypeName t
   --
   OpEnvGetHeight -> Just "getHeight"
+  OpEnvGetSelf   -> Just "getSelf"
   -- Polymorphic functions
   OpShow _ -> Nothing
   OpEQ _   -> Nothing
@@ -223,7 +225,7 @@ monomorphicPrimops =
   , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
-  , OpEnvGetHeight
+  , OpEnvGetHeight, OpEnvGetSelf
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)

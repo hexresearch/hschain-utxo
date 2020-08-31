@@ -49,15 +49,13 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 -- constants for current state of our blockchain.
 environmentFunctions :: InputEnv -> [Scomb]
 environmentFunctions InputEnv{..} =
-  [ getSelf inputEnv'self
-  , getInputs inputEnv'inputs
+  [ getInputs inputEnv'inputs
   , getOutputs inputEnv'outputs
   ] ++ getArgs inputEnv'args
 
 environmentTypes :: TypeContext
 environmentTypes = TypeContext $ M.fromList $
-  [ (Const.getSelf,    monoT boxT)
-  , (Const.getInputs,  monoT $ listT boxT)
+  [ (Const.getInputs,  monoT $ listT boxT)
   , (Const.getOutputs, monoT $ listT boxT)
   ] ++ getArgsTypes
   where
@@ -175,9 +173,6 @@ toArgs Args{..} = ap (EConstr consTy 0 3) [ints, texts, bools]
 
 ------------------------------------------------------------
 -- environment
-
-getSelf :: Box -> Scomb
-getSelf b = constantComb "getSelf" boxT $ toBox b
 
 getInputs :: Vector Box -> Scomb
 getInputs = getBoxes Const.getInputs

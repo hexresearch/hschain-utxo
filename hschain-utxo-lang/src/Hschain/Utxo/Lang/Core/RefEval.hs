@@ -29,7 +29,7 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT,boolT)
-import Hschain.Utxo.Lang.Expr  (ArgType(..))
+import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 
@@ -213,6 +213,18 @@ evalPrimOp env = \case
     BytesArg -> lift1 $ decode @ByteString
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
+  OpEnvGetSelf   -> ValCon 0
+    [ inj $ unBoxId box'id
+    , inj $ unScript box'script
+    , inj $ box'value
+    , ValCon 0 [ inj args'ints
+               , inj args'texts
+               , inj args'bools
+               ]
+    ]
+    where Box{..}  = inputEnv'self env
+          Args{..} = box'args
+  --
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
   OpListAt  _    -> lift2 lookAt
   OpListAppend _ -> lift2 ((<>) @[Val])
@@ -341,6 +353,9 @@ instance InjPrim a => InjPrim (Either EvalErr a) where
 instance InjPrim a => InjPrim [a] where
   inj []     = ValCon 0 []
   inj (x:xs) = ValCon 1 [ inj x, inj xs ]
+
+instance InjPrim a => InjPrim (V.Vector a) where
+  inj = inj . V.toList
 
 
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
