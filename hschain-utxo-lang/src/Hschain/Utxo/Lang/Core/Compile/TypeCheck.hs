@@ -295,6 +295,8 @@ primopToType = \case
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
   --
+  OpArgs tag -> pure $ listT (tagToType tag)
+  --
   OpShow      ty  -> showType ty
   OpToBytes   tag -> pure $ funT [tagToType tag] bytesT
   -- FIXME: Function is in fact partial

@@ -111,6 +111,8 @@ data PrimOp
   | OpEnvGetInputs              -- ^ Inputs of a current box
   | OpEnvGetOutputs             -- ^ Output of a current box
 
+  | OpArgs !ArgType
+
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
   | OpListAppend !TypeCore           -- ^ Append lists
@@ -209,6 +211,8 @@ monoPrimopName = \case
   OpToBytes   t -> Just $ "serialise"   <> argTypeName t
   OpFromBytes t -> Just $ "deserialise" <> argTypeName t
   --
+  OpArgs t      -> Just $ "get" <> argTypeName t <> "Args"
+  --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"
   OpEnvGetArgs t  -> Just $ "getBox" <> argTypeName t <> "Args"
@@ -253,6 +257,7 @@ monomorphicPrimops =
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)
   ++ (OpEnvGetArgs <$> argTypes)
+  ++ (OpArgs <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops
 monoPrimopNameMap :: Map.Map Name PrimOp

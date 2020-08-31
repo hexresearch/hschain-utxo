@@ -146,8 +146,7 @@ getInputs   = EPrimOp OpEnvGetInputs
 getOutputs  = EPrimOp OpEnvGetOutputs
 getSelf     = EPrimOp OpEnvGetSelf
 getHeight   = EPrimOp OpEnvGetHeight
-getIntArgs  = "getIntArgs"
-getTextArgs = "getTextArgs"
-getByteArgs = "getByteArgs"
-getBoolArgs = "getBoolArgs"
-
+getIntArgs  = EPrimOp $ OpArgs IntArg
+getTextArgs = EPrimOp $ OpArgs TextArg
+getByteArgs = EPrimOp $ OpArgs BytesArg
+getBoolArgs = EPrimOp $ OpArgs BoolArg

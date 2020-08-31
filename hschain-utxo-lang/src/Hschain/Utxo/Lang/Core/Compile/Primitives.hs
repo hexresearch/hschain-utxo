@@ -7,9 +7,7 @@ module Hschain.Utxo.Lang.Core.Compile.Primitives(
   , environmentFunctions
 ) where
 
-import Data.Vector (Vector)
-
-import Hschain.Utxo.Lang.Expr (Args(..), ArgType(..), argTypeName, argTypes)
+import Hschain.Utxo.Lang.Expr (ArgType(..), argTypeName, argTypes)
 import Hschain.Utxo.Lang.Core.Compile.Build
   hiding (getBoxId, getBoxScript, getBoxValue, getSelf, getInputs, getOutputs)
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -47,14 +45,10 @@ preludeTypeContext = primitivesCtx <> environmentTypes
 -- So we create library functions that contain concrete
 -- constants for current state of our blockchain.
 environmentFunctions :: InputEnv -> [Scomb]
-environmentFunctions InputEnv{..} = getArgs inputEnv'args
+environmentFunctions InputEnv{..} = []
 
 environmentTypes :: TypeContext
-environmentTypes = TypeContext $ M.fromList getArgsTypes
-  where
-    getArgsTypes = fmap toArgType argTypes
-
-    toArgType typeTag = (Const.getArgs $ argTypeName typeTag, monoT $ listT $ fromArgType typeTag)
+environmentTypes = TypeContext mempty
 
 -- | Built-in language primitives
 primitives :: [Scomb]
@@ -110,28 +104,3 @@ getBoxScript = getBoxField Const.getBoxScript "script" bytesT
 
 getBoxValue :: Scomb
 getBoxValue = getBoxField Const.getBoxValue "value" intT
-
-
-
-------------------------------------------------------------
--- environment
-
-toVec :: TypeCore -> Vector ExprCore -> ExprCore
-toVec t vs = V.foldr cons nil vs
-  where
-    nil      = EConstr (listT t) 0 0
-    cons a b = ap (EConstr consTy 1 2) [a, b]
-
-    consTy = funT [t, listT t] (listT t)
-
-getArgs :: Args -> [Scomb]
-getArgs Args{..} =
-  [ argComb PrimInt   IntArg   args'ints
-  , argComb PrimText  TextArg  args'texts
-  , argComb PrimBool  BoolArg  args'bools
-  , argComb PrimBytes BytesArg args'bytes
-  ]
-  where
-    argComb cons tyTag vals = constantComb (Const.getArgs $ argTypeName tyTag) (listT ty) (toVec ty $ fmap (EPrim . cons) vals)
-      where
-        ty = fromArgType tyTag

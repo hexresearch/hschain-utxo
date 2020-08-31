@@ -226,6 +226,14 @@ evalPrimOp env = \case
     BoolArg  -> lift1 $ decode @Bool
     BytesArg -> lift1 $ decode @ByteString
   --
+  OpArgs tag -> case tag of
+    IntArg   -> inj args'ints
+    TextArg  -> inj args'texts
+    BoolArg  -> inj args'bools
+    BytesArg -> inj args'bytes
+    where
+      Args{..} = inputEnv'args env
+  --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpEnvGetSelf   -> inj $ inputEnv'self env
   OpEnvGetArgs t -> ValF $ \case
