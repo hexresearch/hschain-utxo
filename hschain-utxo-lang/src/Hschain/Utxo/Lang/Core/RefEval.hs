@@ -242,6 +242,7 @@ evalPrimOp env = \case
   OpGetBoxValue -> lift1 $ \case
     ValCon 0 [_,_,i,_] -> i
     x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+  OpMakeBox -> Val2F $ \a b -> Val2F $ \c d -> ValCon 0 [a,b,c,d]
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpEnvGetSelf   -> inj $ inputEnv'self env

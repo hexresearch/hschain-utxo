@@ -299,6 +299,7 @@ primopToType = \case
   OpGetBoxId     -> pure $ funT [boxT] bytesT
   OpGetBoxScript -> pure $ funT [boxT] bytesT
   OpGetBoxValue  -> pure $ funT [boxT] intT
+  OpMakeBox      -> pure $ funT [bytesT, bytesT, intT, argsT] boxT
   --
   OpShow      ty  -> showType ty
   OpToBytes   tag -> pure $ funT [tagToType tag] bytesT

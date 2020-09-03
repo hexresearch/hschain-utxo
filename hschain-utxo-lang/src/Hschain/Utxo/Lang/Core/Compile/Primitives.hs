@@ -28,30 +28,5 @@ preludeTypeContext = primitivesCtx
 -- | Built-in language primitives
 primitives :: [Scomb]
 primitives =
-  [ boxCons
-  ]
-
-
-
-------------------------------------------------------------
--- boxes
-
--- | Low level representation of Box is a tuple of four elements:
--- > (name, script, value, args)
-boxCons :: Scomb
-boxCons = Scomb
-  { scomb'name   = "Box"
-  , scomb'forall = []
-  , scomb'args   = V.fromList boxArgs
-  , scomb'body   = Typed (ap (EConstr consTy 0 4) $ fmap (EVar . typed'value) boxArgs) boxT
-  }
-  where
-    consTy = funT (fmap typed'type boxArgs) boxT
-
-boxArgs :: [Typed Name]
-boxArgs =
-  [ Typed "name"   bytesT
-  , Typed "script" bytesT
-  , Typed "value"  intT
-  , Typed "args"   argsT
+  [ 
   ]

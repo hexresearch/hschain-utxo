@@ -115,6 +115,7 @@ data PrimOp
   | OpGetBoxId
   | OpGetBoxScript
   | OpGetBoxValue
+  | OpMakeBox
 
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
@@ -218,6 +219,7 @@ monoPrimopName = \case
   OpGetBoxId     -> Just "getBoxId"
   OpGetBoxScript -> Just "getBoxScript"
   OpGetBoxValue  -> Just "getBoxValue"
+  OpMakeBox      -> Just "Box"
   --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"
@@ -256,7 +258,7 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
-  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue
+  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpMakeBox
   , OpListSum
   , OpListAnd
   , OpListOr
