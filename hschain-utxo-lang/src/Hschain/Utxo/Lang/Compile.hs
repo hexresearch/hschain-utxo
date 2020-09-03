@@ -9,7 +9,6 @@ import Control.Lens hiding (op)
 import Control.Monad
 
 import Data.Fix
-import Data.Foldable
 import qualified Data.Map.Strict       as Map
 import qualified Data.Functor.Foldable as RS
 
@@ -25,7 +24,6 @@ import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 
-import qualified Data.List   as L
 import qualified Data.Vector as V
 
 import qualified Language.HM       as H
@@ -68,16 +66,9 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
       expr <- toCoreExpr def'body
       return $ Core.Scomb
           { Core.scomb'name   = varName'name def'name
-          , Core.scomb'forall = collectForall $ fmap typed'type def'args ++ [typed'type expr]
           , Core.scomb'args   = V.fromList def'args
           , Core.scomb'body   = expr
           }
-
-    collectForall ts = V.fromList $ L.nub $ foldMap extractTypeVars ts
-
-    extractTypeVars (H.Type x) = flip cata x $ \case
-      H.VarT _ name      -> [name]
-      other              -> fold other
 
     toCoreExpr :: TypedExprLam -> m (Typed ExprCore)
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)

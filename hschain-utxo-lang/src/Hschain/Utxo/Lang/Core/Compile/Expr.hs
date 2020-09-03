@@ -14,7 +14,6 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , ExprCoreF(..)
     -- * Lens
   , scomb'nameL
-  , scomb'forallL
   , scomb'argsL
   , scomb'bodyL
     -- * Primop names for higher level lnaguage
@@ -56,7 +55,6 @@ coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromSt
 -- > S a1 a2 a3 = expr
 data Scomb = Scomb
   { scomb'name   :: Name                 -- ^ name of supercombinator
-  , scomb'forall :: Vector Name          -- ^ names of type variables. It is empty if type is monomorphic.
   , scomb'args   :: Vector (Typed Name)  -- ^ list of arguments
   , scomb'body   :: Typed ExprCore       -- ^ body
   }

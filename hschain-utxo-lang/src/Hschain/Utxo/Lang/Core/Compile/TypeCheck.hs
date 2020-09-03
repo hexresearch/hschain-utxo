@@ -100,7 +100,7 @@ getScombType Scomb{..} = foldr (H.arrowT ()) res args
     res  = typed'type scomb'body
 
 getScombSignature :: Scomb -> SignatureCore
-getScombSignature sc = foldr (\v z -> H.forAllT () v z) (H.monoT $ getScombType sc) (scomb'forall sc)
+getScombSignature = H.monoT . getScombType
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
