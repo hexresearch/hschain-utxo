@@ -47,7 +47,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
-import qualified Language.HM.Subst as H
 
 {- for debug
 import Debug.Trace
@@ -130,7 +129,6 @@ isMonoType x = case x of
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
-    EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
     EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
@@ -154,19 +152,6 @@ extractMonoType :: SignatureCore -> Maybe TypeCore
 extractMonoType x = flip cataM (H.unSignature x) $ \case
   H.MonoT ty      -> Just ty
   H.ForAllT _ _ _ -> Nothing
-
-inferPolyVar :: Name -> [TypeCore] -> Check MonoType
-inferPolyVar name ts = do
-  sig <- getSignature name
-  maybe (noMonoSignature name sig) (pure . MonoType) $ instantiateType ts sig
-
-instantiateType :: [TypeCore] -> SignatureCore -> Maybe TypeCore
-instantiateType argTys sig
-  | length argTys == length vars = Just $ H.apply subst ty
-  | otherwise                    = Nothing
-  where
-    subst = H.Subst $ M.fromList $ zip vars argTys
-    (vars, ty) = H.splitSignature sig
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p

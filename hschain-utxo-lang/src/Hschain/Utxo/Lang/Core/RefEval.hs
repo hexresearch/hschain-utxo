@@ -113,7 +113,6 @@ evalExpr inpEnv genv = recur
       | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
     recur lenv = \case
       EVar     x   -> evalVar lenv x
-      EPolyVar x _ -> evalVar lenv x
       EPrim p      -> ValP p
       EPrimOp op   -> evalPrimOp inpEnv op
       EAp f x -> inj $ do

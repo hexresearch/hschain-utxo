@@ -115,8 +115,8 @@ specifyPolyFun loc ctx ty name = do
       case ty `H.subtypeOf` genTy of
         Right subst -> toPolyVar subst argOrder
         Left err    -> throwError $ TypeError $ H.setLoc loc err
-
+    -- FIXME: what to do with polymorphic expressions?
     toPolyVar subst argOrder =
       case mapM (H.applyToVar subst) argOrder of
-        Just ts -> return $ Core.EPolyVar name ts
+        Just _  -> failedToFindMonoType loc name
         Nothing -> failedToFindMonoType loc name

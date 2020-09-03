@@ -136,8 +136,6 @@ data PrimOp
 data ExprCore
   = EVar !Name
   -- ^ variables
-  | EPolyVar Name [TypeCore]
-  -- ^ polymorphic variables which require explicit instantioation of type variables
   | EPrim !Prim
   -- ^ constant primitive
   | EPrimOp !PrimOp
