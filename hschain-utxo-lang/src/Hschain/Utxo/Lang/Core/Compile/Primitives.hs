@@ -15,7 +15,6 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-import qualified Hschain.Utxo.Lang.Const as Const
 
 preludeLib :: CoreProg
 preludeLib = CoreProg $ primitives
@@ -30,9 +29,6 @@ preludeTypeContext = primitivesCtx
 primitives :: [Scomb]
 primitives =
   [ boxCons
-  , getBoxId
-  , getBoxScript
-  , getBoxValue
   ]
 
 
@@ -52,18 +48,6 @@ boxCons = Scomb
   where
     consTy = funT (fmap typed'type boxArgs) boxT
 
-getBoxField :: Name -> Name -> TypeCore -> Scomb
-getBoxField name field resT = Scomb
-  { scomb'name   = name
-  , scomb'forall = []
-  , scomb'args   = [Typed "box" boxT]
-  , scomb'body   =
-      Typed
-        (ECase "box" [CaseAlt 0 boxArgs (EVar field)])
-        resT
-  }
-  where
-
 boxArgs :: [Typed Name]
 boxArgs =
   [ Typed "name"   bytesT
@@ -71,12 +55,3 @@ boxArgs =
   , Typed "value"  intT
   , Typed "args"   argsT
   ]
-
-getBoxId :: Scomb
-getBoxId = getBoxField Const.getBoxId "name" bytesT
-
-getBoxScript :: Scomb
-getBoxScript = getBoxField Const.getBoxScript "script" bytesT
-
-getBoxValue :: Scomb
-getBoxValue = getBoxField Const.getBoxValue "value" intT

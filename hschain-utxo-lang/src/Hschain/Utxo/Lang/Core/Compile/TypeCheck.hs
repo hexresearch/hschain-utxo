@@ -295,7 +295,10 @@ primopToType = \case
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
   --
-  OpArgs tag -> pure $ listT (tagToType tag)
+  OpArgs tag     -> pure $ listT (tagToType tag)
+  OpGetBoxId     -> pure $ funT [boxT] bytesT
+  OpGetBoxScript -> pure $ funT [boxT] bytesT
+  OpGetBoxValue  -> pure $ funT [boxT] intT
   --
   OpShow      ty  -> showType ty
   OpToBytes   tag -> pure $ funT [tagToType tag] bytesT

@@ -233,6 +233,15 @@ evalPrimOp env = \case
     BytesArg -> inj args'bytes
     where
       Args{..} = inputEnv'args env
+  OpGetBoxId -> lift1 $ \case
+    ValCon 0 [b,_,_,_] -> b
+    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+  OpGetBoxScript -> lift1 $ \case
+    ValCon 0 [_,b,_,_] -> b
+    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+  OpGetBoxValue -> lift1 $ \case
+    ValCon 0 [_,_,i,_] -> i
+    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpEnvGetSelf   -> inj $ inputEnv'self env

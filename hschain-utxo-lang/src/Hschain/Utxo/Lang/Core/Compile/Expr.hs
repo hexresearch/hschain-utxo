@@ -112,6 +112,9 @@ data PrimOp
   | OpEnvGetOutputs             -- ^ Output of a current box
 
   | OpArgs !ArgType
+  | OpGetBoxId
+  | OpGetBoxScript
+  | OpGetBoxValue
 
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
@@ -211,7 +214,10 @@ monoPrimopName = \case
   OpToBytes   t -> Just $ "serialise"   <> argTypeName t
   OpFromBytes t -> Just $ "deserialise" <> argTypeName t
   --
-  OpArgs t      -> Just $ "get" <> argTypeName t <> "Args"
+  OpArgs t       -> Just $ "get" <> argTypeName t <> "Args"
+  OpGetBoxId     -> Just "getBoxId"
+  OpGetBoxScript -> Just "getBoxScript"
+  OpGetBoxValue  -> Just "getBoxValue"
   --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"
@@ -250,6 +256,7 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
+  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue
   , OpListSum
   , OpListAnd
   , OpListOr

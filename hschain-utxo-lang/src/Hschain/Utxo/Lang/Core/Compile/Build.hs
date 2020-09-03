@@ -127,13 +127,13 @@ mapList :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> ExprCore
 mapList ta tb f as = ap (EPrimOp (OpListMap ta tb)) [f, as]
 
 getBoxId :: ExprCore -> ExprCore
-getBoxId = EAp "getBoxId"
+getBoxId = EAp (EPrimOp OpGetBoxId)
 
 getBoxValue :: ExprCore -> ExprCore
-getBoxValue = EAp "getBoxValue"
+getBoxValue = EAp (EPrimOp OpGetBoxValue)
 
 getBoxScript :: ExprCore -> ExprCore
-getBoxScript = EAp "getBoxScript"
+getBoxScript = EAp (EPrimOp OpGetBoxScript)
 
 getBoxIntArgs,getBoxTextArgs,getBoxByteArgs,getBoxBoolArgs :: ExprCore -> ExprCore
 getBoxIntArgs  = EAp (EPrimOp $ OpEnvGetArgs IntArg)
