@@ -92,7 +92,7 @@ evalProg env (CoreProg prog) =
                    $ con2list i xs
   where
     genv = MapL.fromList [ (scomb'name s, evalScomb env genv s)
-                         | s <- prog ++ environmentFunctions env
+                         | s <- prog
                          ]
     --
     con2list 0 []                   = Just []

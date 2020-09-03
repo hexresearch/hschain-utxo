@@ -32,15 +32,15 @@ execScriptToSigma env prog = case isSigmaScript prog of
   Nothing  -> refRes
   Just err -> Left err
   where
-    refRes = case Ref.evalProg env $ addPrelude env prog of
+    refRes = case Ref.evalProg env $ addPrelude prog of
       Ref.EvalPrim (PrimBool  b) -> Right $ Fix $ SigmaBool b
       Ref.EvalPrim (PrimSigma s) -> case eliminateSigmaBool s of
         Left  b  -> Right $ Fix $ SigmaBool b
         Right s' -> Right $ s'
       _                  -> Left $ E.CoreScriptError E.ResultIsNotSigma
 
-addPrelude :: InputEnv -> CoreProg -> CoreProg
-addPrelude inputEnv prog = preludeLib inputEnv <> prog
+addPrelude :: CoreProg -> CoreProg
+addPrelude prog = preludeLib <> prog
 
 -- | the program is sigma script if
 --
