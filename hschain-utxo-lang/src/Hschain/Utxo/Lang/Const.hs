@@ -1,8 +1,9 @@
 -- | Module for special constants that are used in the library
 -- It should not depend on any other module in the library.
 module Hschain.Utxo.Lang.Const(
+    main
   -- * Environment
-    getHeight
+  , getHeight
   , getSelf
   , getInputs
   , getOutputs
@@ -91,4 +92,7 @@ deserialiseBytes typeName = "deserialise" <> typeName
 
 sha256 :: Text
 sha256 = "sha256"
+
+main :: Text
+main = "main"
 

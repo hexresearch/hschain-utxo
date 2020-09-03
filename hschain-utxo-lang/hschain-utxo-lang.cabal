@@ -44,6 +44,7 @@ library
       Hschain.Utxo.Lang.Core.Compile.Prog
       Hschain.Utxo.Lang.Core.Compile.RecursionCheck
       Hschain.Utxo.Lang.Core.Compile.TypeCheck
+      Hschain.Utxo.Lang.Core.Cost
       Hschain.Utxo.Lang.Core.Data.Prim
       Hschain.Utxo.Lang.Core.Eval
       Hschain.Utxo.Lang.Core.RefEval
@@ -160,6 +161,7 @@ Test-suite hschain-utxo-lang-tests
   Other-modules:       TM.Core
                        TM.Core.Box
                        TM.Core.Bytes
+                       TM.Core.Cost
                        TM.Core.List
                        TM.Tx.Sigma
                        Examples.SKI

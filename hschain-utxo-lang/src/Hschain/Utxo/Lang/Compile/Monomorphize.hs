@@ -151,6 +151,7 @@ substExpr env (Fix (Ann ty expr)) =
     EConstr loc conTy m n       -> onConstr loc conTy m n
     EAssertType loc e ety       -> onAssertType loc e ety
     EBottom loc                 -> onBottom loc
+    EPrimOp _ _                 -> undefined
   where
     rec = substExpr env
 
