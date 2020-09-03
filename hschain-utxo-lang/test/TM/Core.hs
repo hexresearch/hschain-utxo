@@ -9,7 +9,6 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
@@ -43,7 +42,7 @@ tests = testGroup "core"
 
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ Nothing       @=? typeCheck preludeTypeContext prog
+  [ testCase "typecheck" $ Nothing       @=? typeCheck mempty prog
   , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
   ]
 

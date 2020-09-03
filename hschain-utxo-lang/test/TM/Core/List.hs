@@ -19,7 +19,6 @@ import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
@@ -63,7 +62,7 @@ testProgramBy nm prog res = testGroup nm
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
   testCase testName $ do
-    let tc = typeCheck preludeTypeContext prog
+    let tc = typeCheck mempty prog
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 

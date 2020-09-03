@@ -28,7 +28,6 @@ import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT,boolT)
 import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..))
 import Hschain.Utxo.Lang.Sigma
@@ -109,9 +108,8 @@ evalExpr :: InputEnv -> GEnv -> LEnv -> ExprCore -> Val
 evalExpr inpEnv genv = recur
   where
     evalVar lenv x
-      | Just v <- x `Map.lookup` lenv          = v
-      | Just v <- x `Map.lookup` genv          = v
-      | Just v <- x `Map.lookup` primitivesMap = v
+      | Just v <- x `Map.lookup` lenv = v
+      | Just v <- x `Map.lookup` genv = v
       | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
     recur lenv = \case
       EVar     x   -> evalVar lenv x
@@ -311,13 +309,6 @@ evalPrimOp env = \case
     lookAt []    !_ = ValBottom $ EvalErr "Runtime error: lookAt"
     lookAt (x:_)  0 = x
     lookAt (_:xs) n = lookAt xs (n-1)
-
-primitivesMap :: Map.Map Name Val
-primitivesMap = MapL.fromList
-  [ (scomb'name s, evalScomb dummyEnv mempty s) | s <- primitives ]
-
-dummyEnv :: InputEnv
-dummyEnv = error "Environment is inaccessible in the library functions"
 
 opComparison :: (forall a. Ord a => a -> a -> Bool) -> Val
 opComparison (#) = primFun2 go

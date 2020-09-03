@@ -21,7 +21,6 @@ import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore, Name, typed'valueL)
 import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, scomb'bodyL, coreProgToScript)
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
@@ -103,7 +102,7 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
 
         eliminateLamError = failedToEliminate "Lambda-expressions for core language. Do lambda-lifting to eliminate."
 
-        typeCtx = preludeTypeContext
+        typeCtx = mempty
 
 
 -- | TODO: now we check only prelude functions.
