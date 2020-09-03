@@ -1,8 +1,10 @@
 -- | Check that program has no recursion.
 module Hschain.Utxo.Lang.Core.Compile.RecursionCheck(
-  recursionCheck
+    recursionCheck
+  , progDependencySort
 ) where
 
+import Data.Maybe
 import Data.Set (Set)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -14,22 +16,27 @@ import qualified Data.Set   as S
 -- | Check that program has no recursion
 -- We should check all top level bindings and let-expressions.
 recursionCheck :: CoreProg -> Bool
-recursionCheck (CoreProg prog) =
-     (depIsAcyclic $ fmap scombToDep prog)
+recursionCheck cp@(CoreProg prog) =
+     (depIsAcyclic $ progDependencySort cp)
   && (all checkLets prog)
+  where
+    depIsAcyclic = isJust
 
 -- | Dependency (lefthand side, righthand side)
 type Dep = (Name, [Name])
 
--- | Check that dependency graph is acyclic
-depIsAcyclic :: [Dep] -> Bool
-depIsAcyclic deps = all isAcyclic $ G.stronglyConnComp depGraph
+-- | Returns chain of sorted by dependency top-level combinator names
+-- It's nothing if graph has cycles.
+progDependencySort :: CoreProg -> Maybe [Name]
+progDependencySort (CoreProg prog) = mapM getAcyclic $ G.stronglyConnComp depGraph
   where
+    deps     = fmap scombToDep prog
     depGraph = fmap (\(lhs, rhs) -> (lhs, lhs, rhs)) deps
 
-    isAcyclic = \case
-      G.AcyclicSCC _ -> True
-      G.CyclicSCC _  -> False
+    getAcyclic = \case
+      G.AcyclicSCC v -> Just v
+      G.CyclicSCC _  -> Nothing
+
 
 -- | Find free variables for expression.
 freeVars :: ExprCore -> Set Name
@@ -73,4 +80,4 @@ checkLetExpr = \case
   EPrimOp{}     -> True
   EBottom        -> True
 
-  
+

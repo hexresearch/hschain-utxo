@@ -59,7 +59,7 @@ data EvalErr
 -- | Global environment. Values for globally defined function.
 type GEnv = Map.Map Name Val
 
--- | Loval evaluation environment. Map from supercombinator names to
+-- | Local evaluation environment. Map from supercombinator names to
 --   their evaluation.
 type LEnv = Map.Map Name Val
 

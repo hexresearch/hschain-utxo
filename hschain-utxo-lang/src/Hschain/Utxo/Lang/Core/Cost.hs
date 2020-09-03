@@ -1,0 +1,244 @@
+-- | Estimates the cost of execution of core-script
+module Hschain.Utxo.Lang.Core.Cost(
+    Cost(..)
+  , getProgCost
+) where
+
+import Control.Applicative
+import Control.Monad.State.Strict
+
+import Data.Fix
+import Data.Map.Strict (Map)
+import Data.Vector (Vector)
+
+import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Compile.Expr
+import Hschain.Utxo.Lang.Core.Compile.RecursionCheck (progDependencySort)
+
+import qualified Data.ByteString as BS
+import qualified Data.List as L
+import qualified Data.Map.Strict as M
+import qualified Data.Text as T
+import qualified Data.Vector as V
+import qualified Hschain.Utxo.Lang.Const as Const
+
+import qualified Language.HM as H
+
+-- | Cost of execution
+data Cost = Cost
+  { cost'time   :: !Int   -- ^ execution cost
+  , cost'memory :: !Int   -- ^ memory usage
+  } deriving (Show, Eq)
+
+data CostVar
+  = MonoCost Cost                         -- ^ monomorphic case gives plain cost
+  | PolyCost (Vector Cost -> Maybe Cost)  -- ^ polymorphic cost depends on concrete values of polymorphic arguments
+
+fromMonoCost :: CostVar -> Maybe Cost
+fromMonoCost = \case
+  MonoCost c -> Just c
+  _          -> Nothing
+
+fromPolyCost :: CostVar -> Maybe (Vector Cost -> Maybe Cost)
+fromPolyCost = \case
+  PolyCost c -> Just c
+  _          -> Nothing
+
+-- | Programm definitions as map
+type ProgMap = Map Name Scomb
+
+-- | Costs for free variables
+type CostMap = Map Name CostVar
+
+-- | Costs for type variables
+type TypeCostMap = Map Name Cost
+
+data St = St
+  { st'prog :: ProgMap
+  , st'cost :: CostMap
+  }
+
+type CostM a = State St a
+
+runCostM :: CostM a -> ProgMap -> a
+runCostM act prog = evalState act st
+  where
+    st = St
+      { st'prog = prog
+      , st'cost = emptyCostMap
+      }
+
+-- | Evaluates the execution of "main" expression
+getProgCost :: CoreProg -> Maybe Cost
+getProgCost prog =
+  (\sortedNames -> runCostM (findMainCost sortedNames) (toProgMap prog) ) =<< progDependencySort prog
+
+findMainCost :: [Name] -> CostM (Maybe Cost)
+findMainCost xs = do
+  mapM_ putScombCost xs
+  fmap (fromMonoCost <=< lookupCost Const.main . st'cost) $ get
+
+putScombCost :: Name -> CostM ()
+putScombCost name = do
+  mCost <- getScombCost name
+  modify' $ \st -> maybe st (\cost -> st { st'cost = insertCost name cost $ st'cost st }) mCost
+
+toProgMap :: CoreProg -> ProgMap
+toProgMap (CoreProg prog) = M.fromList $ fmap (\sc -> (scomb'name sc, sc)) prog
+
+emptyCostMap :: CostMap
+emptyCostMap = M.empty
+
+lookupCost :: Name -> CostMap -> Maybe CostVar
+lookupCost = M.lookup
+
+insertCost :: Name -> CostVar -> CostMap -> CostMap
+insertCost = M.insert
+
+getScombCost :: Name -> CostM (Maybe CostVar)
+getScombCost name = do
+  st <- get
+  return $ do
+    comb <- M.lookup name $ st'prog st
+    scombCost (st'cost st) comb
+
+scombCost :: CostMap -> Scomb -> Maybe CostVar
+scombCost costMap Scomb{..}
+  | isMono    = fmap MonoCost $ bodyCost M.empty
+  | otherwise = Just $ PolyCost $ \args -> bodyCost (getTypeCostMap args)
+  where
+    getTypeCostMap args = M.fromList $ V.toList $ V.zip scomb'forall args
+
+    isMono = V.null scomb'forall
+
+    bodyCost typeCostMap = exprCost typeCostMap (appendArgs typeCostMap (V.toList scomb'args) costMap) $ typed'value scomb'body
+
+appendArgs :: TypeCostMap -> [Typed Name] -> CostMap -> CostMap
+appendArgs tcm args mp = L.foldl' (\m arg -> maybe m (\c -> insertCost (typed'value arg) (MonoCost c) m) (typeCoreToCost tcm $ typed'type arg)) mp args
+
+exprCost :: TypeCostMap -> CostMap -> ExprCore -> Maybe Cost
+exprCost typeCostMap costMap expr = case expr of
+  EVar name         -> costVar name
+  EPolyVar name tys -> costPolyVar name tys
+  EPrim p           -> costPrim p
+  EPrimOp op        -> costPrimOp op
+  EAp f a           -> costAp f a
+  ELet name v body  -> costLet name v body
+  EIf  c t e        -> costIf c t e
+  ECase e alts      -> costCase e alts
+  EConstr ty m n    -> costConstr ty m n
+  EBottom           -> costBottom
+  where
+    rec = exprCost typeCostMap costMap
+
+    costVar name = fromMonoCost =<< lookupCost name costMap
+
+    costPolyVar name tys = do
+      polyCost <- fromPolyCost =<< lookupCost name costMap
+      polyCost . V.fromList =<< mapM (typeCoreToCost typeCostMap) tys
+
+    costPrim p = return $ primToCost p
+    costPrimOp op = return $ primOpToCost op
+
+    costAp f a = liftA2 addCost (rec f) (rec a)
+
+    costLet name v body = do
+      vCost    <- rec v
+      bodyCost <- exprCost typeCostMap (insertCost name (MonoCost vCost) costMap) body
+      return $ sumCost [nameCost, vCost, bodyCost]
+      where
+        nameCost = primToCost $ PrimText name
+
+    costIf c t e = liftA3 (\c' t' e' -> addCost c' (maxCost t' e')) (rec c) (rec t) (rec e)
+
+    costCase e alts = liftA2 addCost (rec e) (fmap maximumCost $ mapM costAlt alts)
+
+    costAlt CaseAlt{..} = exprCost typeCostMap (appendArgs typeCostMap caseAlt'args costMap) caseAlt'rhs
+
+    costConstr _ _ _ = return unitCost
+
+    costBottom = return unitCost
+
+-- | TODO: for now we treat all user-types with uper bound penalty
+-- but we should consider only limited built-in types
+typeCoreToCost :: TypeCostMap -> TypeCore -> Maybe Cost
+typeCoreToCost typeCostMap (H.Type ty) = flip cata ty $ \case
+  H.VarT _ name -> M.lookup name typeCostMap
+  H.ConT _ name [] -> case name of
+    "Int"   -> Just intCost
+    "Bool"  -> Just boolCost
+    "Text"  -> Just textCost
+    "Sigma" -> Just sigmaCost
+    "Bytes" -> Just bytesCost
+    "Box"   -> Just boxCost
+    _       -> Just unitCost
+  H.ListT _ a   -> fmap (addCost unitCost) a
+  H.TupleT _ as -> fmap (sumCost . (unitCost :)) $ sequence as
+  _ -> Just unitCost
+
+sumCost :: [Cost] -> Cost
+sumCost = L.foldl' addCost (Cost 0 0)
+
+maximumCost :: [Cost] -> Cost
+maximumCost = L.foldl' maxCost (Cost 0 0)
+
+addCost :: Cost -> Cost -> Cost
+addCost = appendCostBy (+)
+
+maxCost :: Cost -> Cost -> Cost
+maxCost = appendCostBy max
+
+appendCostBy :: (Int -> Int -> Int) -> Cost -> Cost -> Cost
+appendCostBy op (Cost a1 b1) (Cost a2 b2) = Cost (a1 `op` a2) (b1 `op` b2)
+
+unitCost :: Cost
+unitCost = Cost 1 1
+
+-- | TODO think over concrete sizes
+intCost, boolCost, textCost, sigmaCost, bytesCost, boxCost :: Cost
+
+intCost = Cost 1 64
+boolCost = Cost 1 1
+textCost = Cost 1 1
+sigmaCost = Cost 1 1
+bytesCost = Cost 1 1
+boxCost = Cost 1 1
+
+primToCost :: Prim -> Cost
+primToCost = \case
+  PrimInt _     -> intCost
+  PrimText txt  -> Cost 1 (4 * T.length txt)
+  PrimBytes bs  -> Cost 1 (BS.length bs)
+  PrimBool _    -> boolCost
+  PrimSigma s   -> sigmaToCost s
+
+sigmaToCost :: Sigma PublicKey -> Cost
+sigmaToCost = cata $ \case
+  SigmaPk _     -> publicKeyCost
+  SigmaAnd as   -> sumCost $ unitCost : as
+  SigmaOr  as   -> sumCost $ unitCost : as
+  SigmaBool _   -> unitCost
+
+publicKeyCost :: Cost
+publicKeyCost = Cost 1 512
+
+-- | TODO: think over concrete values for complexity of operations
+primOpToCost :: PrimOp -> Cost
+primOpToCost op
+  | isListOp op = listOpCost
+  | otherwise   = simpleOpCost
+  where
+    listOpCost   = Cost 1000 1
+    simpleOpCost = Cost 2 1
+
+    isListOp = \case
+      OpListMap    _ _ -> True
+      OpListAt     _   -> True
+      OpListAppend _   -> True
+      OpListLength _   -> True
+      OpListFoldr  _ _ -> True
+      OpListFoldl  _ _ -> True
+      OpListFilter _   -> True
+      _                -> False
+
