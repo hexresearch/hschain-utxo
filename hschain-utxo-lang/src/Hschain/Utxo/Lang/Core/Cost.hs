@@ -9,7 +9,6 @@ import Control.Monad.State.Strict
 
 import Data.Fix
 import Data.Map.Strict (Map)
-import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -33,17 +32,11 @@ data Cost = Cost
 
 data CostVar
   = MonoCost Cost                         -- ^ monomorphic case gives plain cost
-  | PolyCost (Vector Cost -> Maybe Cost)  -- ^ polymorphic cost depends on concrete values of polymorphic arguments
 
-fromMonoCost :: CostVar -> Maybe Cost
+fromMonoCost :: CostVar -> Cost
 fromMonoCost = \case
-  MonoCost c -> Just c
-  _          -> Nothing
+  MonoCost c -> c
 
-fromPolyCost :: CostVar -> Maybe (Vector Cost -> Maybe Cost)
-fromPolyCost = \case
-  PolyCost c -> Just c
-  _          -> Nothing
 
 -- | Programm definitions as map
 type ProgMap = Map Name Scomb
@@ -77,7 +70,7 @@ getProgCost prog =
 findMainCost :: [Name] -> CostM (Maybe Cost)
 findMainCost xs = do
   mapM_ putScombCost xs
-  fmap (fromMonoCost <=< lookupCost Const.main . st'cost) $ get
+  fmap (fmap fromMonoCost . lookupCost Const.main . st'cost) $ get
 
 putScombCost :: Name -> CostM ()
 putScombCost name = do
@@ -105,14 +98,9 @@ getScombCost name = do
 
 scombCost :: CostMap -> Scomb -> Maybe CostVar
 scombCost costMap Scomb{..}
-  | isMono    = fmap MonoCost $ bodyCost M.empty
-  | otherwise = Just $ PolyCost $ \args -> bodyCost (getTypeCostMap args)
+  = fmap MonoCost bodyCost
   where
-    getTypeCostMap args = M.fromList $ V.toList $ V.zip scomb'forall args
-
-    isMono = V.null scomb'forall
-
-    bodyCost typeCostMap = exprCost typeCostMap (appendArgs typeCostMap (V.toList scomb'args) costMap) $ typed'value scomb'body
+    bodyCost = exprCost M.empty (appendArgs M.empty (V.toList scomb'args) costMap) $ typed'value scomb'body
 
 appendArgs :: TypeCostMap -> [Typed Name] -> CostMap -> CostMap
 appendArgs tcm args mp = L.foldl' (\m arg -> maybe m (\c -> insertCost (typed'value arg) (MonoCost c) m) (typeCoreToCost tcm $ typed'type arg)) mp args
@@ -120,7 +108,6 @@ appendArgs tcm args mp = L.foldl' (\m arg -> maybe m (\c -> insertCost (typed'va
 exprCost :: TypeCostMap -> CostMap -> ExprCore -> Maybe Cost
 exprCost typeCostMap costMap expr = case expr of
   EVar name         -> costVar name
-  EPolyVar name tys -> costPolyVar name tys
   EPrim p           -> costPrim p
   EPrimOp op        -> costPrimOp op
   EAp f a           -> costAp f a
@@ -132,11 +119,7 @@ exprCost typeCostMap costMap expr = case expr of
   where
     rec = exprCost typeCostMap costMap
 
-    costVar name = fromMonoCost =<< lookupCost name costMap
-
-    costPolyVar name tys = do
-      polyCost <- fromPolyCost =<< lookupCost name costMap
-      polyCost . V.fromList =<< mapM (typeCoreToCost typeCostMap) tys
+    costVar name = fromMonoCost <$> lookupCost name costMap
 
     costPrim p = return $ primToCost p
     costPrimOp op = return $ primOpToCost op
