@@ -47,7 +47,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
-import qualified Language.HM.Subst as H
 
 {- for debug
 import Debug.Trace
@@ -100,7 +99,7 @@ getScombType Scomb{..} = foldr (H.arrowT ()) res args
     res  = typed'type scomb'body
 
 getScombSignature :: Scomb -> SignatureCore
-getScombSignature sc = foldr (\v z -> H.forAllT () v z) (H.monoT $ getScombType sc) (scomb'forall sc)
+getScombSignature = H.monoT . getScombType
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
@@ -130,7 +129,6 @@ isMonoType x = case x of
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
-    EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
     EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
@@ -154,19 +152,6 @@ extractMonoType :: SignatureCore -> Maybe TypeCore
 extractMonoType x = flip cataM (H.unSignature x) $ \case
   H.MonoT ty      -> Just ty
   H.ForAllT _ _ _ -> Nothing
-
-inferPolyVar :: Name -> [TypeCore] -> Check MonoType
-inferPolyVar name ts = do
-  sig <- getSignature name
-  maybe (noMonoSignature name sig) (pure . MonoType) $ instantiateType ts sig
-
-instantiateType :: [TypeCore] -> SignatureCore -> Maybe TypeCore
-instantiateType argTys sig
-  | length argTys == length vars = Just $ H.apply subst ty
-  | otherwise                    = Nothing
-  where
-    subst = H.Subst $ M.fromList $ zip vars argTys
-    (vars, ty) = H.splitSignature sig
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
@@ -295,12 +280,22 @@ primopToType = \case
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
   --
+  OpArgs tag     -> pure $ listT (tagToType tag)
+  OpGetBoxId     -> pure $ funT [boxT] bytesT
+  OpGetBoxScript -> pure $ funT [boxT] bytesT
+  OpGetBoxValue  -> pure $ funT [boxT] intT
+  OpMakeBox      -> pure $ funT [bytesT, bytesT, intT, argsT] boxT
+  --
   OpShow      ty  -> showType ty
   OpToBytes   tag -> pure $ funT [tagToType tag] bytesT
   -- FIXME: Function is in fact partial
   OpFromBytes tag -> pure $ funT [bytesT] (tagToType tag)
   --
-  OpEnvGetHeight -> pure intT
+  OpEnvGetHeight  -> pure intT
+  OpEnvGetSelf    -> pure boxT
+  OpEnvGetArgs t  -> pure $ funT [ boxT ] (listT $ tagToType t)
+  OpEnvGetInputs  -> pure $ listT boxT
+  OpEnvGetOutputs -> pure $ listT boxT
   --
   OpListMap    a b -> pure $ funT [ funT [a] b , listT a ] (listT b)
   OpListAt     a   -> pure $ funT [ listT a, intT ] a
@@ -315,6 +310,13 @@ primopToType = \case
                                   , listT a
                                   ] b
   OpListFilter a   -> pure $ funT [ funT [a] boolT, listT a] (listT a)
+  OpListSum        -> pure $ funT [ listT intT ] intT
+  OpListAnd        -> pure $ funT [ listT boolT ] boolT
+  OpListOr         -> pure $ funT [ listT boolT ] boolT
+  OpListAll    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
+  OpListAny    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
+  OpListNil    a   -> pure $ listT a
+  OpListCons   a   -> pure $ funT [ a , listT a ] (listT a)
   where
     tagToType = H.mapLoc (const ()) . argTagToType
 

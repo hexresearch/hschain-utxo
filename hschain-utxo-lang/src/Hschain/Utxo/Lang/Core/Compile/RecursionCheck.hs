@@ -42,9 +42,8 @@ progDependencySort (CoreProg prog) = mapM getAcyclic $ G.stronglyConnComp depGra
 freeVars :: ExprCore -> Set Name
 freeVars = \case
   EVar name       -> fromVar name
-  EPolyVar name _ -> fromVar name
   EPrim _         -> S.empty
-  EPrimOp{}     -> S.empty
+  EPrimOp{}       -> S.empty
   EAp f a         -> freeVars f <> freeVars a
   ELet nm e body  -> freeLetVars nm e body
   EIf a b c       -> freeVars a <> freeVars b <> freeVars c
@@ -74,10 +73,9 @@ checkLetExpr = \case
   EIf a b c      -> checkLetExpr a && checkLetExpr b && checkLetExpr c
   ECase e alts   -> checkLetExpr e && all (checkLetExpr . caseAlt'rhs) alts
   EVar _         -> True
-  EPolyVar _ _   -> True
   EConstr _ _ _  -> True
   EPrim _        -> True
-  EPrimOp{}     -> True
+  EPrimOp{}      -> True
   EBottom        -> True
 
 

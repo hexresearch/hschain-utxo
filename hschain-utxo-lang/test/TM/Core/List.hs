@@ -19,7 +19,6 @@ import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
@@ -63,7 +62,7 @@ testProgramBy nm prog res = testGroup nm
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
   testCase testName $ do
-    let tc = typeCheck preludeTypeContext prog
+    let tc = typeCheck mempty prog
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 
@@ -107,22 +106,22 @@ progMapList :: CoreProg
 progMapList = mainProg $ Typed (mapList intT intT (EAp (EPrimOp OpMul) (int 10)) "xs") (listT intT)
 
 progSumList :: CoreProg
-progSumList = mainProg $ Typed (ap "sum" ["zs"]) intT
+progSumList = mainProg $ Typed (ap (EPrimOp OpListSum) ["zs"]) intT
 
 progOrList :: Int64 -> CoreProg
 progOrList n = listConsts <>
   CoreProg [mkMain orExpr]
   where
-    orExpr = Typed (ap "or" [mapList intT boolT (isIntV n) "zs"]) boolT
+    orExpr = Typed (ap (EPrimOp OpListOr) [mapList intT boolT (isIntV n) "zs"]) boolT
 
 isIntV :: Int64 -> ExprCore
 isIntV n = EAp (EPrimOp (OpEQ intT)) (int n)
 
 progAnyList :: Int64 -> CoreProg
-progAnyList n = mainProg $ Typed (ap (EPolyVar "any" [intT]) [isIntV n, "xs"]) boolT
+progAnyList n = mainProg $ Typed (ap (EPrimOp (OpListAny intT)) [isIntV n, "xs"]) boolT
 
 progAllList :: Int64 -> CoreProg
-progAllList n = mainProg $ Typed (ap (EPolyVar "all" [intT]) [isIntV n, "xs"]) boolT
+progAllList n = mainProg $ Typed (ap (EPrimOp (OpListAll intT)) [isIntV n, "xs"]) boolT --
 
 progSigmaAllList :: CoreProg
 progSigmaAllList = mainProg $ Typed

@@ -14,7 +14,6 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , ExprCoreF(..)
     -- * Lens
   , scomb'nameL
-  , scomb'forallL
   , scomb'argsL
   , scomb'bodyL
     -- * Primop names for higher level lnaguage
@@ -56,7 +55,6 @@ coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromSt
 -- > S a1 a2 a3 = expr
 data Scomb = Scomb
   { scomb'name   :: Name                 -- ^ name of supercombinator
-  , scomb'forall :: Vector Name          -- ^ names of type variables. It is empty if type is monomorphic.
   , scomb'args   :: Vector (Typed Name)  -- ^ list of arguments
   , scomb'body   :: Typed ExprCore       -- ^ body
   }
@@ -106,6 +104,16 @@ data PrimOp
   | OpShow !TypeCore            -- ^ Polymorphic show
 
   | OpEnvGetHeight              -- ^ Current height
+  | OpEnvGetSelf                -- ^ Reference to box being evaluated
+  | OpEnvGetArgs !ArgType       -- ^ Get arguments from box
+  | OpEnvGetInputs              -- ^ Inputs of a current box
+  | OpEnvGetOutputs             -- ^ Output of a current box
+
+  | OpArgs !ArgType
+  | OpGetBoxId
+  | OpGetBoxScript
+  | OpGetBoxValue
+  | OpMakeBox
 
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
   | OpListAt     !TypeCore           -- ^ Index list
@@ -114,6 +122,13 @@ data PrimOp
   | OpListFoldr  !TypeCore !TypeCore -- ^ Foldr
   | OpListFoldl  !TypeCore !TypeCore -- ^ Foldl
   | OpListFilter !TypeCore
+  | OpListSum                   -- ^ Sum
+  | OpListAnd                   -- ^ AND for all elements
+  | OpListOr                    -- ^ OR for all elements
+  | OpListAll    !TypeCore      -- ^ Every element of list satisfy predicate
+  | OpListAny    !TypeCore      -- ^ Any element of list satisfy predicate
+  | OpListNil    !TypeCore
+  | OpListCons   !TypeCore
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 
@@ -121,8 +136,6 @@ data PrimOp
 data ExprCore
   = EVar !Name
   -- ^ variables
-  | EPolyVar Name [TypeCore]
-  -- ^ polymorphic variables which require explicit instantioation of type variables
   | EPrim !Prim
   -- ^ constant primitive
   | EPrimOp !PrimOp
@@ -198,7 +211,17 @@ monoPrimopName = \case
   OpToBytes   t -> Just $ "serialise"   <> argTypeName t
   OpFromBytes t -> Just $ "deserialise" <> argTypeName t
   --
-  OpEnvGetHeight -> Just "getHeight"
+  OpArgs t       -> Just $ "get" <> argTypeName t <> "Args"
+  OpGetBoxId     -> Just "getBoxId"
+  OpGetBoxScript -> Just "getBoxScript"
+  OpGetBoxValue  -> Just "getBoxValue"
+  OpMakeBox      -> Just "Box"
+  --
+  OpEnvGetHeight  -> Just "getHeight"
+  OpEnvGetSelf    -> Just "getSelf"
+  OpEnvGetArgs t  -> Just $ "getBox" <> argTypeName t <> "Args"
+  OpEnvGetInputs  -> Just "getInputs"
+  OpEnvGetOutputs -> Just "getOutputs"
   -- Polymorphic functions
   OpShow _ -> Nothing
   OpEQ _   -> Nothing
@@ -215,6 +238,13 @@ monoPrimopName = \case
   OpListFoldr{}  -> Nothing
   OpListFoldl{}  -> Nothing
   OpListFilter{} -> Nothing
+  OpListSum      -> Just "sum"
+  OpListAnd      -> Just "and"
+  OpListOr       -> Just "or"
+  OpListAll{}    -> Nothing
+  OpListAny{}    -> Nothing
+  OpListNil{}    -> Nothing
+  OpListCons{}   -> Nothing
 
 -- | List of all monomorphic primops
 monomorphicPrimops :: [PrimOp]
@@ -223,10 +253,16 @@ monomorphicPrimops =
   , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
-  , OpEnvGetHeight
+  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
+  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpMakeBox
+  , OpListSum
+  , OpListAnd
+  , OpListOr
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)
+  ++ (OpEnvGetArgs <$> argTypes)
+  ++ (OpArgs <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops
 monoPrimopNameMap :: Map.Map Name PrimOp

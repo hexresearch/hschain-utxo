@@ -41,6 +41,7 @@ import Data.Int
 import Data.Fix
 import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Expr (ArgType(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -49,7 +50,6 @@ import Hschain.Utxo.Lang.Sigma
 import qualified Data.List as L
 import qualified Data.Vector as V
 
-import qualified Language.HM as H
 
 ap :: ExprCore -> [ExprCore] -> ExprCore
 ap f args = L.foldl' (\op a -> EAp op a) f args
@@ -64,7 +64,6 @@ constant name val = constantComb name (primToType val) (EPrim val)
 constantComb :: Name -> TypeCore -> ExprCore -> Scomb
 constantComb name ty val = Scomb
   { scomb'name   = name
-  , scomb'forall = V.fromList $ fmap snd $ H.getTypeVars ty
   , scomb'args   = V.empty
   , scomb'body   = Typed val ty
   }
@@ -72,7 +71,6 @@ constantComb name ty val = Scomb
 op1 :: Name -> TypeCore -> TypeCore -> Scomb
 op1 name argT resT = Scomb
   { scomb'name   = name
-  , scomb'forall = V.fromList $ fmap snd $ H.getTypeVars $ H.arrowT () argT resT
   , scomb'args   = V.fromList $ [Typed "x" argT]
   , scomb'body   = Typed (EAp (EVar name) (EVar "x" )) resT
   }
@@ -93,7 +91,6 @@ compareOp ty name = op2 name (ty, ty) boolT
 op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
 op2 name (xT, yT) resT = Scomb
   { scomb'name   = name
-  , scomb'forall = V.fromList $ fmap snd $ H.getTypeVars $ funT [xT, yT] resT
   , scomb'args   = V.fromList [Typed "x" xT, Typed "y" yT]
   , scomb'body   = Typed (ap2 (EVar name) (EVar "x") (EVar "y")) resT
   }
@@ -126,33 +123,26 @@ mapList :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> ExprCore
 mapList ta tb f as = ap (EPrimOp (OpListMap ta tb)) [f, as]
 
 getBoxId :: ExprCore -> ExprCore
-getBoxId = EAp "getBoxId"
+getBoxId = EAp (EPrimOp OpGetBoxId)
 
 getBoxValue :: ExprCore -> ExprCore
-getBoxValue = EAp "getBoxValue"
+getBoxValue = EAp (EPrimOp OpGetBoxValue)
 
 getBoxScript :: ExprCore -> ExprCore
-getBoxScript = EAp "getBoxScript"
+getBoxScript = EAp (EPrimOp OpGetBoxScript)
 
-getBoxIntArgs :: ExprCore -> ExprCore
-getBoxIntArgs = EAp "getBoxIntArgs"
-
-getBoxTextArgs :: ExprCore -> ExprCore
-getBoxTextArgs = EAp "getBoxTextArgs"
-
-getBoxByteArgs :: ExprCore -> ExprCore
-getBoxByteArgs = EAp "getBoxByteArgs"
-
-getBoxBoolArgs :: ExprCore -> ExprCore
-getBoxBoolArgs = EAp "getBoxBoolArgs"
+getBoxIntArgs,getBoxTextArgs,getBoxByteArgs,getBoxBoolArgs :: ExprCore -> ExprCore
+getBoxIntArgs  = EAp (EPrimOp $ OpEnvGetArgs IntArg)
+getBoxTextArgs = EAp (EPrimOp $ OpEnvGetArgs TextArg)
+getBoxByteArgs = EAp (EPrimOp $ OpEnvGetArgs BytesArg)
+getBoxBoolArgs = EAp (EPrimOp $ OpEnvGetArgs BoolArg)
 
 getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
-getInputs = "getInputs"
-getOutputs = "getOutputs"
-getSelf = "getSelf"
-getHeight = EPrimOp OpEnvGetHeight
-getIntArgs = "getIntArgs"
-getTextArgs = "getTextArgs"
-getByteArgs = "getByteArgs"
-getBoolArgs = "getBoolArgs"
-
+getInputs   = EPrimOp OpEnvGetInputs
+getOutputs  = EPrimOp OpEnvGetOutputs
+getSelf     = EPrimOp OpEnvGetSelf
+getHeight   = EPrimOp OpEnvGetHeight
+getIntArgs  = EPrimOp $ OpArgs IntArg
+getTextArgs = EPrimOp $ OpArgs TextArg
+getByteArgs = EPrimOp $ OpArgs BytesArg
+getBoolArgs = EPrimOp $ OpArgs BoolArg

@@ -9,7 +9,6 @@ import Control.Applicative
 import Data.Fix
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -32,15 +31,12 @@ execScriptToSigma env prog = case isSigmaScript prog of
   Nothing  -> refRes
   Just err -> Left err
   where
-    refRes = case Ref.evalProg env $ addPrelude env prog of
+    refRes = case Ref.evalProg env prog of
       Ref.EvalPrim (PrimBool  b) -> Right $ Fix $ SigmaBool b
       Ref.EvalPrim (PrimSigma s) -> case eliminateSigmaBool s of
         Left  b  -> Right $ Fix $ SigmaBool b
         Right s' -> Right $ s'
       _                  -> Left $ E.CoreScriptError E.ResultIsNotSigma
-
-addPrelude :: InputEnv -> CoreProg -> CoreProg
-addPrelude inputEnv prog = preludeLib inputEnv <> prog
 
 -- | the program is sigma script if
 --
@@ -59,7 +55,7 @@ isSigmaScript prog =
 -- * has no recursion
 coreProgTerminates :: CoreProg -> Maybe E.Error
 coreProgTerminates prog =
-      coreTypeError   (typeCheck preludeTypeContext prog)
+      coreTypeError   (typeCheck mempty prog)
   <|> recursiveScript (recursionCheck prog)
   where
     coreTypeError   = fmap (E.CoreScriptError . E.TypeCoreError)

@@ -14,11 +14,10 @@ import qualified Data.Map.Strict as M
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCore)
-import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT, boolT, textT, sigmaT, TypeContext(..))
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT, boolT, textT, sigmaT)
 import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
 
 import qualified Language.HM as H
@@ -55,9 +54,6 @@ instance H.IsPrim PrimLoc where
 
 eraseLoc :: TypeCore -> H.Type Loc Tag
 eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
-
-eraseSignatureLoc :: SignatureCore -> H.Signature Loc Tag
-eraseSignatureLoc = H.mapLoc (const noLoc) . fmap VarTag
 
 eraseWith :: Loc -> TypeCore -> H.Type Loc Tag
 eraseWith loc = H.mapLoc (const loc) . fmap VarTag
@@ -181,13 +177,10 @@ libTypeContext = (H.Context $ M.fromList
   , (VarTag "length", H.forAllT noLoc "a" $ H.monoT $ funT' [listT' (varT' "a")] intT')
   ])
   <> genericCompareOps
-  <> fromCoreContext preludeTypeContext
   <> fromPrimOps
   where
     aT = varT' "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
-
-    fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap eraseSignatureLoc ctx
 
     genericCompareOps = H.Context $ M.fromList $ fmap (, cmpT) $
       [ "==", "/=", "<", ">", "<=", ">=" ]

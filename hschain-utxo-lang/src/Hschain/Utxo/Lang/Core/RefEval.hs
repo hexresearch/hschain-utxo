@@ -15,6 +15,7 @@ import Data.Int
 import Data.Bits       (xor)
 import Data.ByteString (ByteString)
 import Data.Text       (Text)
+import Data.Typeable
 import Data.Fix
 import qualified Data.Vector     as V
 import qualified Data.Text       as T
@@ -27,9 +28,8 @@ import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT,boolT)
-import Hschain.Utxo.Lang.Expr  (ArgType(..))
+import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 
@@ -41,6 +41,19 @@ data Val
   | ValF  (Val -> Val)          -- ^ Unary function
   | Val2F (Val -> Val -> Val)   -- ^ Binary function. Added in order to make defining primops easier
   | ValCon Int [Val]            -- ^ Constructor cell
+
+instance Show Val where
+  showsPrec n v
+    = showParen (n >= 11)
+    $ case v of
+        ValP      p -> showsPrec 11 p
+        ValBottom e -> showsPrec 11 e
+        ValF  _     -> showString "Function"
+        Val2F _     -> showString "Function"
+        ValCon i xs -> showString "CON "
+                     . showsPrec 11 i
+                     . showChar ' '
+                     . showsPrec 11 xs
 
 -- | Result of evaluation. It exisit in current form in order to be
 --   able to test list based function.
@@ -78,7 +91,7 @@ evalProg env (CoreProg prog) =
                    $ con2list i xs
   where
     genv = MapL.fromList [ (scomb'name s, evalScomb env genv s)
-                         | s <- prog ++ environmentFunctions env
+                         | s <- prog
                          ]
     --
     con2list 0 []                   = Just []
@@ -95,13 +108,11 @@ evalExpr :: InputEnv -> GEnv -> LEnv -> ExprCore -> Val
 evalExpr inpEnv genv = recur
   where
     evalVar lenv x
-      | Just v <- x `Map.lookup` lenv          = v
-      | Just v <- x `Map.lookup` genv          = v
-      | Just v <- x `Map.lookup` primitivesMap = v
+      | Just v <- x `Map.lookup` lenv = v
+      | Just v <- x `Map.lookup` genv = v
       | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
     recur lenv = \case
       EVar     x   -> evalVar lenv x
-      EPolyVar x _ -> evalVar lenv x
       EPrim p      -> ValP p
       EPrimOp op   -> evalPrimOp inpEnv op
       EAp f x -> inj $ do
@@ -212,7 +223,36 @@ evalPrimOp env = \case
     BoolArg  -> lift1 $ decode @Bool
     BytesArg -> lift1 $ decode @ByteString
   --
+  OpArgs tag -> case tag of
+    IntArg   -> inj args'ints
+    TextArg  -> inj args'texts
+    BoolArg  -> inj args'bools
+    BytesArg -> inj args'bytes
+    where
+      Args{..} = inputEnv'args env
+  OpGetBoxId -> lift1 $ \case
+    ValCon 0 [b,_,_,_] -> b
+    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+  OpGetBoxScript -> lift1 $ \case
+    ValCon 0 [_,b,_,_] -> b
+    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+  OpGetBoxValue -> lift1 $ \case
+    ValCon 0 [_,_,i,_] -> i
+    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+  OpMakeBox -> Val2F $ \a b -> Val2F $ \c d -> ValCon 0 [a,b,c,d]
+  --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
+  OpEnvGetSelf   -> inj $ inputEnv'self env
+  OpEnvGetArgs t -> ValF $ \case
+    ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools]] -> case t of
+      IntArg   -> ints
+      TextArg  -> txts
+      BoolArg  -> bools
+      BytesArg -> ValBottom $ EvalErr "No bytes arguments"
+    p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
+  OpEnvGetInputs  -> inj $ inputEnv'inputs  env
+  OpEnvGetOutputs -> inj $ inputEnv'outputs env
+  --
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
   OpListAt  _    -> lift2 lookAt
   OpListAppend _ -> lift2 ((<>) @[Val])
@@ -237,6 +277,27 @@ evalPrimOp env = \case
     xs <- matchP @[Val]        valXS
     p  <- matchP @(Val -> Val) valF
     return $ filterM (matchP . p) xs
+  OpListSum   -> lift1 (sum @[] @Int64)
+  OpListAnd   -> lift1 (and @[])
+  OpListOr    -> lift1 (or  @[])
+  OpListAll _ -> Val2F $ \valF valXS -> inj $ do
+    f  <- matchP @(Val -> Val) valF
+    xs <- matchP @[Val] valXS
+    let step []                 = inj True
+        step (Right True  : as) = step as
+        step (Right False : _ ) = inj False
+        step (Left e      : _ ) = ValBottom e
+    return $ step $ map (matchP . f) xs
+  OpListAny _ -> Val2F $ \valF valXS -> inj $ do
+    f  <- matchP @(Val -> Val) valF
+    xs <- matchP @[Val] valXS
+    let step []                 = inj False
+        step (Right True  : _ ) = inj True
+        step (Right False : as) = step as
+        step (Left e      : _ ) = ValBottom e
+    return $ step $ map (matchP . f) xs
+  OpListNil  _ -> inj ([] @Val)
+  OpListCons _ -> Val2F $ \x xs -> ValCon 1 [x , xs]
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
@@ -247,13 +308,6 @@ evalPrimOp env = \case
     lookAt []    !_ = ValBottom $ EvalErr "Runtime error: lookAt"
     lookAt (x:_)  0 = x
     lookAt (_:xs) n = lookAt xs (n-1)
-
-primitivesMap :: Map.Map Name Val
-primitivesMap = MapL.fromList
-  [ (scomb'name s, evalScomb dummyEnv mempty s) | s <- primitives ]
-
-dummyEnv :: InputEnv
-dummyEnv = error "Environment is inaccessible in the library functions"
 
 opComparison :: (forall a. Ord a => a -> a -> Bool) -> Val
 opComparison (#) = primFun2 go
@@ -319,10 +373,11 @@ instance MatchPrim (Val -> Val) where
     v           -> Left $ EvalErr $ "Expecting function, got " ++ conName v
 
 
-instance MatchPrim a => MatchPrim [a] where
+instance (Typeable a, MatchPrim a) => MatchPrim [a] where
   matchP (ValCon 0 [])     = Right []
   matchP (ValCon 1 [x,xs]) = liftA2 (:) (matchP x) (matchP xs)
-  matchP _ = Left $ EvalErr "Expecting list"
+  matchP (ValBottom e)     = Left e
+  matchP p = Left $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
 
 instance InjPrim Val           where inj = id
 instance InjPrim Int64         where inj = ValP . PrimInt
@@ -341,6 +396,24 @@ instance InjPrim a => InjPrim (Either EvalErr a) where
 instance InjPrim a => InjPrim [a] where
   inj []     = ValCon 0 []
   inj (x:xs) = ValCon 1 [ inj x, inj xs ]
+
+instance InjPrim a => InjPrim (V.Vector a) where
+  inj = inj . V.toList
+
+instance InjPrim Box where
+  inj Box{..} = ValCon 0
+    [ inj $ unBoxId box'id
+    , inj $ unScript box'script
+    , inj box'value
+    , inj box'args
+    ]
+
+instance InjPrim Args where
+  inj Args{..} = ValCon 0
+    [ inj args'ints
+    , inj args'texts
+    , inj args'bools
+    ]
 
 
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
