@@ -162,7 +162,7 @@ build step fini = go
 -- Primitives
 ----------------------------------------------------------------
 
-evalPrimOp :: InputEnv -> PrimOp -> Val
+evalPrimOp :: InputEnv -> PrimOp TypeCore -> Val
 evalPrimOp env = \case
   OpAdd -> lift2 ((+) @Int64)
   OpSub -> lift2 ((-) @Int64)

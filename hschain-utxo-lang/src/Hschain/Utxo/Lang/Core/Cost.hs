@@ -207,7 +207,7 @@ publicKeyCost :: Cost
 publicKeyCost = Cost 1 512
 
 -- | TODO: think over concrete values for complexity of operations
-primOpToCost :: PrimOp -> Cost
+primOpToCost :: PrimOp a -> Cost
 primOpToCost op
   | isListOp op = listOpCost
   | otherwise   = simpleOpCost

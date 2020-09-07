@@ -67,73 +67,73 @@ data Scomb = Scomb
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 
-data PrimOp
-  = OpAdd                       -- ^ Addition
-  | OpSub                       -- ^ Subtraction
-  | OpMul                       -- ^ Multiplication
-  | OpDiv                       -- ^ Division
-  | OpNeg                       -- ^ Negation
+data PrimOp a
+  = OpAdd                 -- ^ Addition
+  | OpSub                 -- ^ Subtraction
+  | OpMul                 -- ^ Multiplication
+  | OpDiv                 -- ^ Division
+  | OpNeg                 -- ^ Negation
 
-  | OpBoolAnd                   -- ^ Boolean AND
-  | OpBoolOr                    -- ^ Boolean OR
-  | OpBoolXor                   -- ^ Boolean XOR
-  | OpBoolNot                   -- ^ Boolean negation
+  | OpBoolAnd             -- ^ Boolean AND
+  | OpBoolOr              -- ^ Boolean OR
+  | OpBoolXor             -- ^ Boolean XOR
+  | OpBoolNot             -- ^ Boolean negation
 
-  | OpSigAnd                    -- ^ AND for sigma expressions
-  | OpSigOr                     -- ^ OR for sigma expressions
-  | OpSigPK                     -- ^ Proof of key possession
-  | OpSigBool                   -- ^ Lift boolean to the sigma expression
-  | OpSigListAnd                -- ^ AND for list of sigma expression
-  | OpSigListOr                 -- ^ OR for list of sigma expression
-  | OpSigListAll !TypeCore      -- ^ AND for list of sigma expression
-  | OpSigListAny !TypeCore      -- ^ OR for list of sigma expression
+  | OpSigAnd              -- ^ AND for sigma expressions
+  | OpSigOr               -- ^ OR for sigma expressions
+  | OpSigPK               -- ^ Proof of key possession
+  | OpSigBool             -- ^ Lift boolean to the sigma expression
+  | OpSigListAnd          -- ^ AND for list of sigma expression
+  | OpSigListOr           -- ^ OR for list of sigma expression
+  | OpSigListAll !a       -- ^ AND for list of sigma expression
+  | OpSigListAny !a       -- ^ OR for list of sigma expression
 
-  | OpEQ !TypeCore              -- ^ Equal
-  | OpNE !TypeCore              -- ^ Not equal
-  | OpGT !TypeCore              -- ^ Greater then
-  | OpGE !TypeCore              -- ^ Greater or equal
-  | OpLT !TypeCore              -- ^ Less then
-  | OpLE !TypeCore              -- ^ Less or equal
+  | OpEQ !a               -- ^ Equal
+  | OpNE !a               -- ^ Not equal
+  | OpGT !a               -- ^ Greater then
+  | OpGE !a               -- ^ Greater or equal
+  | OpLT !a               -- ^ Less then
+  | OpLE !a               -- ^ Less or equal
 
-  | OpSHA256                    -- ^ SHA256 hash
+  | OpSHA256              -- ^ SHA256 hash
 
-  | OpTextLength                -- ^ Text length
-  | OpBytesLength               -- ^ Bytes length
-  | OpTextAppend                -- ^ Text concatenation
-  | OpBytesAppend               -- ^ Bytes concatenation
+  | OpTextLength          -- ^ Text length
+  | OpBytesLength         -- ^ Bytes length
+  | OpTextAppend          -- ^ Text concatenation
+  | OpBytesAppend         -- ^ Bytes concatenation
   | OpToBytes   !ArgType
   | OpFromBytes !ArgType
 
-  | OpShow !TypeCore            -- ^ Polymorphic show
+  | OpShow !a             -- ^ Polymorphic show
 
-  | OpEnvGetHeight              -- ^ Current height
-  | OpEnvGetSelf                -- ^ Reference to box being evaluated
-  | OpEnvGetInputs              -- ^ Inputs of a current box
-  | OpEnvGetOutputs             -- ^ Output of a current box
+  | OpEnvGetHeight        -- ^ Current height
+  | OpEnvGetSelf          -- ^ Reference to box being evaluated
+  | OpEnvGetInputs        -- ^ Inputs of a current box
+  | OpEnvGetOutputs       -- ^ Output of a current box
 
   | OpArgs !ArgType
   | OpGetBoxId
   | OpGetBoxScript
   | OpGetBoxValue
-  | OpGetBoxArgs !ArgType       -- ^ Get arguments from box
+  | OpGetBoxArgs !ArgType -- ^ Get arguments from box
   | OpMakeBox
 
-  | OpListMap    !TypeCore !TypeCore -- ^ Map over list
-  | OpListAt     !TypeCore           -- ^ Index list
-  | OpListAppend !TypeCore           -- ^ Append lists
-  | OpListLength !TypeCore           -- ^ Length of list
-  | OpListFoldr  !TypeCore !TypeCore -- ^ Foldr
-  | OpListFoldl  !TypeCore !TypeCore -- ^ Foldl
-  | OpListFilter !TypeCore
-  | OpListSum                   -- ^ Sum
-  | OpListAnd                   -- ^ AND for all elements
-  | OpListOr                    -- ^ OR for all elements
-  | OpListAll    !TypeCore      -- ^ Every element of list satisfy predicate
-  | OpListAny    !TypeCore      -- ^ Any element of list satisfy predicate
-  | OpListAndSigma              -- ^ AND for all elements (sigma booleans)
-  | OpListOrSigma               -- ^ OR for all elements (sigma booleans)
-  | OpListNil    !TypeCore
-  | OpListCons   !TypeCore
+  | OpListMap    !a !a    -- ^ Map over list
+  | OpListAt     !a       -- ^ Index list
+  | OpListAppend !a       -- ^ Append lists
+  | OpListLength !a       -- ^ Length of list
+  | OpListFoldr  !a !a    -- ^ Foldr
+  | OpListFoldl  !a !a    -- ^ Foldl
+  | OpListFilter !a
+  | OpListSum             -- ^ Sum
+  | OpListAnd             -- ^ AND for all elements
+  | OpListOr              -- ^ OR for all elements
+  | OpListAll    !a       -- ^ Every element of list satisfy predicate
+  | OpListAny    !a       -- ^ Any element of list satisfy predicate
+  | OpListAndSigma        -- ^ AND for all elements (sigma booleans)
+  | OpListOrSigma         -- ^ OR for all elements (sigma booleans)
+  | OpListNil    !a
+  | OpListCons   !a
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 
@@ -143,7 +143,7 @@ data ExprCore
   -- ^ variables
   | EPrim !Prim
   -- ^ constant primitive
-  | EPrimOp !PrimOp
+  | EPrimOp !(PrimOp TypeCore)
   -- ^ Primitive operation
   | EAp  ExprCore ExprCore
   -- ^ application
@@ -189,7 +189,7 @@ $(makeLensesWith
 ----------------------------------------------------------------
 
 -- | Name of monomorphic primop which is used in high level language
-monoPrimopName :: PrimOp -> Maybe Name
+monoPrimopName :: PrimOp a -> Maybe Name
 monoPrimopName = \case
   OpAdd         -> Just "+"
   OpSub         -> Just "-"
@@ -257,7 +257,7 @@ monoPrimopName = \case
   OpListCons{}   -> Nothing
 
 -- | List of all monomorphic primops
-monomorphicPrimops :: [PrimOp]
+monomorphicPrimops :: [PrimOp a]
 monomorphicPrimops =
   [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
   , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
@@ -277,7 +277,7 @@ monomorphicPrimops =
   ++ (OpArgs <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops
-monoPrimopNameMap :: Map.Map Name PrimOp
+monoPrimopNameMap :: Map.Map Name (PrimOp a)
 monoPrimopNameMap = Map.fromList
   [ (nm,op) | op      <- monomorphicPrimops
             , Just nm <- [ monoPrimopName op ]

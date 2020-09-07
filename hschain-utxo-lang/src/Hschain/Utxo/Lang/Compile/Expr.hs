@@ -83,7 +83,7 @@ data ExprLamF bind a
   -- ^ variables
   | EPrim !Loc !PrimLoc
   -- ^ constant primitive
-  | EPrimOp !Loc !PrimOp
+  | EPrimOp !Loc !(PrimOp TypeCore)
   | EAp !Loc a a
   -- ^ application
   | ELet !Loc [(bind, a)] a

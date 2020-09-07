@@ -230,7 +230,7 @@ primToType = \case
   PrimSigma _ -> sigmaT
   PrimBytes _ -> bytesT
 
-primopToType :: PrimOp -> Check TypeCore
+primopToType :: PrimOp TypeCore -> Check TypeCore
 primopToType = \case
   OpAdd -> pure $ funT [intT,intT] intT
   OpSub -> pure $ funT [intT,intT] intT
