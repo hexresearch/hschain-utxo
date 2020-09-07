@@ -55,6 +55,7 @@ library
       Hschain.Utxo.Lang.Desugar.Lambda
       Hschain.Utxo.Lang.Desugar.PatternCompiler
       Hschain.Utxo.Lang.Desugar.Records
+      Hschain.Utxo.Lang.Enumerate
       Hschain.Utxo.Lang.Error
       Hschain.Utxo.Lang.Exec
       Hschain.Utxo.Lang.Exec.Module
