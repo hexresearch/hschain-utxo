@@ -18,22 +18,23 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , scomb'bodyL
     -- * Primop names for higher level lnaguage
   , monoPrimopName
-  , monomorphicPrimops
   , monoPrimopNameMap
-) where
+  ) where
 
 import Codec.Serialise
 import Control.Lens  hiding (op)
 
 import Data.String
+import Data.Void
 import Data.Vector (Vector)
 import Data.Functor.Foldable.TH
 import qualified Data.Map.Strict as Map
 import GHC.Generics
 
 import Hex.Common.Lens (makeLensesWithL)
+import Hschain.Utxo.Lang.Enumerate
 import Hschain.Utxo.Lang.Core.Data.Prim
-import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypes, argTypeName)
+import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypeName)
 
 import qualified Data.ByteString.Lazy as LB
 
@@ -134,7 +135,7 @@ data PrimOp a
   | OpListNil    !a
   | OpListCons   !a
   deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
-  deriving anyclass (Serialise)
+  deriving anyclass (Serialise, Enumerated)
 
 -- | Expressions of the Core-language
 data ExprCore
@@ -251,27 +252,9 @@ monoPrimopName = \case
   OpListNil{}    -> Nothing
   OpListCons{}   -> Nothing
 
--- | List of all monomorphic primops
-monomorphicPrimops :: [PrimOp a]
-monomorphicPrimops =
-  [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
-  , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
-  , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
-  , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
-  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
-  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpMakeBox
-  , OpListSum
-  , OpListAnd
-  , OpListOr
-  ]
-  ++ (OpToBytes <$> argTypes)
-  ++ (OpFromBytes <$> argTypes)
-  ++ (OpGetBoxArgs <$> argTypes)
-  ++ (OpArgs <$> argTypes)
-
 -- | Name map for substitution of monomorphic primops
 monoPrimopNameMap :: Map.Map Name (PrimOp a)
 monoPrimopNameMap = Map.fromList
-  [ (nm,op) | op      <- monomorphicPrimops
+  [ (nm,op) | op      <- absurd <$> enumerated
             , Just nm <- [ monoPrimopName op ]
             ]
