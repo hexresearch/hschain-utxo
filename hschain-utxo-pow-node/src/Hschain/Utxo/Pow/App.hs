@@ -135,7 +135,7 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine dbPath) = do
             env = proofEnvFromKeys [getKeyPair secret]
 
             box = Box
-                  { box'id     = BoxId "master:box-0"
+                  { box'id     = BoxId $ "reward:height:"++show blockHeight
                   , box'value  = 1
                   , box'script = mainScriptUnsafe $ pk' publicKey
                   , box'args   = mempty
