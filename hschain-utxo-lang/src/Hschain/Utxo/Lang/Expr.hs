@@ -36,6 +36,7 @@ import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..), argsTuple)
+import Hschain.Utxo.Lang.Enumerate
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -539,10 +540,10 @@ data BoxField a
 -- We store lists of them.
 data ArgType = IntArg | TextArg | BoolArg | BytesArg
   deriving stock    (Show, Eq, Generic)
-  deriving anyclass (NFData, Serialise)
+  deriving anyclass (NFData, Serialise, Enumerated)
 
 argTypes :: [ArgType]
-argTypes = [IntArg, TextArg, BoolArg, BytesArg]
+argTypes = enumerated
 
 argTagToType :: ArgType -> Type
 argTagToType = \case
