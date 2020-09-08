@@ -63,7 +63,7 @@ data ClientConfig = ClientConfig {
   , clientManager  :: !Manager -- ^ Connection manager
   } deriving (Generic)
 
--- | Monad that is used to perform calls to NEM NIS API.
+-- | Monad that is used to perform API calls.
 newtype ClientM a = ClientM { unClientM :: ReaderT ClientConfig (ExceptT ClientError C.ClientM) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, Generic
     , MonadError ClientError, MonadReader ClientConfig )
