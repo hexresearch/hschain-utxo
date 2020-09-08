@@ -8,7 +8,6 @@ module TM.Infer (tests) where
 import Control.Monad
 import Data.Text (Text)
 import Data.String (IsString(..))
-import Data.Text.Prettyprint.Doc
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -67,8 +66,3 @@ instance IsVar Text where
 
 instance HasPrefix Text where
   getFixity = const Nothing
-
-instance PrintCons Text where
-  printCons name args = hsep $ pretty name : args
-
-

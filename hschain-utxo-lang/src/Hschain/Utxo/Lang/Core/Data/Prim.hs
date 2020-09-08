@@ -18,7 +18,6 @@ import Control.Lens
 import Data.Fix
 import Data.Int
 import Data.ByteString (ByteString)
-import Data.Text.Prettyprint.Doc
 import Data.Text (Text)
 import qualified Language.HM as H
 import GHC.Generics (Generic)
@@ -26,7 +25,7 @@ import GHC.Generics (Generic)
 import Hschain.Utxo.Lang.Sigma
 
 import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
-import Language.HM.Pretty (PrintCons(..), HasPrefix(..))
+import Language.HM.Pretty (HasPrefix(..))
 
 type TypeCore = H.Type () Name
 type SignatureCore = H.Signature () Name
@@ -61,9 +60,6 @@ instance IsVar Name where
 
 instance HasPrefix Name where
   getFixity = const Nothing
-
-instance PrintCons Name where
-  printCons name args = hsep $ pretty name : args
 
 instance Serialise (Fix (H.TypeF () Text))
 instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
