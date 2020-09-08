@@ -134,7 +134,7 @@ data PrimOp a
   | OpListOrSigma         -- ^ OR for all elements (sigma booleans)
   | OpListNil    !a
   | OpListCons   !a
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
 -- | Expressions of the Core-language

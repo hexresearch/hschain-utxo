@@ -3,6 +3,7 @@
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
   , TypeCore
+  , CoreType(..)
   , SignatureCore
   , Typed(..)
   , Prim(..)
@@ -20,6 +21,7 @@ import Data.Int
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Language.HM as H
+import Data.Text.Prettyprint.Doc
 import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Sigma
@@ -51,6 +53,23 @@ data Prim
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData, Serialise)
 
+-- | Data types of core language
+data CoreType
+  = IntT                        -- ^ Integer
+  | BoolT                       -- ^ Boolean
+  | BytesT                      -- ^ Bytes
+  | TextT                       -- ^ Text
+  | SigmaT                      -- ^ Sigma expression
+  | CoreType :-> CoreType       -- ^ Function type
+  | ListT CoreType              -- ^ List
+  | TupleT [CoreType]           -- ^ Tuple. Nullary tuple doubles as unit
+  | ArgsT
+  | BoxT
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData)
+infixr 5 :->
+
+
 -----------------------------------------------------
 -- instnaces
 
@@ -68,3 +87,26 @@ instance Serialise TypeCore
 $(makeLensesWith
    (defaultFieldRules & lensField .~ (mappingNamer (\nm -> [nm++"L"])))
    ''Typed)
+
+
+
+
+----------------------------------------------------------------
+-- Pretty-printing
+----------------------------------------------------------------
+
+instance Pretty TypeCore where
+  pretty = go False
+    where
+      go needParens = \case
+        IntT      -> "Int"
+        BoolT     -> "Bool"
+        BytesT    -> "Bytes"
+        TextT     -> "Text"
+        SigmaT    -> "Sigma"
+        a :-> b   -> (if needParens then parens else id)
+                   $ go True a <> " -> " <> go False b
+        ListT  a  -> brackets $ go False a
+        TupleT xs -> parens $ hsep $ punctuate comma $ go False <$> xs
+        ArgsT     -> "Args"
+        BoxT      -> "Box"
