@@ -52,6 +52,12 @@ newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }
                    , MonadThrow, MonadCatch)
   deriving MonadTMMonitoring via NoMonitoring (ReaderT AppEnv Handler)
 
+instance MonadReadDB ServerM where
+  askConnectionRO = asks (bchain'conn . appEnv'bchain)
+
+instance MonadCached BData ServerM where
+  askCached = asks (bchain'cached . appEnv'bchain)
+
 newtype StMServerM a = StMServerM { unStMServerM :: StM (ReaderT AppEnv Handler) a }
 
 instance MonadBaseControl IO ServerM where

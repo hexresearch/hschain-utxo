@@ -37,7 +37,8 @@ module Hschain.Utxo.Lang.Build(
   , serialiseInt
   , serialiseBytes
   , serialiseBool
-   ,serialiseText
+  , serialiseText
+  , lengthBytes
   , trace
   , pair
   , pairAt1
@@ -342,6 +343,9 @@ serialiseBool = serialiseBy BoolArg
 
 serialiseBy :: ArgType -> Expr a -> Expr ByteString
 serialiseBy tag (Expr expr) = Expr $ Fix $ BytesE noLoc $ SerialiseToBytes noLoc tag expr
+
+lengthBytes :: Expr ByteString -> Expr Int
+lengthBytes (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesLength noLoc a
 
 -------------------------------
 -- monoids
