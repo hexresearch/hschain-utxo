@@ -131,7 +131,10 @@ inferTerm ctx term =
     toType   = normaliseType . mapLoc fromOrigin
     toTyTerm = mapType normaliseType . mapLoc fromOrigin
 
-type Out prim loc var = (Subst (Origin loc) var, Type (Origin loc) var, TyTerm prim (Origin loc) var)
+type Out prim loc var = ( Subst (Origin loc) var
+                        , Type (Origin loc) var
+                        , TyTerm prim (Origin loc) var
+                        )
 type InferOut prim loc var = InferM loc var (Out prim loc var)
 
 infer :: (Eq loc, IsVar var, Show loc, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var)
