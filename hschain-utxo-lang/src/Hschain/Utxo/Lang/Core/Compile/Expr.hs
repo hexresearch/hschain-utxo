@@ -61,9 +61,6 @@ data Scomb = Scomb
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
 
-instance IsString ExprCore where
-  fromString = EVar . fromString
-
 data PrimOp
   = OpAdd                       -- ^ Addition
   | OpSub                       -- ^ Subtraction
@@ -155,6 +152,9 @@ data ExprCore
   -- ^ failed termination for the program
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
+
+instance IsString ExprCore where
+  fromString = EVar . fromString
 
 -- | Case alternatives
 data CaseAlt = CaseAlt

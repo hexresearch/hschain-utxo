@@ -10,6 +10,7 @@ module Language.HM.Pretty(
 import Data.Bool
 import Data.Fix
 import Data.Maybe
+import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
 
 import Language.HM.Type
@@ -23,6 +24,9 @@ class IsVar v => HasPrefix v where
 -- like constructors for tuples or lists.
 class PrintCons v where
   printCons :: v -> [Doc ann] -> Doc ann
+
+instance PrintCons Text where
+  printCons name args = hsep $ pretty name : args
 
 isPrefix :: HasPrefix v => v -> Bool
 isPrefix = isNothing . getFixity
