@@ -322,7 +322,7 @@ inferBottom loc = do
   ty <- fmap (varT loc) freshVar
   return (mempty, ty, tyBottomE ty loc)
 
-newInstance :: IsVar v => Signature' loc v -> InferM loc v (Type' loc v)
+newInstance :: IsVar v => Signature loc v -> InferM loc' v (Type loc v)
 newInstance = fmap (uncurry apply) . cataM go . unSignature
   where
     go = \case
