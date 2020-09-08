@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines type-inference utilities.
 module Hschain.Utxo.Lang.Infer(
     InferM(..)
