@@ -158,9 +158,10 @@ inferVar :: (Show loc, IsVar v)
   -> v
   -> InferM loc v (Out prim loc v)
 inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
-  fmap (\ty -> (mempty, ty, tyVarE ty loc v)) $ maybe err (newInstance . setLoc loc) $ M.lookup v (unContext ctx)
-  where
-    err = throwError $ NotInScopeErr (fromOrigin loc) v
+  case M.lookup v (unContext ctx) of
+    Nothing  -> throwError $ NotInScopeErr (fromOrigin loc) v
+    Just sig -> do ty <- newInstance $ setLoc loc sig
+                   return (mempty, ty, tyVarE ty loc v)
 
 inferPrim :: (Ord v, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Origin loc
