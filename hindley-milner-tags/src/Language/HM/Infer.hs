@@ -135,12 +135,11 @@ type Out prim loc var = ( Subst (Origin loc) var
                         , Type (Origin loc) var
                         , TyTerm prim (Origin loc) var
                         )
-type InferOut prim loc var = InferM loc var (Out prim loc var)
 
 infer :: (Eq loc, IsVar var, Show loc, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var)
   => Context' loc var
   -> Term' prim loc var
-  -> InferOut prim loc var
+  -> InferM loc var (Out prim loc var)
 infer ctx (Term (Fix x)) = case x of
   Var loc v           -> inferVar ctx loc v
   Prim loc p          -> inferPrim loc p
@@ -157,7 +156,7 @@ inferVar :: (Show loc, IsVar v)
   => Context (Origin loc) v
   -> Origin loc
   -> v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
   fmap (\ty -> (mempty, ty, tyVarE ty loc v)) $ maybe err (newInstance . setLoc loc) $ M.lookup v (unContext ctx)
   where
@@ -166,7 +165,7 @@ inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
 inferPrim :: (Ord v, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Origin loc
   -> prim
-  -> InferOut prim loc v
+  -> InferM loc var (Out prim loc v)
 inferPrim loc prim =
   return (mempty, ty, tyPrimE ty loc prim)
   where
@@ -177,7 +176,7 @@ inferApp :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ Pri
   -> Origin loc
   -> Term' prim loc v
   -> Term' prim loc v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]) $ -} do
   tvn <- fmap (varT loc) $ freshVar
   res <- inferTerms ctx [f, a]
@@ -192,7 +191,8 @@ inferLam :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ Pri
   => Context' loc v
   -> Origin loc
   -> v
-  -> Term' prim loc v -> InferOut prim loc v
+  -> Term' prim loc v
+  -> InferM loc v (Out prim loc v)
 inferLam ctx loc x body = do
   tvn <- freshVar
   (phi, tbody, bodyTyTerm) <- infer (ctx1 tvn) body
@@ -206,7 +206,7 @@ inferLet :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ Pri
   -> Origin loc
   -> [Bind' loc v (Term' prim loc v)]
   -> Term' prim loc v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferLet ctx loc vs body = do
   (phi, rhsTyTerms) <- inferTerms ctx $ fmap bind'rhs vs
   let (tBinds, termBinds) = unzip rhsTyTerms
@@ -223,7 +223,7 @@ inferLetRec :: forall prim loc v . (Eq loc, IsVar v, Show loc, IsPrim prim, loc 
   -> Origin loc
   -> [Bind' loc v (Term' prim loc v)]
   -> Term' prim loc v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferLetRec ctx topLoc vs body = do
   lhsCtx <- getTypesLhs vs
   (phi, rhsTyTerms) <- inferTerms (ctx <> Context (M.fromList lhsCtx)) exprBinds
@@ -261,7 +261,7 @@ inferAssertType :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, 
   -> Origin loc
   -> Term' prim loc v
   -> Type' loc v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferAssertType ctx loc a ty = do
   (phi, tA, aTyTerm) <- infer ctx a
   subst <- genSubtypeOf phi ty tA
@@ -272,7 +272,7 @@ inferConstr :: (Eq loc, IsVar v)
   -> Type' loc v
   -> v
   -> Int
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferConstr loc ty tag arity = do
   vT <- newInstance $ typeToSignature ty
   return $  (mempty, vT, tyConstrE loc vT tag arity)
@@ -281,7 +281,7 @@ inferCase :: forall prim loc v .
      (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc -> Term' prim loc v -> [CaseAlt' loc v (Term' prim loc v)]
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferCase ctx loc e caseAlts = do
   (phi, tE, tyTermE) <- infer ctx e
   (psi, tRes, tyAlts) <- inferAlts phi tE caseAlts
@@ -342,7 +342,7 @@ inferCase ctx loc e caseAlts = do
       where
         applyTyped ty@Typed{..} = ty { typed'type = apply subst $ typed'type }
 
-inferBottom :: IsVar v => Origin loc -> InferOut prim loc v
+inferBottom :: IsVar v => Origin loc -> InferM loc v (Out prim loc v)
 inferBottom loc = do
   ty <- fmap (varT loc) freshVar
   return (mempty, ty, tyBottomE ty loc)
