@@ -76,6 +76,7 @@ baseFuns =
   , trace
   , lengthVec
   , lengthText
+  , lengthBytes
   , showInt
   , showBool
   , showScript
@@ -145,6 +146,7 @@ baseNames =
   , "trace"
   , "length"
   , "lengthText"
+  , "lengthBytes"
   , "showInt"
   , "showDouble"
   , "showBool"
@@ -224,6 +226,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "trace" (forA $ textT ~> aT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
   , assumpType "lengthText" (monoT $ textT ~> intT)
+  , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
   , assumpType "showInt" (monoT $ intT ~> textT)
   , assumpType "showDouble" (monoT $ intT ~> textT)
   , assumpType "showBool" (monoT $ boolT ~> textT)
@@ -388,6 +391,9 @@ lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE n
 
 lengthText :: Bind Lang
 lengthText = bind "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))
+
+lengthBytes :: Bind Lang
+lengthBytes = bind "lengthBytes" (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ BytesLength noLoc x)
 
 biOp :: Text -> BinOp -> Bind Lang
 biOp name op = bind name (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc op x y)

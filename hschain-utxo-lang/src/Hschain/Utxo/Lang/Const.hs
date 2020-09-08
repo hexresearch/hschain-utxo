@@ -23,8 +23,12 @@ module Hschain.Utxo.Lang.Const(
   , appendList
   , andSigma
   , orSigma
+  -- * Text functions
+  , appendText
+  , lengthText
   -- * Bytes functions
   , appendBytes
+  , lengthBytes
   , serialiseBytes
   , deserialiseBytes
   , sha256
@@ -83,10 +87,22 @@ andSigma = "andSigma"
 orSigma = "orSigma"
 
 -------------------------------------------------------------------
+-- text functions
+
+appendText :: Text
+appendText = "appendText"
+
+lengthText :: Text
+lengthText = "lengthText"
+
+-------------------------------------------------------------------
 -- bytes functions
 
 appendBytes :: Text
 appendBytes = "appendBytes"
+
+lengthBytes :: Text
+lengthBytes = "lengthBytes"
 
 serialiseBytes :: Text -> Text
 serialiseBytes typeName = "serialise" <> typeName

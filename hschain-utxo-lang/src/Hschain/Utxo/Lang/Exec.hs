@@ -42,6 +42,7 @@ import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, publicKeyFromText)
 import Hschain.Utxo.Lang.Utils.ByteString
 import Hschain.Utxo.Lang.Types
 
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -592,6 +593,9 @@ execLang (Fix topExpr) = case topExpr of
           return $ Fix $ case (a', b') of
             (Fix (PrimE _ (PrimBytes t1)), Fix (PrimE _ (PrimBytes t2))) -> PrimE loc $ PrimBytes $ mappend t1 t2
             _                                                            -> BytesE loc $ BytesAppend loc a' b'
+        BytesLength _ a -> do
+          bs <- getPrimBytesOrFail =<< rec a
+          return $ Fix $ PrimE loc $ PrimInt $ fromIntegral $ B.length bs
         SerialiseToBytes src typeTag a -> fromSerialiseToBytes src typeTag a
         DeserialiseFromBytes src typeTag a -> fromDeserialiseFromBytes src typeTag a
         BytesHash src algo a -> case algo of

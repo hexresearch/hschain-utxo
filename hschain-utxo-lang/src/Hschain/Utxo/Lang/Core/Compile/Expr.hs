@@ -36,6 +36,9 @@ import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypes, argTypeName)
 
 import qualified Data.ByteString.Lazy as LB
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
+
 -- | core program is a sequence of supercombinator definitions
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
@@ -205,18 +208,18 @@ monoPrimopName = \case
   OpSigListAll _ -> Nothing
   OpSigListAny _ -> Nothing
   --
-  OpSHA256      -> Just "sha256"
-  OpTextLength  -> Just "textLength"
-  OpBytesLength -> Just "bytesLength"
-  OpTextAppend  -> Just "<>"
-  OpBytesAppend -> Just "appendBytes"
-  OpToBytes   t -> Just $ "serialise"   <> argTypeName t
-  OpFromBytes t -> Just $ "deserialise" <> argTypeName t
+  OpSHA256      -> Just Const.sha256
+  OpTextLength  -> Just Const.lengthText
+  OpBytesLength -> Just Const.lengthBytes
+  OpTextAppend  -> Just Const.appendText
+  OpBytesAppend -> Just Const.appendBytes
+  OpToBytes   t -> Just $ Const.serialiseBytes $ argTypeName t
+  OpFromBytes t -> Just $ Const.deserialiseBytes $ argTypeName t
   --
   OpArgs t       -> Just $ "get" <> argTypeName t <> "Args"
-  OpGetBoxId     -> Just "getBoxId"
-  OpGetBoxScript -> Just "getBoxScript"
-  OpGetBoxValue  -> Just "getBoxValue"
+  OpGetBoxId     -> Just Const.getBoxId
+  OpGetBoxScript -> Just Const.getBoxScript
+  OpGetBoxValue  -> Just Const.getBoxValue
   OpMakeBox      -> Just "Box"
   --
   OpEnvGetHeight  -> Just "getHeight"

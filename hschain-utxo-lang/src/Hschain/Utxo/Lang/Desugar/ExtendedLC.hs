@@ -225,6 +225,7 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromBytesExpr _ expr = pure $ case expr of
       BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
+      BytesLength loc a              -> ap1 loc (var loc Const.lengthBytes) a
       SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
       DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
       BytesHash loc algo a           -> ap1 loc (var loc $ fromHashAlgo algo) a

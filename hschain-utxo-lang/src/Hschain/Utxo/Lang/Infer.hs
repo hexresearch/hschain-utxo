@@ -209,6 +209,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
 
     fromBytes _ = \case
       BytesAppend loc a b            -> app2 loc appendBytesVar a b
+      BytesLength loc a              -> app1 loc lengthBytesVar a
       SerialiseToBytes loc tag a     -> app1 loc (serialiseToBytesVar tag) a
       DeserialiseFromBytes loc tag a -> app1 loc (deserialiseToBytesVar tag) a
       BytesHash loc hashAlgo a       -> app1 loc (bytesHashVar hashAlgo) a
@@ -358,6 +359,7 @@ defaultContext = H.Context $ M.fromList $
 
     bytesExprVars =
       [ (appendBytesVar, monoT $ bytesT `arr` (bytesT `arr` bytesT))
+      , (lengthBytesVar, monoT $ bytesT `arr` intT)
       ] ++ (fmap (\tag -> (serialiseToBytesVar tag, monoT $ argTagToType tag `arr` bytesT)) argTypes)
         ++ (fmap (\tag -> (deserialiseToBytesVar tag, monoT $ bytesT `arr` argTagToType tag)) argTypes)
 
@@ -429,6 +431,9 @@ lengthTextVar = secretVar "lengthText"
 
 appendBytesVar :: Text
 appendBytesVar = secretVar Const.appendBytes
+
+lengthBytesVar :: Text
+lengthBytesVar = secretVar Const.lengthBytes
 
 serialiseToBytesVar, deserialiseToBytesVar :: ArgType -> Text
 

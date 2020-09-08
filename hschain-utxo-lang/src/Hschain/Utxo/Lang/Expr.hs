@@ -643,6 +643,8 @@ data TextExpr a
 data BytesExpr a
   = BytesAppend Loc a a
   -- ^ append bytes
+  | BytesLength Loc a
+  -- ^ size of byteString
   | SerialiseToBytes Loc ArgType a
   -- ^ serialise primitive types to bytes
   | DeserialiseFromBytes Loc ArgType a
