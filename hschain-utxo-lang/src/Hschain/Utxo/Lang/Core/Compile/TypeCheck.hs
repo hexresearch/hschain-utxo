@@ -7,7 +7,6 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
     typeCheck
   , TypeContext(..)
   , lookupSignature
-  , getScombSignature
   , runCheck
   -- * primitive types
   , primToType
@@ -26,7 +25,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (argTagToType,argsT,intT,textT,bytesT,boolT,sigmaT,boxT,listT,funT)
+import Hschain.Utxo.Lang.Expr (ArgType(..),argsT,intT,textT,bytesT,boolT,sigmaT,boxT,listT,funT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -71,20 +70,17 @@ runCheck ctx (Check m) = runReaderT m ctx
 typeCheckM :: CoreProg -> Check ()
 typeCheckM (CoreProg prog) = mapM_ typeCheckScomb  prog
 
-getSignature :: Name -> Check SignatureCore
-getSignature name = maybe err pure =<< fmap (lookupSignature name) ask
+getSignature :: Name -> Check TypeCore
+getSignature name = maybe err pure =<< asks (lookupSignature name)
   where
     err = throwError $ VarIsNotDefined name
 
 -- | Reads  type signature of supercombinator
 getScombType :: Scomb -> TypeCore
-getScombType Scomb{..} = foldr (H.arrowT ()) res args
+getScombType Scomb{..} = foldr (:->) res args
   where
     args = fmap typed'type $ V.toList scomb'args
     res  = typed'type scomb'body
-
-getScombSignature :: Scomb -> SignatureCore
-getScombSignature = H.monoT . getScombType
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
@@ -108,8 +104,8 @@ fromMonoType = \case
 
 isMonoType :: MonoType -> Bool
 isMonoType x = case x of
-  AnyType -> False
-  MonoType t -> H.isMono t
+  AnyType    -> False
+  MonoType _ -> True
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
@@ -127,16 +123,7 @@ inferVar :: Name -> Check MonoType
 inferVar name = getMonoType name
 
 getMonoType :: Name -> Check MonoType
-getMonoType name =
-  fmap MonoType $ (\sig -> maybe (noMonoSignature name sig) pure $ extractMonoType sig) =<< getSignature name
-
-noMonoSignature :: Name -> SignatureCore -> Check a
-noMonoSignature name x = notMonomorphicType name $ H.stripSignature x
-
-extractMonoType :: SignatureCore -> Maybe TypeCore
-extractMonoType x = flip cataM (H.unSignature x) $ \case
-  H.MonoT ty      -> Just ty
-  H.ForAllT _ _ _ -> Nothing
+getMonoType name = fmap MonoType $ getSignature name
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
@@ -155,11 +142,9 @@ inferAp f a = do
 
     getArrowTypes :: MonoType -> Check (MonoType, MonoType)
     getArrowTypes ty = case ty of
-      AnyType -> return (AnyType, AnyType)
-      MonoType (H.Type (Fix t)) ->
-        case t of
-          H.ArrowT () arg res -> return (MonoType $ H.Type arg, MonoType $ H.Type res)
-          _                   -> throwError $ ArrowTypeExpected $ H.Type $ Fix t
+      AnyType            -> return (AnyType, AnyType)
+      MonoType (a :-> b) -> return (MonoType a, MonoType b)
+      MonoType t         -> throwError $ ArrowTypeExpected t
 
 inferLet :: Name -> ExprCore -> ExprCore -> Check MonoType
 inferLet nm expr body = do
@@ -190,22 +175,22 @@ inferIf c t e = do
   cT <- inferExpr c
   tT <- inferExpr t
   eT <- inferExpr e
-  hasType cT (MonoType boolT)
+  hasType cT (MonoType BoolT)
   unifyMonoType tT eT
 
 -------------------------------------------------------
 -- type inference context
 
 -- | Type context of the known signatures
-newtype TypeContext = TypeContext (Map Name SignatureCore)
+newtype TypeContext = TypeContext (Map Name TypeCore)
   deriving newtype (Semigroup, Monoid)
 
 -- | Loads all user defined signatures to context
 loadContext :: CoreProg -> TypeContext
 loadContext (CoreProg defs) =
-  foldl' (\res sc -> insertSignature (scomb'name sc) (getScombSignature sc) res) mempty defs
+  foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) mempty defs
 
-insertSignature :: Name -> SignatureCore -> TypeContext -> TypeContext
+insertSignature :: Name -> TypeCore -> TypeContext -> TypeContext
 insertSignature name sig (TypeContext m) =
   TypeContext $ M.insert name sig m
 
@@ -214,9 +199,9 @@ loadArgs args ctx =
   foldl' (\res arg -> loadName arg res) ctx args
 
 loadName :: Typed TypeCore Name -> TypeContext -> TypeContext
-loadName Typed{..} = insertSignature typed'value (H.monoT typed'type)
+loadName Typed{..} = insertSignature typed'value typed'type
 
-lookupSignature :: Name -> TypeContext -> Maybe SignatureCore
+lookupSignature :: Name -> TypeContext -> Maybe TypeCore
 lookupSignature name (TypeContext m) = M.lookup name m
 
 -------------------------------------------------------
@@ -224,39 +209,39 @@ lookupSignature name (TypeContext m) = M.lookup name m
 
 primToType :: Prim -> TypeCore
 primToType = \case
-  PrimInt   _ -> intT
-  PrimText  _ -> textT
-  PrimBool  _ -> boolT
-  PrimSigma _ -> sigmaT
-  PrimBytes _ -> bytesT
+  PrimInt   _ -> IntT
+  PrimText  _ -> TextT
+  PrimBool  _ -> BoolT
+  PrimSigma _ -> SigmaT
+  PrimBytes _ -> BytesT
 
 primopToType :: PrimOp TypeCore -> Check TypeCore
 primopToType = \case
-  OpAdd -> pure $ funT [intT,intT] intT
-  OpSub -> pure $ funT [intT,intT] intT
-  OpMul -> pure $ funT [intT,intT] intT
-  OpDiv -> pure $ funT [intT,intT] intT
-  OpNeg -> pure $ funT [intT]      intT
+  OpAdd -> pure $ IntT :-> IntT :-> IntT
+  OpSub -> pure $ IntT :-> IntT :-> IntT
+  OpMul -> pure $ IntT :-> IntT :-> IntT 
+  OpDiv -> pure $ IntT :-> IntT :-> IntT
+  OpNeg -> pure $ IntT :-> IntT
   --
-  OpBoolAnd -> pure $ funT [boolT, boolT] boolT
-  OpBoolOr  -> pure $ funT [boolT, boolT] boolT
-  OpBoolXor -> pure $ funT [boolT, boolT] boolT
-  OpBoolNot -> pure $ funT [boolT]        boolT
+  OpBoolAnd -> pure $ BoolT :-> BoolT :-> BoolT
+  OpBoolOr  -> pure $ BoolT :-> BoolT :-> BoolT
+  OpBoolXor -> pure $ BoolT :-> BoolT :-> BoolT
+  OpBoolNot -> pure $ BoolT :-> BoolT
   --
-  OpSigPK        -> pure $ funT [textT] sigmaT
-  OpSigBool      -> pure $ funT [boolT] sigmaT
-  OpSigAnd       -> pure $ funT [sigmaT,sigmaT] sigmaT
-  OpSigOr        -> pure $ funT [sigmaT,sigmaT] sigmaT
-  OpSigListAnd   -> pure $ funT [listT sigmaT] sigmaT
-  OpSigListOr    -> pure $ funT [listT sigmaT] sigmaT
-  OpSigListAll a -> pure $ funT [funT [a] sigmaT, listT a] sigmaT
-  OpSigListAny a -> pure $ funT [funT [a] sigmaT, listT a] sigmaT
+  OpSigPK        -> pure $ TextT  :-> SigmaT
+  OpSigBool      -> pure $ BoolT  :-> SigmaT
+  OpSigAnd       -> pure $ SigmaT :-> SigmaT :-> SigmaT
+  OpSigOr        -> pure $ SigmaT :-> SigmaT :-> SigmaT
+  OpSigListAnd   -> pure $ ListT SigmaT :-> SigmaT
+  OpSigListOr    -> pure $ ListT SigmaT :-> SigmaT
+  OpSigListAll a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
+  OpSigListAny a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
   --
-  OpSHA256      -> pure $ funT [bytesT]         bytesT
-  OpTextLength  -> pure $ funT [textT]          intT
-  OpTextAppend  -> pure $ funT [textT,  textT]  textT
-  OpBytesLength -> pure $ funT [bytesT]         intT
-  OpBytesAppend -> pure $ funT [bytesT, bytesT] bytesT
+  OpSHA256      -> pure $ BytesT :-> BytesT
+  OpTextLength  -> pure $ TextT  :-> IntT
+  OpTextAppend  -> pure $ TextT  :-> TextT :-> TextT
+  OpBytesLength -> pure $ BytesT :-> IntT
+  OpBytesAppend -> pure $ BytesT :-> BytesT :-> BytesT
   --
   OpEQ ty -> compareType ty
   OpNE ty -> compareType ty
@@ -265,62 +250,60 @@ primopToType = \case
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
   --
-  OpArgs tag     -> pure $ listT (tagToType tag)
-  OpGetBoxId     -> pure $ funT [boxT] bytesT
-  OpGetBoxScript -> pure $ funT [boxT] bytesT
-  OpGetBoxValue  -> pure $ funT [boxT] intT
-  OpGetBoxArgs t -> pure $ funT [ boxT ] (listT $ tagToType t)
-  OpMakeBox      -> pure $ funT [bytesT, bytesT, intT, argsT] boxT
+  OpArgs tag     -> pure $ ListT (tagToType tag)
+  OpGetBoxId     -> pure $ BoxT :-> BytesT
+  OpGetBoxScript -> pure $ BoxT :-> BytesT
+  OpGetBoxValue  -> pure $ BoxT :-> IntT
+  OpGetBoxArgs t -> pure $ BoxT :-> ListT (tagToType t)
+  OpMakeBox      -> pure $ BytesT :-> BytesT :-> IntT :-> ArgsT :-> BoxT
   --
   OpShow      ty  -> showType ty
-  OpToBytes   tag -> pure $ funT [tagToType tag] bytesT
+  OpToBytes   tag -> pure $ tagToType tag :-> BytesT
   -- FIXME: Function is in fact partial
-  OpFromBytes tag -> pure $ funT [bytesT] (tagToType tag)
+  OpFromBytes tag -> pure $ BytesT :-> (tagToType tag)
   --
-  OpEnvGetHeight  -> pure intT
-  OpEnvGetSelf    -> pure boxT
-  OpEnvGetInputs  -> pure $ listT boxT
-  OpEnvGetOutputs -> pure $ listT boxT
+  OpEnvGetHeight  -> pure IntT
+  OpEnvGetSelf    -> pure BoxT
+  OpEnvGetInputs  -> pure $ ListT BoxT
+  OpEnvGetOutputs -> pure $ ListT BoxT
   --
-  OpListMap    a b -> pure $ funT [ funT [a] b , listT a ] (listT b)
-  OpListAt     a   -> pure $ funT [ listT a, intT ] a
-  OpListAppend a   -> pure $ funT [ listT a, listT a ] (listT a)
-  OpListLength a   -> pure $ funT [ listT a ] intT
-  OpListFoldr  a b -> pure $ funT [ funT [a, b] b
-                                  , b
-                                  , listT a
-                                  ] b
-  OpListFoldl  a b -> pure $ funT [ funT [b, a] b
-                                  , b
-                                  , listT a
-                                  ] b
-  OpListFilter a   -> pure $ funT [ funT [a] boolT, listT a] (listT a)
-  OpListSum        -> pure $ funT [ listT intT ] intT
-  OpListAnd        -> pure $ funT [ listT boolT ] boolT
-  OpListOr         -> pure $ funT [ listT boolT ] boolT
-  OpListAndSigma   -> pure $ funT [ listT sigmaT ] sigmaT
-  OpListOrSigma    -> pure $ funT [ listT sigmaT ] sigmaT
-  OpListAll    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
-  OpListAny    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
-  OpListNil    a   -> pure $ listT a
-  OpListCons   a   -> pure $ funT [ a , listT a ] (listT a)
+  OpListMap    a b -> pure $ (a :-> b) :-> ListT a :-> ListT b
+  OpListAt     a   -> pure $ ListT a :-> IntT    :-> a
+  OpListAppend a   -> pure $ ListT a :-> ListT a :-> ListT a
+  OpListLength a   -> pure $ ListT a :-> IntT
+  OpListFoldr  a b -> pure $ (a :-> b :-> b) :-> b :-> ListT a :-> b
+  OpListFoldl  a b -> pure $ (b :-> a :-> b) :-> b :-> ListT a :-> b
+  OpListFilter a   -> pure $ (a :-> BoolT) :-> ListT a :-> ListT a
+  OpListSum        -> pure $ ListT IntT  :-> IntT
+  OpListAnd        -> pure $ ListT BoolT :-> BoolT
+  OpListOr         -> pure $ ListT BoolT :-> BoolT
+  OpListAll    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
+  OpListAny    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
+  OpListNil    a   -> pure $ ListT a
+  OpListCons   a   -> pure $ a :-> ListT a :-> ListT a
+  OpListAndSigma   -> pure $ ListT SigmaT :-> SigmaT
+  OpListOrSigma    -> pure $ ListT SigmaT :-> SigmaT
   where
-    tagToType = H.mapLoc (const ()) . argTagToType
+    tagToType = \case
+      IntArg   -> IntT
+      BoolArg  -> BoolT
+      TextArg  ->TextT
+      BytesArg -> BytesT
 
 compareType :: TypeCore -> Check TypeCore
-compareType ty
-  | ty == intT   = pure r
-  | ty == textT  = pure r
-  | ty == bytesT = pure r
-  | ty == boolT  = pure r
-  | otherwise    = throwError $ BadEquality ty
+compareType ty = case ty of
+  IntT      -> pure r
+  TextT     -> pure r
+  BytesT    -> pure r
+  BoolT     -> pure r
+  _         -> throwError $ BadEquality ty
   where
-    r = funT [ty,ty] boolT
+    r = ty :-> ty :-> BoolT
 
 showType :: TypeCore -> Check TypeCore
-showType ty
-  | ty == intT  = pure r
-  | ty == boolT = pure r
-  | otherwise   = throwError $ BadEquality ty
+showType ty = case ty of
+  IntT      -> pure r
+  BoolT     -> pure r
+  _         -> throwError $ BadEquality ty
   where
-    r = funT [ty] textT
+    r = ty :-> TextT

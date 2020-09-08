@@ -28,7 +28,7 @@ import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..), intT, boolT)
+import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 
@@ -206,8 +206,8 @@ evalPrimOp env = \case
   OpSHA256      -> lift1 (hashBlob @SHA256)
   --
   OpShow t
-    | t == intT  -> lift1 (T.pack . show @Int64)
-    | t == boolT -> lift1 (T.pack . show @Bool)
+    | t == IntT  -> lift1 (T.pack . show @Int64)
+    | t == BoolT -> lift1 (T.pack . show @Bool)
     | otherwise  -> ValBottom $ EvalErr "Invalid show"
   --
   OpToBytes   tag -> case tag of

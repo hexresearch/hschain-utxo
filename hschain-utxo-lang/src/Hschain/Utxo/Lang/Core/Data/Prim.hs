@@ -2,8 +2,7 @@
 -- | Common primitive type definitions
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
-  , TypeCore
-  , CoreType(..)
+  , TypeCore(..)
   , SignatureCore
   , Typed(..)
   , Prim(..)
@@ -29,7 +28,6 @@ import Hschain.Utxo.Lang.Sigma
 import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
 import Language.HM.Pretty (HasPrefix(..))
 
-type TypeCore = H.Type () Name
 type SignatureCore = H.Signature () Name
 
 -- | Type tags for values
@@ -54,15 +52,15 @@ data Prim
   deriving anyclass (NFData, Serialise)
 
 -- | Data types of core language
-data CoreType
+data TypeCore
   = IntT                        -- ^ Integer
   | BoolT                       -- ^ Boolean
   | BytesT                      -- ^ Bytes
   | TextT                       -- ^ Text
   | SigmaT                      -- ^ Sigma expression
-  | CoreType :-> CoreType       -- ^ Function type
-  | ListT CoreType              -- ^ List
-  | TupleT [CoreType]           -- ^ Tuple. Nullary tuple doubles as unit
+  | TypeCore :-> TypeCore       -- ^ Function type
+  | ListT TypeCore              -- ^ List
+  | TupleT [TypeCore]           -- ^ Tuple. Nullary tuple doubles as unit
   | ArgsT
   | BoxT
   deriving stock    (Show, Eq, Generic)

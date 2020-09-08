@@ -70,6 +70,6 @@ mainIsSigma (CoreProg prog) =
   where
     resultIsNotSigma = E.wrapBoolError (E.CoreScriptError E.ResultIsNotSigma)
     hasNoArgs Scomb{..} = V.null scomb'args
-    resultIsSigma Scomb{..} = sigmaT == typed'type scomb'body
+    resultIsSigma Scomb{..} = SigmaT == typed'type scomb'body
 
 
