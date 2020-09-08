@@ -42,7 +42,7 @@ tests = testGroup "core"
 
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ Nothing       @=? typeCheck mempty prog
+  [ testCase "typecheck" $ Nothing       @=? typeCheck prog
   , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
   ]
 
