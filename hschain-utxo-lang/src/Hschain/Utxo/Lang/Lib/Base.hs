@@ -52,6 +52,8 @@ baseFuns :: [Bind Lang]
 baseFuns =
   [ all
   , any
+  , andSigma
+  , orSigma
   , and
   , or
   , sum
@@ -119,6 +121,8 @@ baseNames =
   , "any"
   , "and"
   , "or"
+  , "andSigma"
+  , "orSigma"
   , "sumInt"
   , "productInt"
   , "sum"
@@ -195,6 +199,8 @@ baseLibTypeContext :: TypeContext
 baseLibTypeContext = H.Context $ M.fromList $
   [ assumpType "and" (monoT $ vectorT boolT ~> boolT)
   , assumpType "or" (monoT $ vectorT boolT ~> boolT)
+  , assumpType "andSigma" (monoT $ vectorT sigmaT ~> sigmaT)
+  , assumpType "orSigma" (monoT $ vectorT sigmaT ~> sigmaT)
   , assumpType "all" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
   , assumpType "any" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
   , assumpType "sumInt"      (monoT $ vectorT intT ~> intT)
@@ -289,6 +295,12 @@ or = bind "or" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold n
   where
     g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
     z = Fix $ PrimE noLoc $ PrimBool P.False
+
+andSigma :: Bind Lang
+andSigma = bind "andSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAndSigma noLoc) x)
+
+orSigma :: Bind Lang
+orSigma = bind "orSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecOrSigma noLoc) x)
 
 sumInt :: Bind Lang
 sumInt = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))

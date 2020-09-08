@@ -202,6 +202,8 @@ exprToExtendedLC typeCtx = cataM $ \case
       VecLength loc       -> var loc Const.length
       VecMap loc          -> var loc Const.map
       VecFold loc         -> var loc Const.foldl
+      VecAndSigma loc     -> var loc Const.andSigma
+      VecOrSigma loc      -> var loc Const.orSigma
       where
         newVec loc args = V.foldr (cons loc) (nil loc) args
 

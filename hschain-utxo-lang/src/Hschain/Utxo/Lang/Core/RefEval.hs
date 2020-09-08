@@ -280,6 +280,8 @@ evalPrimOp env = \case
   OpListSum   -> lift1 (sum @[] @Int64)
   OpListAnd   -> lift1 (and @[])
   OpListOr    -> lift1 (or  @[])
+  OpListAndSigma -> lift1 andSigma
+  OpListOrSigma  -> lift1 orSigma
   OpListAll _ -> Val2F $ \valF valXS -> inj $ do
     f  <- matchP @(Val -> Val) valF
     xs <- matchP @[Val] valXS
@@ -326,6 +328,11 @@ primFun2 f = Val2F go
     go (ValP a) (ValP b) = f a b
     go _        _        = ValBottom TypeMismatch
 
+
+andSigma, orSigma :: [Sigma PublicKey] -> Sigma PublicKey
+
+andSigma xs = Fix $ SigmaAnd xs
+orSigma  xs = Fix $ SigmaOr xs
 
 ----------------------------------------------------------------
 -- Lifting of functions

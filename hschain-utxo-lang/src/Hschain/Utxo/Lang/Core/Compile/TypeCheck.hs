@@ -249,7 +249,7 @@ primopToType :: PrimOp -> Check TypeCore
 primopToType = \case
   OpAdd -> pure $ funT [intT,intT] intT
   OpSub -> pure $ funT [intT,intT] intT
-  OpMul -> pure $ funT [intT,intT] intT 
+  OpMul -> pure $ funT [intT,intT] intT
   OpDiv -> pure $ funT [intT,intT] intT
   OpNeg -> pure $ funT [intT]      intT
   --
@@ -313,6 +313,8 @@ primopToType = \case
   OpListSum        -> pure $ funT [ listT intT ] intT
   OpListAnd        -> pure $ funT [ listT boolT ] boolT
   OpListOr         -> pure $ funT [ listT boolT ] boolT
+  OpListAndSigma   -> pure $ funT [ listT sigmaT ] sigmaT
+  OpListOrSigma    -> pure $ funT [ listT sigmaT ] sigmaT
   OpListAll    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
   OpListAny    a   -> pure $ funT [ funT [a] boolT, listT a ] boolT
   OpListNil    a   -> pure $ listT a

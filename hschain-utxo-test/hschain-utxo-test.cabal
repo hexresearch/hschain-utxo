@@ -19,6 +19,7 @@ library
   Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Test.Client.Monad
                        Hschain.Utxo.Test.Client.Proc
+                       Hschain.Utxo.Test.Client.Scripts.AtomicSwap
                        Hschain.Utxo.Test.Client.Scripts.PayForCofee
                        Hschain.Utxo.Test.Client.Scripts.ReversibleAddress
                        Hschain.Utxo.Test.Client.Scripts.SimpleExchange

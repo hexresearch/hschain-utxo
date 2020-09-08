@@ -199,6 +199,8 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       VecLength loc      -> varE loc lengthVecVar
       VecMap loc         -> varE loc mapVecVar
       VecFold loc        -> varE loc foldVecVar
+      VecAndSigma loc    -> varE loc andSigmaVecVar
+      VecOrSigma loc     -> varE loc orSigmaVecVar
 
     fromText _ = \case
       TextAppend loc a b            -> app2 loc appendTextVar a b
@@ -286,6 +288,8 @@ defaultContext = H.Context $ M.fromList $
   , (lengthVecVar, forA $ monoT $ vectorT a `arr` intT)
   , (mapVecVar, forAB $ monoT $ (a `arr` b) `arr` (vectorT a `arr` vectorT b))
   , (foldVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (vectorT a `arr` b)))
+  , (andSigmaVecVar, monoT $ vectorT sigmaT `arr` sigmaT)
+  , (orSigmaVecVar, monoT $ vectorT sigmaT `arr` sigmaT)
   , (getBoxIdVar, monoT $ boxT `arr` textT)
   , (getBoxValueVar, monoT $ boxT `arr` intT)
   , (getBoxScriptVar, monoT $ boxT `arr` scriptT)
@@ -406,7 +410,7 @@ greaterThanVar = secretVar "greaterThan"
 lessThanEqualsVar = secretVar "lessThanEquals"
 greaterThanEqualsVar = secretVar "greaterThanEquals"
 
-nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar :: Text
+nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar, andSigmaVecVar, orSigmaVecVar :: Text
 
 nilVecVar = secretVar "nilVec"
 consVecVar = secretVar "consVec"
@@ -415,6 +419,8 @@ vecAtVar = secretVar "vecAt"
 lengthVecVar = secretVar "lengthVec"
 mapVecVar = secretVar "mapVec"
 foldVecVar = secretVar "foldVec"
+andSigmaVecVar = secretVar "andSigma"
+orSigmaVecVar = secretVar "orSigma"
 
 appendTextVar, lengthTextVar :: Text
 

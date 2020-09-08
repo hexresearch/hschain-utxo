@@ -21,6 +21,8 @@ module Hschain.Utxo.Lang.Const(
   , foldl
   , length
   , appendList
+  , andSigma
+  , orSigma
   -- * Bytes functions
   , appendBytes
   , serialiseBytes
@@ -68,7 +70,7 @@ getBoxValue  = "getBoxValue"
 -------------------------------------------------------------------
 -- list functions
 
-listAt, map, filter, foldr, foldl, length, appendList :: IsString a => a
+listAt, map, filter, foldr, foldl, length, appendList, andSigma, orSigma :: IsString a => a
 
 listAt = "listAt"
 map    = "map"
@@ -77,6 +79,8 @@ foldr  = "foldr"
 foldl  = "foldl"
 length = "length"
 appendList = "++"
+andSigma = "andSigma"
+orSigma = "orSigma"
 
 -------------------------------------------------------------------
 -- bytes functions

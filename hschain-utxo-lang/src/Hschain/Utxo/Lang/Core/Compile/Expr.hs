@@ -127,6 +127,8 @@ data PrimOp
   | OpListOr                    -- ^ OR for all elements
   | OpListAll    !TypeCore      -- ^ Every element of list satisfy predicate
   | OpListAny    !TypeCore      -- ^ Any element of list satisfy predicate
+  | OpListAndSigma              -- ^ AND for all elements (sigma booleans)
+  | OpListOrSigma               -- ^ OR for all elements (sigma booleans)
   | OpListNil    !TypeCore
   | OpListCons   !TypeCore
   deriving stock    (Show, Eq, Generic)
@@ -241,6 +243,8 @@ monoPrimopName = \case
   OpListSum      -> Just "sum"
   OpListAnd      -> Just "and"
   OpListOr       -> Just "or"
+  OpListAndSigma -> Just "andSigma"
+  OpListOrSigma  -> Just "orSigma"
   OpListAll{}    -> Nothing
   OpListAny{}    -> Nothing
   OpListNil{}    -> Nothing
@@ -258,6 +262,8 @@ monomorphicPrimops =
   , OpListSum
   , OpListAnd
   , OpListOr
+  , OpListAndSigma
+  , OpListOrSigma
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)

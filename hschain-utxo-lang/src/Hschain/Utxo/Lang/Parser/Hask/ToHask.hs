@@ -124,6 +124,8 @@ toHaskExp (Fix expr) = case expr of
       VecLength loc     -> toVar loc (VarName loc "length")
       VecMap loc        -> toVar loc (VarName loc "map")
       VecFold loc       -> toVar loc (VarName loc "fold")
+      VecAndSigma loc   -> toVar loc (VarName loc "andSigma")
+      VecOrSigma loc    -> toVar loc (VarName loc "orSigma")
 
     fromText _ = \case
       TextAppend loc a b    -> op2 loc "<>" a b

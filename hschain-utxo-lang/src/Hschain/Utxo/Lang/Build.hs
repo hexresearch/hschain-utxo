@@ -22,6 +22,7 @@ module Hschain.Utxo.Lang.Build(
   , getInputs, getOutputs
   , getIntVars, getBoolVars, getTextVars, getBytesVars
   , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
+  , andSigma, orSigma
   , var
   , def
   , (=:)
@@ -253,6 +254,12 @@ allVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "all") v
 
 anyVec :: Expr (Vector Bool) -> Expr Bool
 anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
+
+andSigma :: Expr (Vector SigmaBool) -> Expr SigmaBool
+andSigma (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "andSigma") v
+
+orSigma :: Expr (Vector SigmaBool) -> Expr SigmaBool
+orSigma (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "orSigma") v
 
 type instance BooleanOf (Expr a) = Expr Bool
 

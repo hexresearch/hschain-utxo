@@ -614,6 +614,10 @@ data VecExpr a
   -- ^ map vector with the function (@map f as@)
   | VecFold Loc
   -- ^ Left-fold vector with function and accumulator (@foldl f z as@)
+  | VecAndSigma Loc
+  -- ^ and of vector of sigma expressions
+  | VecOrSigma Loc
+  -- ^ or of vector of sigma expressions
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Tag for values to convert to to text
