@@ -27,7 +27,6 @@ module Language.HM.Type (
 
     VarSet(..),
     differenceVarSet,
-    getVar,
     varSetToList,
     memberVarSet,
 
@@ -301,10 +300,6 @@ newtype VarSet src var = VarSet { unVarSet :: Map var src }
 -- | 'difference' for @VarSet@'s
 differenceVarSet :: Ord var => VarSet src var -> VarSet src var -> VarSet src var
 differenceVarSet (VarSet a) (VarSet b) = VarSet $ a `M.difference` b
-
--- | Gets the source code location for variable.
-getVar :: Ord var => VarSet src var -> var -> Maybe src
-getVar (VarSet m) var = M.lookup var m
 
 -- | Converts varset to list.
 varSetToList :: VarSet src var -> [(src, var)]
