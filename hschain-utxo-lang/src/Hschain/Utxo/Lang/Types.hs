@@ -7,6 +7,7 @@ import Control.Monad.Except
 
 import Codec.Serialise
 import Data.ByteString (ByteString)
+import Data.Fix
 import Data.Int
 import Data.Monoid
 import Data.Text (Text)
@@ -277,6 +278,22 @@ hashScript = getSha256 . unScript
 
 scriptToText :: Script -> Text
 scriptToText = encodeBase58 . unScript
+
+--------------------------------------------
+-- useful utils
+
+singleOwnerSigma :: PublicKey -> Sigma PublicKey
+singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
+
+singleOwnerInput :: BoxId -> PublicKey -> Vector ExpectedBox
+singleOwnerInput boxId pubKey = return $ ExpectedBox
+  { expectedBox'sigma = Just $ singleOwnerSigma pubKey
+  , expectedBox'input = BoxInputRef
+      { boxInputRef'id    = boxId
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Nothing
+      }
+  }
 
 --------------------------------------------
 -- JSON instnaces

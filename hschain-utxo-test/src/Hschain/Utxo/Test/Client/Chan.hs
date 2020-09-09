@@ -30,10 +30,10 @@ data BlockChan = BlockChan
   }
 
 -- | Spawn block-reader that polls node for new blocks every so milliseconds.
-newBlockChan :: ClientSpec -> NominalDiffTime -> IO BlockChan
-newBlockChan clientSpec dtime = do
+newBlockChan :: ClientSpec -> NominalDiffTime -> Maybe Int -> IO BlockChan
+newBlockChan clientSpec dtime mHeight = do
   tchan <- newTChanIO
-  currentHeight <- getCurrentHeight
+  currentHeight <- maybe getCurrentHeight pure mHeight
   Right block <- call clientSpec $ readBlock currentHeight
   atomically $ mapM_ (writeTChan tchan) block
   heightVar <- newTVarIO currentHeight

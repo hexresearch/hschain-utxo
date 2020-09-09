@@ -52,6 +52,8 @@ library
                      , serialise
                      , servant
                      , servant-client
+                     , lifted-base
+                     , monad-control
                      , mtl
                      , random
                      , pretty-show
@@ -60,6 +62,7 @@ library
                      , text
                      , time
                      , timeout
+                     , transformers-base
                      , uuid
                      , vector
   hs-source-dirs:      src
