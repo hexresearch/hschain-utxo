@@ -117,7 +117,7 @@ runInferM (InferM m) = runExcept $ evalStateT m 0
 inferType :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
   => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var)
 inferType ctx term =
-  fmap (normaliseType . mapLoc fromOrigin . (\(_, ty, _) -> ty)) $
+  fmap (normaliseType . mapLoc fromOrigin . (\(_, t) -> termType t)) $
     runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
 
 -- | Infers types for all subexpressions of the given term.
@@ -125,14 +125,13 @@ inferType ctx term =
 inferTerm :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
   => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var, TyTerm prim loc var)
 inferTerm ctx term =
-  fmap ((\(_, ty, tyTerm) -> (toType ty, toTyTerm tyTerm))) $
+  fmap ((\(_, tyTerm) -> (toType tyTerm, toTyTerm tyTerm))) $
     runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
   where
-    toType   = normaliseType . mapLoc fromOrigin
+    toType   = normaliseType . mapLoc fromOrigin . termType
     toTyTerm = mapType normaliseType . mapLoc fromOrigin
 
 type Out prim loc var = ( Subst (Origin loc) var
-                        , Type (Origin loc) var
                         , TyTerm prim (Origin loc) var
                         )
 
@@ -161,14 +160,14 @@ inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
   case M.lookup v (unContext ctx) of
     Nothing  -> throwError $ NotInScopeErr (fromOrigin loc) v
     Just sig -> do ty <- newInstance $ setLoc loc sig
-                   return (mempty, ty, tyVarE ty loc v)
+                   return (mempty, tyVarE ty loc v)
 
 inferPrim :: (Ord v, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Origin loc
   -> prim
   -> InferM loc var (Out prim loc v)
 inferPrim loc prim =
-  return (mempty, ty, tyPrimE ty loc prim)
+  return (mempty, tyPrimE ty loc prim)
   where
     ty = mapLoc UserCode $ getPrimType prim
 
@@ -185,7 +184,7 @@ inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]
     (phi, [(tf, f'), (ta, a')]) -> fmap (\subst ->
                                             let ty   = apply subst tvn
                                                 term = tyAppE ty loc (apply subst f') (apply subst a')
-                                            in  (subst, ty, term)) $ unify phi tf (arrowT loc ta tvn)
+                                            in  (subst, term)) $ unify phi tf (arrowT loc ta tvn)
     _               -> error "Impossible has happened!"
 
 inferLam :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
@@ -196,9 +195,9 @@ inferLam :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ Pri
   -> InferM loc v (Out prim loc v)
 inferLam ctx loc x body = do
   tvn <- freshVar
-  (phi, tbody, bodyTyTerm) <- infer (ctx1 tvn) body
-  let ty = arrowT loc (apply phi (varT loc tvn)) tbody
-  return (phi, ty, tyLamE ty loc x bodyTyTerm)
+  (phi, bodyTyTerm) <- infer (ctx1 tvn) body
+  let ty = arrowT loc (apply phi (varT loc tvn)) (termType bodyTyTerm)
+  return (phi, tyLamE ty loc x bodyTyTerm)
   where
     ctx1 tvn = insertCtx x (newVar loc tvn) ctx
 
@@ -212,11 +211,10 @@ inferLet ctx loc vs body = do
   (phi, rhsTyTerms) <- inferTerms ctx $ fmap bind'rhs vs
   let (tBinds, termBinds) = unzip rhsTyTerms
   ctx1 <- addDecls (zipWith (\a t -> fmap (const t) a) vs tBinds) (apply phi ctx)
-  (subst, tbody, bodyTerm) <- infer ctx1 body
+  (subst, bodyTerm) <- infer ctx1 body
   let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
   return ( subst <> phi
-         , tbody
-         , tyLetE tbody loc tyBinds bodyTerm
+         , tyLetE (termType bodyTerm) loc tyBinds bodyTerm
          )
 
 inferLetRec :: forall prim loc v . (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
@@ -253,9 +251,9 @@ inferLetRec ctx topLoc vs body = do
 
     inferBody termBinds context lhsCtx subst expr = do
       ctx1 <- addDecls (zipWith (\loc (v, ty) -> Bind loc v ty) locBinds $ fmap (second $ oldBvar . apply subst) lhsCtx) $ apply subst context
-      (phi, ty, bodyTerm) <- infer ctx1 expr
+      (phi, bodyTerm) <- infer ctx1 expr
       let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
-      return (phi <> subst, ty, tyLetRecE ty topLoc tyBinds bodyTerm)
+      return (phi <> subst, tyLetRecE (termType bodyTerm) topLoc tyBinds bodyTerm)
 
 inferAssertType :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
@@ -264,9 +262,9 @@ inferAssertType :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, 
   -> Type' loc v
   -> InferM loc v (Out prim loc v)
 inferAssertType ctx loc a ty = do
-  (phi, tA, aTyTerm) <- infer ctx a
-  subst <- genSubtypeOf phi ty tA
-  return (subst <> phi, ty, tyAssertTypeE loc aTyTerm ty)
+  (phi, aTyTerm) <- infer ctx a
+  subst <- genSubtypeOf phi ty (termType aTyTerm)
+  return (subst <> phi, tyAssertTypeE loc aTyTerm ty)
 
 inferConstr :: (Eq loc, IsVar v)
   => Origin loc
@@ -276,7 +274,7 @@ inferConstr :: (Eq loc, IsVar v)
   -> InferM loc v (Out prim loc v)
 inferConstr loc ty tag arity = do
   vT <- newInstance $ typeToSignature ty
-  return $  (mempty, vT, tyConstrE loc vT tag arity)
+  return (mempty, tyConstrE loc vT tag arity)
 
 inferCase :: forall prim loc v .
      (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
@@ -284,9 +282,10 @@ inferCase :: forall prim loc v .
   -> Origin loc -> Term' prim loc v -> [CaseAlt' loc v (Term' prim loc v)]
   -> InferM loc v (Out prim loc v)
 inferCase ctx loc e caseAlts = do
-  (phi, tE, tyTermE) <- infer ctx e
-  (psi, tRes, tyAlts) <- inferAlts phi tE caseAlts
-  return (psi, tRes, apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
+  (phi, tyTermE) <- infer ctx e
+  (psi, tRes, tyAlts) <- inferAlts phi (termType tyTermE) caseAlts
+  return ( psi
+         , apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
   where
     inferAlts :: Subst' loc v -> Type' loc v -> [CaseAlt' loc v (Term' prim loc v)] -> InferM loc v (Subst' loc v, Type' loc v, [CaseAlt' loc v (TyTerm' prim loc v)])
     inferAlts substE tE alts =
@@ -303,14 +302,14 @@ inferCase ctx loc e caseAlts = do
       alt <- newCaseAltInstance preAlt
       let argVars = fmap  (\ty -> (snd $ typed'value ty, (fst $ typed'value ty, typed'type ty))) $ caseAlt'args alt
           ctx1 = Context (M.fromList $ fmap (second $ monoT . snd) argVars) <> ctx
-      (subst, tRes, tyTermRhs) <- infer ctx1 $ caseAlt'rhs alt
+      (subst, tyTermRhs) <- infer ctx1 $ caseAlt'rhs alt
       let args = fmap (\(v, (argLoc, tv)) -> Typed (apply subst tv) (argLoc, v)) argVars
           alt' = alt
                   { caseAlt'rhs = tyTermRhs
                   , caseAlt'args = args
                   , caseAlt'constrType = apply subst $ caseAlt'constrType alt
                   }
-      return (subst, tRes, alt')
+      return (subst, termType tyTermRhs, alt')
 
     newCaseAltInstance :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v (CaseAlt' loc v (Term' prim loc v))
     newCaseAltInstance alt = do
@@ -346,7 +345,7 @@ inferCase ctx loc e caseAlts = do
 inferBottom :: IsVar v => Origin loc -> InferM loc v (Out prim loc v)
 inferBottom loc = do
   ty <- fmap (varT loc) freshVar
-  return (mempty, ty, tyBottomE ty loc)
+  return (mempty, tyBottomE ty loc)
 
 newInstance :: IsVar v => Signature loc v -> InferM loc' v (Type loc v)
 newInstance = fmap (uncurry apply) . cataM go . unSignature
@@ -371,9 +370,12 @@ inferTerms :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ P
 inferTerms ctx ts = case ts of
   []   -> return $ (mempty, [])
   a:as -> do
-    (phi, ta, termA)  <- infer ctx a
+    (phi, termA) <- infer ctx a
+    let ta = termType termA
     (psi, tas) <- inferTerms (apply phi ctx) as
-    return (psi <> phi, (apply psi ta, apply psi termA) : tas)
+    return ( psi <> phi
+           , (apply psi ta, apply psi termA) : tas
+           )
 
 -- | Unification function. Checks weather two types unify.
 -- First argument is current substitution.
