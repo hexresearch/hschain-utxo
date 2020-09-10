@@ -10,7 +10,7 @@ main :: IO ()
 main = defaultMain $ testGroup "lang"
   [ TM.Core.tests
   , TM.Core.Box.tests
--- todo: bytes test do not work!
+-- todo: bytes test do not work!!! have to fix
 --  , TM.Core.Bytes.tests
   , TM.Core.Cost.tests
   , TM.Core.List.tests
