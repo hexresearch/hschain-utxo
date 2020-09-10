@@ -92,7 +92,7 @@ typeCheckScomb Scomb{..} =
   local (loadArgs (V.toList scomb'args)) $
     typeCheckExpr scomb'body
 
-typeCheckExpr :: Typed ExprCore -> Check ()
+typeCheckExpr :: Typed TypeCore ExprCore -> Check ()
 typeCheckExpr Typed{..} =
   hasType (MonoType typed'type) =<< inferExpr typed'value
 
@@ -209,11 +209,11 @@ insertSignature :: Name -> SignatureCore -> TypeContext -> TypeContext
 insertSignature name sig (TypeContext m) =
   TypeContext $ M.insert name sig m
 
-loadArgs :: [Typed Name] -> TypeContext -> TypeContext
+loadArgs :: [Typed TypeCore Name] -> TypeContext -> TypeContext
 loadArgs args ctx =
   foldl' (\res arg -> loadName arg res) ctx args
 
-loadName :: Typed Name -> TypeContext -> TypeContext
+loadName :: Typed TypeCore Name -> TypeContext -> TypeContext
 loadName Typed{..} = insertSignature typed'value (H.monoT typed'type)
 
 lookupSignature :: Name -> TypeContext -> Maybe SignatureCore

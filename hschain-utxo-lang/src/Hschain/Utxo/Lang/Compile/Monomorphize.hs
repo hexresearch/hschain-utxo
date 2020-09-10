@@ -59,10 +59,12 @@ fromType :: H.Type Loc Name -> TypeCore
 fromType = H.mapLoc (const ())
 
 data MonoSt = MonoSt
-  { monoSt'seeds       :: Seq (Typed Name)  -- ^ Free variables found in the definition,
-                                            --   with monomorphic types
-  , monoSt'sourceProg  :: ProgMap           -- ^ original set of definitions (and also we add specified definitions here)
-  , monoSt'resultProg  :: ProgMap           -- ^ Result of the algorithm
+  { monoSt'seeds       :: Seq (Typed (H.Type () Name) Name)
+    -- ^ Free variables found in the definition, with monomorphic types
+  , monoSt'sourceProg  :: ProgMap
+    -- ^ original set of definitions (and also we add specified definitions here)
+  , monoSt'resultProg  :: ProgMap
+    -- ^ Result of the algorithm
   }
 
 makeMono :: Context -> Mono ()
@@ -70,7 +72,7 @@ makeMono ctx = do
   st <- get
   mapM_ (procSeed ctx $ monoSt'resultProg st) $ monoSt'seeds st
 
-procSeed :: Context -> ProgMap -> Typed Name -> Mono ()
+procSeed :: Context -> ProgMap -> Typed (H.Type () Name) Name -> Mono ()
 procSeed ctx resultProgMap seed
   | isMonoT $ typed'type seed = do
       progMap <- getSourceProg
@@ -91,7 +93,7 @@ procDef ctx defn = do
   addSeeds newSeeds
   insertResultDef defn'
 
-substDef :: Context -> TypedDef -> Mono ([Typed Name], TypedDef)
+substDef :: Context -> TypedDef -> Mono ([Typed (H.Type () Name) Name], TypedDef)
 substDef ctx defn@Def{..} = do
   res <- substExpr (SubstCtx locals mempty ctx') def'body
   return $ (substResult'seeds res, defn { def'body = substResult'expr res } )
@@ -134,7 +136,8 @@ removeLetSubsts names (LetSubst m) = LetSubst $ M.difference m (M.fromList $ fma
 
 -- Result of substitution of expression
 data SubstResult = SubstResult
-  { substResult'seeds       :: [Typed Name]    -- ^ free variables that expression depends on
+  { substResult'seeds       :: [Typed (H.Type () Name) Name]
+    -- ^ free variables that expression depends on
   , _substResult'localSubst :: LetSubst        -- ^ type substitution for local definitions
   , substResult'expr        :: TypedExprLam    -- ^ result expression
   }
@@ -386,7 +389,7 @@ isMonoT (H.Type x) = flip cata x $ \case
   H.ListT _ a    -> a
   H.TupleT _ as  -> and as
 
-addSeeds :: [Typed Name] -> Mono ()
+addSeeds :: [Typed (H.Type () Name) Name] -> Mono ()
 addSeeds seeds =
   modify' $ \st -> st { monoSt'seeds = monoSt'seeds st <> Seq.fromList seeds }
 

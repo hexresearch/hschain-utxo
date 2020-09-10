@@ -57,9 +57,12 @@ coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromSt
 --
 -- > S a1 a2 a3 = expr
 data Scomb = Scomb
-  { scomb'name   :: Name                 -- ^ name of supercombinator
-  , scomb'args   :: Vector (Typed Name)  -- ^ list of arguments
-  , scomb'body   :: Typed ExprCore       -- ^ body
+  { scomb'name   :: Name
+    -- ^ name of supercombinator
+  , scomb'args   :: Vector (Typed TypeCore Name)
+    -- ^ list of arguments
+  , scomb'body   :: Typed TypeCore ExprCore
+    -- ^ body
   }
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (Serialise)
@@ -166,7 +169,7 @@ data CaseAlt = CaseAlt
   { caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [Typed Name]
+  , caseAlt'args  :: [Typed TypeCore Name]
   -- ^ arguments of the pattern matching
   , caseAlt'rhs   :: ExprCore
   -- ^ right-hand side of the case-alternative

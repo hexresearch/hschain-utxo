@@ -70,7 +70,7 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
           , Core.scomb'body   = expr
           }
 
-    toCoreExpr :: TypedExprLam -> m (Typed ExprCore)
+    toCoreExpr :: TypedExprLam -> m (Typed TypeCore ExprCore)
     toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
       where
         convert (Ann exprTy val) = case val of

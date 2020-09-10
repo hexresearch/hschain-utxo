@@ -102,7 +102,7 @@ scombCost costMap Scomb{..}
   where
     bodyCost = exprCost M.empty (appendArgs M.empty (V.toList scomb'args) costMap) $ typed'value scomb'body
 
-appendArgs :: TypeCostMap -> [Typed Name] -> CostMap -> CostMap
+appendArgs :: TypeCostMap -> [Typed TypeCore Name] -> CostMap -> CostMap
 appendArgs tcm args mp = L.foldl' (\m arg -> maybe m (\c -> insertCost (typed'value arg) (MonoCost c) m) (typeCoreToCost tcm $ typed'type arg)) mp args
 
 exprCost :: TypeCostMap -> CostMap -> ExprCore -> Maybe Cost

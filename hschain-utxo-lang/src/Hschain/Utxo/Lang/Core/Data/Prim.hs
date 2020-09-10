@@ -31,9 +31,9 @@ type TypeCore = H.Type () Name
 type SignatureCore = H.Signature () Name
 
 -- | Type tags for values
-data Typed a = Typed
+data Typed ty a = Typed
   { typed'value :: a
-  , typed'type  :: TypeCore
+  , typed'type  :: ty
   }
   deriving stock    (Show, Eq, Functor, Foldable, Traversable, Generic)
   deriving anyclass (Serialise)

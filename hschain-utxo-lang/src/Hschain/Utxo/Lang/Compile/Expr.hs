@@ -35,13 +35,13 @@ import Hschain.Utxo.Lang.Expr (Loc, VarName)
 import qualified Language.HM as H
 
 -- | Programms annotated with types
-type TypedLamProg = AnnLamProg (H.Type () Name) (Typed Name)
+type TypedLamProg = AnnLamProg (H.Type () Name) (Typed (H.Type () Name) Name)
 
 -- | Typed definitions of functions
-type TypedDef = AnnComb (H.Type () Name) (Typed Name)
+type TypedDef = AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)
 
 -- | Typed expressions
-type TypedExprLam = AnnExprLam (H.Type () Name) (Typed Name)
+type TypedExprLam = AnnExprLam (H.Type () Name) (Typed (H.Type () Name) Name)
 
 -- | Annotation of the type with some additional information
 data Ann ann f a = Ann
@@ -110,7 +110,7 @@ data CaseAlt bind a = CaseAlt
   , caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [Typed Name]
+  , caseAlt'args  :: [Typed (H.Type () Name) Name]
   -- ^ arguments of the pattern matching
   , caseAlt'constrType :: TypeCore
   -- ^ Type of right hand side, it's the type that constructor belongs to
