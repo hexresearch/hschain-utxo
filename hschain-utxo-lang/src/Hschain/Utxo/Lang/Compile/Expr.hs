@@ -35,13 +35,13 @@ import Hschain.Utxo.Lang.Expr (Loc, VarName)
 import qualified Language.HM as H
 
 -- | Programms annotated with types
-type TypedLamProg = AnnLamProg TypeCore (Typed Name)
+type TypedLamProg = AnnLamProg (H.Type () Name) (Typed Name)
 
 -- | Typed definitions of functions
-type TypedDef = AnnComb TypeCore (Typed Name)
+type TypedDef = AnnComb (H.Type () Name) (Typed Name)
 
 -- | Typed expressions
-type TypedExprLam = AnnExprLam TypeCore (Typed Name)
+type TypedExprLam = AnnExprLam (H.Type () Name) (Typed Name)
 
 -- | Annotation of the type with some additional information
 data Ann ann f a = Ann
