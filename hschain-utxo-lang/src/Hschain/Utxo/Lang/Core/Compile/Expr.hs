@@ -36,6 +36,9 @@ import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypes, argTypeName)
 
 import qualified Data.ByteString.Lazy as LB
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
+
 -- | core program is a sequence of supercombinator definitions
 -- that includes supercombinator called main. The main is an entry point
 -- for the execution of the program.
@@ -102,7 +105,6 @@ data PrimOp
 
   | OpEnvGetHeight              -- ^ Current height
   | OpEnvGetSelf                -- ^ Reference to box being evaluated
-  | OpEnvGetArgs !ArgType       -- ^ Get arguments from box
   | OpEnvGetInputs              -- ^ Inputs of a current box
   | OpEnvGetOutputs             -- ^ Output of a current box
 
@@ -110,6 +112,7 @@ data PrimOp
   | OpGetBoxId
   | OpGetBoxScript
   | OpGetBoxValue
+  | OpGetBoxArgs !ArgType       -- ^ Get arguments from box
   | OpMakeBox
 
   | OpListMap    !TypeCore !TypeCore -- ^ Map over list
@@ -124,6 +127,8 @@ data PrimOp
   | OpListOr                    -- ^ OR for all elements
   | OpListAll    !TypeCore      -- ^ Every element of list satisfy predicate
   | OpListAny    !TypeCore      -- ^ Any element of list satisfy predicate
+  | OpListAndSigma              -- ^ AND for all elements (sigma booleans)
+  | OpListOrSigma               -- ^ OR for all elements (sigma booleans)
   | OpListNil    !TypeCore
   | OpListCons   !TypeCore
   deriving stock    (Show, Eq, Generic)
@@ -203,23 +208,23 @@ monoPrimopName = \case
   OpSigListAll _ -> Nothing
   OpSigListAny _ -> Nothing
   --
-  OpSHA256      -> Just "sha256"
-  OpTextLength  -> Just "textLength"
-  OpBytesLength -> Just "bytesLength"
-  OpTextAppend  -> Just "<>"
-  OpBytesAppend -> Just "appendBytes"
-  OpToBytes   t -> Just $ "serialise"   <> argTypeName t
-  OpFromBytes t -> Just $ "deserialise" <> argTypeName t
+  OpSHA256      -> Just Const.sha256
+  OpTextLength  -> Just Const.lengthText
+  OpBytesLength -> Just Const.lengthBytes
+  OpTextAppend  -> Just Const.appendText
+  OpBytesAppend -> Just Const.appendBytes
+  OpToBytes   t -> Just $ Const.serialiseBytes $ argTypeName t
+  OpFromBytes t -> Just $ Const.deserialiseBytes $ argTypeName t
   --
   OpArgs t       -> Just $ "get" <> argTypeName t <> "Args"
-  OpGetBoxId     -> Just "getBoxId"
-  OpGetBoxScript -> Just "getBoxScript"
-  OpGetBoxValue  -> Just "getBoxValue"
+  OpGetBoxId     -> Just Const.getBoxId
+  OpGetBoxScript -> Just Const.getBoxScript
+  OpGetBoxValue  -> Just Const.getBoxValue
+  OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
   OpMakeBox      -> Just "Box"
   --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"
-  OpEnvGetArgs t  -> Just $ "getBox" <> argTypeName t <> "Args"
   OpEnvGetInputs  -> Just "getInputs"
   OpEnvGetOutputs -> Just "getOutputs"
   -- Polymorphic functions
@@ -241,6 +246,8 @@ monoPrimopName = \case
   OpListSum      -> Just "sum"
   OpListAnd      -> Just "and"
   OpListOr       -> Just "or"
+  OpListAndSigma -> Just "andSigma"
+  OpListOrSigma  -> Just "orSigma"
   OpListAll{}    -> Nothing
   OpListAny{}    -> Nothing
   OpListNil{}    -> Nothing
@@ -258,10 +265,12 @@ monomorphicPrimops =
   , OpListSum
   , OpListAnd
   , OpListOr
+  , OpListAndSigma
+  , OpListOrSigma
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)
-  ++ (OpEnvGetArgs <$> argTypes)
+  ++ (OpGetBoxArgs <$> argTypes)
   ++ (OpArgs <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops

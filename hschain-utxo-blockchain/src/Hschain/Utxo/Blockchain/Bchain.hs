@@ -23,6 +23,7 @@ import Hschain.Utxo.Blockchain.Logic
 -- Low level API to post transactions.
 data Bchain m = Bchain
   { bchain'conn          :: Connection 'RO
+  , bchain'cached        :: Cached BData
   , bchain'mempoolCursor :: MempoolCursor (Hashed (Alg BData) Tx) Tx
   , bchain'state         :: m BoxChain
   , bchain'waitForTx     :: m (TxHash -> m Bool)

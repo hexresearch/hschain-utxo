@@ -63,7 +63,7 @@ data ClientConfig = ClientConfig {
   , clientManager  :: !Manager -- ^ Connection manager
   } deriving (Generic)
 
--- | Monad that is used to perform calls to NEM NIS API.
+-- | Monad that is used to perform API calls.
 newtype ClientM a = ClientM { unClientM :: ReaderT ClientConfig (ExceptT ClientError C.ClientM) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, Generic
     , MonadError ClientError, MonadReader ClientConfig )
@@ -110,6 +110,12 @@ getUtxos = liftClientM getUtxos'
 hasUtxo :: BoxId -> ClientM Bool
 hasUtxo boxId = liftClientM (hasUtxo' boxId)
 
+readBlock :: Int -> ClientM (Maybe [Tx])
+readBlock n = liftClientM (readBlock' n)
+
+readBlockchainHeight :: ClientM Int
+readBlockchainHeight = liftClientM readBlockchainHeight'
+
 -- Client auto implementation
 --
 postTx' :: Tx -> C.ClientM PostTxResponse
@@ -120,6 +126,8 @@ getEnv' :: C.ClientM GetEnvResponse
 getState' :: C.ClientM BoxChain
 getUtxos' :: C.ClientM [BoxId]
 hasUtxo' :: BoxId -> C.ClientM Bool
+readBlock' :: Int -> C.ClientM (Maybe [Tx])
+readBlockchainHeight' :: C.ClientM Int
 (      postTx'
   :<|> getBox'
   :<|> getBoxBalance'
@@ -128,6 +136,8 @@ hasUtxo' :: BoxId -> C.ClientM Bool
   :<|> getState'
   :<|> getUtxos'
   :<|> hasUtxo'
+  :<|> readBlock'
+  :<|> readBlockchainHeight'
   ) = C.client (Proxy :: Proxy UtxoAPI)
 
 data HttpQueryOps =

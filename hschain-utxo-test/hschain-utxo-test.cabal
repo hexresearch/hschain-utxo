@@ -18,7 +18,9 @@ extra-source-files:  CHANGELOG.md
 library
   Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Test.Client.Monad
+                       Hschain.Utxo.Test.Client.Chan
                        Hschain.Utxo.Test.Client.Proc
+                       Hschain.Utxo.Test.Client.Scripts.AtomicSwap
                        Hschain.Utxo.Test.Client.Scripts.PayForCofee
                        Hschain.Utxo.Test.Client.Scripts.ReversibleAddress
                        Hschain.Utxo.Test.Client.Scripts.SimpleExchange
@@ -28,9 +30,11 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , async
                      , bytestring
                      , hex-common
                      , hschain
+                     , hschain-crypto
                      , hschain-logger
                      , hschain-utxo-api-client
                      , hschain-utxo-api-rest
@@ -49,6 +53,9 @@ library
                      , serialise
                      , servant
                      , servant-client
+                     , lifted-base
+                     , lifted-async
+                     , monad-control
                      , mtl
                      , random
                      , pretty-show
@@ -57,6 +64,7 @@ library
                      , text
                      , time
                      , timeout
+                     , transformers-base
                      , uuid
                      , vector
   hs-source-dirs:      src

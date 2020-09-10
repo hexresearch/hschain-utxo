@@ -7,6 +7,7 @@ import Control.Monad.Except
 
 import Codec.Serialise
 import Data.ByteString (ByteString)
+import Data.Fix
 import Data.Int
 import Data.Monoid
 import Data.Text (Text)
@@ -214,7 +215,7 @@ data ExpectedBox = ExpectedBox
     -- ^ content of box input reference (id, arguments)
   }
 
--- | If we now the expected sigma expressions for the inputs
+-- | If we know the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
@@ -277,6 +278,22 @@ hashScript = getSha256 . unScript
 
 scriptToText :: Script -> Text
 scriptToText = encodeBase58 . unScript
+
+--------------------------------------------
+-- useful utils
+
+singleOwnerSigma :: PublicKey -> Sigma PublicKey
+singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
+
+singleOwnerInput :: BoxId -> PublicKey -> Vector ExpectedBox
+singleOwnerInput boxId pubKey = return $ ExpectedBox
+  { expectedBox'sigma = Just $ singleOwnerSigma pubKey
+  , expectedBox'input = BoxInputRef
+      { boxInputRef'id    = boxId
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Nothing
+      }
+  }
 
 --------------------------------------------
 -- JSON instnaces

@@ -202,6 +202,8 @@ exprToExtendedLC typeCtx = cataM $ \case
       VecLength loc       -> var loc Const.length
       VecMap loc          -> var loc Const.map
       VecFold loc         -> var loc Const.foldl
+      VecAndSigma loc     -> var loc Const.andSigma
+      VecOrSigma loc      -> var loc Const.orSigma
       where
         newVec loc args = V.foldr (cons loc) (nil loc) args
 
@@ -223,6 +225,7 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromBytesExpr _ expr = pure $ case expr of
       BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
+      BytesLength loc a              -> ap1 loc (var loc Const.lengthBytes) a
       SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
       DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
       BytesHash loc algo a           -> ap1 loc (var loc $ fromHashAlgo algo) a

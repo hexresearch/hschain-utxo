@@ -24,8 +24,10 @@ type UtxoAPI = "api" :>
   :<|> GetTxSigmaEndpoint
   :<|> GetEnvEndpoint
   :<|> GetStateEndpoint
-  :<|> GetUtxos
-  :<|> HasUtxo
+  :<|> GetUtxosEndpoint
+  :<|> HasUtxoEndpoint
+  :<|> ReadBlockEndpoint
+  :<|> ReadBlockchainHeightEndpoint
   )
 
 -- | Post transaction
@@ -58,13 +60,20 @@ type GetStateEndpoint = "debug" :> "state" :> Summary "Gets the state of box-cha
   :> Get '[JSON] BoxChain
 
 -- | Reads all BoxId's that are available as inputs (UTXOs)
-type GetUtxos = "utxos" :> Summary "Reads all UTXOs" :> "get"
+type GetUtxosEndpoint = "utxos" :> Summary "Reads all UTXOs" :> "get"
   :> Get '[JSON] [BoxId]
 
 -- | Checks weather we can spend given @BoxId@.
-type HasUtxo = "has-utxo" :> Summary "Checks waether UTXO is avaiable"
+type HasUtxoEndpoint = "has-utxo" :> Summary "Checks waether UTXO is avaiable"
   :> Capture "box-id" BoxId
   :> Get '[JSON] Bool
+
+type ReadBlockEndpoint = "read-block" :> Summary "Reads block of transactions at the given height"
+  :> Capture "height" Int
+  :> Get '[JSON] (Maybe [Tx])
+
+type ReadBlockchainHeightEndpoint = "read-blockchain-height" :> Summary "Reads current height of blockchain"
+  :> Get '[JSON] Int
 
 -- | Result of posted transaction. Contains TX-hash if it was approved.
 data PostTxResponse = PostTxResponse

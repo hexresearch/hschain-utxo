@@ -52,6 +52,8 @@ baseFuns :: [Bind Lang]
 baseFuns =
   [ all
   , any
+  , andSigma
+  , orSigma
   , and
   , or
   , sum
@@ -74,6 +76,7 @@ baseFuns =
   , trace
   , lengthVec
   , lengthText
+  , lengthBytes
   , showInt
   , showBool
   , showScript
@@ -119,6 +122,8 @@ baseNames =
   , "any"
   , "and"
   , "or"
+  , "andSigma"
+  , "orSigma"
   , "sumInt"
   , "productInt"
   , "sum"
@@ -141,6 +146,7 @@ baseNames =
   , "trace"
   , "length"
   , "lengthText"
+  , "lengthBytes"
   , "showInt"
   , "showDouble"
   , "showBool"
@@ -195,6 +201,8 @@ baseLibTypeContext :: TypeContext
 baseLibTypeContext = H.Context $ M.fromList $
   [ assumpType "and" (monoT $ vectorT boolT ~> boolT)
   , assumpType "or" (monoT $ vectorT boolT ~> boolT)
+  , assumpType "andSigma" (monoT $ vectorT sigmaT ~> sigmaT)
+  , assumpType "orSigma" (monoT $ vectorT sigmaT ~> sigmaT)
   , assumpType "all" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
   , assumpType "any" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
   , assumpType "sumInt"      (monoT $ vectorT intT ~> intT)
@@ -218,6 +226,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "trace" (forA $ textT ~> aT ~> aT)
   , assumpType "length" (forA $ vectorT aT ~> intT)
   , assumpType "lengthText" (monoT $ textT ~> intT)
+  , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
   , assumpType "showInt" (monoT $ intT ~> textT)
   , assumpType "showDouble" (monoT $ intT ~> textT)
   , assumpType "showBool" (monoT $ boolT ~> textT)
@@ -289,6 +298,12 @@ or = bind "or" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold n
   where
     g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
     z = Fix $ PrimE noLoc $ PrimBool P.False
+
+andSigma :: Bind Lang
+andSigma = bind "andSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAndSigma noLoc) x)
+
+orSigma :: Bind Lang
+orSigma = bind "orSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecOrSigma noLoc) x)
 
 sumInt :: Bind Lang
 sumInt = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
@@ -376,6 +391,9 @@ lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE n
 
 lengthText :: Bind Lang
 lengthText = bind "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))
+
+lengthBytes :: Bind Lang
+lengthBytes = bind "lengthBytes" (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ BytesLength noLoc x)
 
 biOp :: Text -> BinOp -> Bind Lang
 biOp name op = bind name (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc op x y)
