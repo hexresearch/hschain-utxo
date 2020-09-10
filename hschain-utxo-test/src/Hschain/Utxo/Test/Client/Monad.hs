@@ -1,5 +1,6 @@
 module Hschain.Utxo.Test.Client.Monad(
     App(..)
+  , StMAppM(..)
   , TestEnv(..)
   , TestSpec(..)
   , runApp

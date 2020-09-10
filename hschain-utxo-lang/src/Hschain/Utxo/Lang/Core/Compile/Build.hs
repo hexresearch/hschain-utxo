@@ -132,10 +132,10 @@ getBoxScript :: ExprCore -> ExprCore
 getBoxScript = EAp (EPrimOp OpGetBoxScript)
 
 getBoxIntArgs,getBoxTextArgs,getBoxByteArgs,getBoxBoolArgs :: ExprCore -> ExprCore
-getBoxIntArgs  = EAp (EPrimOp $ OpEnvGetArgs IntArg)
-getBoxTextArgs = EAp (EPrimOp $ OpEnvGetArgs TextArg)
-getBoxByteArgs = EAp (EPrimOp $ OpEnvGetArgs BytesArg)
-getBoxBoolArgs = EAp (EPrimOp $ OpEnvGetArgs BoolArg)
+getBoxIntArgs  = EAp (EPrimOp $ OpGetBoxArgs IntArg)
+getBoxTextArgs = EAp (EPrimOp $ OpGetBoxArgs TextArg)
+getBoxByteArgs = EAp (EPrimOp $ OpGetBoxArgs BytesArg)
+getBoxBoolArgs = EAp (EPrimOp $ OpGetBoxArgs BoolArg)
 
 getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
 getInputs   = EPrimOp OpEnvGetInputs

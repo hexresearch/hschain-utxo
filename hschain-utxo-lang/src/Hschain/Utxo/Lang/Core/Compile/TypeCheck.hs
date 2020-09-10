@@ -284,6 +284,7 @@ primopToType = \case
   OpGetBoxId     -> pure $ funT [boxT] bytesT
   OpGetBoxScript -> pure $ funT [boxT] bytesT
   OpGetBoxValue  -> pure $ funT [boxT] intT
+  OpGetBoxArgs t -> pure $ funT [ boxT ] (listT $ tagToType t)
   OpMakeBox      -> pure $ funT [bytesT, bytesT, intT, argsT] boxT
   --
   OpShow      ty  -> showType ty
@@ -293,7 +294,6 @@ primopToType = \case
   --
   OpEnvGetHeight  -> pure intT
   OpEnvGetSelf    -> pure boxT
-  OpEnvGetArgs t  -> pure $ funT [ boxT ] (listT $ tagToType t)
   OpEnvGetInputs  -> pure $ listT boxT
   OpEnvGetOutputs -> pure $ listT boxT
   --

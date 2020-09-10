@@ -33,7 +33,6 @@ import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxI
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 
-
 -- | Value hanled by evaluator
 data Val
   = ValP !Prim                  -- ^ Primitive value
@@ -239,17 +238,17 @@ evalPrimOp env = \case
   OpGetBoxValue -> lift1 $ \case
     ValCon 0 [_,_,i,_] -> i
     x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+  OpGetBoxArgs t -> ValF $ \case
+    ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools, bytes]] -> case t of
+      IntArg   -> ints
+      TextArg  -> txts
+      BoolArg  -> bools
+      BytesArg -> bytes
+    p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
   OpMakeBox -> Val2F $ \a b -> Val2F $ \c d -> ValCon 0 [a,b,c,d]
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpEnvGetSelf   -> inj $ inputEnv'self env
-  OpEnvGetArgs t -> ValF $ \case
-    ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools]] -> case t of
-      IntArg   -> ints
-      TextArg  -> txts
-      BoolArg  -> bools
-      BytesArg -> ValBottom $ EvalErr "No bytes arguments"
-    p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
   OpEnvGetInputs  -> inj $ inputEnv'inputs  env
   OpEnvGetOutputs -> inj $ inputEnv'outputs env
   --
@@ -420,6 +419,7 @@ instance InjPrim Args where
     [ inj args'ints
     , inj args'texts
     , inj args'bools
+    , inj args'bytes
     ]
 
 

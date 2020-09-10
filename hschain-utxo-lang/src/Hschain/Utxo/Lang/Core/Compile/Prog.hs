@@ -36,7 +36,7 @@ execScriptToSigma env prog = case isSigmaScript prog of
       Ref.EvalPrim (PrimSigma s) -> case eliminateSigmaBool s of
         Left  b  -> Right $ Fix $ SigmaBool b
         Right s' -> Right $ s'
-      _                  -> Left $ E.CoreScriptError E.ResultIsNotSigma
+      _                          ->  Left $ E.CoreScriptError E.ResultIsNotSigma
 
 -- | the program is sigma script if
 --

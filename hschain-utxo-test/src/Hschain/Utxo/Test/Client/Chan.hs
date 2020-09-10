@@ -49,7 +49,7 @@ newBlockChan clientSpec dtime mHeight = do
     readNewBlocks tchan heightVar = do
       prevHeight <- getPrevHeight heightVar
       currentHeight  <- getCurrentHeight
-      when (prevHeight >= currentHeight) $ do
+      when (prevHeight < currentHeight) $ do
         bs <- fetchBlocksFromTo (prevHeight + 1) currentHeight
         atomically $ do
           writeTVar heightVar currentHeight

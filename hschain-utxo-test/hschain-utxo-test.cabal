@@ -34,6 +34,7 @@ library
                      , bytestring
                      , hex-common
                      , hschain
+                     , hschain-crypto
                      , hschain-logger
                      , hschain-utxo-api-client
                      , hschain-utxo-api-rest
@@ -53,6 +54,7 @@ library
                      , servant
                      , servant-client
                      , lifted-base
+                     , lifted-async
                      , monad-control
                      , mtl
                      , random

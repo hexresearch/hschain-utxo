@@ -73,6 +73,7 @@ prettyArgs Args{..} = prettyRecord "Args"
   [ ("args'ints",  pretty $ V.toList args'ints)
   , ("args'texts", pretty $ V.toList args'texts)
   , ("args'bools", pretty $ V.toList args'bools)
+  , ("args'bytes", pretty $ V.toList $ fmap encodeBase58 args'bytes)
   ]
 
 instance Pretty TxHash where
