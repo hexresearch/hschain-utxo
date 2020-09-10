@@ -117,7 +117,7 @@ runInferM (InferM m) = runExcept $ evalStateT m 0
 inferType :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
   => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var)
 inferType ctx term =
-  fmap (normaliseType . mapLoc fromOrigin . (\(_, ty, _) -> ty)) $
+  fmap (normaliseType . mapLoc fromOrigin . (\(_, t) -> termType t)) $
     runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
 
 -- | Infers types for all subexpressions of the given term.
@@ -125,17 +125,20 @@ inferType ctx term =
 inferTerm :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
   => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var, TyTerm prim loc var)
 inferTerm ctx term =
-  fmap ((\(_, ty, tyTerm) -> (toType ty, toTyTerm tyTerm))) $
+  fmap ((\(_, tyTerm) -> (toType tyTerm, toTyTerm tyTerm))) $
     runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
   where
-    toType   = normaliseType . mapLoc fromOrigin
+    toType   = normaliseType . mapLoc fromOrigin . termType
     toTyTerm = mapType normaliseType . mapLoc fromOrigin
 
-type Out prim loc var = (Subst (Origin loc) var, Type (Origin loc) var, TyTerm prim (Origin loc) var)
-type InferOut prim loc var = InferM loc var (Out prim loc var)
+type Out prim loc var = ( Subst (Origin loc) var
+                        , TyTerm prim (Origin loc) var
+                        )
 
 infer :: (Eq loc, IsVar var, Show loc, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var)
-  => Context' loc var -> Term' prim loc var -> InferOut prim loc var
+  => Context' loc var
+  -> Term' prim loc var
+  -> InferM loc var (Out prim loc var)
 infer ctx (Term (Fix x)) = case x of
   Var loc v           -> inferVar ctx loc v
   Prim loc p          -> inferPrim loc p
@@ -149,38 +152,52 @@ infer ctx (Term (Fix x)) = case x of
   Bottom loc          -> inferBottom loc
 
 inferVar :: (Show loc, IsVar v)
-  => Context (Origin loc) v -> Origin loc -> v -> InferOut prim loc v
+  => Context (Origin loc) v
+  -> Origin loc
+  -> v
+  -> InferM loc v (Out prim loc v)
 inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
-  fmap (\ty -> (mempty, ty, tyVarE ty loc v)) $ maybe err (newInstance . setLoc loc) $ M.lookup v (unContext ctx)
-  where
-    err = throwError $ NotInScopeErr (fromOrigin loc) v
+  case M.lookup v (unContext ctx) of
+    Nothing  -> throwError $ NotInScopeErr (fromOrigin loc) v
+    Just sig -> do ty <- newInstance $ setLoc loc sig
+                   return (mempty, tyVarE ty loc v)
 
 inferPrim :: (Ord v, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Origin loc -> prim -> InferOut prim loc v
+  => Origin loc
+  -> prim
+  -> InferM loc var (Out prim loc v)
 inferPrim loc prim =
-  return (mempty, ty, tyPrimE ty loc prim)
+  return (mempty, tyPrimE ty loc prim)
   where
     ty = mapLoc UserCode $ getPrimType prim
 
 inferApp :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v -> Origin loc -> Term' prim loc v -> Term' prim loc v -> InferOut prim loc v
+  => Context' loc v
+  -> Origin loc
+  -> Term' prim loc v
+  -> Term' prim loc v
+  -> InferM loc v (Out prim loc v)
 inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]) $ -} do
   tvn <- fmap (varT loc) $ freshVar
   res <- inferTerms ctx [f, a]
   case res of
-    (phi, [(tf, f'), (ta, a')]) -> liftEither $ fmap (\subst ->
-                                                    let ty   = apply subst tvn
-                                                        term = tyAppE ty loc (apply subst f') (apply subst a')
-                                                    in  (subst, ty, term)) $ unify phi tf (arrowT loc ta tvn)
+    (phi, [(tf, f'), (ta, a')]) -> fmap (\subst ->
+                                            let ty   = apply subst tvn
+                                                term = tyAppE ty loc (apply subst f') (apply subst a')
+                                            in  (subst, term)) $ unify phi tf (arrowT loc ta tvn)
     _               -> error "Impossible has happened!"
 
 inferLam :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v -> Origin loc -> v -> Term' prim loc v -> InferOut prim loc v
+  => Context' loc v
+  -> Origin loc
+  -> v
+  -> Term' prim loc v
+  -> InferM loc v (Out prim loc v)
 inferLam ctx loc x body = do
   tvn <- freshVar
-  (phi, tbody, bodyTyTerm) <- infer (ctx1 tvn) body
-  let ty = arrowT loc (apply phi (varT loc tvn)) tbody
-  return (phi, ty, tyLamE ty loc x bodyTyTerm)
+  (phi, bodyTyTerm) <- infer (ctx1 tvn) body
+  let ty = arrowT loc (apply phi (varT loc tvn)) (termType bodyTyTerm)
+  return (phi, tyLamE ty loc x bodyTyTerm)
   where
     ctx1 tvn = insertCtx x (newVar loc tvn) ctx
 
@@ -189,26 +206,28 @@ inferLet :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ Pri
   -> Origin loc
   -> [Bind' loc v (Term' prim loc v)]
   -> Term' prim loc v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferLet ctx loc vs body = do
   (phi, rhsTyTerms) <- inferTerms ctx $ fmap bind'rhs vs
   let (tBinds, termBinds) = unzip rhsTyTerms
   ctx1 <- addDecls (zipWith (\a t -> fmap (const t) a) vs tBinds) (apply phi ctx)
-  (subst, tbody, bodyTerm) <- infer ctx1 body
+  (subst, bodyTerm) <- infer ctx1 body
   let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
-  return (subst <> phi, tbody, tyLetE tbody loc tyBinds bodyTerm)
+  return ( subst <> phi
+         , tyLetE (termType bodyTerm) loc tyBinds bodyTerm
+         )
 
 inferLetRec :: forall prim loc v . (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc
   -> [Bind' loc v (Term' prim loc v)]
   -> Term' prim loc v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferLetRec ctx topLoc vs body = do
   lhsCtx <- getTypesLhs vs
   (phi, rhsTyTerms) <- inferTerms (ctx <> Context (M.fromList lhsCtx)) exprBinds
   let (tBinds, bindsTyTerms) = unzip rhsTyTerms
-  (ctx1, lhsCtx1, subst) <- liftEither $ unifyRhs ctx lhsCtx phi tBinds
+  (ctx1, lhsCtx1, subst) <- unifyRhs ctx lhsCtx phi tBinds
   inferBody bindsTyTerms ctx1 lhsCtx1 subst body
   where
     exprBinds = fmap bind'rhs vs
@@ -232,35 +251,41 @@ inferLetRec ctx topLoc vs body = do
 
     inferBody termBinds context lhsCtx subst expr = do
       ctx1 <- addDecls (zipWith (\loc (v, ty) -> Bind loc v ty) locBinds $ fmap (second $ oldBvar . apply subst) lhsCtx) $ apply subst context
-      (phi, ty, bodyTerm) <- infer ctx1 expr
+      (phi, bodyTerm) <- infer ctx1 expr
       let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
-      return (phi <> subst, ty, tyLetRecE ty topLoc tyBinds bodyTerm)
+      return (phi <> subst, tyLetRecE (termType bodyTerm) topLoc tyBinds bodyTerm)
 
 inferAssertType :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc
   -> Term' prim loc v
   -> Type' loc v
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferAssertType ctx loc a ty = do
-  (phi, tA, aTyTerm) <- infer ctx a
-  subst <- liftEither $ genSubtypeOf phi ty tA
-  return (subst <> phi, ty, tyAssertTypeE loc aTyTerm ty)
+  (phi, aTyTerm) <- infer ctx a
+  subst <- genSubtypeOf phi ty (termType aTyTerm)
+  return (subst <> phi, tyAssertTypeE loc aTyTerm ty)
 
-inferConstr :: (Eq loc, IsVar v) => Origin loc -> Type' loc v -> v -> Int -> InferOut prim loc v
+inferConstr :: (Eq loc, IsVar v)
+  => Origin loc
+  -> Type' loc v
+  -> v
+  -> Int
+  -> InferM loc v (Out prim loc v)
 inferConstr loc ty tag arity = do
   vT <- newInstance $ typeToSignature ty
-  return $  (mempty, vT, tyConstrE loc vT tag arity)
+  return (mempty, tyConstrE loc vT tag arity)
 
 inferCase :: forall prim loc v .
      (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc -> Term' prim loc v -> [CaseAlt' loc v (Term' prim loc v)]
-  -> InferOut prim loc v
+  -> InferM loc v (Out prim loc v)
 inferCase ctx loc e caseAlts = do
-  (phi, tE, tyTermE) <- infer ctx e
-  (psi, tRes, tyAlts) <- inferAlts phi tE caseAlts
-  return (psi, tRes, apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
+  (phi, tyTermE) <- infer ctx e
+  (psi, tRes, tyAlts) <- inferAlts phi (termType tyTermE) caseAlts
+  return ( psi
+         , apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
   where
     inferAlts :: Subst' loc v -> Type' loc v -> [CaseAlt' loc v (Term' prim loc v)] -> InferM loc v (Subst' loc v, Type' loc v, [CaseAlt' loc v (TyTerm' prim loc v)])
     inferAlts substE tE alts =
@@ -268,7 +293,7 @@ inferCase ctx loc e caseAlts = do
       where
         go (subst, tyTop, _, res) alt = do
           (phi, tRes, alt') <- inferAlt alt
-          subst' <- liftEither $ unify (subst <> phi) (apply phi tyTop) (apply phi $ caseAlt'constrType alt')
+          subst' <- unify (subst <> phi) (apply phi tyTop) (apply phi $ caseAlt'constrType alt')
           return (subst', apply subst' tyTop, apply subst' tRes, applyAlt subst' alt' : res)
 
 
@@ -277,14 +302,14 @@ inferCase ctx loc e caseAlts = do
       alt <- newCaseAltInstance preAlt
       let argVars = fmap  (\ty -> (snd $ typed'value ty, (fst $ typed'value ty, typed'type ty))) $ caseAlt'args alt
           ctx1 = Context (M.fromList $ fmap (second $ monoT . snd) argVars) <> ctx
-      (subst, tRes, tyTermRhs) <- infer ctx1 $ caseAlt'rhs alt
+      (subst, tyTermRhs) <- infer ctx1 $ caseAlt'rhs alt
       let args = fmap (\(v, (argLoc, tv)) -> Typed (apply subst tv) (argLoc, v)) argVars
           alt' = alt
                   { caseAlt'rhs = tyTermRhs
                   , caseAlt'args = args
                   , caseAlt'constrType = apply subst $ caseAlt'constrType alt
                   }
-      return (subst, tRes, alt')
+      return (subst, termType tyTermRhs, alt')
 
     newCaseAltInstance :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v (CaseAlt' loc v (Term' prim loc v))
     newCaseAltInstance alt = do
@@ -317,12 +342,12 @@ inferCase ctx loc e caseAlts = do
       where
         applyTyped ty@Typed{..} = ty { typed'type = apply subst $ typed'type }
 
-inferBottom :: IsVar v => Origin loc -> InferOut prim loc v
+inferBottom :: IsVar v => Origin loc -> InferM loc v (Out prim loc v)
 inferBottom loc = do
   ty <- fmap (varT loc) freshVar
-  return (mempty, ty, tyBottomE ty loc)
+  return (mempty, tyBottomE ty loc)
 
-newInstance :: IsVar v => Signature' loc v -> InferM loc v (Type' loc v)
+newInstance :: IsVar v => Signature loc v -> InferM loc' v (Type loc v)
 newInstance = fmap (uncurry apply) . cataM go . unSignature
   where
     go = \case
@@ -345,17 +370,20 @@ inferTerms :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ P
 inferTerms ctx ts = case ts of
   []   -> return $ (mempty, [])
   a:as -> do
-    (phi, ta, termA)  <- infer ctx a
+    (phi, termA) <- infer ctx a
+    let ta = termType termA
     (psi, tas) <- inferTerms (apply phi ctx) as
-    return (psi <> phi, (apply psi ta, apply psi termA) : tas)
+    return ( psi <> phi
+           , (apply psi ta, apply psi termA) : tas
+           )
 
 -- | Unification function. Checks weather two types unify.
 -- First argument is current substitution.
-unify :: (IsVar v, Show loc)
+unify :: (IsVar v, Show loc, MonadError (TypeError loc v) m)
   => Subst' loc v
   -> Type' loc v
   -> Type' loc v
-  -> Either (TypeError loc v) (Subst' loc v)
+  -> m (Subst' loc v)
 unify phi (Type (Fix x)) (Type (Fix y)) = {- trace (unlines ["UNIFY", ppShow tx, ppShow ty]) $ -}
   case (x, y) of
     (VarT loc tvn, t) ->
@@ -377,10 +405,10 @@ unify phi (Type (Fix x)) (Type (Fix y)) = {- trace (unlines ["UNIFY", ppShow tx,
     (ListT _ a, ListT _ b) -> unify phi (Type a) (Type b)
     (a, b) -> unifyErr (getLoc $ Type $ Fix a) (getLoc $ Type $ Fix b)
   where
-    unifyErr locA locB =
-      Left $ UnifyErr (chooseUserOrigin locA locB)
-                      (mapLoc fromOrigin $ Type (Fix x))
-                      (mapLoc fromOrigin $ Type (Fix y))
+    unifyErr locA locB = throwError $
+      UnifyErr (chooseUserOrigin locA locB)
+               (mapLoc fromOrigin $ Type (Fix x))
+               (mapLoc fromOrigin $ Type (Fix y))
 
 eqIgnoreLoc :: Eq v => Type loc v -> Type loc v -> Bool
 eqIgnoreLoc = (==) `on` mapLoc (const ())
@@ -388,18 +416,20 @@ eqIgnoreLoc = (==) `on` mapLoc (const ())
 applyVar :: IsVar v => Subst' loc v -> Origin loc -> v -> Type' loc v
 applyVar (Subst subst) loc v = fromMaybe (varT loc v) $ M.lookup v subst
 
-extend :: IsVar v => Subst' loc v -> Origin loc -> v -> Type' loc v -> Either (TypeError loc v) (Subst' loc v)
+extend
+  :: (IsVar v, MonadError (TypeError loc v) m)
+  => Subst' loc v -> Origin loc -> v -> Type' loc v -> m (Subst' loc v)
 extend phi loc tvn ty
-  | varT loc tvn `eqIgnoreLoc` ty = Right phi
-  | memberVarSet tvn (tyVars ty)  = Left $ OccursErr (fromOrigin loc) (mapLoc fromOrigin ty)
-  | otherwise                     = Right $ delta tvn ty <> phi
+  | varT loc tvn `eqIgnoreLoc` ty = return phi
+  | memberVarSet tvn (tyVars ty)  = throwError $ OccursErr (fromOrigin loc) (mapLoc fromOrigin ty)
+  | otherwise                     = return $ delta tvn ty <> phi
 
-unifyl :: (IsVar v, Show loc)
+unifyl :: (IsVar v, Show loc, MonadError (TypeError loc v) m)
   => Subst' loc v
   -> [Type' loc v]
   -> [Type' loc v]
-  -> Either (TypeError loc v) (Subst' loc v)
-unifyl subst as bs = foldr go (Right subst) $ zip as bs
+  -> m (Subst' loc v)
+unifyl subst as bs = foldr go (return subst) $ zip as bs
   where
     go (a, b) eSubst = (\t -> unify t a b) =<< eSubst
 
@@ -411,11 +441,11 @@ subtypeOf a b = fmap fromSubstOrigin $ genSubtypeOf mempty (mapLoc Proven a) (ma
 fromSubstOrigin :: Ord v => Subst' loc v -> Subst loc v
 fromSubstOrigin = Subst . M.map (mapLoc fromOrigin) . unSubst
 
-genSubtypeOf :: (IsVar v, Show loc)
+genSubtypeOf :: (IsVar v, Show loc, MonadError (TypeError loc v) m)
   => Subst' loc v
   -> Type' loc v
   -> Type' loc v
-  -> Either (TypeError loc v) (Subst' loc v)
+  -> m (Subst' loc v)
 genSubtypeOf phi tx@(Type (Fix x)) ty@(Type (Fix y)) = case (x, y) of
   (_, VarT _ _) -> unify phi tx ty
   (ConT locA n xs, ConT locB m ys) ->
@@ -431,12 +461,15 @@ genSubtypeOf phi tx@(Type (Fix x)) ty@(Type (Fix y)) = case (x, y) of
   (VarT locA _, _) -> subtypeErr locA (getLoc ty)
   _ -> subtypeErr (getLoc tx) (getLoc ty)
   where
-    subtypeErr locA locB =
-      Left $ SubtypeErr (chooseUserOrigin locA locB) (mapLoc fromOrigin tx) (mapLoc fromOrigin ty)
+    subtypeErr locA locB = throwError
+      $ SubtypeErr (chooseUserOrigin locA locB) (mapLoc fromOrigin tx) (mapLoc fromOrigin ty)
 
-subtypeOfL :: (IsVar v, Show loc)
-  => Subst' loc v -> [Type' loc v] -> [Type' loc v] -> Either (TypeError loc v) (Subst' loc v)
-subtypeOfL subst as bs = foldr go (Right subst) $ zip as bs
+subtypeOfL :: (IsVar v, Show loc, MonadError (TypeError loc v) m)
+  => Subst' loc v
+  -> [Type' loc v]
+  -> [Type' loc v]
+  -> m (Subst' loc v)
+subtypeOfL subst as bs = foldr go (return subst) $ zip as bs
   where
     go (a, b) eSubst = (\t -> genSubtypeOf t a b) =<< eSubst
 
