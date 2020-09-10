@@ -83,7 +83,7 @@ mainProg expr = CoreProg [mkMain expr]
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
   testCase testName $ do
-    let tc = typeCheck mempty prog
+    let tc = typeCheck prog
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 

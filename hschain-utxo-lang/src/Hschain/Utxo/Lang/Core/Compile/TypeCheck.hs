@@ -35,6 +35,7 @@ import Control.Monad.Reader
 import Control.Monad.Except
 
 import Data.Fix
+import Data.Foldable
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -43,7 +44,6 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr (argTagToType)
 
 import qualified Data.Map.Strict as M
-import qualified Data.List as L
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
@@ -71,9 +71,9 @@ unifyMonoType a b = case (a, b) of
   (ta, AnyType) -> return ta
 
 -- | Check the types for core programm.
-typeCheck :: TypeContext -> CoreProg -> Maybe TypeCoreError
-typeCheck ctx prog = either Just (const Nothing) $
-  runCheck (loadContext prog ctx) (typeCheckM prog)
+typeCheck :: CoreProg -> Maybe TypeCoreError
+typeCheck prog = either Just (const Nothing) $
+  runCheck (loadContext prog) (typeCheckM prog)
 
 
 -- | Monad for the type inference.
@@ -216,9 +216,9 @@ newtype TypeContext = TypeContext (Map Name SignatureCore)
   deriving newtype (Semigroup, Monoid)
 
 -- | Loads all user defined signatures to context
-loadContext :: CoreProg -> TypeContext -> TypeContext
-loadContext (CoreProg defs) ctx =
-  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombSignature sc) res) ctx defs
+loadContext :: CoreProg -> TypeContext
+loadContext (CoreProg defs) =
+  foldl' (\res sc -> insertSignature (scomb'name sc) (getScombSignature sc) res) mempty defs
 
 insertSignature :: Name -> SignatureCore -> TypeContext -> TypeContext
 insertSignature name sig (TypeContext m) =
@@ -226,7 +226,7 @@ insertSignature name sig (TypeContext m) =
 
 loadArgs :: [Typed Name] -> TypeContext -> TypeContext
 loadArgs args ctx =
-  L.foldl' (\res arg -> loadName arg res) ctx args
+  foldl' (\res arg -> loadName arg res) ctx args
 
 loadName :: Typed Name -> TypeContext -> TypeContext
 loadName Typed{..} = insertSignature typed'value (H.monoT typed'type)

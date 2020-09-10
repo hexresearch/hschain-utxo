@@ -64,7 +64,7 @@ restrictContext t (Context ctx) = Context $ M.intersection ctx fv
   where
     fv = M.fromList $ fmap (, ()) $ S.toList $ freeVars t
 
-markProven :: Ord v => Context loc v -> Context (Origin loc) v
+markProven :: Context loc v -> Context (Origin loc) v
 markProven = Context . M.map (mapLoc Proven) . unContext
 
 markUserCode :: Term prim loc v -> Term prim (Origin loc) v
@@ -354,7 +354,7 @@ newInstance = fmap (uncurry apply) . cataM go . unSignature
       MonoT ty -> return (mempty, ty)
       ForAllT loc v (Subst m, ty) -> fmap (\nv -> (Subst $ M.insert v (varT loc nv) m, ty)) freshVar
 
-newVar :: IsVar v => loc -> v -> Signature loc v
+newVar :: loc -> v -> Signature loc v
 newVar loc tvn = monoT $ varT loc tvn
 
 freshVar :: IsVar v => InferM loc v v
@@ -438,7 +438,7 @@ subtypeOf :: (IsVar v, Show loc)
   => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
 subtypeOf a b = fmap fromSubstOrigin $ genSubtypeOf mempty (mapLoc Proven a) (mapLoc UserCode b)
 
-fromSubstOrigin :: Ord v => Subst' loc v -> Subst loc v
+fromSubstOrigin :: Subst' loc v -> Subst loc v
 fromSubstOrigin = Subst . M.map (mapLoc fromOrigin) . unSubst
 
 genSubtypeOf :: (IsVar v, Show loc, MonadError (TypeError loc v) m)

@@ -55,7 +55,7 @@ isSigmaScript prog =
 -- * has no recursion
 coreProgTerminates :: CoreProg -> Maybe E.Error
 coreProgTerminates prog =
-      coreTypeError   (typeCheck mempty prog)
+      coreTypeError   (typeCheck prog)
   <|> recursiveScript (recursionCheck prog)
   where
     coreTypeError   = fmap (E.CoreScriptError . E.TypeCoreError)
