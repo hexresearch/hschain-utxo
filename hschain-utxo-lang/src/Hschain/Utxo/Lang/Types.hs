@@ -215,7 +215,7 @@ data ExpectedBox = ExpectedBox
     -- ^ content of box input reference (id, arguments)
   }
 
--- | If we now the expected sigma expressions for the inputs
+-- | If we know the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
