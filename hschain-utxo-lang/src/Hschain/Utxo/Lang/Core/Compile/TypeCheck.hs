@@ -12,8 +12,6 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   -- * primitive types
   , primToType
   , primopToType
-  , varT
-  , funT
 ) where
 
 
@@ -28,7 +26,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (argTagToType,argsT,intT,textT,bytesT,boolT,sigmaT,boxT,arrowT,listT)
+import Hschain.Utxo.Lang.Expr (argTagToType,argsT,intT,textT,bytesT,boolT,sigmaT,boxT,listT,funT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -326,10 +324,3 @@ showType ty
   | otherwise   = throwError $ BadEquality ty
   where
     r = funT [ty] textT
-
-
-varT :: Name -> TypeCore
-varT name = H.varT () name
-
-funT :: [TypeCore] -> TypeCore -> TypeCore
-funT args resT = foldr arrowT resT args

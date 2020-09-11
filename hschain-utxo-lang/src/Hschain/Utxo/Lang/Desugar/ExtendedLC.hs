@@ -17,7 +17,6 @@ import Hschain.Utxo.Lang.Expr hiding (Expr)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck(varT)
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case

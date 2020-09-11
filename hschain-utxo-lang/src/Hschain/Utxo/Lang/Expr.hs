@@ -761,6 +761,12 @@ listT = listT' H.defLoc
 arrowT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text -> H.Type loc Text
 arrowT = H.arrowT H.defLoc
 
+varT :: H.DefLoc loc => v -> H.Type loc v
+varT = H.varT H.defLoc
+
+funT :: H.DefLoc loc => [H.Type loc Text] -> H.Type loc Text -> H.Type loc Text
+funT args resT = foldr arrowT resT args
+
 argsT :: H.DefLoc loc => H.Type loc Text
 argsT = tupleT [listT intT, listT textT, listT boolT]
 

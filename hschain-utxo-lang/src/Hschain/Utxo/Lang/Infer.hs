@@ -19,7 +19,7 @@ import Control.Monad.State.Strict
 import Data.Fix hiding ((~>))
 import Data.Text (Text)
 
-import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, stripSignature)
+import Language.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)
 
 import Hschain.Utxo.Lang.Desugar hiding (app1, app2, app3)
 import Hschain.Utxo.Lang.Expr
@@ -311,8 +311,8 @@ defaultContext = H.Context $ M.fromList $
 
     forA = forAllT noLoc "a"
     forAB = forA . forAllT noLoc "b"
-    a = varT noLoc "a"
-    b = varT noLoc "b"
+    a = varT "a"
+    b = varT "b"
     arr = arrowT
 
     opT2 x = monoT $ x `arr` (x `arr` x)
@@ -329,7 +329,7 @@ defaultContext = H.Context $ M.fromList $
         tupleConType size = foldr (\var mt -> forAllT noLoc var mt) (monoT ty) vs
           where
             vs = fmap v [0 .. size-1]
-            ty = foldr (\lhs rhs -> arrowT (varT noLoc lhs) rhs) (tupleCon size) vs
+            ty = foldr (\lhs rhs -> arrowT (varT lhs) rhs) (tupleCon size) vs
 
     tupleAtVars = [ toTuple size idx | size <- [2..maxTupleSize], idx <- [0 .. size-1]]
       where
@@ -337,12 +337,12 @@ defaultContext = H.Context $ M.fromList $
         toTuple size idx = (tupleAtVar size idx, tupleAtType size idx)
 
         tupleAtType :: Int -> Int -> Signature
-        tupleAtType size idx = predicate $ monoT $ (tupleCon size) `arr` (varT noLoc $ v idx)
+        tupleAtType size idx = predicate $ monoT $ (tupleCon size) `arr` (varT $ v idx)
           where
             predicate = foldr (.) id $ fmap (\n -> forAllT noLoc (v n)) [0 .. size-1]
 
     tupleCon :: Int -> Type
-    tupleCon size = tupleT $ fmap (varT noLoc . v) [0..size-1]
+    tupleCon size = tupleT $ fmap (varT . v) [0..size-1]
 
     v n = mappend "a" (showt n)
 
@@ -521,7 +521,7 @@ userTypesToTypeContext (UserTypeCtx m _ _ _) =
         toSelType ty = appArgsT $ monoT $ arrowT resT ty
         toConstSelType =
           appArgsT $ forAllT noLoc freshVar $ monoT $ arrowT resT
-            $ arrowT (varT noLoc freshVar) (varT noLoc freshVar)
+            $ arrowT (varT freshVar) (varT freshVar)
           where
             freshVar = mappend "a" $ mconcat $ fmap varName'name userType'args
 
@@ -541,7 +541,7 @@ userTypesToTypeContext (UserTypeCtx m _ _ _) =
     toArgsT UserType{..} ty = foldr (\a res -> forAllT noLoc (varName'name a) res) ty userType'args
 
     con' VarName{..} = conT varName'loc varName'name
-    var' VarName{..} = varT varName'loc varName'name
+    var' VarName{..} = H.varT varName'loc varName'name
 
 selectorNameVar :: ConsName -> Int -> T.Text
 selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]

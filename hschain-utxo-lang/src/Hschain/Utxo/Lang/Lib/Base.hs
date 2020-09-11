@@ -501,16 +501,11 @@ var' :: Text -> Lang
 var' name = Fix $ Var noLoc (VarName noLoc name)
 
 f, x, y :: Lang
-
 f = Fix $ Var noLoc "f"
 x = Fix $ Var noLoc "x"
 y = Fix $ Var noLoc "y"
 
 aT, bT, cT :: Type
-
-varT :: Text -> Type
-varT = H.varT noLoc
-
 aT = varT "a"
 bT = varT "b"
 cT = varT "c"
