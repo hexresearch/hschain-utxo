@@ -16,9 +16,10 @@ import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Sequence (Seq)
 
+import Hschain.Utxo.Lang.Expr                   (funT)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType, funT)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..), argTypeName, argTypes)

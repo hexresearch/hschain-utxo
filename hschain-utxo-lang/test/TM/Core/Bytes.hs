@@ -11,7 +11,8 @@ import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Utils.ByteString
 
-import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
+import Hschain.Utxo.Lang.Expr  ( Box(..),BoxId(..),Script(..)
+                               , intT,textT,bytesT,boolT)
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build

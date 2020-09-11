@@ -28,8 +28,7 @@ import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT,boolT)
-import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..))
+import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..), intT, boolT)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 

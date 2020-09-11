@@ -52,6 +52,10 @@ type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
 
+
+instance H.DefLoc Hask.SrcSpanInfo where
+  defLoc = Hask.noSrcSpan
+
 -- | Unknown source code location.
 noLoc :: Loc
 noLoc = Hask.noSrcSpan
@@ -739,52 +743,66 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: Type
+intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: H.DefLoc loc => H.Type loc Text
+intT    = intT'    H.defLoc
+boolT   = boolT'   H.defLoc
+bytesT  = bytesT'  H.defLoc
+boxT    = boxT'    H.defLoc
+scriptT = scriptT' H.defLoc
+textT   = textT'   H.defLoc
+sigmaT  = sigmaT'  H.defLoc
 
-intT = intT' noLoc
-boolT = boolT' noLoc
-bytesT = bytesT' noLoc
-boxT  = boxT' noLoc
-scriptT = scriptT' noLoc
-textT = textT' noLoc
-sigmaT = sigmaT' noLoc
+tupleT :: H.DefLoc loc => [H.Type loc Text] -> H.Type loc Text
+tupleT = tupleT'   H.defLoc
 
-constType :: Text -> Loc -> Type
+listT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text
+listT = listT' H.defLoc
+
+arrowT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text -> H.Type loc Text
+arrowT = H.arrowT H.defLoc
+
+varT :: H.DefLoc loc => v -> H.Type loc v
+varT = H.varT H.defLoc
+
+funT :: H.DefLoc loc => [H.Type loc Text] -> H.Type loc Text -> H.Type loc Text
+funT args resT = foldr arrowT resT args
+
+argsT :: H.DefLoc loc => H.Type loc Text
+argsT = tupleT [listT intT, listT textT, listT boolT]
+
+
+constType :: v -> loc -> H.Type loc v
 constType name loc = H.conT loc name []
 
-boxT' :: Loc -> Type
+boxT' :: loc -> H.Type loc Text
 boxT' = constType "Box"
 
-textT' :: Loc -> Type
+textT' :: loc -> H.Type loc Text
 textT' = constType "Text"
 
-bytesT' :: Loc -> Type
+bytesT' :: loc -> H.Type loc Text
 bytesT' = constType "Bytes"
 
-intT' :: Loc -> Type
+intT' :: loc -> H.Type loc Text
 intT' = constType "Int"
 
-boolT' :: Loc -> Type
+boolT' :: loc -> H.Type loc Text
 boolT' = constType "Bool"
 
-sigmaT' :: Loc -> Type
+sigmaT' :: loc -> H.Type loc Text
 sigmaT' = constType "Sigma"
 
-scriptT' :: Loc -> Type
+scriptT' :: loc -> H.Type loc Text
 scriptT' = constType "Script"
 
-vectorT :: Type -> Type
-vectorT = vectorT' noLoc
+listT' :: loc -> H.Type loc Text -> H.Type loc Text
+listT' loc a = H.listT loc a
 
-vectorT' :: Loc -> Type -> Type
-vectorT' loc a = H.listT loc a
-
-
-tupleT :: [Type] -> Type
-tupleT = tupleT' noLoc
-
-tupleT' ::  Loc -> [Type] -> Type
+tupleT' :: loc -> [H.Type loc Text] -> H.Type loc Text
 tupleT' loc ts = H.tupleT loc ts
+
+arrowT' :: loc -> H.Type loc Text -> H.Type loc Text -> H.Type loc Text
+arrowT' = H.arrowT
 
 --------------------------------
 -- instances

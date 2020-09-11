@@ -10,23 +10,8 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , getScombSignature
   , runCheck
   -- * primitive types
-  , intT
-  , boolT
-  , textT
-  , bytesT
-  , sigmaT
-  , primT
-  , boxT
-  , envT
   , primToType
   , primopToType
-  , varT
-  , listT
-  , argsT
-  , argsTypes
-  , tupleT
-  , arrowT
-  , funT
 ) where
 
 
@@ -41,7 +26,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (argTagToType)
+import Hschain.Utxo.Lang.Expr (argTagToType,argsT,intT,textT,bytesT,boolT,sigmaT,boxT,listT,funT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -339,48 +324,3 @@ showType ty
   | otherwise   = throwError $ BadEquality ty
   where
     r = funT [ty] textT
-
-intT :: TypeCore
-intT = primT "Int"
-
-textT :: TypeCore
-textT = primT "Text"
-
-bytesT :: TypeCore
-bytesT = primT "Bytes"
-
-boolT :: TypeCore
-boolT = primT "Bool"
-
-sigmaT :: TypeCore
-sigmaT = primT "Sigma"
-
-boxT :: TypeCore
-boxT = primT "Box"
-
-envT :: TypeCore
-envT = primT "Environment"
-
-primT :: Name -> TypeCore
-primT name = H.conT () name []
-
-varT :: Name -> TypeCore
-varT name = H.varT () name
-
-listT :: TypeCore -> TypeCore
-listT ty = H.listT () ty
-
-tupleT :: [TypeCore] -> TypeCore
-tupleT ts = H.tupleT () ts
-
-arrowT :: TypeCore -> TypeCore -> TypeCore
-arrowT a b = H.arrowT () a b
-
-funT :: [TypeCore] -> TypeCore -> TypeCore
-funT args resT = foldr arrowT resT args
-
-argsT :: TypeCore
-argsT = tupleT argsTypes
-
-argsTypes :: [TypeCore]
-argsTypes = [listT intT, listT textT, listT boolT]

@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
 import Control.Applicative
 import Data.Fix
 
+import Hschain.Utxo.Lang.Expr (sigmaT)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck

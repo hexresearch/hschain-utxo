@@ -6,6 +6,7 @@ module Examples.SKI where
 
 import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Expr (intT,arrowT)
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Data.Prim
 

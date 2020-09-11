@@ -4,6 +4,7 @@ module Language.HM.Type (
     stringIntToVar,
     stringPrettyLetters,
     HasLoc(..),
+    DefLoc(..),
     -- * Monomorphic types.
     TypeF(..),
     Type(..),
@@ -74,6 +75,10 @@ class HasLoc f where
   -- | Get the source code location.
   getLoc :: f -> Loc f
 
+-- | Type class for default location
+class DefLoc f where
+  defLoc :: f
+
 -- | Functions we need for variables to do type-inference.
 class (Show v, Ord v) => IsVar v where
   -- | Way to allocate fresh variables from integer count
@@ -94,6 +99,10 @@ stringIntToVar n = fromString $ mappend "$$" (show n)
 
 stringPrettyLetters :: IsString a => [a]
 stringPrettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+
+
+instance DefLoc () where
+  defLoc = ()
 
 instance HasLoc (Type loc v) where
   type Loc (Type loc v) = loc
