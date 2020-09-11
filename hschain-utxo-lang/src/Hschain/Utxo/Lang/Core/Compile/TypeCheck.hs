@@ -15,15 +15,11 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , textT
   , bytesT
   , sigmaT
-  , primT
   , boxT
-  , envT
   , primToType
   , primopToType
   , varT
   , listT
-  , argsT
-  , argsTypes
   , tupleT
   , arrowT
   , funT
@@ -357,9 +353,6 @@ sigmaT = primT "Sigma"
 
 boxT :: TypeCore
 boxT = primT "Box"
-
-envT :: TypeCore
-envT = primT "Environment"
 
 primT :: Name -> TypeCore
 primT name = H.conT () name []
