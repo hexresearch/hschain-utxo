@@ -35,6 +35,7 @@ import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..), Name)
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -973,6 +974,20 @@ sortBindGroups :: BindGroup Lang -> BindGroup Lang
 sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
    where
      toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)
+
+typeCoreToType :: TypeCore -> H.Type Loc Name
+typeCoreToType = \case
+  IntT      -> intT
+  BoolT     -> boolT
+  BytesT    -> bytesT
+  TextT     -> textT
+  SigmaT    -> sigmaT
+  ArgsT     -> argsT
+  BoxT      -> boxT
+  a :-> b   -> (arrowT `on` typeCoreToType) a b
+  ListT a   -> listT (typeCoreToType a)
+  TupleT xs -> tupleT $ typeCoreToType <$> xs
+
 
 -------------------------------------------------------------------
 
