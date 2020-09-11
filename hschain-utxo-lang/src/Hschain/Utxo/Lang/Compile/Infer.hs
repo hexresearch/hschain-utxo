@@ -16,8 +16,7 @@ import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
-import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (intT, boolT, textT, sigmaT)
+import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..), intT, boolT, textT, sigmaT)
 import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
 
 import qualified Language.HM as H

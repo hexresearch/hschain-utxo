@@ -41,7 +41,7 @@ import Data.Int
 import Data.Fix
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Expr (ArgType(..))
+import Hschain.Utxo.Lang.Expr (ArgType(..), intT, boolT, sigmaT)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Prim

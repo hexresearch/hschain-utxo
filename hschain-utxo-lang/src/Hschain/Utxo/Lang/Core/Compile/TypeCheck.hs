@@ -10,17 +10,10 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , getScombSignature
   , runCheck
   -- * primitive types
-  , intT
-  , boolT
-  , textT
-  , bytesT
-  , sigmaT
-  , boxT
   , primToType
   , primopToType
   , varT
   , listT
-  , tupleT
   , arrowT
   , funT
 ) where
@@ -37,7 +30,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (argTagToType,intT,textT,bytesT,boolT,sigmaT,tupleT)
+import Hschain.Utxo.Lang.Expr (argTagToType,intT,textT,bytesT,boolT,sigmaT,tupleT,boxT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -336,11 +329,6 @@ showType ty
   where
     r = funT [ty] textT
 
-boxT :: TypeCore
-boxT = primT "Box"
-
-primT :: Name -> TypeCore
-primT name = H.conT () name []
 
 varT :: Name -> TypeCore
 varT name = H.varT () name
