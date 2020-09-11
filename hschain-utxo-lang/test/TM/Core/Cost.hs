@@ -14,13 +14,10 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 
 import Examples.SKI
 
-import Debug.Trace
-
 tests :: TestTree
 tests = testGroup "test-cost"
-  [ testCase "Cost works" $ (isJust $ trace' $ getProgCost $ progEquality $ PrimInt 0) @=? True ]
-  where
-    trace' x = trace (show x) x
+  [ testCase "Cost works" $ (isJust $ getProgCost $ progEquality $ PrimInt 0) @=? True ]
+
 
 progEquality :: Prim -> CoreProg
 progEquality p = CoreProg
