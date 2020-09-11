@@ -6,6 +6,7 @@ module Hschain.Utxo.Lang.Compile.Infer(
 
 import Hex.Common.Text
 
+import Data.Function
 import Data.Fix
 import Data.Foldable
 import Data.String
@@ -14,9 +15,10 @@ import qualified Data.Map.Strict as M
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
-import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..), varT, listT, funT, intT, boolT, textT, sigmaT, arrowT)
+import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, funT, listT, tupleT
+                              , arrowT, intT, boolT, bytesT, textT, sigmaT, boxT, argsT)
 import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
 
 import qualified Language.HM as H
@@ -49,15 +51,15 @@ instance H.IsPrim PrimLoc where
   type PrimLoc PrimLoc = Loc
   type PrimVar PrimLoc = Tag
 
-  getPrimType (PrimLoc loc p) = eraseWith  loc $ primToType p
+  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
 
-eraseLoc :: TypeCore -> H.Type Loc Tag
+eraseLoc :: H.Type loc Name -> H.Type Loc Tag
 eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
 
-eraseWith :: Loc -> TypeCore -> H.Type Loc Tag
+eraseWith :: Loc -> H.Type loc Name -> H.Type Loc Tag
 eraseWith loc = H.mapLoc (const loc) . fmap VarTag
 
-toType :: H.Type Loc Tag -> TypeCore
+toType :: H.Type Loc Tag -> H.Type () Name
 toType = H.mapLoc (const ()) . fmap fromTag
 
 -- | Infers types for all subexpressions
@@ -187,7 +189,7 @@ libTypeContext = (H.Context $ M.fromList
     cmpT = forA $ aT `arrowT` (aT `arrowT` boolT)
 
     fromPrimOps = H.Context $ M.fromList
-      [ (VarTag nm, H.monoT $ eraseLoc ty)
+      [ (VarTag nm, H.monoT $ eraseLoc $ typeCoreToType ty)
       | (nm,op) <- M.toList monoPrimopNameMap
       , let Right ty = runCheck mempty $ primopToType op
       ]
