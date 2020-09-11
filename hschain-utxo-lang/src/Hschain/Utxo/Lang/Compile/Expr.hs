@@ -83,7 +83,7 @@ data ExprLamF bind a
   -- ^ variables
   | EPrim !Loc !PrimLoc
   -- ^ constant primitive
-  | EPrimOp !Loc !(PrimOp TypeCore)
+  | EPrimOp !Loc !(PrimOp (H.Type () Name))
   | EAp !Loc a a
   -- ^ application
   | ELet !Loc [(bind, a)] a
@@ -94,10 +94,10 @@ data ExprLamF bind a
   -- ^ if expressions
   | ECase !Loc a [CaseAlt bind a]
   -- ^ case alternatives
-  | EConstr !Loc !TypeCore !Int !Int
+  | EConstr !Loc !(H.Type () Name) !Int !Int
   -- ^ constructor with tag and arity, also we should provide the type
   -- of constructor as afunction for a type-checker
-  | EAssertType !Loc a !TypeCore
+  | EAssertType !Loc a !(H.Type () Name)
   -- ^ Explicit type annotations
   | EBottom Loc
   -- ^ Value of any type that means failed programm.
@@ -112,7 +112,7 @@ data CaseAlt bind a = CaseAlt
   -- (integer substitution for the name of constructor)
   , caseAlt'args  :: [Typed (H.Type () Name) Name]
   -- ^ arguments of the pattern matching
-  , caseAlt'constrType :: TypeCore
+  , caseAlt'constrType :: H.Type () Name
   -- ^ Type of right hand side, it's the type that constructor belongs to
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative
@@ -146,7 +146,7 @@ instance H.HasLoc (ExprLamF bind a) where
 
 
 -- | Reads  type signature of typed def
-getTypedDefType :: TypedDef -> TypeCore
+getTypedDefType :: TypedDef -> H.Type () Name
 getTypedDefType Def{..} = foldr (H.arrowT ()) res args
   where
     args = fmap typed'type def'args

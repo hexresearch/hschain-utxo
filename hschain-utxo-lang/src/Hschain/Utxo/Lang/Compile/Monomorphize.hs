@@ -55,7 +55,7 @@ runMono sourceProg m = liftEither $ fmap (AnnLamProg . M.elems . monoSt'resultPr
 
     initSeed = Seq.singleton $ Typed "main" $ fromType boolT
 
-fromType :: H.Type Loc Name -> TypeCore
+fromType :: H.Type loc a -> H.Type () a
 fromType = H.mapLoc (const ())
 
 data MonoSt = MonoSt
@@ -354,7 +354,6 @@ applySubstAnnExpr subst = cata $ \case
       EConstr loc t m n  -> EConstr loc (H.apply subst t) m n
       ECase loc e alts   -> ECase loc e (fmap applyAlt alts)
       other              -> other
-
   where
     applyTyped t = t { typed'type = H.apply subst $ typed'type t }
     applyAlt alt@CaseAlt{..} = alt
@@ -381,7 +380,7 @@ getSubstName (H.Subst m) (VarName loc name) = VarName loc $
 isMonoExpr :: TypedExprLam -> Bool
 isMonoExpr = isMonoT . getAnnType
 
-isMonoT :: TypeCore -> Bool
+isMonoT :: H.Type loc Name -> Bool
 isMonoT (H.Type x) = flip cata x $ \case
   H.VarT _ _     -> False
   H.ConT _ _ as  -> and as
@@ -409,19 +408,19 @@ getSourceDef loc name = do
   mDef <- fmap (M.lookup name . monoSt'sourceProg) get
   maybe (unboundVariable $ VarName loc name) pure mDef
 
-getDefType :: TypedDef -> TypeCore
+getDefType :: TypedDef -> H.Type () Name
 getDefType Def{..} = foldr (\a b -> H.arrowT () a b) rhs args
   where
     args = fmap typed'type def'args
     rhs  = getAnnType def'body
 
-getAnnType :: TypedExprLam -> TypeCore
+getAnnType :: TypedExprLam -> H.Type () Name
 getAnnType (Fix (Ann ty _)) = ty
 
-unify :: TypeCore -> TypeCore -> Mono TypeCore
+unify :: Show loc => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name)
 unify tA tB = fmap fst $ unifySubst tA tB
 
-unifySubst :: TypeCore -> TypeCore -> Mono (TypeCore, Subst)
+unifySubst :: Show loc => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name, H.Subst loc Name)
 unifySubst tA tB = case H.unifyTypes tA tB of
   Right subst -> return $ (H.apply subst tB, subst)
   Left err    -> throwError $ TypeError $ H.mapLoc (const noLoc) err
