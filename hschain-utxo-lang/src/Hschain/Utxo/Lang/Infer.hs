@@ -281,15 +281,15 @@ defaultContext = H.Context $ M.fromList $
   , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (toSigmaVar, monoT $ boolT `arr` sigmaT)
   -- vec expressions
-  , (nilVecVar, forA $ monoT $ vectorT a)
-  , (consVecVar, forA $ monoT $ a `arr` (vectorT a `arr` vectorT a))
-  , (appendVecVar, forA $ monoT $ vectorT a `arr` (vectorT a `arr` vectorT a))
-  , (vecAtVar, forA $ monoT $ vectorT a `arr` (intT `arr` a))
-  , (lengthVecVar, forA $ monoT $ vectorT a `arr` intT)
-  , (mapVecVar, forAB $ monoT $ (a `arr` b) `arr` (vectorT a `arr` vectorT b))
-  , (foldVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (vectorT a `arr` b)))
-  , (andSigmaVecVar, monoT $ vectorT sigmaT `arr` sigmaT)
-  , (orSigmaVecVar, monoT $ vectorT sigmaT `arr` sigmaT)
+  , (nilVecVar, forA $ monoT $ listT a)
+  , (consVecVar, forA $ monoT $ a `arr` (listT a `arr` listT a))
+  , (appendVecVar, forA $ monoT $ listT a `arr` (listT a `arr` listT a))
+  , (vecAtVar, forA $ monoT $ listT a `arr` (intT `arr` a))
+  , (lengthVecVar, forA $ monoT $ listT a `arr` intT)
+  , (mapVecVar, forAB $ monoT $ (a `arr` b) `arr` (listT a `arr` listT b))
+  , (foldVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (listT a `arr` b)))
+  , (andSigmaVecVar, monoT $ listT sigmaT `arr` sigmaT)
+  , (orSigmaVecVar, monoT $ listT sigmaT `arr` sigmaT)
   , (getBoxIdVar, monoT $ boxT `arr` textT)
   , (getBoxValueVar, monoT $ boxT `arr` intT)
   , (getBoxScriptVar, monoT $ boxT `arr` scriptT)
@@ -299,15 +299,15 @@ defaultContext = H.Context $ M.fromList $
   , (inputVar, monoT $ intT `arr` boxT)
   , (outputVar, monoT $ intT `arr` boxT)
   , (selfVar, monoT boxT)
-  , (inputsVar, monoT $ vectorT boxT)
-  , (outputsVar, monoT $ vectorT boxT)
+  , (inputsVar, monoT $ listT boxT)
+  , (outputsVar, monoT $ listT boxT)
   , (getVarVar, forA $ monoT $ intT `arr` a)
   , (altVar, forA $ monoT $ a `arr` (a `arr` a))
   , (failCaseVar, forA $ monoT a)
   ] ++ tupleConVars ++ tupleAtVars ++ textExprVars ++ bytesExprVars ++ getBoxArgVars
   where
     getBoxArgVars =
-      fmap (\ty -> (getBoxArgVar' ty, monoT $ boxT `arr` (vectorT $ argTagToType ty))) argTypes
+      fmap (\ty -> (getBoxArgVar' ty, monoT $ boxT `arr` (listT $ argTagToType ty))) argTypes
 
     forA = forAllT noLoc "a"
     forAB = forA . forAllT noLoc "b"

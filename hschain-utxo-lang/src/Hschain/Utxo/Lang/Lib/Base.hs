@@ -199,16 +199,16 @@ assumpType idx ty = (idx, ty)
 
 baseLibTypeContext :: TypeContext
 baseLibTypeContext = H.Context $ M.fromList $
-  [ assumpType "and" (monoT $ vectorT boolT ~> boolT)
-  , assumpType "or" (monoT $ vectorT boolT ~> boolT)
-  , assumpType "andSigma" (monoT $ vectorT sigmaT ~> sigmaT)
-  , assumpType "orSigma" (monoT $ vectorT sigmaT ~> sigmaT)
-  , assumpType "all" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
-  , assumpType "any" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
-  , assumpType "sumInt"      (monoT $ vectorT intT ~> intT)
-  , assumpType "productInt"  (monoT $ vectorT intT ~> intT)
-  , assumpType "sum"      (monoT $ vectorT intT ~> intT)
-  , assumpType "product"  (monoT $ vectorT intT ~> intT)
+  [ assumpType "and" (monoT $ listT boolT ~> boolT)
+  , assumpType "or" (monoT $ listT boolT ~> boolT)
+  , assumpType "andSigma" (monoT $ listT sigmaT ~> sigmaT)
+  , assumpType "orSigma" (monoT $ listT sigmaT ~> sigmaT)
+  , assumpType "all" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumpType "any" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumpType "sumInt"      (monoT $ listT intT ~> intT)
+  , assumpType "productInt"  (monoT $ listT intT ~> intT)
+  , assumpType "sum"      (monoT $ listT intT ~> intT)
+  , assumpType "product"  (monoT $ listT intT ~> intT)
   , assumpType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
   , assumpType  "id"  (forA $ aT ~> aT)
   , assumpType "const" (forAB $ aT ~> bT ~> aT)
@@ -216,15 +216,15 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "getSelf" (monoT boxT)
   , assumpType "getOutput" (monoT $ intT ~> boxT)
   , assumpType "getInput"  (monoT $ intT ~> boxT)
-  , assumpType "getOutputs" (monoT $ vectorT boxT)
-  , assumpType "getInputs" (monoT $ vectorT boxT)
+  , assumpType "getOutputs" (monoT $ listT boxT)
+  , assumpType "getInputs" (monoT $ listT boxT)
   , assumpType "getBoxId" (monoT $ boxT ~> textT)
   , assumpType "getBoxValue" (monoT $ boxT ~> intT)
   , assumpType "getBoxScript" (monoT $ boxT ~> scriptT)
   , assumpType "sha256" (monoT $ bytesT ~> bytesT)
   , assumpType "getVar" (forA $ textT ~> aT)
   , assumpType "trace" (forA $ textT ~> aT ~> aT)
-  , assumpType "length" (forA $ vectorT aT ~> intT)
+  , assumpType "length" (forA $ listT aT ~> intT)
   , assumpType "lengthText" (monoT $ textT ~> intT)
   , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
   , assumpType "showInt" (monoT $ intT ~> textT)
@@ -246,13 +246,13 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "-." (monoT $ intT ~> intT ~> intT)
   , assumpType "*." (monoT $ intT ~> intT ~> intT)
   , assumpType "/." (monoT $ intT ~> intT ~> intT)
-  , assumpType "++" (forA $ vectorT aT ~> vectorT aT ~> vectorT aT)
+  , assumpType "++" (forA $ listT aT ~> listT aT ~> listT aT)
   , assumpType "<>" (monoT $ textT ~> textT ~> textT)
   , assumpType "appendBytes" (monoT $ bytesT ~> bytesT ~> bytesT)
-  , assumpType "map" (forAB $ (aT ~> bT) ~> vectorT aT ~> vectorT bT)
-  , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
-  , assumpType "length" (forA $ vectorT aT ~> intT)
-  , assumpType Const.listAt (forA $ vectorT aT ~> intT ~> aT)
+  , assumpType "map" (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
+  , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
+  , assumpType "length" (forA $ listT aT ~> intT)
+  , assumpType Const.listAt (forA $ listT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
   , assumpType "<" (forA $ aT ~> aT ~> boolT)
@@ -270,10 +270,10 @@ baseLibTypeContext = H.Context $ M.fromList $
     forABC = forAllT' "a" . forAllT' "b" . forAllT' "c" . monoT
 
     getBoxArgListTypes =
-      fmap (\ty -> assumpType (getBoxArgVar ty) (monoT $ boxT ~> vectorT (argTagToType ty))) argTypes
+      fmap (\ty -> assumpType (getBoxArgVar ty) (monoT $ boxT ~> listT (argTagToType ty))) argTypes
 
     getEnvVarTypes =
-      fmap (\ty -> assumpType (getEnvVarName ty) (monoT $ vectorT (argTagToType ty))) argTypes
+      fmap (\ty -> assumpType (getEnvVarName ty) (monoT $ listT (argTagToType ty))) argTypes
 
 all :: Bind Lang
 all = bind "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")

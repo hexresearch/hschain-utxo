@@ -755,8 +755,8 @@ sigmaT  = sigmaT'  H.defLoc
 tupleT :: H.DefLoc loc => [H.Type loc Text] -> H.Type loc Text
 tupleT = tupleT'   H.defLoc
 
-vectorT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text
-vectorT = vectorT' H.defLoc
+listT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text
+listT = listT' H.defLoc
 
 arrowT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text -> H.Type loc Text
 arrowT = H.arrowT H.defLoc
@@ -785,8 +785,8 @@ sigmaT' = constType "Sigma"
 scriptT' :: loc -> H.Type loc Text
 scriptT' = constType "Script"
 
-vectorT' :: loc -> H.Type loc Text -> H.Type loc Text
-vectorT' loc a = H.listT loc a
+listT' :: loc -> H.Type loc Text -> H.Type loc Text
+listT' loc a = H.listT loc a
 
 tupleT' :: loc -> [H.Type loc Text] -> H.Type loc Text
 tupleT' loc ts = H.tupleT loc ts
