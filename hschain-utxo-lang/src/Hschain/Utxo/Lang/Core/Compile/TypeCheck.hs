@@ -14,7 +14,6 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , primopToType
   , varT
   , listT
-  , arrowT
   , funT
 ) where
 
@@ -30,7 +29,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (argTagToType,intT,textT,bytesT,boolT,sigmaT,tupleT,boxT)
+import Hschain.Utxo.Lang.Expr (argTagToType,intT,textT,bytesT,boolT,sigmaT,tupleT,boxT,arrowT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -335,9 +334,6 @@ varT name = H.varT () name
 
 listT :: TypeCore -> TypeCore
 listT ty = H.listT () ty
-
-arrowT :: TypeCore -> TypeCore -> TypeCore
-arrowT a b = H.arrowT () a b
 
 funT :: [TypeCore] -> TypeCore -> TypeCore
 funT args resT = foldr arrowT resT args

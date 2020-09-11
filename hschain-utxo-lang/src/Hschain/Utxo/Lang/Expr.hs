@@ -758,6 +758,9 @@ tupleT = tupleT'   H.defLoc
 vectorT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text
 vectorT = vectorT' H.defLoc
 
+arrowT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text -> H.Type loc Text
+arrowT = H.arrowT H.defLoc
+
 constType :: v -> loc -> H.Type loc v
 constType name loc = H.conT loc name []
 
@@ -788,6 +791,8 @@ vectorT' loc a = H.listT loc a
 tupleT' :: loc -> [H.Type loc Text] -> H.Type loc Text
 tupleT' loc ts = H.tupleT loc ts
 
+arrowT' :: loc -> H.Type loc Text -> H.Type loc Text -> H.Type loc Text
+arrowT' = H.arrowT
 
 --------------------------------
 -- instances

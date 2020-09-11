@@ -19,7 +19,7 @@ import Control.Monad.State.Strict
 import Data.Fix hiding ((~>))
 import Data.Text (Text)
 
-import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, arrowT, stripSignature)
+import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, stripSignature)
 
 import Hschain.Utxo.Lang.Desugar hiding (app1, app2, app3)
 import Hschain.Utxo.Lang.Expr
@@ -313,7 +313,7 @@ defaultContext = H.Context $ M.fromList $
     forAB = forA . forAllT noLoc "b"
     a = varT noLoc "a"
     b = varT noLoc "b"
-    arr = arrowT noLoc
+    arr = arrowT
 
     opT2 x = monoT $ x `arr` (x `arr` x)
     boolOp2 = opT2 boolT
@@ -329,7 +329,7 @@ defaultContext = H.Context $ M.fromList $
         tupleConType size = foldr (\var mt -> forAllT noLoc var mt) (monoT ty) vs
           where
             vs = fmap v [0 .. size-1]
-            ty = foldr (\lhs rhs -> arrowT noLoc (varT noLoc lhs) rhs) (tupleCon size) vs
+            ty = foldr (\lhs rhs -> arrowT (varT noLoc lhs) rhs) (tupleCon size) vs
 
     tupleAtVars = [ toTuple size idx | size <- [2..maxTupleSize], idx <- [0 .. size-1]]
       where
@@ -494,7 +494,7 @@ userTypesToTypeContext (UserTypeCtx m _ _ _) =
         appArgsT = toArgsT u
         fromCase (cons, args) = (consName'name cons, ty) : (recFieldSelectors ++ recFieldUpdates)
           where
-            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT $ getConsTypes args
+            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT a res) resT $ getConsTypes args
 
             onFields f = case args of
               ConsDef _         -> []
@@ -508,20 +508,20 @@ userTypesToTypeContext (UserTypeCtx m _ _ _) =
 
         fromRecSelector RecordField{..} = (varName'name recordField'name, ty)
           where
-            ty = appArgsT $ monoT $ arrowT noLoc resT recordField'type
+            ty = appArgsT $ monoT $ arrowT resT recordField'type
 
         fromRecUpdate RecordField{..} = (recordUpdateVar recordField'name, ty)
           where
-            ty = appArgsT $ monoT $ arrowT noLoc recordField'type (arrowT noLoc resT resT)
+            ty = appArgsT $ monoT $ arrowT recordField'type (arrowT resT resT)
 
     getSelectors ut@UserType{..} = M.foldMapWithKey toSel userType'cases
       where
         resT = toResT ut
         appArgsT = toArgsT ut
-        toSelType ty = appArgsT $ monoT $ arrowT noLoc resT ty
+        toSelType ty = appArgsT $ monoT $ arrowT resT ty
         toConstSelType =
-          appArgsT $ forAllT noLoc freshVar $ monoT $ arrowT noLoc resT
-            $ arrowT noLoc (varT noLoc freshVar) (varT noLoc freshVar)
+          appArgsT $ forAllT noLoc freshVar $ monoT $ arrowT resT
+            $ arrowT (varT noLoc freshVar) (varT noLoc freshVar)
           where
             freshVar = mappend "a" $ mconcat $ fmap varName'name userType'args
 
