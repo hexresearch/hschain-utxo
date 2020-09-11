@@ -454,12 +454,10 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
       _                                -> failedToFindMonoType loc name
 
     fromCompType name loc (H.Type (Fix ty)) = case ty of
-      H.ArrowT _ a (Fix (H.ArrowT _ b (Fix (H.ConT _ "Bool" [])))) ->
-        if (isPrimType a && a == b)
-          then pure $ H.Type a
-          else if (isMonoT $ H.Type a)
-                 then compareForNonPrim loc
-                 else failedToFindMonoType loc name
+      H.ArrowT _ a (Fix (H.ArrowT _ b (Fix (H.ConT _ "Bool" []))))
+        | isPrimType a && a == b -> pure $ H.Type a
+        | isMonoT $ H.Type a     -> compareForNonPrim loc
+        | otherwise              -> failedToFindMonoType loc name
       _ -> compareForNonPrim loc
 
     isPrimType (Fix x) = case x of
