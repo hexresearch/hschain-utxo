@@ -761,6 +761,10 @@ listT = listT' H.defLoc
 arrowT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text -> H.Type loc Text
 arrowT = H.arrowT H.defLoc
 
+argsT :: H.DefLoc loc => H.Type loc Text
+argsT = tupleT [listT intT, listT textT, listT boolT]
+
+
 constType :: v -> loc -> H.Type loc v
 constType name loc = H.conT loc name []
 

@@ -28,7 +28,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (argTagToType,intT,textT,bytesT,boolT,sigmaT,tupleT,boxT,arrowT,listT)
+import Hschain.Utxo.Lang.Expr (argTagToType,argsT,intT,textT,bytesT,boolT,sigmaT,boxT,arrowT,listT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -333,9 +333,3 @@ varT name = H.varT () name
 
 funT :: [TypeCore] -> TypeCore -> TypeCore
 funT args resT = foldr arrowT resT args
-
-argsT :: TypeCore
-argsT = tupleT argsTypes
-
-argsTypes :: [TypeCore]
-argsTypes = [listT intT, listT textT, listT boolT]

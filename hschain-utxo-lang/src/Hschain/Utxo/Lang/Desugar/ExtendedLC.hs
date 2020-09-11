@@ -106,12 +106,12 @@ exprToExtendedLC typeCtx = cataM $ \case
       PCons loc cons ps -> do
         info <- getConsInfo typeCtx cons
         let tagId = consInfo'tagId info
-            (argsT, rhsT) = H.extractFunType $ consInfo'type info
+            (argsTy, rhsT) = H.extractFunType $ consInfo'type info
         args  <- mapM fromPat ps
         return $ CaseAlt
                   { caseAlt'loc        = loc
                   , caseAlt'tag        = tagId
-                  , caseAlt'args       = zipWith P.Typed args $ fmap fromType argsT
+                  , caseAlt'args       = zipWith P.Typed args $ fmap fromType argsTy
                   , caseAlt'constrType = fromType rhsT
                   , caseAlt'rhs        = caseExpr'rhs
                   }
