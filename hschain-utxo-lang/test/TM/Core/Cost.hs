@@ -23,7 +23,7 @@ progEquality :: Prim -> CoreProg
 progEquality p = CoreProg
   [ mkMain $ Typed
     { typed'value = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
-    , typed'type  = boolT
+    , typed'type  = BoolT
     }
   ]
   where

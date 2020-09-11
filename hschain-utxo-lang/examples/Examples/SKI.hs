@@ -6,7 +6,6 @@ module Examples.SKI where
 
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Expr (intT,arrowT)
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Data.Prim
 
@@ -53,8 +52,8 @@ skiS name tyA tyB tyC = Scomb
                    tyC
   }
   where
-    tyX = tyA `arrowT` (tyB `arrowT` tyC)
-    tyY = tyA `arrowT` tyB
+    tyX = tyA :-> tyB :-> tyC
+    tyY = tyA :-> tyB
     tyZ = tyA
 
 
@@ -67,19 +66,19 @@ skiS name tyA tyB tyC = Scomb
 -- > S K K 3
 exampleSKK3 :: CoreProg
 exampleSKK3 = CoreProg
-  [ skiK "intT" intT intT
-  , skiK "funT" intT (intT `arrowT` intT)
-  , skiS ""     intT (intT `arrowT` intT) intT
+  [ skiK "intT" IntT IntT
+  , skiK "funT" IntT (IntT :-> IntT)
+  , skiS ""     IntT (IntT :-> IntT) IntT
   , mkMain $ Typed
     ((("skiS." `EAp` "skiK.funT") `EAp` "skiK.intT") `EAp` EPrim (PrimInt 3))
-    intT
+    IntT
   ]
 
 ----------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------
 
-mkMain :: Typed ExprCore -> Scomb
+mkMain :: Typed TypeCore ExprCore -> Scomb
 mkMain s = Scomb
   { scomb'name   = "main"
   , scomb'args   = []

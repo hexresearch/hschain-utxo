@@ -4,7 +4,6 @@
 -- SKI calculus examples
 module Examples.Simple where
 
-import Hschain.Utxo.Lang.Expr (intT,arrowT)
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Examples.SKI (mkMain)
@@ -16,6 +15,6 @@ progAddition = CoreProg
     { typed'value = EAp
                     (EAp (EPrimOp OpAdd) (EPrim (PrimInt 1)))
                     (EPrim (PrimInt 100))
-    , typed'type  = intT
+    , typed'type  = IntT
     }
   ]

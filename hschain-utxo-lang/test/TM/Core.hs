@@ -6,7 +6,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..),intT,boolT)
+import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -60,7 +60,7 @@ progHeight :: CoreProg
 progHeight = CoreProg
   [ mkMain $ Typed
     { typed'value = EPrimOp OpEnvGetHeight
-    , typed'type  = intT
+    , typed'type  = IntT
     }
   ]
 
@@ -68,7 +68,7 @@ progEquality :: Prim -> CoreProg
 progEquality p = CoreProg
   [ mkMain $ Typed
     { typed'value = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
-    , typed'type  = boolT
+    , typed'type  = BoolT
     }
   ]
   where
