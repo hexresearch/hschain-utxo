@@ -743,7 +743,7 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: H.DefLoc loc => H.Type loc Text
+intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: (IsString v, H.DefLoc loc) => H.Type loc v
 intT    = intT'    H.defLoc
 boolT   = boolT'   H.defLoc
 bytesT  = bytesT'  H.defLoc
@@ -752,56 +752,44 @@ scriptT = scriptT' H.defLoc
 textT   = textT'   H.defLoc
 sigmaT  = sigmaT'  H.defLoc
 
-tupleT :: H.DefLoc loc => [H.Type loc Text] -> H.Type loc Text
-tupleT = tupleT'   H.defLoc
+tupleT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v
+tupleT = tupleT' H.defLoc
 
-listT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text
+listT :: H.DefLoc loc => H.Type loc v -> H.Type loc v
 listT = listT' H.defLoc
 
-arrowT :: H.DefLoc loc => H.Type loc Text -> H.Type loc Text -> H.Type loc Text
+arrowT :: H.DefLoc loc => H.Type loc v -> H.Type loc v -> H.Type loc v
 arrowT = H.arrowT H.defLoc
 
 varT :: H.DefLoc loc => v -> H.Type loc v
 varT = H.varT H.defLoc
 
-funT :: H.DefLoc loc => [H.Type loc Text] -> H.Type loc Text -> H.Type loc Text
+funT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v -> H.Type loc v
 funT args resT = foldr arrowT resT args
 
-argsT :: H.DefLoc loc => H.Type loc Text
+argsT :: (IsString v, H.DefLoc loc) => H.Type loc v
 argsT = tupleT [listT intT, listT textT, listT boolT]
 
 
 constType :: v -> loc -> H.Type loc v
 constType name loc = H.conT loc name []
 
-boxT' :: loc -> H.Type loc Text
-boxT' = constType "Box"
-
-textT' :: loc -> H.Type loc Text
-textT' = constType "Text"
-
-bytesT' :: loc -> H.Type loc Text
-bytesT' = constType "Bytes"
-
-intT' :: loc -> H.Type loc Text
-intT' = constType "Int"
-
-boolT' :: loc -> H.Type loc Text
-boolT' = constType "Bool"
-
-sigmaT' :: loc -> H.Type loc Text
-sigmaT' = constType "Sigma"
-
-scriptT' :: loc -> H.Type loc Text
+intT', boolT', boxT', scriptT', textT', sigmaT', bytesT' :: (IsString v, H.DefLoc loc) => loc -> H.Type loc v
+boxT'    = constType "Box"
+textT'   = constType "Text"
+bytesT'  = constType "Bytes"
+intT'    = constType "Int"
+boolT'   = constType "Bool"
+sigmaT'  = constType "Sigma"
 scriptT' = constType "Script"
 
-listT' :: loc -> H.Type loc Text -> H.Type loc Text
+listT' :: loc -> H.Type loc v -> H.Type loc v
 listT' loc a = H.listT loc a
 
-tupleT' :: loc -> [H.Type loc Text] -> H.Type loc Text
+tupleT' :: loc -> [H.Type loc v] -> H.Type loc v
 tupleT' loc ts = H.tupleT loc ts
 
-arrowT' :: loc -> H.Type loc Text -> H.Type loc Text -> H.Type loc Text
+arrowT' :: loc -> H.Type loc v -> H.Type loc v -> H.Type loc v
 arrowT' = H.arrowT
 
 --------------------------------
