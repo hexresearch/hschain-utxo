@@ -37,7 +37,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (argTagToType)
+import Hschain.Utxo.Lang.Expr (argTagToType,intT,textT,bytesT,boolT,sigmaT,tupleT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -336,21 +336,6 @@ showType ty
   where
     r = funT [ty] textT
 
-intT :: TypeCore
-intT = primT "Int"
-
-textT :: TypeCore
-textT = primT "Text"
-
-bytesT :: TypeCore
-bytesT = primT "Bytes"
-
-boolT :: TypeCore
-boolT = primT "Bool"
-
-sigmaT :: TypeCore
-sigmaT = primT "Sigma"
-
 boxT :: TypeCore
 boxT = primT "Box"
 
@@ -362,9 +347,6 @@ varT name = H.varT () name
 
 listT :: TypeCore -> TypeCore
 listT ty = H.listT () ty
-
-tupleT :: [TypeCore] -> TypeCore
-tupleT ts = H.tupleT () ts
 
 arrowT :: TypeCore -> TypeCore -> TypeCore
 arrowT a b = H.arrowT () a b
