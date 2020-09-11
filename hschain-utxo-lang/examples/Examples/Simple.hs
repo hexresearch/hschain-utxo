@@ -4,6 +4,7 @@
 -- SKI calculus examples
 module Examples.Simple where
 
+import Hschain.Utxo.Lang.Expr (intT,arrowT)
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Examples.SKI (mkMain)
