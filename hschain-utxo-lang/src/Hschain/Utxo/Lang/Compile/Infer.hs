@@ -50,9 +50,9 @@ instance H.IsPrim PrimLoc where
   type PrimLoc PrimLoc = Loc
   type PrimVar PrimLoc = Tag
 
-  getPrimType (PrimLoc loc p) = H.setLoc loc $ typeCoreToType @() $ primToType p
+  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
 
-eraseWith :: Loc -> H.Type loc Name -> H.Type Loc Tag
+eraseWith :: Loc -> H.Type () Name -> H.Type Loc Tag
 eraseWith loc = H.setLoc loc . fmap VarTag
 
 toType :: H.Type Loc Tag -> H.Type () Name
