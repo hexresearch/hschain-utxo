@@ -146,7 +146,7 @@ data ExprCore
   | EAp  ExprCore ExprCore
   -- ^ application
   | ELet Name ExprCore ExprCore
-  -- ^ lent bindings
+  -- ^ Let bindings
   | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
   | ECase !ExprCore [CaseAlt]
