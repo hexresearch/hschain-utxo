@@ -22,7 +22,6 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Const as Const
 
-import qualified Language.HM as H
 
 -- | Cost of execution
 data Cost = Cost
@@ -102,7 +101,7 @@ scombCost costMap Scomb{..}
   where
     bodyCost = exprCost M.empty (appendArgs M.empty (V.toList scomb'args) costMap) $ typed'value scomb'body
 
-appendArgs :: TypeCostMap -> [Typed Name] -> CostMap -> CostMap
+appendArgs :: TypeCostMap -> [Typed TypeCore Name] -> CostMap -> CostMap
 appendArgs tcm args mp = L.foldl' (\m arg -> maybe m (\c -> insertCost (typed'value arg) (MonoCost c) m) (typeCoreToCost tcm $ typed'type arg)) mp args
 
 exprCost :: TypeCostMap -> CostMap -> ExprCore -> Maybe Cost
@@ -146,19 +145,19 @@ exprCost typeCostMap costMap expr = case expr of
 -- | TODO: for now we treat all user-types with uper bound penalty
 -- but we should consider only limited built-in types
 typeCoreToCost :: TypeCostMap -> TypeCore -> Maybe Cost
-typeCoreToCost typeCostMap (H.Type ty) = flip cata ty $ \case
-  H.VarT _ name -> M.lookup name typeCostMap
-  H.ConT _ name [] -> case name of
-    "Int"   -> Just intCost
-    "Bool"  -> Just boolCost
-    "Text"  -> Just textCost
-    "Sigma" -> Just sigmaCost
-    "Bytes" -> Just bytesCost
-    "Box"   -> Just boxCost
-    _       -> Just unitCost
-  H.ListT _ a   -> fmap (addCost unitCost) a
-  H.TupleT _ as -> fmap (sumCost . (unitCost :)) $ sequence as
-  _ -> Just unitCost
+typeCoreToCost _typeCostMap = go
+  where
+    go = \case
+      IntT      -> Just intCost
+      BoolT     -> Just boolCost
+      TextT     -> Just textCost
+      SigmaT    -> Just sigmaCost
+      BytesT    -> Just bytesCost
+      BoxT      -> Just boxCost
+      ListT  a  -> addCost unitCost <$> go a
+      TupleT as -> sumCost . (unitCost :) <$> traverse go as
+      -- FIXME: placeholder
+      _         -> Just unitCost
 
 sumCost :: [Cost] -> Cost
 sumCost = L.foldl' addCost (Cost 0 0)
@@ -207,7 +206,7 @@ publicKeyCost :: Cost
 publicKeyCost = Cost 1 512
 
 -- | TODO: think over concrete values for complexity of operations
-primOpToCost :: PrimOp -> Cost
+primOpToCost :: PrimOp a -> Cost
 primOpToCost op
   | isListOp op = listOpCost
   | otherwise   = simpleOpCost

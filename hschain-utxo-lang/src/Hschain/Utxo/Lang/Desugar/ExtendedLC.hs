@@ -22,7 +22,7 @@ import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
-import Hschain.Utxo.Lang.Core.Data.Prim(Name, TypeCore)
+import Hschain.Utxo.Lang.Core.Data.Prim(Name)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -263,7 +263,7 @@ getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
       Just info -> pure info
       Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
 
-fromType :: Type -> TypeCore
+fromType :: Type -> H.Type () Name
 fromType = H.mapLoc (const ())
 
 desugarModule :: MonadLang m => Module -> m Module

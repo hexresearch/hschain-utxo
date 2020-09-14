@@ -16,13 +16,13 @@ import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Sequence (Seq)
 
-import Hschain.Utxo.Lang.Expr                   (funT)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), TypeCore)
-import Hschain.Utxo.Lang.Expr (Loc, noLoc, boolT, VarName(..), argTypeName, argTypes)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
+import Hschain.Utxo.Lang.Expr ( Loc, noLoc, boolT, VarName(..), argTypeName, argTypes
+                              , funT, boolT, typeCoreToType)
 
 import qualified Language.HM as H
 import qualified Language.HM.Subst as H
@@ -41,7 +41,7 @@ makeMonomorphic (AnnLamProg prog) = runMono progMap (makeMono context)
 
 type Mono a = StateT MonoSt (Either Error) a
 type ProgMap = Map Name TypedDef
-type Context = Map Name TypeCore
+type Context = Map Name (H.Type () Name)
 type Subst = H.Subst () Name
 
 runMono :: MonadLang m => ProgMap -> Mono a -> m TypedLamProg
@@ -52,17 +52,15 @@ runMono sourceProg m = liftEither $ fmap (AnnLamProg . M.elems . monoSt'resultPr
       , monoSt'sourceProg = sourceProg
       , monoSt'resultProg = M.empty
       }
-
-    initSeed = Seq.singleton $ Typed "main" $ fromType boolT
-
-fromType :: H.Type Loc Name -> TypeCore
-fromType = H.mapLoc (const ())
+    initSeed = Seq.singleton $ Typed "main" boolT
 
 data MonoSt = MonoSt
-  { monoSt'seeds       :: Seq (Typed Name)  -- ^ Free variables found in the definition,
-                                            --   with monomorphic types
-  , monoSt'sourceProg  :: ProgMap           -- ^ original set of definitions (and also we add specified definitions here)
-  , monoSt'resultProg  :: ProgMap           -- ^ Result of the algorithm
+  { monoSt'seeds       :: Seq (Typed (H.Type () Name) Name)
+    -- ^ Free variables found in the definition, with monomorphic types
+  , monoSt'sourceProg  :: ProgMap
+    -- ^ original set of definitions (and also we add specified definitions here)
+  , monoSt'resultProg  :: ProgMap
+    -- ^ Result of the algorithm
   }
 
 makeMono :: Context -> Mono ()
@@ -70,7 +68,7 @@ makeMono ctx = do
   st <- get
   mapM_ (procSeed ctx $ monoSt'resultProg st) $ monoSt'seeds st
 
-procSeed :: Context -> ProgMap -> Typed Name -> Mono ()
+procSeed :: Context -> ProgMap -> Typed (H.Type () Name) Name -> Mono ()
 procSeed ctx resultProgMap seed
   | isMonoT $ typed'type seed = do
       progMap <- getSourceProg
@@ -91,7 +89,7 @@ procDef ctx defn = do
   addSeeds newSeeds
   insertResultDef defn'
 
-substDef :: Context -> TypedDef -> Mono ([Typed Name], TypedDef)
+substDef :: Context -> TypedDef -> Mono ([Typed (H.Type () Name) Name], TypedDef)
 substDef ctx defn@Def{..} = do
   res <- substExpr (SubstCtx locals mempty ctx') def'body
   return $ (substResult'seeds res, defn { def'body = substResult'expr res } )
@@ -134,7 +132,8 @@ removeLetSubsts names (LetSubst m) = LetSubst $ M.difference m (M.fromList $ fma
 
 -- Result of substitution of expression
 data SubstResult = SubstResult
-  { substResult'seeds       :: [Typed Name]    -- ^ free variables that expression depends on
+  { substResult'seeds       :: [Typed (H.Type () Name) Name]
+    -- ^ free variables that expression depends on
   , _substResult'localSubst :: LetSubst        -- ^ type substitution for local definitions
   , substResult'expr        :: TypedExprLam    -- ^ result expression
   }
@@ -195,8 +194,8 @@ substExpr env (Fix (Ann ty expr)) =
                 return [Typed (varName'name $ def'name defn') varMonoTy]
             | otherwise = return []
 
-
-    onPrim loc prim = return $ SubstResult [] mempty (Fix $ Ann (primToType $ primLoc'value prim) $ EPrim loc prim)
+    onPrim loc prim = return $ SubstResult [] mempty
+      (Fix $ Ann (typeCoreToType $ primToType $ primLoc'value prim) $ EPrim loc prim)
 
     onAp loc f a
       | haveMonoTs [f, a] = do
@@ -289,7 +288,7 @@ substExpr env (Fix (Ann ty expr)) =
             argTs    = fmap typed'type args
 
     onIf loc c t e = do
-      (SubstResult cF cL cE) <- rec $ setAnn (fromType boolT) c
+      (SubstResult cF cL cE) <- rec $ setAnn boolT c
       (SubstResult tF tL tE) <- rec $ setAnn ty t
       (SubstResult eF eL eE) <- rec $ setAnn ty e
       return $ SubstResult (mconcat [cF, tF, eF]) (mconcat [cL, tL, eL]) (Fix $ Ann ty $ EIf loc cE tE eE)
@@ -307,7 +306,10 @@ substExpr env (Fix (Ann ty expr)) =
           (ty', subst) <- unifySubst eT caseAlt'constrType
           let args  = fmap (\a -> a { typed'type = H.apply subst $ typed'type a }) caseAlt'args
               types = M.fromList $ fmap (\a -> (typed'value a, typed'type a)) args
-              ctx'  = SubstCtx (substCtx'locals env <> S.fromList (fmap typed'value args)) (substCtx'letBinds env) (types <> substCtx'types env)
+              ctx'  = SubstCtx
+                (substCtx'locals env <> S.fromList (fmap typed'value args))
+                (substCtx'letBinds env)
+                (types <> substCtx'types env)
           SubstResult seeds locSubst rhs <- substExpr ctx' caseAlt'rhs
           let alt = ca { caseAlt'args       = args
                        , caseAlt'constrType = ty'
@@ -351,7 +353,6 @@ applySubstAnnExpr subst = cata $ \case
       EConstr loc t m n  -> EConstr loc (H.apply subst t) m n
       ECase loc e alts   -> ECase loc e (fmap applyAlt alts)
       other              -> other
-
   where
     applyTyped t = t { typed'type = H.apply subst $ typed'type t }
     applyAlt alt@CaseAlt{..} = alt
@@ -378,7 +379,7 @@ getSubstName (H.Subst m) (VarName loc name) = VarName loc $
 isMonoExpr :: TypedExprLam -> Bool
 isMonoExpr = isMonoT . getAnnType
 
-isMonoT :: TypeCore -> Bool
+isMonoT :: H.Type loc Name -> Bool
 isMonoT (H.Type x) = flip cata x $ \case
   H.VarT _ _     -> False
   H.ConT _ _ as  -> and as
@@ -386,7 +387,7 @@ isMonoT (H.Type x) = flip cata x $ \case
   H.ListT _ a    -> a
   H.TupleT _ as  -> and as
 
-addSeeds :: [Typed Name] -> Mono ()
+addSeeds :: [Typed (H.Type () Name) Name] -> Mono ()
 addSeeds seeds =
   modify' $ \st -> st { monoSt'seeds = monoSt'seeds st <> Seq.fromList seeds }
 
@@ -406,19 +407,19 @@ getSourceDef loc name = do
   mDef <- fmap (M.lookup name . monoSt'sourceProg) get
   maybe (unboundVariable $ VarName loc name) pure mDef
 
-getDefType :: TypedDef -> TypeCore
+getDefType :: TypedDef -> H.Type () Name
 getDefType Def{..} = foldr (\a b -> H.arrowT () a b) rhs args
   where
     args = fmap typed'type def'args
     rhs  = getAnnType def'body
 
-getAnnType :: TypedExprLam -> TypeCore
+getAnnType :: TypedExprLam -> H.Type () Name
 getAnnType (Fix (Ann ty _)) = ty
 
-unify :: TypeCore -> TypeCore -> Mono TypeCore
+unify :: Show loc => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name)
 unify tA tB = fmap fst $ unifySubst tA tB
 
-unifySubst :: TypeCore -> TypeCore -> Mono (TypeCore, Subst)
+unifySubst :: Show loc => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name, H.Subst loc Name)
 unifySubst tA tB = case H.unifyTypes tA tB of
   Right subst -> return $ (H.apply subst tB, subst)
   Left err    -> throwError $ TypeError $ H.mapLoc (const noLoc) err
@@ -465,3 +466,4 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
       _                -> False
       where
         isPrimTypeName name = any ((name ==) . argTypeName) argTypes
+

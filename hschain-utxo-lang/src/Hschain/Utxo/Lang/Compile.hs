@@ -18,7 +18,7 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
-import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore, Name, typed'valueL)
+import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore(..), Name, typed'valueL)
 import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, scomb'bodyL, coreProgToScript)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
@@ -63,20 +63,28 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
   where
     toScomb :: TypedDef -> m Core.Scomb
     toScomb Def{..} = do
+      args <- traverse convertTyped def'args
       expr <- toCoreExpr def'body
       return $ Core.Scomb
           { Core.scomb'name   = varName'name def'name
-          , Core.scomb'args   = V.fromList def'args
+          , Core.scomb'args   = V.fromList args
           , Core.scomb'body   = expr
           }
 
-    toCoreExpr :: TypedExprLam -> m (Typed ExprCore)
-    toCoreExpr expr@(Fix (Ann ty _)) = fmap (\val -> Typed val ty) (cataM convert expr)
+    convertTyped (Typed a ty) = do
+      ty' <- toCoreType ty
+      return $ Typed a ty'
+
+    toCoreExpr :: TypedExprLam -> m (Typed TypeCore ExprCore)
+    toCoreExpr expr@(Fix (Ann expressionTy _)) = do
+      e  <- cataM convert expr
+      ty <- toCoreType expressionTy
+      return $ Typed e ty
       where
         convert (Ann exprTy val) = case val of
-          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name          
+          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
           EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
-          EPrimOp _ primOp     -> pure $ Core.EPrimOp primOp
+          EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
           EAp _  f a           -> pure $ Core.EAp f a
           -- FIXME: We don't take recurion between let bindings into account
           ELet _ binds body    -> pure $
@@ -84,12 +92,17 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
             in foldr addLet body binds
           ELam _ _ _           -> eliminateLamError
           EIf _ c t e          -> pure $ Core.EIf c t e
-          ECase _ e alts       -> pure $ Core.ECase e (fmap convertAlt alts)
-          EConstr _ consTy m n -> pure $ Core.EConstr consTy m n
+          ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
+          EConstr _ consTy m n -> do ty <- toCoreType consTy
+                                     pure $ Core.EConstr ty m n
           EAssertType _ e _    -> pure e
           EBottom _            -> pure $ Core.EBottom
 
-        convertAlt CaseAlt{..} = Core.CaseAlt caseAlt'tag caseAlt'args caseAlt'rhs
+        convertAlt CaseAlt{..} = do
+          args <- traverse convertTyped caseAlt'args
+          return Core.CaseAlt { caseAlt'args = args
+                              , ..
+                              }
 
         eliminateLamError = failedToEliminate "Lambda-expressions for core language. Do lambda-lifting to eliminate."
 
@@ -99,10 +112,10 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
 -- We need to think on more generic rule for substitution like this.
-specifyPolyFun :: MonadLang m => Loc -> TypeContext -> TypeCore -> Name -> m ExprCore
+specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m ExprCore
 specifyPolyFun loc ctx ty name = do
   case lookupSignature name ctx of
-    Just sig -> fromSignature sig
+    Just sig -> fromSignature $ H.monoT $ typeCoreToType sig
     Nothing  -> return $ Core.EVar name
   where
     fromSignature sig
@@ -120,3 +133,21 @@ specifyPolyFun loc ctx ty name = do
       case mapM (H.applyToVar subst) argOrder of
         Just _  -> failedToFindMonoType loc name
         Nothing -> failedToFindMonoType loc name
+
+
+toCoreType :: MonadLang m => H.Type loc Name -> m TypeCore
+toCoreType (H.Type ty) = cataM go ty
+  where
+    -- FIXME: add sane error messages
+    go = \case
+      H.ArrowT _ a b      -> pure $ a :-> b
+      H.VarT _ _          -> failedToFindMonoType noLoc "Type variable encountered"
+      H.TupleT _ xs       -> pure $ TupleT xs
+      H.ListT  _ a        -> pure $ ListT a
+      H.ConT _ "Int"   [] -> pure IntT
+      H.ConT _ "Bool"  [] -> pure BoolT
+      H.ConT _ "Text"  [] -> pure TextT
+      H.ConT _ "Bytes" [] -> pure BytesT
+      H.ConT _ "Sigma" [] -> pure SigmaT
+      H.ConT _ "Box"   [] -> pure BoxT
+      H.ConT _ _ _        -> failedToFindMonoType noLoc "Unknown type"

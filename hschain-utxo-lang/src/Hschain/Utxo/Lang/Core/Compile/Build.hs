@@ -41,7 +41,7 @@ import Data.Int
 import Data.Fix
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Expr (ArgType(..), intT, boolT, sigmaT)
+import Hschain.Utxo.Lang.Expr (ArgType(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -76,17 +76,17 @@ op1 name argT resT = Scomb
   }
 
 intOp2 :: Name -> Scomb
-intOp2 name = op2 name (intT, intT) intT
+intOp2 name = op2 name (IntT, IntT) IntT
 
 boolOp2 :: Name -> Scomb
-boolOp2 name = op2 name (boolT, boolT) boolT
+boolOp2 name = op2 name (BoolT, BoolT) BoolT
 
 sigmaOp2 :: Name -> Scomb
-sigmaOp2 name = op2 name (sigmaT, sigmaT) sigmaT
+sigmaOp2 name = op2 name (SigmaT, SigmaT) SigmaT
 
 -- | TODO: do we need polymorphic comparison?
 compareOp :: TypeCore -> Name -> Scomb
-compareOp ty name = op2 name (ty, ty) boolT
+compareOp ty name = op2 name (ty, ty) BoolT
 
 op2 :: Name -> (TypeCore, TypeCore) -> TypeCore -> Scomb
 op2 name (xT, yT) resT = Scomb

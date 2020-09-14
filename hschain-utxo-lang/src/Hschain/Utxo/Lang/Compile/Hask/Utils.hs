@@ -18,14 +18,14 @@ import Data.Text (Text)
 
 import HSChain.Crypto.Classes (encodeBase58)
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, TypeCore, Typed(..))
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L
 import qualified Data.Text as T
 
 import qualified Language.Haskell.Exts.Syntax as H
-import qualified Language.HM as H(LocFunctor(..))
+import qualified Language.HM as HM(LocFunctor(..), Type)
 
 import qualified Hschain.Utxo.Lang.Parser.Hask.ToHask as H(toHaskType)
 
@@ -35,13 +35,13 @@ toName (VarName loc txt) = H.Ident loc $ T.unpack txt
 toQName :: VarName -> H.QName Loc
 toQName (VarName loc txt) = H.UnQual loc $ H.Ident loc $ T.unpack txt
 
-toType :: Loc -> TypeCore -> H.Type Loc
-toType loc ty = H.toHaskType $ H.mapLoc (const loc) ty
+toType :: Loc -> HM.Type () Name -> H.Type Loc
+toType loc ty = H.toHaskType $ HM.mapLoc (const loc) ty
 
 toPat :: Loc -> Name -> H.Pat Loc
 toPat loc name = H.PVar loc $ toName (VarName loc name)
 
-toTypedPat :: Loc -> Typed Name -> H.Pat Loc
+toTypedPat :: Loc -> Typed (HM.Type () Name) Name -> H.Pat Loc
 toTypedPat loc (Typed name ty) = H.PatTypeSig loc (H.PVar loc $ toName $ VarName loc name) (toType loc ty)
 
 toSigma :: Loc -> Sigma PublicKey -> H.Exp Loc

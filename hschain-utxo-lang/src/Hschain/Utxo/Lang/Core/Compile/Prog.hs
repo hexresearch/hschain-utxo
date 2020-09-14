@@ -8,7 +8,6 @@ module Hschain.Utxo.Lang.Core.Compile.Prog(
 import Control.Applicative
 import Data.Fix
 
-import Hschain.Utxo.Lang.Expr (sigmaT)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
@@ -70,6 +69,6 @@ mainIsSigma (CoreProg prog) =
   where
     resultIsNotSigma = E.wrapBoolError (E.CoreScriptError E.ResultIsNotSigma)
     hasNoArgs Scomb{..} = V.null scomb'args
-    resultIsSigma Scomb{..} = sigmaT == typed'type scomb'body
+    resultIsSigma Scomb{..} = SigmaT == typed'type scomb'body
 
 

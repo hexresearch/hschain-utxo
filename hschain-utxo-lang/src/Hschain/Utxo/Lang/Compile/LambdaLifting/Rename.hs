@@ -115,7 +115,7 @@ allocNames oldNames = do
 
     toNewName freshId = mappend "$v" (showt freshId)
 
-allocTypedNames :: [Typed Name] -> RenameM ([Typed Name], Map Name Name)
+allocTypedNames :: [Typed t Name] -> RenameM ([Typed t Name], Map Name Name)
 allocTypedNames tyNames = do
   (newNames, env) <- allocNames names
   return (zipWith Typed newNames tys, env)
