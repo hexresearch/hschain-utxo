@@ -308,7 +308,7 @@ evalPrimOp env = \case
     lookAt (_:xs) n = lookAt xs (n-1)
 
 opComparison :: (forall a. Ord a => a -> a -> Bool) -> Val
-opComparison (#) = primFun2 go
+opComparison (#) = lift2 go
   where
     go (PrimInt   a) (PrimInt   b) = ValP $ PrimBool $ a # b
     go (PrimBool  a) (PrimBool  b) = ValP $ PrimBool $ a # b
@@ -317,12 +317,6 @@ opComparison (#) = primFun2 go
     -- FIXME: Comparison for sigma expressions?
     go (PrimSigma _) (PrimSigma _) = ValBottom TypeMismatch
     go _ _ = ValBottom TypeMismatch
-
-primFun2 :: (Prim -> Prim -> Val) -> Val
-primFun2 f = Val2F go
-  where
-    go (ValP a) (ValP b) = f a b
-    go _        _        = ValBottom TypeMismatch
 
 
 ----------------------------------------------------------------
@@ -337,6 +331,9 @@ class InjPrim a where
 
 instance MatchPrim Val where
   matchP = Right
+instance MatchPrim Prim where
+  matchP (ValP p) = Right p
+  matchP _        = Left $ EvalErr "Expecting primitive"
 instance MatchPrim Int64 where
   matchP (ValP (PrimInt a)) = Right a
   matchP (ValBottom e)      = Left e
