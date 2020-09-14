@@ -51,7 +51,7 @@ instance H.IsPrim PrimLoc where
   type PrimLoc PrimLoc = Loc
   type PrimVar PrimLoc = Tag
 
-  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
+  getPrimType (PrimLoc loc p) = H.setLoc loc $ typeCoreToType @() $ primToType p
 
 eraseLoc :: H.Type loc Name -> H.Type Loc Tag
 eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
@@ -189,7 +189,7 @@ libTypeContext = (H.Context $ M.fromList
     cmpT = forA $ aT `arrowT` (aT `arrowT` boolT)
 
     fromPrimOps = H.Context $ M.fromList
-      [ (VarTag nm, H.monoT $ eraseLoc $ typeCoreToType ty)
+      [ (VarTag nm, H.monoT $ typeCoreToType ty)
       | (nm,op) <- M.toList monoPrimopNameMap
       , let Right ty = runCheck mempty $ primopToType op
       ]

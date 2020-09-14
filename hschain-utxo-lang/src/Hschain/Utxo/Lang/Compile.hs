@@ -115,7 +115,7 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
 specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m ExprCore
 specifyPolyFun loc ctx ty name = do
   case lookupSignature name ctx of
-    Just sig -> fromSignature $ H.mapLoc (const ()) $ H.monoT $ typeCoreToType sig
+    Just sig -> fromSignature $ H.monoT $ typeCoreToType sig
     Nothing  -> return $ Core.EVar name
   where
     fromSignature sig

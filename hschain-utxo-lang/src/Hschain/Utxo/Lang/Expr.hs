@@ -975,7 +975,7 @@ sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
    where
      toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)
 
-typeCoreToType :: TypeCore -> H.Type Loc Name
+typeCoreToType :: (H.DefLoc loc, IsString v) => TypeCore -> H.Type loc v
 typeCoreToType = \case
   IntT      -> intT
   BoolT     -> boolT

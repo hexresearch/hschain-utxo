@@ -469,5 +469,5 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
 
 
 primToType' :: Prim -> H.Type () Name
-primToType' = H.setLoc () . typeCoreToType . primToType
+primToType' = typeCoreToType . primToType
 
