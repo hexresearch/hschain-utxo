@@ -11,7 +11,7 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   -- * primitive types
   , primToType
   , primopToType
-) where
+  ) where
 
 
 import Control.Applicative
@@ -252,7 +252,7 @@ primopToType = \case
   OpGetBoxScript -> pure $ BoxT :-> BytesT
   OpGetBoxValue  -> pure $ BoxT :-> IntT
   OpGetBoxArgs t -> pure $ BoxT :-> ListT (tagToType t)
-  OpMakeBox      -> pure $ BytesT :-> BytesT :-> IntT :-> ArgsT :-> BoxT
+  OpMakeBox      -> pure $ BytesT :-> BytesT :-> IntT :-> argsTuple :-> BoxT
   --
   OpShow      ty  -> showType ty
   OpToBytes   tag -> pure $ tagToType tag :-> BytesT
