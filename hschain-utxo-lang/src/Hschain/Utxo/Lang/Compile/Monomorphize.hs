@@ -19,9 +19,10 @@ import Data.Sequence (Seq)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Prim(..))
 import Hschain.Utxo.Lang.Expr ( Loc, noLoc, boolT, VarName(..), argTypeName, argTypes
-                              , funT, intT,boolT, bytesT,textT,sigmaT)
+                              , funT, intT,boolT, bytesT,textT,sigmaT, typeCoreToType)
 
 import qualified Language.HM as H
 import qualified Language.HM.Subst as H
@@ -468,9 +469,5 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
 
 
 primToType' :: Prim -> H.Type () Name
-primToType' = \case
-  PrimInt   _ -> intT
-  PrimText  _ -> textT
-  PrimBool  _ -> boolT
-  PrimSigma _ -> sigmaT
-  PrimBytes _ -> bytesT
+primToType' = H.setLoc () . typeCoreToType . primToType
+
