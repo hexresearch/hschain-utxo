@@ -98,9 +98,8 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
           EAssertType _ e _    -> pure e
           EBottom _            -> pure $ Core.EBottom
 
-        convertAlt CaseAlt{..} = do
-          args <- traverse convertTyped caseAlt'args
-          return Core.CaseAlt { caseAlt'args = args
+        convertAlt CaseAlt{..} =
+          return Core.CaseAlt { caseAlt'args = typed'value <$> caseAlt'args
                               , ..
                               }
 

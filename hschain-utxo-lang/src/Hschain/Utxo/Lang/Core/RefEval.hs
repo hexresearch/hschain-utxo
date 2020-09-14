@@ -134,9 +134,9 @@ evalExpr inpEnv genv = recur
               | otherwise          = matchCase cs
             matchCase [] = ValBottom $ EvalErr "No match in case"
             --
-            bindParams []             []             = id
-            bindParams (v:vs) (Typed n _:ts) = bindParams vs ts . Map.insert n v
-            bindParams _ _ = error "Type error in case"
+            bindParams []     []     = id
+            bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
+            bindParams _      _      = error "Type error in case"
         ValBottom err -> ValBottom err
         _             -> ValBottom TypeMismatch
       EConstr _ tag arity    -> constr tag arity

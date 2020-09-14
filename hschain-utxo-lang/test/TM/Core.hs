@@ -102,15 +102,15 @@ progListCase = CoreProg
   where
     safeHead e = ECase e
       [ CaseAlt 0 [] (EPrim (PrimInt 0))
-      , CaseAlt 1 [Typed "x" IntT, Typed "xs" (ListT IntT)] (EVar "x")
+      , CaseAlt 1 ["x", "xs"] (EVar "x")
       ]
 
 badListCase :: CoreProg
 badListCase = CoreProg
   [ mkMain $ Typed
     { typed'value = ECase nil
-        [ CaseAlt 0 [Typed "x" IntT]                          zero
-        , CaseAlt 1 [Typed "x" IntT, Typed "xs" (ListT IntT)] zero
+        [ CaseAlt 0 ["x"]                          zero
+        , CaseAlt 1 ["x", "xs"] zero
         ]
     , typed'type  = IntT
     }

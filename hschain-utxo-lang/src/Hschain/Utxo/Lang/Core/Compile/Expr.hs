@@ -168,7 +168,7 @@ data CaseAlt = CaseAlt
   { caseAlt'tag   :: !Int
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [Typed TypeCore Name]
+  , caseAlt'args  :: [Name]
   -- ^ arguments of the pattern matching
   , caseAlt'rhs   :: ExprCore
   -- ^ right-hand side of the case-alternative

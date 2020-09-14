@@ -88,6 +88,7 @@ data TypeCoreError
   | PolymorphicLet
   | BadEquality TypeCore
   | BadShow     TypeCore
+  | BadCase
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 

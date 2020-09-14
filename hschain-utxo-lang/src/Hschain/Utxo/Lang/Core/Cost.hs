@@ -136,7 +136,9 @@ exprCost typeCostMap costMap expr = case expr of
 
     costCase e alts = liftA2 addCost (rec e) (fmap maximumCost $ mapM costAlt alts)
 
-    costAlt CaseAlt{..} = exprCost typeCostMap (appendArgs typeCostMap caseAlt'args costMap) caseAlt'rhs
+    -- FIXME: We dropped types from case alternatives
+    costAlt CaseAlt{..} = Just unitCost
+    -- exprCost typeCostMap (appendArgs typeCostMap caseAlt'args costMap) caseAlt'rhs
 
     costConstr _ _ _ = return unitCost
 

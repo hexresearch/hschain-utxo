@@ -151,21 +151,42 @@ inferLet nm expr body = do
   local (loadName (Typed nm ty)) $ inferExpr body
 
 inferCase :: ExprCore -> [CaseAlt] -> Check MonoType
-inferCase e alts = do
-  _ty <- inferExpr e
-  -- FIXME: We don't use type informatio to check that patterns are
-  --        correct
-  getResultType =<< mapM inferAlt alts
+inferCase expr alts = inferExpr expr >>= \case
+  -- Tuple
+  MonoType (TupleT ts) -> case alts of
+    [ CaseAlt 0 vars e] -> do
+      env <- matchTypes vars ts
+      local (loadArgs env) $ inferExpr e
+    _ -> throwError BadCase
+  -- List
+  MonoType (ListT  t) -> getResultType =<< traverse (inferListAlt t) alts
+   -- Box
+  MonoType  BoxT -> case alts of
+    [ CaseAlt 0 [a,b,c,d] e] -> local (loadArgs [ Typed a BytesT
+                                                , Typed b BytesT
+                                                , Typed c IntT
+                                                , Typed d argsTuple
+                                                ])
+                              $ inferExpr e
+    _ -> throwError BadCase
+  _ -> throwError BadCase
   where
-    getResultType :: [MonoType] -> Check MonoType
+    inferListAlt _  (CaseAlt 0 []     e) = inferExpr e
+    inferListAlt ty (CaseAlt 1 [x,xs] e)
+      = local (loadArgs [ Typed x  ty
+                        , Typed xs (ListT ty)
+                        ])
+      $ inferExpr e
+    inferListAlt _ _ = throwError BadCase
+    --
     getResultType = \case
       []   -> throwError EmptyCaseExpression
       t:ts -> foldM unifyMonoType t ts
 
-inferAlt :: CaseAlt -> Check MonoType
-inferAlt CaseAlt{..} =
-  local (loadArgs caseAlt'args) $
-    inferExpr caseAlt'rhs
+matchTypes :: [Name] -> [TypeCore] -> Check [Typed TypeCore Name]
+matchTypes []     []     =  return []
+matchTypes (n:ns) (t:ts) = (Typed n t:) <$> matchTypes ns ts
+matchTypes  _      _     = throwError BadCase
 
 inferIf :: ExprCore -> ExprCore -> ExprCore -> Check MonoType
 inferIf c t e = do
@@ -216,7 +237,7 @@ primopToType :: PrimOp TypeCore -> Check TypeCore
 primopToType = \case
   OpAdd -> pure $ IntT :-> IntT :-> IntT
   OpSub -> pure $ IntT :-> IntT :-> IntT
-  OpMul -> pure $ IntT :-> IntT :-> IntT 
+  OpMul -> pure $ IntT :-> IntT :-> IntT
   OpDiv -> pure $ IntT :-> IntT :-> IntT
   OpNeg -> pure $ IntT :-> IntT
   --
