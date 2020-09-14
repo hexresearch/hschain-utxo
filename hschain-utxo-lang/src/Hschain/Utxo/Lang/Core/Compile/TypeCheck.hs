@@ -18,19 +18,16 @@ import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Except
 
-import Data.Fix
 import Data.Foldable
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (ArgType(..),argsT,intT,textT,bytesT,boolT,sigmaT,boxT,listT,funT)
+import Hschain.Utxo.Lang.Expr (ArgType(..))
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
-
-import qualified Language.HM as H
 
 {- for debug
 import Debug.Trace
@@ -143,7 +140,7 @@ inferAp f a = do
     getArrowTypes :: MonoType -> Check (MonoType, MonoType)
     getArrowTypes ty = case ty of
       AnyType            -> return (AnyType, AnyType)
-      MonoType (a :-> b) -> return (MonoType a, MonoType b)
+      MonoType (x :-> y) -> return (MonoType x, MonoType y)
       MonoType t         -> throwError $ ArrowTypeExpected t
 
 inferLet :: Name -> ExprCore -> ExprCore -> Check MonoType

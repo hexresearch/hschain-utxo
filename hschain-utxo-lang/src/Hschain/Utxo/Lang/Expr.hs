@@ -35,7 +35,7 @@ import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
-import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..), Name)
+import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..))
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask

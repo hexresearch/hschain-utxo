@@ -20,9 +20,9 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..), Prim(..))
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
 import Hschain.Utxo.Lang.Expr ( Loc, noLoc, boolT, VarName(..), argTypeName, argTypes
-                              , funT, intT,boolT, bytesT,textT,sigmaT, typeCoreToType)
+                              , funT, boolT, typeCoreToType)
 
 import qualified Language.HM as H
 import qualified Language.HM.Subst as H
