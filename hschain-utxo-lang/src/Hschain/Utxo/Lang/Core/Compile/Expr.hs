@@ -130,8 +130,6 @@ data PrimOp a
   | OpListOr              -- ^ OR for all elements
   | OpListAll    !a       -- ^ Every element of list satisfy predicate
   | OpListAny    !a       -- ^ Any element of list satisfy predicate
-  | OpListAndSigma        -- ^ AND for all elements (sigma booleans)
-  | OpListOrSigma         -- ^ OR for all elements (sigma booleans)
   | OpListNil    !a
   | OpListCons   !a
   deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
@@ -148,7 +146,7 @@ data ExprCore
   | EAp  ExprCore ExprCore
   -- ^ application
   | ELet Name ExprCore ExprCore
-  -- ^ lent bindings
+  -- ^ Let bindings
   | EIf ExprCore ExprCore ExprCore
   -- ^ if expressions
   | ECase !ExprCore [CaseAlt]
@@ -206,8 +204,8 @@ monoPrimopName = \case
   OpSigOr        -> Just "|||"
   OpSigPK        -> Just "pk"
   OpSigBool      -> Just "toSigma"
-  OpSigListAnd   -> Just "sigmaAnd"
-  OpSigListOr    -> Just "sigmaOr"
+  OpSigListAnd   -> Just "andSigma"
+  OpSigListOr    -> Just "orSigma"
   OpSigListAll _ -> Nothing
   OpSigListAny _ -> Nothing
   --
@@ -249,8 +247,6 @@ monoPrimopName = \case
   OpListSum      -> Just "sum"
   OpListAnd      -> Just "and"
   OpListOr       -> Just "or"
-  OpListAndSigma -> Just "andSigma"
-  OpListOrSigma  -> Just "orSigma"
   OpListAll{}    -> Nothing
   OpListAny{}    -> Nothing
   OpListNil{}    -> Nothing
@@ -268,8 +264,6 @@ monomorphicPrimops =
   , OpListSum
   , OpListAnd
   , OpListOr
-  , OpListAndSigma
-  , OpListOrSigma
   ]
   ++ (OpToBytes <$> argTypes)
   ++ (OpFromBytes <$> argTypes)

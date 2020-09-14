@@ -278,8 +278,6 @@ primopToType = \case
   OpListAny    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
   OpListNil    a   -> pure $ ListT a
   OpListCons   a   -> pure $ a :-> ListT a :-> ListT a
-  OpListAndSigma   -> pure $ ListT SigmaT :-> SigmaT
-  OpListOrSigma    -> pure $ ListT SigmaT :-> SigmaT
   where
     tagToType = \case
       IntArg   -> IntT
