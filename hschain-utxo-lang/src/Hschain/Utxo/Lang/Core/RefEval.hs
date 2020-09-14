@@ -114,7 +114,7 @@ evalExpr inpEnv genv = recur
       EPrim p      -> ValP p
       EPrimOp op   -> evalPrimOp inpEnv op
       EAp f x -> inj $ do
-        valF <- matchP $ recur lenv f
+        valF <- match $ recur lenv f
         return (valF $ recur lenv x :: Val)
       EIf e a b -> case recur lenv e of
         ValP (PrimBool f) -> recur lenv $ if f then a else b
@@ -127,12 +127,12 @@ evalExpr inpEnv genv = recur
         in recur lenv' body
       --
       ECase e alts -> case recur lenv e of
-        ValCon tag fields -> match alts
+        ValCon tag fields -> matchCase alts
           where
-            match (CaseAlt{..} : cs)
+            matchCase (CaseAlt{..} : cs)
               | tag == caseAlt'tag = recur (bindParams fields caseAlt'args lenv) caseAlt'rhs
-              | otherwise          = match cs
-            match [] = ValBottom $ EvalErr "No match in case"
+              | otherwise          = matchCase cs
+            matchCase [] = ValBottom $ EvalErr "No match in case"
             --
             bindParams []             []             = id
             bindParams (v:vs) (Typed n _:ts) = bindParams vs ts . Map.insert n v
@@ -184,13 +184,13 @@ evalPrimOp env = \case
   OpSigListAnd   -> lift1 $ Fix . SigmaAnd
   OpSigListOr    -> lift1 $ Fix . SigmaOr
   OpSigListAll _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- matchP @(Val -> Val) valF
-    xs <- matchP @[Val]        valXS
-    Fix . SigmaAnd <$> mapM (matchP . f) xs
+    f  <- match @(Val -> Val) valF
+    xs <- match @[Val]        valXS
+    Fix . SigmaAnd <$> mapM (match . f) xs
   OpSigListAny _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- matchP @(Val -> Val) valF
-    xs <- matchP @[Val]        valXS
-    Fix . SigmaOr <$> mapM (matchP . f) xs
+    f  <- match @(Val -> Val) valF
+    xs <- match @[Val]        valXS
+    Fix . SigmaOr <$> mapM (match . f) xs
   --
   OpEQ _ -> opComparison (==)
   OpNE _ -> opComparison (/=)
@@ -256,44 +256,44 @@ evalPrimOp env = \case
   OpListAppend _ -> lift2 ((<>) @[Val])
   OpListLength _ -> lift1 (fromIntegral @_ @Int64 . length @[] @Val)
   OpListFoldr{}  -> ValF $ \valF -> ValF $ \valZ -> ValF $ \valXS -> inj $ do
-    xs <- matchP @[Val] valXS
-    f1 <- matchP @(Val -> Val) valF
+    xs <- match @[Val] valXS
+    f1 <- match @(Val -> Val) valF
     let step :: Val -> Val -> Val
-        step a b = case matchP (f1 a) of
+        step a b = case match (f1 a) of
           Right f2 -> f2 b
           Left  e  -> ValBottom e
     return $ foldr step valZ xs
   OpListFoldl{}  -> ValF $ \valF -> ValF $ \valZ -> ValF $ \valXS -> inj $ do
-    xs <- matchP @[Val] valXS
-    f1 <- matchP @(Val -> Val) valF
+    xs <- match @[Val] valXS
+    f1 <- match @(Val -> Val) valF
     let step :: Val -> Val -> Val
-        step a b = case matchP (f1 a) of
+        step a b = case match (f1 a) of
           Right f2 -> f2 b
           Left  e  -> ValBottom e
     return $ foldl step valZ xs
   OpListFilter _ -> Val2F $ \valF valXS -> inj $ do
-    xs <- matchP @[Val]        valXS
-    p  <- matchP @(Val -> Val) valF
-    return $ filterM (matchP . p) xs
+    xs <- match @[Val]        valXS
+    p  <- match @(Val -> Val) valF
+    return $ filterM (match . p) xs
   OpListSum   -> lift1 (sum @[] @Int64)
   OpListAnd   -> lift1 (and @[])
   OpListOr    -> lift1 (or  @[])
   OpListAll _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- matchP @(Val -> Val) valF
-    xs <- matchP @[Val] valXS
+    f  <- match @(Val -> Val) valF
+    xs <- match @[Val] valXS
     let step []                 = inj True
         step (Right True  : as) = step as
         step (Right False : _ ) = inj False
         step (Left e      : _ ) = ValBottom e
-    return $ step $ map (matchP . f) xs
+    return $ step $ map (match . f) xs
   OpListAny _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- matchP @(Val -> Val) valF
-    xs <- matchP @[Val] valXS
+    f  <- match @(Val -> Val) valF
+    xs <- match @[Val] valXS
     let step []                 = inj False
         step (Right True  : _ ) = inj True
         step (Right False : as) = step as
         step (Left e      : _ ) = ValBottom e
-    return $ step $ map (matchP . f) xs
+    return $ step $ map (match . f) xs
   OpListNil  _ -> inj ([] @Val)
   OpListCons _ -> Val2F $ \x xs -> ValCon 1 [x , xs]
   where
@@ -316,63 +316,59 @@ opComparison (#) = lift2 go
     go (PrimBytes a) (PrimBytes b) = ValP $ PrimBool $ a # b
     -- FIXME: Comparison for sigma expressions?
     go (PrimSigma _) (PrimSigma _) = ValBottom TypeMismatch
-    go _ _ = ValBottom TypeMismatch
+    go  _             _            = ValBottom TypeMismatch
 
 
 ----------------------------------------------------------------
 -- Lifting of functions
 ----------------------------------------------------------------
 
+match :: MatchPrim a => Val -> Either EvalErr a
+match (ValBottom e) = Left e
+match v             = matchVal v
+
 class MatchPrim a where
-  matchP :: Val -> Either EvalErr a
+  matchVal :: Val -> Either EvalErr a
 
 class InjPrim a where
   inj :: a -> Val
 
 instance MatchPrim Val where
-  matchP = Right
+  matchVal = Right
 instance MatchPrim Prim where
-  matchP (ValP p) = Right p
-  matchP _        = Left $ EvalErr "Expecting primitive"
+  matchVal (ValP p) = Right p
+  matchVal _        = Left $ EvalErr "Expecting primitive"
 instance MatchPrim Int64 where
-  matchP (ValP (PrimInt a)) = Right a
-  matchP (ValBottom e)      = Left e
-  matchP _                  = Left $ EvalErr "Expecting Int"
+  matchVal (ValP (PrimInt a)) = Right a
+  matchVal _                  = Left $ EvalErr "Expecting Int"
 instance MatchPrim Bool where
-  matchP (ValP (PrimBool a)) = Right a
-  matchP (ValBottom e)       = Left e
-  matchP _                   = Left $ EvalErr "Expecting Bool"
+  matchVal (ValP (PrimBool a)) = Right a
+  matchVal _                   = Left $ EvalErr "Expecting Bool"
 instance MatchPrim Text where
-  matchP (ValP (PrimText a))  = Right a
-  matchP (ValBottom e)        = Left e
-  matchP _                    = Left $ EvalErr "Expecting Text"
+  matchVal (ValP (PrimText a))  = Right a
+  matchVal _                    = Left $ EvalErr "Expecting Text"
 instance MatchPrim ByteString where
-  matchP (ValP (PrimBytes a)) = Right a
-  matchP (ValBottom e)        = Left e
-  matchP _                    = Left $ EvalErr "Expecting Bytes"
+  matchVal (ValP (PrimBytes a)) = Right a
+  matchVal _                    = Left $ EvalErr "Expecting Bytes"
 instance MatchPrim LB.ByteString where
-  matchP (ValP (PrimBytes a)) = Right $ LB.fromStrict a
-  matchP (ValBottom e)        = Left e
-  matchP _                    = Left $ EvalErr "Expecting Bytes"
+  matchVal (ValP (PrimBytes a)) = Right $ LB.fromStrict a
+  matchVal _                    = Left $ EvalErr "Expecting Bytes"
 
 instance k ~ PublicKey => MatchPrim (Sigma k) where
-  matchP (ValP (PrimSigma a)) = Right a
-  matchP (ValBottom e)        = Left e
-  matchP _                    = Left $ EvalErr "Expecting Sigma"
+  matchVal (ValP (PrimSigma a)) = Right a
+  matchVal _                    = Left $ EvalErr "Expecting Sigma"
 
 instance MatchPrim (Val -> Val) where
-  matchP = \case
+  matchVal = \case
     ValF      f -> Right f
     Val2F     f -> Right $ ValF . f
-    ValBottom e -> Left e
     v           -> Left $ EvalErr $ "Expecting function, got " ++ conName v
 
 
 instance (Typeable a, MatchPrim a) => MatchPrim [a] where
-  matchP (ValCon 0 [])     = Right []
-  matchP (ValCon 1 [x,xs]) = liftA2 (:) (matchP x) (matchP xs)
-  matchP (ValBottom e)     = Left e
-  matchP p = Left $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
+  matchVal (ValCon 0 [])     = Right []
+  matchVal (ValCon 1 [x,xs]) = liftA2 (:) (match x) (match xs)
+  matchVal p = Left $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
 
 instance InjPrim Val           where inj = id
 instance InjPrim Int64         where inj = ValP . PrimInt
@@ -415,12 +411,12 @@ instance InjPrim Args where
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
 lift1 f = ValF go
   where
-    go a = inj $ f <$> matchP a
+    go a = inj $ f <$> match a
 
 lift2 :: (MatchPrim a, MatchPrim b, InjPrim c) => (a -> b -> c) -> Val
 lift2 f = Val2F go
   where
-    go a b = inj $ f <$> matchP a <*> matchP b
+    go a b = inj $ f <$> match a <*> match b
 
 
 conName :: Val -> String
