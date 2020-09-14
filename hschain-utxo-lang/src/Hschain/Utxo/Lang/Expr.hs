@@ -35,7 +35,7 @@ import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
-import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..))
+import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..), argsTuple)
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -769,7 +769,7 @@ funT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v -> H.Type loc v
 funT args resT = foldr arrowT resT args
 
 argsT :: (IsString v, H.DefLoc loc) => H.Type loc v
-argsT = tupleT [listT intT, listT textT, listT boolT]
+argsT = typeCoreToType argsTuple
 
 
 constType :: v -> loc -> H.Type loc v
@@ -982,7 +982,6 @@ typeCoreToType = \case
   BytesT    -> bytesT
   TextT     -> textT
   SigmaT    -> sigmaT
-  ArgsT     -> argsT
   BoxT      -> boxT
   a :-> b   -> (arrowT `on` typeCoreToType) a b
   ListT a   -> listT (typeCoreToType a)

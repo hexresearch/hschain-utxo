@@ -3,6 +3,7 @@
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
   , TypeCore(..)
+  , argsTuple
   , SignatureCore
   , Typed(..)
   , Prim(..)
@@ -55,18 +56,20 @@ data Prim
 data TypeCore
   = IntT                        -- ^ Integer
   | BoolT                       -- ^ Boolean
-  | BytesT                      -- ^ Bytes
+  | BytesT                      -- ^ Byte sequence
   | TextT                       -- ^ Text
   | SigmaT                      -- ^ Sigma expression
   | TypeCore :-> TypeCore       -- ^ Function type
   | ListT TypeCore              -- ^ List
   | TupleT [TypeCore]           -- ^ Tuple. Nullary tuple doubles as unit
-  | ArgsT
   | BoxT
+    -- ^ Box. 4-tuple of box ID, spend script, value of box, and arguments
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (NFData)
 infixr 5 :->
 
+argsTuple :: TypeCore
+argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 
 -----------------------------------------------------
 -- instnaces
@@ -106,5 +109,4 @@ instance Pretty TypeCore where
                    $ go True a <> " -> " <> go False b
         ListT  a  -> brackets $ go False a
         TupleT xs -> parens $ hsep $ punctuate comma $ go False <$> xs
-        ArgsT     -> "Args"
         BoxT      -> "Box"
