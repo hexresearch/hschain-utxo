@@ -73,7 +73,6 @@ import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
-import HSChain.Types
 import HSChain.Types.Merkle.Types
 
 import Hschain.Utxo.Lang hiding (Height)
