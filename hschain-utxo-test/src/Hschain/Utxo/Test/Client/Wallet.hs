@@ -1,7 +1,9 @@
+{-# LANGUAGE DerivingStrategies #-}
 -- | This module defines test user wallet.
 -- It keeps balances, keys and allocates data for transactions.
 module Hschain.Utxo.Test.Client.Wallet(
     Wallet(..)
+  , UserId(..)
   , newWallet
   , getWalletPublicKey
   , getBalance
@@ -40,6 +42,10 @@ data Wallet = Wallet
   , wallet'privateKey :: !Secret           -- ^ User private key
   , wallet'utxos      :: !(TVar [BoxId])   -- ^ User UTXOs
   }
+
+-- | User identifier.
+newtype UserId = UserId { unUserId :: Text }
+  deriving newtype  (Show, Eq)
 
 -- | Allocate new wallet
 newWallet :: MonadIO io => UserId -> Secret -> io Wallet
