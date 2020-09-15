@@ -180,8 +180,10 @@ instance IsMerkle f => JSON.ToJSON (UTXOBlock f) where
 instance Serialise (UTXOBlock Identity)
 instance Serialise (UTXOBlock Proxy)
 
+
 instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
   hashStep = Crypto.genericHashStep "block proper"
+
 
 instance POWTypes.BlockData UTXOBlock where
 
@@ -204,7 +206,10 @@ instance POWTypes.BlockData UTXOBlock where
     deriving stock    (Show,Generic)
     deriving anyclass (Exception,JSON.ToJSON)
 
-  blockID b = let Hashed h = hashed b in UB'BID h
+  txID    = UTXOTxID . hash
+  blockID = UB'BID   . hash
+  blockTransactions = merkleValue . ubpData . ubProper . POWTypes.blockData
+
   validateHeader bh (POWTypes.Time now) header
     | POWTypes.blockHeight header == 0 = return $ Right () -- skip genesis check.
     | otherwise = do
