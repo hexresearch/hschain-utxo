@@ -1,5 +1,27 @@
 -- | Defines basic types for blockchain.
-module Hschain.Utxo.Lang.Types where
+module Hschain.Utxo.Lang.Types
+  ( Tx(..)
+  , PreTx(..)
+  , TxHash(..)
+  , TxArg(..)
+  , BoxInput(..)
+  , BoxInputRef(..)
+  , ExpectedBox(..)
+  , Env(..)
+  , InputEnv(..)
+    -- * Functions
+  , newTx
+  , newProofTx
+  , newProofTxOrFail
+  , scriptToText
+  , hashScript
+  , splitInputs
+  , txPreservesValue
+  , getPreTxBytes
+  , getTxBytes
+  , singleOwnerInput
+  , validateOutputBoxIds
+  ) where
 
 import Hex.Common.Aeson
 import Control.DeepSeq (NFData)
