@@ -334,15 +334,10 @@ data PreBox = PreBox
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
-getBoxToHashId :: BoxToHash -> BoxId
-getBoxToHashId = BoxId . hashBlob . LB.toStrict . serialise
-
--- | Values that are used to get the hash of the box to create identifier for it.
-data BoxToHash = BoxToHash
-  { boxToHash'content  :: !PreBox  -- ^ meaningful data of the box
-  , boxToHash'origin   :: !BoxOrigin   -- ^ origin of the box
-  }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+computeBoxId :: BoxOrigin -> PreBox -> BoxId
+computeBoxId origin box
+  = BoxId . hashBlob . LB.toStrict . serialise
+  $ ( origin , box )
 
 -- | Data encodes the source of the Box when it was produced.
 data BoxOrigin = BoxOrigin
