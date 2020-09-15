@@ -3,7 +3,6 @@ module TM.Tx.Sigma(
   tests
 ) where
 
-import Data.Fix
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -19,9 +18,6 @@ tests = testGroup "sigma-protocols"
   , testCase "verify correct single owner script"            $ ( @=? True)  =<< verifyAliceTx
   , testCase "verify broken tx"                              $ ( @=? False) =<< verifyBrokenTx
   ]
-
-singleOwnerSigma :: PublicKey -> Sigma PublicKey
-singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
 
 verifySameSignMessage :: IO Bool
 verifySameSignMessage = do
@@ -43,21 +39,12 @@ initTx = do
   return (resTx, fmap expectedBox'input $ tx alicePubKey)
   where
     tx pubKey = PreTx
-      { preTx'inputs = return $ ExpectedBox
-                                      { expectedBox'sigma = Just $ singleOwnerSigma pubKey
-                                      , expectedBox'input = inputRef
-                                      }
+      { preTx'inputs = singleOwnerInput (BoxId "box-1") pubKey
       , preTx'outputs = return $ PreBox
                                       { preBox'value  = 1
                                       , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
                                       , preBox'args   = mempty
                                       }
-      }
-
-    inputRef = BoxInputRef
-      { boxInputRef'id    = BoxId "box-1"
-      , boxInputRef'args  = mempty
-      , boxInputRef'proof = Nothing
       }
 
 -- | Verify that proof is correct

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This module defines type-inference utilities.
 module Hschain.Utxo.Lang.Infer(
     InferM(..)
@@ -20,7 +19,7 @@ import Control.Monad.State.Strict
 import Data.Fix hiding ((~>))
 import Data.Text (Text)
 
-import Language.HM (appE, varE, lamE, varT, conT, monoT, forAllT, arrowT, stripSignature)
+import Language.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)
 
 import Hschain.Utxo.Lang.Desugar hiding (app1, app2, app3)
 import Hschain.Utxo.Lang.Expr
@@ -199,6 +198,8 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       VecLength loc      -> varE loc lengthVecVar
       VecMap loc         -> varE loc mapVecVar
       VecFold loc        -> varE loc foldVecVar
+      VecAndSigma loc    -> varE loc andSigmaVecVar
+      VecOrSigma loc     -> varE loc orSigmaVecVar
 
     fromText _ = \case
       TextAppend loc a b            -> app2 loc appendTextVar a b
@@ -207,6 +208,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
 
     fromBytes _ = \case
       BytesAppend loc a b            -> app2 loc appendBytesVar a b
+      BytesLength loc a              -> app1 loc lengthBytesVar a
       SerialiseToBytes loc tag a     -> app1 loc (serialiseToBytesVar tag) a
       DeserialiseFromBytes loc tag a -> app1 loc (deserialiseToBytesVar tag) a
       BytesHash loc hashAlgo a       -> app1 loc (bytesHashVar hashAlgo) a
@@ -279,13 +281,15 @@ defaultContext = H.Context $ M.fromList $
   , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (toSigmaVar, monoT $ boolT `arr` sigmaT)
   -- vec expressions
-  , (nilVecVar, forA $ monoT $ vectorT a)
-  , (consVecVar, forA $ monoT $ a `arr` (vectorT a `arr` vectorT a))
-  , (appendVecVar, forA $ monoT $ vectorT a `arr` (vectorT a `arr` vectorT a))
-  , (vecAtVar, forA $ monoT $ vectorT a `arr` (intT `arr` a))
-  , (lengthVecVar, forA $ monoT $ vectorT a `arr` intT)
-  , (mapVecVar, forAB $ monoT $ (a `arr` b) `arr` (vectorT a `arr` vectorT b))
-  , (foldVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (vectorT a `arr` b)))
+  , (nilVecVar, forA $ monoT $ listT a)
+  , (consVecVar, forA $ monoT $ a `arr` (listT a `arr` listT a))
+  , (appendVecVar, forA $ monoT $ listT a `arr` (listT a `arr` listT a))
+  , (vecAtVar, forA $ monoT $ listT a `arr` (intT `arr` a))
+  , (lengthVecVar, forA $ monoT $ listT a `arr` intT)
+  , (mapVecVar, forAB $ monoT $ (a `arr` b) `arr` (listT a `arr` listT b))
+  , (foldVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (listT a `arr` b)))
+  , (andSigmaVecVar, monoT $ listT sigmaT `arr` sigmaT)
+  , (orSigmaVecVar, monoT $ listT sigmaT `arr` sigmaT)
   , (getBoxIdVar, monoT $ boxT `arr` textT)
   , (getBoxValueVar, monoT $ boxT `arr` intT)
   , (getBoxScriptVar, monoT $ boxT `arr` scriptT)
@@ -295,21 +299,21 @@ defaultContext = H.Context $ M.fromList $
   , (inputVar, monoT $ intT `arr` boxT)
   , (outputVar, monoT $ intT `arr` boxT)
   , (selfVar, monoT boxT)
-  , (inputsVar, monoT $ vectorT boxT)
-  , (outputsVar, monoT $ vectorT boxT)
+  , (inputsVar, monoT $ listT boxT)
+  , (outputsVar, monoT $ listT boxT)
   , (getVarVar, forA $ monoT $ intT `arr` a)
   , (altVar, forA $ monoT $ a `arr` (a `arr` a))
   , (failCaseVar, forA $ monoT a)
   ] ++ tupleConVars ++ tupleAtVars ++ textExprVars ++ bytesExprVars ++ getBoxArgVars
   where
     getBoxArgVars =
-      fmap (\ty -> (getBoxArgVar' ty, monoT $ boxT `arr` (vectorT $ argTagToType ty))) argTypes
+      fmap (\ty -> (getBoxArgVar' ty, monoT $ boxT `arr` (listT $ argTagToType ty))) argTypes
 
     forA = forAllT noLoc "a"
     forAB = forA . forAllT noLoc "b"
-    a = varT noLoc "a"
-    b = varT noLoc "b"
-    arr = arrowT noLoc
+    a = varT "a"
+    b = varT "b"
+    arr = arrowT
 
     opT2 x = monoT $ x `arr` (x `arr` x)
     boolOp2 = opT2 boolT
@@ -325,7 +329,7 @@ defaultContext = H.Context $ M.fromList $
         tupleConType size = foldr (\var mt -> forAllT noLoc var mt) (monoT ty) vs
           where
             vs = fmap v [0 .. size-1]
-            ty = foldr (\lhs rhs -> arrowT noLoc (varT noLoc lhs) rhs) (tupleCon size) vs
+            ty = foldr (\lhs rhs -> arrowT (varT lhs) rhs) (tupleCon size) vs
 
     tupleAtVars = [ toTuple size idx | size <- [2..maxTupleSize], idx <- [0 .. size-1]]
       where
@@ -333,12 +337,12 @@ defaultContext = H.Context $ M.fromList $
         toTuple size idx = (tupleAtVar size idx, tupleAtType size idx)
 
         tupleAtType :: Int -> Int -> Signature
-        tupleAtType size idx = predicate $ monoT $ (tupleCon size) `arr` (varT noLoc $ v idx)
+        tupleAtType size idx = predicate $ monoT $ (tupleCon size) `arr` (varT $ v idx)
           where
             predicate = foldr (.) id $ fmap (\n -> forAllT noLoc (v n)) [0 .. size-1]
 
     tupleCon :: Int -> Type
-    tupleCon size = tupleT $ fmap (varT noLoc . v) [0..size-1]
+    tupleCon size = tupleT $ fmap (varT . v) [0..size-1]
 
     v n = mappend "a" (showt n)
 
@@ -354,6 +358,7 @@ defaultContext = H.Context $ M.fromList $
 
     bytesExprVars =
       [ (appendBytesVar, monoT $ bytesT `arr` (bytesT `arr` bytesT))
+      , (lengthBytesVar, monoT $ bytesT `arr` intT)
       ] ++ (fmap (\tag -> (serialiseToBytesVar tag, monoT $ argTagToType tag `arr` bytesT)) argTypes)
         ++ (fmap (\tag -> (deserialiseToBytesVar tag, monoT $ bytesT `arr` argTagToType tag)) argTypes)
 
@@ -406,7 +411,7 @@ greaterThanVar = secretVar "greaterThan"
 lessThanEqualsVar = secretVar "lessThanEquals"
 greaterThanEqualsVar = secretVar "greaterThanEquals"
 
-nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar :: Text
+nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar, andSigmaVecVar, orSigmaVecVar :: Text
 
 nilVecVar = secretVar "nilVec"
 consVecVar = secretVar "consVec"
@@ -415,6 +420,8 @@ vecAtVar = secretVar "vecAt"
 lengthVecVar = secretVar "lengthVec"
 mapVecVar = secretVar "mapVec"
 foldVecVar = secretVar "foldVec"
+andSigmaVecVar = secretVar "andSigma"
+orSigmaVecVar = secretVar "orSigma"
 
 appendTextVar, lengthTextVar :: Text
 
@@ -423,6 +430,9 @@ lengthTextVar = secretVar "lengthText"
 
 appendBytesVar :: Text
 appendBytesVar = secretVar Const.appendBytes
+
+lengthBytesVar :: Text
+lengthBytesVar = secretVar Const.lengthBytes
 
 serialiseToBytesVar, deserialiseToBytesVar :: ArgType -> Text
 
@@ -484,7 +494,7 @@ userTypesToTypeContext (UserTypeCtx m _ _ _) =
         appArgsT = toArgsT u
         fromCase (cons, args) = (consName'name cons, ty) : (recFieldSelectors ++ recFieldUpdates)
           where
-            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT noLoc a res) resT $ getConsTypes args
+            ty = appArgsT $ monoT $ V.foldr (\a res -> arrowT a res) resT $ getConsTypes args
 
             onFields f = case args of
               ConsDef _         -> []
@@ -498,20 +508,20 @@ userTypesToTypeContext (UserTypeCtx m _ _ _) =
 
         fromRecSelector RecordField{..} = (varName'name recordField'name, ty)
           where
-            ty = appArgsT $ monoT $ arrowT noLoc resT recordField'type
+            ty = appArgsT $ monoT $ arrowT resT recordField'type
 
         fromRecUpdate RecordField{..} = (recordUpdateVar recordField'name, ty)
           where
-            ty = appArgsT $ monoT $ arrowT noLoc recordField'type (arrowT noLoc resT resT)
+            ty = appArgsT $ monoT $ arrowT recordField'type (arrowT resT resT)
 
     getSelectors ut@UserType{..} = M.foldMapWithKey toSel userType'cases
       where
         resT = toResT ut
         appArgsT = toArgsT ut
-        toSelType ty = appArgsT $ monoT $ arrowT noLoc resT ty
+        toSelType ty = appArgsT $ monoT $ arrowT resT ty
         toConstSelType =
-          appArgsT $ forAllT noLoc freshVar $ monoT $ arrowT noLoc resT
-            $ arrowT noLoc (varT noLoc freshVar) (varT noLoc freshVar)
+          appArgsT $ forAllT noLoc freshVar $ monoT $ arrowT resT
+            $ arrowT (varT freshVar) (varT freshVar)
           where
             freshVar = mappend "a" $ mconcat $ fmap varName'name userType'args
 
@@ -531,7 +541,7 @@ userTypesToTypeContext (UserTypeCtx m _ _ _) =
     toArgsT UserType{..} ty = foldr (\a res -> forAllT noLoc (varName'name a) res) ty userType'args
 
     con' VarName{..} = conT varName'loc varName'name
-    var' VarName{..} = varT varName'loc varName'name
+    var' VarName{..} = H.varT varName'loc varName'name
 
 selectorNameVar :: ConsName -> Int -> T.Text
 selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]

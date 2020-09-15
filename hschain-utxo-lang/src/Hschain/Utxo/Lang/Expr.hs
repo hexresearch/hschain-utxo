@@ -35,6 +35,7 @@ import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..), argsTuple)
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -51,6 +52,10 @@ type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
+
+
+instance H.DefLoc Hask.SrcSpanInfo where
+  defLoc = Hask.noSrcSpan
 
 -- | Unknown source code location.
 noLoc :: Loc
@@ -569,7 +574,8 @@ data BoxField a
 -- | Types that we can store as arguments in transactions.
 -- We store lists of them.
 data ArgType = IntArg | TextArg | BoolArg | BytesArg
-  deriving (Show, Eq, Generic, NFData)
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData, Serialise)
 
 argTypes :: [ArgType]
 argTypes = [IntArg, TextArg, BoolArg, BytesArg]
@@ -613,6 +619,10 @@ data VecExpr a
   -- ^ map vector with the function (@map f as@)
   | VecFold Loc
   -- ^ Left-fold vector with function and accumulator (@foldl f z as@)
+  | VecAndSigma Loc
+  -- ^ and of vector of sigma expressions
+  | VecOrSigma Loc
+  -- ^ or of vector of sigma expressions
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Tag for values to convert to to text
@@ -638,6 +648,8 @@ data TextExpr a
 data BytesExpr a
   = BytesAppend Loc a a
   -- ^ append bytes
+  | BytesLength Loc a
+  -- ^ size of byteString
   | SerialiseToBytes Loc ArgType a
   -- ^ serialise primitive types to bytes
   | DeserialiseFromBytes Loc ArgType a
@@ -732,52 +744,54 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: Type
+intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: (IsString v, H.DefLoc loc) => H.Type loc v
+intT    = intT'    H.defLoc
+boolT   = boolT'   H.defLoc
+bytesT  = bytesT'  H.defLoc
+boxT    = boxT'    H.defLoc
+scriptT = scriptT' H.defLoc
+textT   = textT'   H.defLoc
+sigmaT  = sigmaT'  H.defLoc
 
-intT = intT' noLoc
-boolT = boolT' noLoc
-bytesT = bytesT' noLoc
-boxT  = boxT' noLoc
-scriptT = scriptT' noLoc
-textT = textT' noLoc
-sigmaT = sigmaT' noLoc
+tupleT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v
+tupleT = tupleT' H.defLoc
 
-constType :: Text -> Loc -> Type
+listT :: H.DefLoc loc => H.Type loc v -> H.Type loc v
+listT = listT' H.defLoc
+
+arrowT :: H.DefLoc loc => H.Type loc v -> H.Type loc v -> H.Type loc v
+arrowT = H.arrowT H.defLoc
+
+varT :: H.DefLoc loc => v -> H.Type loc v
+varT = H.varT H.defLoc
+
+funT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v -> H.Type loc v
+funT args resT = foldr arrowT resT args
+
+argsT :: (IsString v, H.DefLoc loc) => H.Type loc v
+argsT = typeCoreToType argsTuple
+
+
+constType :: v -> loc -> H.Type loc v
 constType name loc = H.conT loc name []
 
-boxT' :: Loc -> Type
-boxT' = constType "Box"
-
-textT' :: Loc -> Type
-textT' = constType "Text"
-
-bytesT' :: Loc -> Type
-bytesT' = constType "Bytes"
-
-intT' :: Loc -> Type
-intT' = constType "Int"
-
-boolT' :: Loc -> Type
-boolT' = constType "Bool"
-
-sigmaT' :: Loc -> Type
-sigmaT' = constType "Sigma"
-
-scriptT' :: Loc -> Type
+intT', boolT', boxT', scriptT', textT', sigmaT', bytesT' :: (IsString v, H.DefLoc loc) => loc -> H.Type loc v
+boxT'    = constType "Box"
+textT'   = constType "Text"
+bytesT'  = constType "Bytes"
+intT'    = constType "Int"
+boolT'   = constType "Bool"
+sigmaT'  = constType "Sigma"
 scriptT' = constType "Script"
 
-vectorT :: Type -> Type
-vectorT = vectorT' noLoc
+listT' :: loc -> H.Type loc v -> H.Type loc v
+listT' loc a = H.listT loc a
 
-vectorT' :: Loc -> Type -> Type
-vectorT' loc a = H.listT loc a
-
-
-tupleT :: [Type] -> Type
-tupleT = tupleT' noLoc
-
-tupleT' ::  Loc -> [Type] -> Type
+tupleT' :: loc -> [H.Type loc v] -> H.Type loc v
 tupleT' loc ts = H.tupleT loc ts
+
+arrowT' :: loc -> H.Type loc v -> H.Type loc v -> H.Type loc v
+arrowT' = H.arrowT
 
 --------------------------------
 -- instances
@@ -960,6 +974,19 @@ sortBindGroups :: BindGroup Lang -> BindGroup Lang
 sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
    where
      toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)
+
+typeCoreToType :: (H.DefLoc loc, IsString v) => TypeCore -> H.Type loc v
+typeCoreToType = \case
+  IntT      -> intT
+  BoolT     -> boolT
+  BytesT    -> bytesT
+  TextT     -> textT
+  SigmaT    -> sigmaT
+  BoxT      -> boxT
+  a :-> b   -> (arrowT `on` typeCoreToType) a b
+  ListT a   -> listT (typeCoreToType a)
+  TupleT xs -> tupleT $ typeCoreToType <$> xs
+
 
 -------------------------------------------------------------------
 

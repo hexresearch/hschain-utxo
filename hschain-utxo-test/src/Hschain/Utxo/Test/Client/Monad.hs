@@ -1,5 +1,6 @@
 module Hschain.Utxo.Test.Client.Monad(
     App(..)
+  , StMAppM(..)
   , TestEnv(..)
   , TestSpec(..)
   , runApp
@@ -21,6 +22,9 @@ module Hschain.Utxo.Test.Client.Monad(
   , toHspec
   , initGenesis
   , mainScriptUnsafe
+  , newBlockChan
+  , getBlockTChan
+  , findTx
 ) where
 
 import Hex.Common.Text
@@ -28,10 +32,13 @@ import Hex.Common.Text
 import Control.Concurrent.STM
 
 import Control.Monad
+import Control.Monad.Base
 import Control.Monad.Except
 import Control.Monad.Reader
+import Control.Monad.Trans.Control
 
 import Data.Int
+import Data.Time
 import Data.Sequence (Seq)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -43,8 +50,11 @@ import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build (pk', mainScriptUnsafe)
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Back.Config
+import Hschain.Utxo.Test.Client.Chan (BlockChan, getBlockTChan, findTx)
 
 import qualified Hschain.Utxo.API.Client as C
+
+import qualified Hschain.Utxo.Test.Client.Chan as C
 
 import qualified Data.Vector as V
 import qualified Data.Text as T
@@ -61,7 +71,16 @@ data TestCase = TestCase
   } deriving (Show, Eq)
 
 newtype App a = App { unApp :: ReaderT TestEnv (ExceptT Text IO) a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadFail, MonadReader TestEnv, MonadError Text)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadFail,
+            MonadReader TestEnv, MonadError Text, MonadBase IO)
+
+newtype StMAppM a = StMAppM { unStMAppM :: StM (ReaderT TestEnv (ExceptT Text IO)) a }
+
+instance MonadBaseControl IO App where
+    type StM App a = StMAppM a
+    liftBaseWith f = App $ liftBaseWith $ \q -> f (fmap StMAppM . q . unApp)
+    restoreM = App . restoreM . unStMAppM
+
 
 data TestEnv = TestEnv
   { testEnv'client         :: !C.ClientSpec
@@ -82,6 +101,11 @@ getMasterSecret = asks testEnv'masterSecret
 
 getMasterBoxId :: App BoxId
 getMasterBoxId = asks testEnv'masterBoxId
+
+newBlockChan :: NominalDiffTime -> Maybe Int -> App BlockChan
+newBlockChan dtime mHeight = do
+  clientSpec <- asks testEnv'client
+  liftIO $ C.newBlockChan clientSpec dtime mHeight
 
 runTest :: TestSpec -> Secret -> BoxId -> App () -> IO Test
 runTest TestSpec{..} masterSecret masterBoxId app = do

@@ -1,8 +1,9 @@
 -- | Module for special constants that are used in the library
 -- It should not depend on any other module in the library.
 module Hschain.Utxo.Lang.Const(
+    main
   -- * Environment
-    getHeight
+  , getHeight
   , getSelf
   , getInputs
   , getOutputs
@@ -20,8 +21,14 @@ module Hschain.Utxo.Lang.Const(
   , foldl
   , length
   , appendList
+  , andSigma
+  , orSigma
+  -- * Text functions
+  , appendText
+  , lengthText
   -- * Bytes functions
   , appendBytes
+  , lengthBytes
   , serialiseBytes
   , deserialiseBytes
   , sha256
@@ -67,7 +74,7 @@ getBoxValue  = "getBoxValue"
 -------------------------------------------------------------------
 -- list functions
 
-listAt, map, filter, foldr, foldl, length, appendList :: IsString a => a
+listAt, map, filter, foldr, foldl, length, appendList, andSigma, orSigma :: IsString a => a
 
 listAt = "listAt"
 map    = "map"
@@ -76,12 +83,26 @@ foldr  = "foldr"
 foldl  = "foldl"
 length = "length"
 appendList = "++"
+andSigma = "andSigma"
+orSigma = "orSigma"
+
+-------------------------------------------------------------------
+-- text functions
+
+appendText :: Text
+appendText = "appendText"
+
+lengthText :: Text
+lengthText = "lengthText"
 
 -------------------------------------------------------------------
 -- bytes functions
 
 appendBytes :: Text
 appendBytes = "appendBytes"
+
+lengthBytes :: Text
+lengthBytes = "lengthBytes"
 
 serialiseBytes :: Text -> Text
 serialiseBytes typeName = "serialise" <> typeName
@@ -91,4 +112,7 @@ deserialiseBytes typeName = "deserialise" <> typeName
 
 sha256 :: Text
 sha256 = "sha256"
+
+main :: Text
+main = "main"
 

@@ -15,7 +15,6 @@ import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
@@ -51,40 +50,40 @@ appendBytesV a b = ap name [a, b]
 progHash :: ByteString -> CoreProg
 progHash bs = mainProg $
   Typed
-    (equals bytesT (sha256V $ bytes bs) (bytes $ getSha256 bs))
-    boolT
+    (equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs))
+    BoolT
 
 progHashAppend :: ByteString -> Int64 -> CoreProg
 progHashAppend bs n = mainProg $
   Typed
-    (equals bytesT
+    (equals BytesT
         (sha256V $ appendBytesV (bytes bs) (serialiseIntV $ int n))
         (bytes $ getSha256 $ bs <> serialiseInt n))
-    boolT
+    BoolT
 
 
 progConvertIdInt :: Int64 -> CoreProg
 progConvertIdInt n = mainProg $
   Typed
-    (equals intT (deserialiseIntV $ serialiseIntV $ int n) (int n))
-    boolT
+    (equals IntT (deserialiseIntV $ serialiseIntV $ int n) (int n))
+    BoolT
 
 progConvertIdText :: Text -> CoreProg
 progConvertIdText n = mainProg $
   Typed
-    (equals textT (deserialiseIntV $ serialiseIntV $ text n) (text n))
-    boolT
+    (equals TextT (deserialiseIntV $ serialiseIntV $ text n) (text n))
+    BoolT
 
 ---------------------------------------
 -- utils
 
-mainProg :: Typed ExprCore -> CoreProg
+mainProg :: Typed TypeCore ExprCore -> CoreProg
 mainProg expr = CoreProg [mkMain expr]
 
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
   testCase testName $ do
-    let tc = typeCheck preludeTypeContext prog
+    let tc = typeCheck prog
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 

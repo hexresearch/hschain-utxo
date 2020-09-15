@@ -19,7 +19,6 @@ import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
@@ -40,7 +39,8 @@ tests = testGroup "core-lists"
     , testProgram     "Or lists is false"      (progOrList (-2)) [PrimBool False]
     , testProgram     "Any list"               (progAnyList 2) [PrimBool True]
     , testProgram     "All list"               (progAllList 2) [PrimBool False]
-    , testProgram     "All sigma list"         progSigmaAllList [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True),Fix (SigmaAnd [Fix (SigmaBool False),Fix (SigmaAnd [Fix (SigmaBool True),Fix (SigmaBool True)])])]))]
+    , testProgram     "All sigma list"         progSigmaAllList
+      [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)]))]
     ]
   ]
 
@@ -62,7 +62,7 @@ testProgramBy nm prog res = testGroup nm
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
   testCase testName $ do
-    let tc = typeCheck preludeTypeContext prog
+    let tc = typeCheck prog
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 
@@ -72,8 +72,8 @@ listToExpr ty = foldr cons nil
     nil      = EConstr nilTy 0 0
     cons a b = ap (EConstr consTy 1 2) [a, b]
 
-    nilTy = listT ty
-    consTy = funT [ty, listT ty] (listT ty)
+    nilTy = ListT ty
+    consTy = ty :-> ListT ty :-> ListT ty
 
 listConsts :: CoreProg
 listConsts = CoreProg
@@ -83,8 +83,8 @@ listConsts = CoreProg
   , bools "bs" bs
   ]
   where
-    nums  name values  = constantComb name (listT intT)  $ listToExpr intT $ fmap (EPrim . PrimInt) values
-    bools name values = constantComb name (listT boolT) $ listToExpr boolT $ fmap (EPrim . PrimBool) values
+    nums  name values = constantComb name (ListT IntT)  $ listToExpr IntT $ fmap (EPrim . PrimInt) values
+    bools name values = constantComb name (ListT BoolT) $ listToExpr BoolT $ fmap (EPrim . PrimBool) values
     xs = [1,2,3]
     ys = [4,5,6]
     zs = xs ++ ys
@@ -95,38 +95,39 @@ listConsts = CoreProg
 -- We index the list [1,2,3] with given index.
 -- Out of bound should terminate with BottomTerm.
 progListAt :: Int64 -> CoreProg
-progListAt n = mainProg $ Typed (listAt intT "xs" (int n)) intT
+progListAt n = mainProg $ Typed (listAt IntT "xs" (int n)) IntT
 
 -- | Concatenation of two lists.
 progConcatList :: CoreProg
-progConcatList = mainProg $ Typed (appendList intT "xs" "ys") (listT intT)
+progConcatList = mainProg $ Typed (appendList IntT "xs" "ys") (ListT IntT)
 
 -- | Map over list
 progMapList :: CoreProg
-progMapList = mainProg $ Typed (mapList intT intT (EAp "*" (int 10)) "xs") (listT intT)
+progMapList = mainProg $ Typed (mapList IntT IntT (EAp (EPrimOp OpMul) (int 10)) "xs") (ListT IntT)
 
 progSumList :: CoreProg
-progSumList = mainProg $ Typed (ap "sum" ["zs"]) intT
+progSumList = mainProg $ Typed (ap (EPrimOp OpListSum) ["zs"]) IntT
 
 progOrList :: Int64 -> CoreProg
 progOrList n = listConsts <>
   CoreProg [mkMain orExpr]
   where
-    orExpr = Typed (ap "or" [mapList intT boolT (isIntV n) "zs"]) boolT
+    orExpr = Typed (ap (EPrimOp OpListOr) [mapList IntT BoolT (isIntV n) "zs"]) BoolT
 
 isIntV :: Int64 -> ExprCore
-isIntV n = EAp "Int.equals" (int n)
+isIntV n = EAp (EPrimOp (OpEQ IntT)) (int n)
 
 progAnyList :: Int64 -> CoreProg
-progAnyList n = mainProg $ Typed (ap (EPolyVar "any" [intT]) [isIntV n, "xs"]) boolT
+progAnyList n = mainProg $ Typed (ap (EPrimOp (OpListAny IntT)) [isIntV n, "xs"]) BoolT
 
 progAllList :: Int64 -> CoreProg
-progAllList n = mainProg $ Typed (ap (EPolyVar "all" [intT]) [isIntV n, "xs"]) boolT
+progAllList n = mainProg $ Typed (ap (EPrimOp (OpListAll IntT)) [isIntV n, "xs"]) BoolT
 
 progSigmaAllList :: CoreProg
-progSigmaAllList = mainProg $ Typed (ap (EPolyVar "sigmaAll" [boolT]) ["toSigma", "bs"]) sigmaT
+progSigmaAllList = mainProg $ Typed
+  (ap (EPrimOp (OpSigListAll BoolT)) [EPrimOp OpSigBool, "bs"]) SigmaT
 
-mainProg :: Typed ExprCore -> CoreProg
+mainProg :: Typed TypeCore ExprCore -> CoreProg
 mainProg expr = listConsts <> CoreProg [mkMain expr]
 
 env :: InputEnv

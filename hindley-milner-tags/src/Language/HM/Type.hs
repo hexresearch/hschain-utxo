@@ -4,6 +4,7 @@ module Language.HM.Type (
     stringIntToVar,
     stringPrettyLetters,
     HasLoc(..),
+    DefLoc(..),
     -- * Monomorphic types.
     TypeF(..),
     Type(..),
@@ -27,7 +28,6 @@ module Language.HM.Type (
 
     VarSet(..),
     differenceVarSet,
-    getVar,
     varSetToList,
     memberVarSet,
 
@@ -75,6 +75,10 @@ class HasLoc f where
   -- | Get the source code location.
   getLoc :: f -> Loc f
 
+-- | Type class for default location
+class DefLoc f where
+  defLoc :: f
+
 -- | Functions we need for variables to do type-inference.
 class (Show v, Ord v) => IsVar v where
   -- | Way to allocate fresh variables from integer count
@@ -95,6 +99,10 @@ stringIntToVar n = fromString $ mappend "$$" (show n)
 
 stringPrettyLetters :: IsString a => [a]
 stringPrettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
+
+
+instance DefLoc () where
+  defLoc = ()
 
 instance HasLoc (Type loc v) where
   type Loc (Type loc v) = loc
@@ -296,20 +304,11 @@ instance HasTypeVars Signature where
 -- | Set with information on source code locations.
 -- We use it to keep the source code locations for variables.
 newtype VarSet src var = VarSet { unVarSet :: Map var src }
-
-instance Ord var => Semigroup (VarSet src var) where
-  (VarSet a) <> (VarSet b) = VarSet $ M.union a b
-
-instance Ord var => Monoid (VarSet src var) where
-  mempty = VarSet M.empty
+  deriving (Semigroup, Monoid)
 
 -- | 'difference' for @VarSet@'s
 differenceVarSet :: Ord var => VarSet src var -> VarSet src var -> VarSet src var
 differenceVarSet (VarSet a) (VarSet b) = VarSet $ a `M.difference` b
-
--- | Gets the source code location for variable.
-getVar :: Ord var => VarSet src var -> var -> Maybe src
-getVar (VarSet m) var = M.lookup var m
 
 -- | Converts varset to list.
 varSetToList :: VarSet src var -> [(src, var)]

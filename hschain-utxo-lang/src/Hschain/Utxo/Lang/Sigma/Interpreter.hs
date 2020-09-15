@@ -154,7 +154,7 @@ deriving stock    instance (Ord    (ECPoint a), Ord    (ECScalar a), Ord    (Cha
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (OrChild a)
 
 -- | Create proof for sigma expression based on ownership of collection of keys (@Env@)
-newProof :: (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
+newProof :: (EC a)
   => Env a -> SigmaE () (PublicKey a) -> ByteString -> IO (Either Text (Proof a))
 newProof env expr message = runProve $ do
   commitments <- generateCommitments (markTree env expr)
@@ -187,7 +187,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 
 
 -- Mark all nodes according to whether we can produce proof for them
-markTree :: (EC a, Eq (ECPoint a)) => Env a -> SigmaE () (PublicKey a) -> SigmaE ProofVar (PublicKey a)
+markTree :: (EC a) => Env a -> SigmaE () (PublicKey a) -> SigmaE ProofVar (PublicKey a)
 markTree (Env env) = clean . check
   where
     -- Prover Step 1: Mark as real everything the prover can prove
@@ -264,7 +264,7 @@ generateCommitments tree = case sexprAnn tree of
 
 
 initRootChallenge
-  :: forall k a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
+  :: forall k a. (EC a, CBOR.Serialise (ECPoint a))
   => SigmaE k (FiatShamirLeaf a)
   -> ByteString
   -> Challenge a
@@ -272,7 +272,7 @@ initRootChallenge expr message =
   randomOracle $ (LB.toStrict $ CBOR.serialise $ toFiatShamir expr) <> message
 
 getProofRootChallenge ::
-     (EC a, Eq (ECPoint a))
+     (EC a)
   => SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
   -> ByteString
   -> Challenge a
@@ -286,7 +286,7 @@ getProofRootChallenge expr message =
         (\x -> FiatShamirLeaf (publicK x)  (commitmentA x))
 
 getVerifyRootChallenge ::
-     (EC a, Eq (ECPoint a))
+     (EC a)
   => SigmaE k (ProofDL a)
   -> ByteString
   -> Challenge a
@@ -296,7 +296,7 @@ getVerifyRootChallenge expr message =
     extractFiatShamirLeaf ProofDL{..} = FiatShamirLeaf publicK commitmentA
 
 generateProofs
-  :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a))
+  :: forall a. (EC a)
   => Env a
   -> SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
   -> ByteString
@@ -367,7 +367,7 @@ orChallenge ch rest = foldl xorChallenge ch rest
 -- verification
 
 -- | Verify proof. It checks if the proof is correct.
-verifyProof :: forall a. (EC a, Eq (ECPoint a), CBOR.Serialise (ECPoint a), Eq (Challenge a))
+verifyProof :: forall a. (EC a, Eq (Challenge a))
   => Proof a -> ByteString -> Bool
 verifyProof proof message =
      checkProofs compTree

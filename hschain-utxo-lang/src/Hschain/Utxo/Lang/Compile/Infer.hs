@@ -14,11 +14,11 @@ import qualified Data.Map.Strict as M
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, SignatureCore, Typed(..), TypeCore)
-import Hschain.Utxo.Lang.Core.Compile.Primitives (preludeTypeContext)
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
-import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (boolT, TypeContext(..))
+import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
+import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, funT, listT
+                              , arrowT, intT, boolT, textT, sigmaT)
+import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
 
 import qualified Language.HM as H
 import qualified Data.Sequence as S
@@ -50,19 +50,13 @@ instance H.IsPrim PrimLoc where
   type PrimLoc PrimLoc = Loc
   type PrimVar PrimLoc = Tag
 
-  getPrimType (PrimLoc loc p) = eraseWith  loc $ primToType p
+  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
 
-eraseLoc :: TypeCore -> H.Type Loc Tag
-eraseLoc = H.mapLoc (const noLoc) . fmap VarTag
+eraseWith :: Loc -> H.Type () Name -> H.Type Loc Tag
+eraseWith loc = H.setLoc loc . fmap VarTag
 
-eraseSignatureLoc :: SignatureCore -> H.Signature Loc Tag
-eraseSignatureLoc = H.mapLoc (const noLoc) . fmap VarTag
-
-eraseWith :: Loc -> TypeCore -> H.Type Loc Tag
-eraseWith loc = H.mapLoc (const loc) . fmap VarTag
-
-toType :: H.Type Loc Tag -> TypeCore
-toType = H.mapLoc (const ()) . fmap fromTag
+toType :: H.Type Loc Tag -> H.Type () Name
+toType = H.setLoc () . fmap fromTag
 
 -- | Infers types for all subexpressions
 annotateTypes :: forall m . MonadLang m => LamProg -> m TypedLamProg
@@ -100,6 +94,7 @@ annotateTypes =
     toInferExpr = cata $ \case
       EVar loc name   -> H.varE loc (VarTag name)
       EPrim loc prim  -> H.primE loc prim
+      EPrimOp{}       -> error "No primop are accessible before type checking"
       EAp loc a b     -> H.appE loc a b
       ELam loc args e -> foldr (H.lamE loc) e (fmap VarTag args)
       EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
@@ -173,29 +168,24 @@ annotateTypes =
 
 libTypeContext :: H.Context Loc Tag
 libTypeContext = (H.Context $ M.fromList
-  [ (IfTag, forA $ funT' [boolT', aT, aT] aT)
+  [ (IfTag, forA $ funT [boolT, aT, aT] aT)
+  , (VarTag "pk", H.monoT $ funT [textT] sigmaT)
+  , (VarTag "listAt", H.forAllT noLoc "a" $ H.monoT $ funT [listT (varT "a"), intT] (varT "a"))
+  , (VarTag "length", H.forAllT noLoc "a" $ H.monoT $ funT [listT (varT "a")] intT)
   ])
   <> genericCompareOps
-  <> fromCoreContext preludeTypeContext
+  <> fromPrimOps
   where
-    aT = varT' "a"
+    aT = varT "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
-
-    fromCoreContext (TypeContext ctx) = H.Context $ M.mapKeys VarTag $ fmap eraseSignatureLoc ctx
 
     genericCompareOps = H.Context $ M.fromList $ fmap (, cmpT) $
       [ "==", "/=", "<", ">", "<=", ">=" ]
 
-    cmpT = forA $ arrowT' aT (arrowT' aT boolT')
+    cmpT = forA $ aT `arrowT` (aT `arrowT` boolT)
 
-funT' :: [H.Type Loc Tag] -> H.Type Loc Tag -> H.Type Loc Tag
-funT' args res = foldr arrowT' res args
-
-arrowT' :: H.Type Loc Tag -> H.Type Loc Tag -> H.Type Loc Tag
-arrowT' a b = H.arrowT noLoc a b
-
-varT' :: Name -> H.Type Loc Tag
-varT'   a   = H.varT noLoc $ VarTag a
-
-boolT' :: H.Type Loc Tag
-boolT' = eraseLoc boolT
+    fromPrimOps = H.Context $ M.fromList
+      [ (VarTag nm, H.monoT $ typeCoreToType ty)
+      | (nm,op) <- M.toList monoPrimopNameMap
+      , let Right ty = runCheck mempty $ primopToType op
+      ]

@@ -21,7 +21,6 @@ import Hschain.Utxo.Lang.Core.Data.Prim
 skiI :: Name -> TypeCore -> Scomb
 skiI name ty = Scomb
   { scomb'name   = "skiI." <> name
-  , scomb'forall = []
   , scomb'args   = [Typed "x" ty]
   , scomb'body   = Typed "x" ty
   }
@@ -33,7 +32,6 @@ skiI name ty = Scomb
 skiK :: Text -> TypeCore -> TypeCore -> Scomb
 skiK name tyX tyY = Scomb
   { scomb'name   = "skiK." <> name
-  , scomb'forall = []
   , scomb'args   = [Typed "x" tyX, Typed "y" tyY]
   , scomb'body   = Typed "x" tyX
   }
@@ -45,7 +43,6 @@ skiK name tyX tyY = Scomb
 skiS :: Text -> TypeCore -> TypeCore -> TypeCore -> Scomb
 skiS name tyA tyB tyC = Scomb
   { scomb'name   = "skiS." <> name
-  , scomb'forall = []
   , scomb'args   = [ Typed "x" tyX
                    , Typed "y" tyY
                    , Typed "z" tyZ
@@ -55,8 +52,8 @@ skiS name tyA tyB tyC = Scomb
                    tyC
   }
   where
-    tyX = tyA `arrowT` (tyB `arrowT` tyC)
-    tyY = tyA `arrowT` tyB
+    tyX = tyA :-> tyB :-> tyC
+    tyY = tyA :-> tyB
     tyZ = tyA
 
 
@@ -69,22 +66,21 @@ skiS name tyA tyB tyC = Scomb
 -- > S K K 3
 exampleSKK3 :: CoreProg
 exampleSKK3 = CoreProg
-  [ skiK "intT" intT intT
-  , skiK "funT" intT (intT `arrowT` intT)
-  , skiS ""     intT (intT `arrowT` intT) intT
+  [ skiK "intT" IntT IntT
+  , skiK "funT" IntT (IntT :-> IntT)
+  , skiS ""     IntT (IntT :-> IntT) IntT
   , mkMain $ Typed
     ((("skiS." `EAp` "skiK.funT") `EAp` "skiK.intT") `EAp` EPrim (PrimInt 3))
-    intT
+    IntT
   ]
 
 ----------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------
 
-mkMain :: Typed ExprCore -> Scomb
+mkMain :: Typed TypeCore ExprCore -> Scomb
 mkMain s = Scomb
   { scomb'name   = "main"
-  , scomb'forall = []
   , scomb'args   = []
   , scomb'body   = s
   }
