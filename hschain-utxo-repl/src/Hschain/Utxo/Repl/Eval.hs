@@ -14,9 +14,9 @@ import Control.Monad.State.Strict
 
 import Data.Maybe
 
+import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Desugar
-
 import Hschain.Utxo.Repl.Monad
 
 import qualified Data.ByteString as BS
@@ -68,7 +68,7 @@ defaultInputEnv = InputEnv
   }
   where
     self = Box
-      { box'id     = BoxId "default-input-box"
+      { box'id     = BoxId $ hashBlob "default-input-box"
       , box'value  = 1
       , box'script = Script BS.empty
       , box'args   = mempty

@@ -6,6 +6,7 @@ module TM.Tx.Sigma(
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Expr
@@ -39,7 +40,7 @@ initTx = do
   return (resTx, fmap expectedBox'input $ tx alicePubKey)
   where
     tx pubKey = PreTx
-      { preTx'inputs = singleOwnerInput (BoxId "box-1") pubKey
+      { preTx'inputs = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
       , preTx'outputs = return $ PreBox
                                       { preBox'value  = 1
                                       , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey

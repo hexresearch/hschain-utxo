@@ -7,9 +7,9 @@ import Data.Int
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import HSChain.Crypto (Hash(..))
 import Hschain.Utxo.Lang.Expr (Box(..), intArgs, textArgs, boolArgs, Script(..), BoxId(..))
 import Hschain.Utxo.Lang.Types
-
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Data.Prim
@@ -32,21 +32,21 @@ txEnv = InputEnv
   }
   where
     in1 = Box
-      { box'id     = BoxId "box-1"
+      { box'id     = BoxId $ Hash "box-1"
       , box'value  = 1
       , box'script = Script "in1"
       , box'args   = intArgs [4,5]
       }
 
     in2 = Box
-      { box'id     = BoxId "box-2"
+      { box'id     = BoxId $ Hash "box-2"
       , box'value  = 2
       , box'script = Script "in2"
       , box'args   = intArgs [6,7] <> textArgs ["john", "neil"]
       }
 
     out1 = Box
-      { box'id     = BoxId "box-3"
+      { box'id     = BoxId $ Hash "box-3"
       , box'value  = 3
       , box'script = Script "out1"
       , box'args   = intArgs [8,9]

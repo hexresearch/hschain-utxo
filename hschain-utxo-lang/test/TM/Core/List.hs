@@ -14,6 +14,7 @@ import Data.Int
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
@@ -134,7 +135,7 @@ env :: InputEnv
 env = InputEnv
   { inputEnv'height   = 123
   , inputEnv'self     = Box
-    { box'id     = BoxId ""
+    { box'id     = BoxId $ hashBlob ""
     , box'value  = 100
     , box'script = Script ""
     , box'args   = mempty
