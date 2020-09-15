@@ -13,17 +13,16 @@ import Control.Arrow (first)
 import Data.Fix
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Expr hiding (Expr, tupleT, intT, boxT, textT)
+import Hschain.Utxo.Lang.Expr hiding (Expr)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck(arrowT, varT, tupleT, listT, intT, boxT, textT)
 import Hschain.Utxo.Lang.Desugar.Lambda
 import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
-import Hschain.Utxo.Lang.Core.Data.Prim(Name, TypeCore)
+import Hschain.Utxo.Lang.Core.Data.Prim(Name)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -106,12 +105,12 @@ exprToExtendedLC typeCtx = cataM $ \case
       PCons loc cons ps -> do
         info <- getConsInfo typeCtx cons
         let tagId = consInfo'tagId info
-            (argsT, rhsT) = H.extractFunType $ consInfo'type info
+            (argsTy, rhsT) = H.extractFunType $ consInfo'type info
         args  <- mapM fromPat ps
         return $ CaseAlt
                   { caseAlt'loc        = loc
                   , caseAlt'tag        = tagId
-                  , caseAlt'args       = zipWith P.Typed args $ fmap fromType argsT
+                  , caseAlt'args       = zipWith P.Typed args $ fmap fromType argsTy
                   , caseAlt'constrType = fromType rhsT
                   , caseAlt'rhs        = caseExpr'rhs
                   }
@@ -202,6 +201,8 @@ exprToExtendedLC typeCtx = cataM $ \case
       VecLength loc       -> var loc Const.length
       VecMap loc          -> var loc Const.map
       VecFold loc         -> var loc Const.foldl
+      VecAndSigma loc     -> var loc Const.andSigma
+      VecOrSigma loc      -> var loc Const.orSigma
       where
         newVec loc args = V.foldr (cons loc) (nil loc) args
 
@@ -223,6 +224,7 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromBytesExpr _ expr = pure $ case expr of
       BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
+      BytesLength loc a              -> ap1 loc (var loc Const.lengthBytes) a
       SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
       DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
       BytesHash loc algo a           -> ap1 loc (var loc $ fromHashAlgo algo) a
@@ -261,7 +263,7 @@ getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
       Just info -> pure info
       Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
 
-fromType :: Type -> TypeCore
+fromType :: Type -> H.Type () Name
 fromType = H.mapLoc (const ())
 
 desugarModule :: MonadLang m => Module -> m Module

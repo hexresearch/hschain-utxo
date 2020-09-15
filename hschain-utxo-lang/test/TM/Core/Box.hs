@@ -12,7 +12,6 @@ import Hschain.Utxo.Lang.Types
 
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
@@ -68,7 +67,7 @@ tests = testGroup "core-boxes"
 testTypeCheckCase :: [Char] -> CoreProg -> TestTree
 testTypeCheckCase testName prog =
   testCase testName $ do
-    let tc = typeCheck preludeTypeContext prog
+    let tc = typeCheck prog
     mapM_ (T.putStrLn . renderText) tc
     Nothing @=? tc
 
@@ -79,30 +78,30 @@ testProg name res prog = testGroup name
   ]
 
 progGetHeight :: CoreProg
-progGetHeight = mainProg $ Typed getHeight intT
+progGetHeight = mainProg $ Typed getHeight IntT
 
 progGetSelfId :: CoreProg
-progGetSelfId = mainProg $ Typed (getBoxId getSelf) bytesT
+progGetSelfId = mainProg $ Typed (getBoxId getSelf) BytesT
 
 progGetSelfScript :: CoreProg
-progGetSelfScript = mainProg $ Typed (getBoxScript getSelf) bytesT
+progGetSelfScript = mainProg $ Typed (getBoxScript getSelf) BytesT
 
 progGetTxArg :: CoreProg
-progGetTxArg = mainProg $ Typed (listAt intT getIntArgs (int 1)) intT
+progGetTxArg = mainProg $ Typed (listAt IntT getIntArgs (int 1)) IntT
 
 progGetInputId :: CoreProg
-progGetInputId = mainProg $ Typed (getBoxId $ listAt boxT getInputs (int 0)) bytesT
+progGetInputId = mainProg $ Typed (getBoxId $ listAt BoxT getInputs (int 0)) BytesT
 
 progGetOutputId :: CoreProg
-progGetOutputId = mainProg $ Typed (getBoxId $ listAt boxT getOutputs (int 0)) bytesT
+progGetOutputId = mainProg $ Typed (getBoxId $ listAt BoxT getOutputs (int 0)) BytesT
 
 progGetOutputLastIntArg :: CoreProg
 progGetOutputLastIntArg = mainProg $
-  Typed (listAt intT (getBoxIntArgs $ listAt boxT getOutputs (int 0)) (int 1)) intT
+  Typed (listAt IntT (getBoxIntArgs $ listAt BoxT getOutputs (int 0)) (int 1)) IntT
 
 progGetInputLastTextArg :: CoreProg
 progGetInputLastTextArg = mainProg $
-  Typed (listAt textT (getBoxTextArgs $ listAt boxT getInputs (int 1)) (int 1)) textT
+  Typed (listAt TextT (getBoxTextArgs $ listAt BoxT getInputs (int 1)) (int 1)) TextT
 
-mainProg :: Typed ExprCore -> CoreProg
+mainProg :: Typed TypeCore ExprCore -> CoreProg
 mainProg expr = CoreProg [mkMain expr]

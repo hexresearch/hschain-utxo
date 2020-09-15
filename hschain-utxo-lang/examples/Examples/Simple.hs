@@ -13,8 +13,8 @@ progAddition :: CoreProg
 progAddition = CoreProg
   [ mkMain $ Typed
     { typed'value = EAp
-                    (EAp "+" (EPrim (PrimInt 1)))
+                    (EAp (EPrimOp OpAdd) (EPrim (PrimInt 1)))
                     (EPrim (PrimInt 100))
-    , typed'type  = intT
+    , typed'type  = IntT
     }
   ]

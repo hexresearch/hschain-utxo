@@ -52,6 +52,8 @@ baseFuns :: [Bind Lang]
 baseFuns =
   [ all
   , any
+  , andSigma
+  , orSigma
   , and
   , or
   , sum
@@ -74,6 +76,7 @@ baseFuns =
   , trace
   , lengthVec
   , lengthText
+  , lengthBytes
   , showInt
   , showBool
   , showScript
@@ -119,6 +122,8 @@ baseNames =
   , "any"
   , "and"
   , "or"
+  , "andSigma"
+  , "orSigma"
   , "sumInt"
   , "productInt"
   , "sum"
@@ -141,6 +146,7 @@ baseNames =
   , "trace"
   , "length"
   , "lengthText"
+  , "lengthBytes"
   , "showInt"
   , "showDouble"
   , "showBool"
@@ -193,14 +199,16 @@ assumpType idx ty = (idx, ty)
 
 baseLibTypeContext :: TypeContext
 baseLibTypeContext = H.Context $ M.fromList $
-  [ assumpType "and" (monoT $ vectorT boolT ~> boolT)
-  , assumpType "or" (monoT $ vectorT boolT ~> boolT)
-  , assumpType "all" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
-  , assumpType "any" (forA $ (aT ~> boolT) ~> vectorT aT ~> boolT)
-  , assumpType "sumInt"      (monoT $ vectorT intT ~> intT)
-  , assumpType "productInt"  (monoT $ vectorT intT ~> intT)
-  , assumpType "sum"      (monoT $ vectorT intT ~> intT)
-  , assumpType "product"  (monoT $ vectorT intT ~> intT)
+  [ assumpType "and" (monoT $ listT boolT ~> boolT)
+  , assumpType "or" (monoT $ listT boolT ~> boolT)
+  , assumpType "andSigma" (monoT $ listT sigmaT ~> sigmaT)
+  , assumpType "orSigma" (monoT $ listT sigmaT ~> sigmaT)
+  , assumpType "all" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumpType "any" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumpType "sumInt"      (monoT $ listT intT ~> intT)
+  , assumpType "productInt"  (monoT $ listT intT ~> intT)
+  , assumpType "sum"      (monoT $ listT intT ~> intT)
+  , assumpType "product"  (monoT $ listT intT ~> intT)
   , assumpType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
   , assumpType  "id"  (forA $ aT ~> aT)
   , assumpType "const" (forAB $ aT ~> bT ~> aT)
@@ -208,16 +216,17 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "getSelf" (monoT boxT)
   , assumpType "getOutput" (monoT $ intT ~> boxT)
   , assumpType "getInput"  (monoT $ intT ~> boxT)
-  , assumpType "getOutputs" (monoT $ vectorT boxT)
-  , assumpType "getInputs" (monoT $ vectorT boxT)
+  , assumpType "getOutputs" (monoT $ listT boxT)
+  , assumpType "getInputs" (monoT $ listT boxT)
   , assumpType "getBoxId" (monoT $ boxT ~> textT)
   , assumpType "getBoxValue" (monoT $ boxT ~> intT)
   , assumpType "getBoxScript" (monoT $ boxT ~> scriptT)
   , assumpType "sha256" (monoT $ bytesT ~> bytesT)
   , assumpType "getVar" (forA $ textT ~> aT)
   , assumpType "trace" (forA $ textT ~> aT ~> aT)
-  , assumpType "length" (forA $ vectorT aT ~> intT)
+  , assumpType "length" (forA $ listT aT ~> intT)
   , assumpType "lengthText" (monoT $ textT ~> intT)
+  , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
   , assumpType "showInt" (monoT $ intT ~> textT)
   , assumpType "showDouble" (monoT $ intT ~> textT)
   , assumpType "showBool" (monoT $ boolT ~> textT)
@@ -237,13 +246,13 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "-." (monoT $ intT ~> intT ~> intT)
   , assumpType "*." (monoT $ intT ~> intT ~> intT)
   , assumpType "/." (monoT $ intT ~> intT ~> intT)
-  , assumpType "++" (forA $ vectorT aT ~> vectorT aT ~> vectorT aT)
+  , assumpType "++" (forA $ listT aT ~> listT aT ~> listT aT)
   , assumpType "<>" (monoT $ textT ~> textT ~> textT)
   , assumpType "appendBytes" (monoT $ bytesT ~> bytesT ~> bytesT)
-  , assumpType "map" (forAB $ (aT ~> bT) ~> vectorT aT ~> vectorT bT)
-  , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> vectorT bT ~> aT)
-  , assumpType "length" (forA $ vectorT aT ~> intT)
-  , assumpType Const.listAt (forA $ vectorT aT ~> intT ~> aT)
+  , assumpType "map" (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
+  , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
+  , assumpType "length" (forA $ listT aT ~> intT)
+  , assumpType Const.listAt (forA $ listT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
   , assumpType "<" (forA $ aT ~> aT ~> boolT)
@@ -261,10 +270,10 @@ baseLibTypeContext = H.Context $ M.fromList $
     forABC = forAllT' "a" . forAllT' "b" . forAllT' "c" . monoT
 
     getBoxArgListTypes =
-      fmap (\ty -> assumpType (getBoxArgVar ty) (monoT $ boxT ~> vectorT (argTagToType ty))) argTypes
+      fmap (\ty -> assumpType (getBoxArgVar ty) (monoT $ boxT ~> listT (argTagToType ty))) argTypes
 
     getEnvVarTypes =
-      fmap (\ty -> assumpType (getEnvVarName ty) (monoT $ vectorT (argTagToType ty))) argTypes
+      fmap (\ty -> assumpType (getEnvVarName ty) (monoT $ listT (argTagToType ty))) argTypes
 
 all :: Bind Lang
 all = bind "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
@@ -289,6 +298,12 @@ or = bind "or" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold n
   where
     g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
     z = Fix $ PrimE noLoc $ PrimBool P.False
+
+andSigma :: Bind Lang
+andSigma = bind "andSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAndSigma noLoc) x)
+
+orSigma :: Bind Lang
+orSigma = bind "orSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecOrSigma noLoc) x)
 
 sumInt :: Bind Lang
 sumInt = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
@@ -376,6 +391,9 @@ lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE n
 
 lengthText :: Bind Lang
 lengthText = bind "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))
+
+lengthBytes :: Bind Lang
+lengthBytes = bind "lengthBytes" (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ BytesLength noLoc x)
 
 biOp :: Text -> BinOp -> Bind Lang
 biOp name op = bind name (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc op x y)
@@ -483,16 +501,11 @@ var' :: Text -> Lang
 var' name = Fix $ Var noLoc (VarName noLoc name)
 
 f, x, y :: Lang
-
 f = Fix $ Var noLoc "f"
 x = Fix $ Var noLoc "x"
 y = Fix $ Var noLoc "y"
 
 aT, bT, cT :: Type
-
-varT :: Text -> Type
-varT = H.varT noLoc
-
 aT = varT "a"
 bT = varT "b"
 cT = varT "c"

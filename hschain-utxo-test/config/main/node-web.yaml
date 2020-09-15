@@ -2,12 +2,8 @@ server:
       host: 127.0.0.1
       port: 8080
 node:
-  port: 45000
-  seeds:
-          - "127.0.0.1:45001"
-          - "127.0.0.1:45002"
-          - "127.0.0.1:45003"
-          - "127.0.0.1:45004"
+  port:  45000
+  seeds: []
   privKey   : "RP3gBEiGMcd2Ha1oCW2eHXUZrR7rkuEVjcSzwuStCmF"
   validators:
           - "9uri4uofrVFf8U7xAqeLBeLvrmKed7bmD488ZtxMv2Bh"

@@ -11,8 +11,10 @@
 
 {-# OPTIONS  -Wno-orphans               #-}
 {-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE OverloadedStrings          #-}
+
 module Hschain.Utxo.Pow.App(
   runApp
 ) where
@@ -37,6 +39,7 @@ import qualified Data.Aeson as JSON
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Char8 as BS8
 
 import Data.Fix
 
@@ -72,7 +75,6 @@ import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
-import HSChain.Types
 import HSChain.Types.Merkle.Types
 
 import HSChain.PoW.Consensus
@@ -141,7 +143,7 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine dbPath) = do
             env = proofEnvFromKeys [getKeyPair secret]
 
             box = Box
-                  { box'id     = BoxId $ "reward:height:"++show blockHeight
+                  { box'id     = BoxId $ BS8.pack $ "reward:height:"++show blockHeight
                   , box'value  = 1
                   , box'script = mainScriptUnsafe $ pk' publicKey
                   , box'args   = mempty
@@ -263,12 +265,12 @@ runApp = readOptions >>= runNode
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM
-utxoServer =
-       postTxEndpoint
-  :<|> getBoxBalanceEndpoint
-  :<|> getTxSigmaEndpoint
-  :<|> getEnvEndpoint
-  :<|> getStateEndpoint
+utxoServer = error "Not implemented"
+  --      postTxEndpoint
+  -- :<|> getBoxBalanceEndpoint
+  -- :<|> getTxSigmaEndpoint
+  -- :<|> getEnvEndpoint
+  -- :<|> getStateEndpoint
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
 postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx

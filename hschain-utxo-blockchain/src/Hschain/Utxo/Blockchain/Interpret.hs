@@ -45,6 +45,7 @@ interpretSpec
 interpretSpec callBackOnCommit nodeSpec@NodeSpec{..} genesisTx = do
   txWaitChan <- liftIO newBroadcastTChanIO
   conn       <- askConnectionRO
+  cached     <- newCached
   (state,stRef,memThr) <- inMemoryView validatorSet
   let node = NodeDescription
         { nodeValidationKey = nspec'privKey
@@ -63,6 +64,7 @@ interpretSpec callBackOnCommit nodeSpec@NodeSpec{..} genesisTx = do
   cursor <- getMempoolCursor $ mempoolHandle $ stateMempool state
   let bchain = Bchain
           { bchain'conn          = conn
+          , bchain'cached        = cached
           , bchain'mempoolCursor = cursor
           , bchain'state         = liftIO $ readIORef stRef
           , bchain'waitForTx     = getTxWait txWaitChan $ stateMempool state
@@ -93,7 +95,7 @@ getTxWait txWaitChan mempool = do
     txInMempool Mempool{..} h = do
       MempoolState{..} <- liftIO getMempoolState
       return $ h `Map.member` mempRevMap
-      
+
 
 getCommitCallback :: (Monad m, MonadIO m)
   => TChan [Hash UtxoAlg]
@@ -158,6 +160,7 @@ instance Default (NetworkCfg BoxChainConfig) where
     , reconnectionDelay      = 100
     , pexConnectionDelay     = 3000
     , pexAskPeersDelay       = 10000
+    , mempoolLogInterval     = 1000
     }
 
 

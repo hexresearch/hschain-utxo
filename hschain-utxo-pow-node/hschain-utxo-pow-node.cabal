@@ -28,7 +28,6 @@ library
                      , hschain-crypto
                      , hschain-db
                      , hschain-merkle
-                     , hschain-types
                      , hschain-utxo-lang
                      , hschain-utxo-api-rest
                      , hschain-utxo-state

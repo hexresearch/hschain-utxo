@@ -124,6 +124,8 @@ toHaskExp (Fix expr) = case expr of
       VecLength loc     -> toVar loc (VarName loc "length")
       VecMap loc        -> toVar loc (VarName loc "map")
       VecFold loc       -> toVar loc (VarName loc "fold")
+      VecAndSigma loc   -> toVar loc (VarName loc "andSigma")
+      VecOrSigma loc    -> toVar loc (VarName loc "orSigma")
 
     fromText _ = \case
       TextAppend loc a b    -> op2 loc "<>" a b
@@ -137,6 +139,7 @@ toHaskExp (Fix expr) = case expr of
 
     fromBytes _ = \case
       BytesAppend loc a b            -> ap2 (VarName loc Const.appendBytes) a b
+      BytesLength loc a              -> ap  (VarName loc $ Const.lengthBytes) a
       SerialiseToBytes loc tag a     -> ap  (VarName loc $ Const.serialiseBytes $ argTypeName tag) a
       DeserialiseFromBytes loc tag a -> ap  (VarName loc $ Const.deserialiseBytes $ argTypeName tag) a
       BytesHash loc algo a           -> case algo of
