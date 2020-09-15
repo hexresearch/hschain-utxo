@@ -285,7 +285,7 @@ byteArgs xs = Args
 
 -- | Identifier of TX. We can derive it from the PreTx.
 --  It equals to hash of serialised PreTx
-newtype TxId = TxId { unTxId :: ByteString }
+newtype TxId = TxId { unTxId :: Hash SHA256 }
   deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)

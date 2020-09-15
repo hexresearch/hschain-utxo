@@ -16,7 +16,7 @@ import Data.Vector (Vector)
 import GHC.Generics
 
 import HSChain.Crypto.Classes (encodeBase58, ViaBase58(..), ByteRepr)
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashBlob, genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
@@ -97,7 +97,7 @@ getPreTxBytes :: PreTx BoxInputRef -> SignMessage
 getPreTxBytes = SignMessage . LB.toStrict . serialise . clearProofs
 
 getTxId :: SignMessage -> TxId
-getTxId (SignMessage bs) = TxId $ getSha256 bs
+getTxId (SignMessage bs) = TxId $ hashBlob bs
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
