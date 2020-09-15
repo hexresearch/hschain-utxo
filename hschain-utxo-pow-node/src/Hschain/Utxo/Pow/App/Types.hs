@@ -225,6 +225,8 @@ instance POWTypes.BlockData UTXOBlock where
 
   validateBlock = const $ return $ Right ()
 
+  validateTxContextFree _ = return ()
+
   blockWork b = POWTypes.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
                               $ POWTypes.targetInteger $ ubpTarget $ ubProper
                               $ POWTypes.blockData b
