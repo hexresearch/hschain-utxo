@@ -160,6 +160,7 @@ instance Default (NetworkCfg BoxChainConfig) where
     , reconnectionDelay      = 100
     , pexConnectionDelay     = 3000
     , pexAskPeersDelay       = 10000
+    , mempoolLogInterval     = 1000
     }
 
 
