@@ -108,9 +108,6 @@ instance Pretty BoxInputRef where
 instance Pretty Env where
   pretty Env{..} = prettyRecord "Env" [("height", pretty env'height)]
 
-instance Pretty UserId where
-  pretty (UserId txt) = pretty txt
-
 -- TODO
 instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof

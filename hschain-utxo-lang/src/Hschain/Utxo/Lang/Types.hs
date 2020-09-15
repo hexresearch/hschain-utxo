@@ -25,11 +25,6 @@ import Hschain.Utxo.Lang.Utils.ByteString
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 
--- | User identifier.
-newtype UserId = UserId { unUserId :: Text }
-  deriving newtype  (Show, Eq, ToJSON, FromJSON)
-  deriving stock    (Generic)
-
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
   deriving newtype  (Show, Eq, Ord, Serialise, ByteRepr)
