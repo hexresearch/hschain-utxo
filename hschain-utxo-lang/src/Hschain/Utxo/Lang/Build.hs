@@ -18,10 +18,11 @@ module Hschain.Utxo.Lang.Build(
   , sigmaOr
   , getHeight
   , getSelf, getInput, getOutput
-  , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList
+  , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList
   , getInputs, getOutputs
   , getIntVars, getBoolVars, getTextVars, getBytesVars
   , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
+  , andSigma, orSigma
   , var
   , def
   , (=:)
@@ -36,7 +37,8 @@ module Hschain.Utxo.Lang.Build(
   , serialiseInt
   , serialiseBytes
   , serialiseBool
-   ,serialiseText
+  , serialiseText
+  , lengthBytes
   , trace
   , pair
   , pairAt1
@@ -200,6 +202,9 @@ getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
 getBoxScript :: Expr Box -> Expr ByteString
 getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScript
 
+getBoxBytesArgList :: Expr Box -> Expr (Vector ByteString)
+getBoxBytesArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList BytesArg)
+
 getBoxIntArgList :: Expr Box -> Expr (Vector Int)
 getBoxIntArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList IntArg)
 
@@ -254,40 +259,16 @@ allVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "all") v
 anyVec :: Expr (Vector Bool) -> Expr Bool
 anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
 
-type instance BooleanOf (Expr Bool) = Expr Bool
-type instance BooleanOf (Expr Int) = Expr Bool
-type instance BooleanOf (Expr Text) = Expr Bool
-type instance BooleanOf (Expr Script) = Expr Bool
-type instance BooleanOf (Expr ByteString) = Expr Bool
-type instance BooleanOf (Expr (a, b)) = Expr Bool
-type instance BooleanOf (Expr (a, b, c)) = Expr Bool
+andSigma :: Expr (Vector SigmaBool) -> Expr SigmaBool
+andSigma (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "andSigma") v
 
-instance IfB (Expr Int) where
-  ifB = ifExpr
+orSigma :: Expr (Vector SigmaBool) -> Expr SigmaBool
+orSigma (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "orSigma") v
 
-instance IfB (Expr Bool) where
-  ifB = ifExpr
+type instance BooleanOf (Expr a) = Expr Bool
 
-instance IfB (Expr Text) where
-  ifB = ifExpr
-
-instance IfB (Expr ByteString) where
-  ifB = ifExpr
-
-instance IfB (Expr Script) where
-  ifB = ifExpr
-
-instance IfB (Expr (a, b)) where
-  ifB = ifExpr
-
-instance IfB (Expr (a, b, c)) where
-  ifB = ifExpr
-
-ifExpr :: Expr Bool -> Expr a -> Expr a -> Expr a
-ifExpr (Expr c) (Expr t) (Expr e) =  Expr $ ifExprLang c t e
-
-ifExprLang :: Lang -> Lang -> Lang -> Lang
-ifExprLang c t e = Fix $ If noLoc c t e
+instance IfB (Expr a) where
+  ifB (Expr c) (Expr t) (Expr e) = Expr $ Fix $ If noLoc c t e
 
 -------------------------------------------------
 -- numeric
@@ -366,6 +347,9 @@ serialiseBool = serialiseBy BoolArg
 serialiseBy :: ArgType -> Expr a -> Expr ByteString
 serialiseBy tag (Expr expr) = Expr $ Fix $ BytesE noLoc $ SerialiseToBytes noLoc tag expr
 
+lengthBytes :: Expr ByteString -> Expr Int
+lengthBytes (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesLength noLoc a
+
 -------------------------------
 -- monoids
 
@@ -389,5 +373,3 @@ instance Monoid (Expr (Vector a)) where
 
 trace :: Expr Text -> Expr a -> Expr a
 trace (Expr str) (Expr a) = Expr $ Fix $ Trace noLoc str a
-
-

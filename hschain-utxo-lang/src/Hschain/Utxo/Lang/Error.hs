@@ -86,6 +86,8 @@ data TypeCoreError
   | SubtypeError TypeCore TypeCore
   | EmptyCaseExpression
   | PolymorphicLet
+  | BadEquality TypeCore
+  | BadShow     TypeCore
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 

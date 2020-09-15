@@ -2,6 +2,7 @@
 module Language.HM.TyTerm(
     Ann(..)
   , TyTerm(..)
+  , termType
   , tyVarE
   , tyPrimE
   , tyAppE
@@ -33,6 +34,9 @@ data Ann note f a = Ann
 -- | Terms with type annotations for all subexpressions.
 newtype TyTerm prim loc v = TyTerm { unTyTerm :: Fix (Ann (Type loc v) (TermF prim loc v)) }
   deriving (Show, Eq)
+
+termType :: TyTerm prim loc v -> Type loc v
+termType (TyTerm (Fix (Ann ty _))) = ty
 
 -- tyTerm :: Type loc v -> TermF loc var (Ann () ) -> TyTerm loc var
 tyTerm :: Type loc v -> TermF prim loc v (Fix (Ann (Type loc v) (TermF prim loc v))) -> TyTerm prim loc v

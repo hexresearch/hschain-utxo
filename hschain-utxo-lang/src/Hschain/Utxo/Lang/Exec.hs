@@ -42,6 +42,7 @@ import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, publicKeyFromText)
 import Hschain.Utxo.Lang.Utils.ByteString
 import Hschain.Utxo.Lang.Types
 
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -422,6 +423,22 @@ execLang (Fix topExpr) = case topExpr of
       Fix (VecE _ (VecLength _)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimInt . fromIntegral) $ vecSize arg'
+      Fix (VecE _ (VecAndSigma _)) -> do
+        let errVal = fun
+        vec' <- rec arg
+        case vec' of
+          Fix (VecE _ (NewVec _ vs)) -> do
+            sigmas <- mapM getPrimSigmaOrFail vs
+            return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaAnd $ V.toList sigmas
+          _ -> thisShouldNotHappen errVal
+      Fix (VecE _ (VecOrSigma _)) -> do
+        let errVal = fun
+        vec' <- rec arg
+        case vec' of
+          Fix (VecE _ (NewVec _ vs)) -> do
+            sigmas <- mapM getPrimSigmaOrFail vs
+            return $ Fix $ PrimE loc $ PrimSigma $ Fix $ S.SigmaOr $ V.toList sigmas
+          _ -> thisShouldNotHappen errVal
       Fix (TextE _ (TextLength _)) -> do
         arg' <- rec arg
         maybe (thisShouldNotHappen arg') (prim loc . PrimInt . fromIntegral) $ textSize arg'
@@ -549,6 +566,9 @@ execLang (Fix topExpr) = case topExpr of
         VecMap loc1 -> return $ Fix $ VecE loc $ VecMap loc1
         VecFold loc1 -> return $ Fix $ VecE loc $ VecFold loc1
         VecLength loc1 -> return $ Fix $ VecE loc $ VecLength loc1
+        VecAndSigma loc1 -> return $ Fix $ VecE loc $ VecAndSigma loc1
+        VecOrSigma loc1 -> return $ Fix $ VecE loc $ VecOrSigma loc1
+
 
     fromText loc x = do
       x' <- mapM rec x
@@ -573,6 +593,9 @@ execLang (Fix topExpr) = case topExpr of
           return $ Fix $ case (a', b') of
             (Fix (PrimE _ (PrimBytes t1)), Fix (PrimE _ (PrimBytes t2))) -> PrimE loc $ PrimBytes $ mappend t1 t2
             _                                                            -> BytesE loc $ BytesAppend loc a' b'
+        BytesLength _ a -> do
+          bs <- getPrimBytesOrFail =<< rec a
+          return $ Fix $ PrimE loc $ PrimInt $ fromIntegral $ B.length bs
         SerialiseToBytes src typeTag a -> fromSerialiseToBytes src typeTag a
         DeserialiseFromBytes src typeTag a -> fromDeserialiseFromBytes src typeTag a
         BytesHash src algo a -> case algo of

@@ -63,6 +63,7 @@ toHaskExpr = cata $ \case
     EConstr loc ty tag arity   -> toConstr loc ty tag arity
     EAssertType loc e ty       -> toAssertType loc e ty
     EBottom loc                -> toBottom loc
+    EPrimOp _ _                -> undefined
   where
     withSig loc ty e = H.ExpTypeSig loc e (H.toHaskType $ H.mapLoc (const noLoc) ty)
 

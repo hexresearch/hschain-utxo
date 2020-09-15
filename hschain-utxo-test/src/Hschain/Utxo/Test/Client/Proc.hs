@@ -21,14 +21,12 @@ import qualified Hschain.Utxo.API.Client as C
 -- | configs for tests
 data Options = Options
   { configWebnodePath :: !FilePath    -- ^ config for webnode
-  , genesisPath       :: !FilePath    -- ^ path to genesis
   }
   deriving (Show)
 
 defaultServiceOptions :: Options
 defaultServiceOptions = Options
   { configWebnodePath = "config/main/node-web.yaml"
-  , genesisPath       = "config/pool/genesis.json"
   }
 
 defaultTestSpec :: TestSpec

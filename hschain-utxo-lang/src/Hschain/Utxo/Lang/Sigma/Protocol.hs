@@ -67,7 +67,7 @@ simulateProofDL pk e = do
 getCommitment :: EC a => Response a -> Challenge a -> PublicKey a -> Commitment a
 getCommitment z ch pk = fromGenerator z ^+^ negateP (fromChallenge ch .*^ unPublicKey pk)
 
-verifyProofDL :: (EC a, Eq (ECPoint a)) => ProofDL a -> Bool
+verifyProofDL :: (EC a) => ProofDL a -> Bool
 verifyProofDL ProofDL{..}
   = fromGenerator responseZ == (commitmentA ^+^ (fromChallenge challengeE .*^ unPublicKey publicK))
 

@@ -9,7 +9,6 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
-import Hschain.Utxo.Lang.Core.Compile.Primitives
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
@@ -43,7 +42,7 @@ tests = testGroup "core"
 
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ Nothing       @=? typeCheck preludeTypeContext prog
+  [ testCase "typecheck" $ Nothing       @=? typeCheck prog
   , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
   ]
 
@@ -60,22 +59,20 @@ progLiteral p = CoreProg
 progHeight :: CoreProg
 progHeight = CoreProg
   [ mkMain $ Typed
-    { typed'value = EVar "getHeight"
-    , typed'type  = intT
+    { typed'value = EPrimOp OpEnvGetHeight
+    , typed'type  = IntT
     }
   ]
 
 progEquality :: Prim -> CoreProg
 progEquality p = CoreProg
   [ mkMain $ Typed
-    { typed'value =
-        (EVar eq `EAp` EPrim p) `EAp` EPrim p
-    , typed'type  = boolT
+    { typed'value = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
+    , typed'type  = BoolT
     }
   ]
   where
     ty = primToType p
-    eq = toCompareName ty "equals"
 
 
 ----------------------------------------------------------------

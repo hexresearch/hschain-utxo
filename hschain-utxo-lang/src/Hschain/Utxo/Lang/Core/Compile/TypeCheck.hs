@@ -7,44 +7,27 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
     typeCheck
   , TypeContext(..)
   , lookupSignature
-  , getScombSignature
+  , runCheck
   -- * primitive types
-  , intT
-  , boolT
-  , textT
-  , bytesT
-  , sigmaT
-  , primT
-  , boxT
-  , envT
   , primToType
-  , varT
-  , listT
-  , argsT
-  , argsTypes
-  , tupleT
-  , arrowT
-  , funT
-) where
+  , primopToType
+  ) where
 
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Except
 
-import Data.Fix
+import Data.Foldable
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Expr (ArgType(..))
 
 import qualified Data.Map.Strict as M
-import qualified Data.List as L
 import qualified Data.Vector as V
-
-import qualified Language.HM as H
-import qualified Language.HM.Subst as H
 
 {- for debug
 import Debug.Trace
@@ -69,9 +52,9 @@ unifyMonoType a b = case (a, b) of
   (ta, AnyType) -> return ta
 
 -- | Check the types for core programm.
-typeCheck :: TypeContext -> CoreProg -> Maybe TypeCoreError
-typeCheck ctx prog = either Just (const Nothing) $
-  runCheck (loadContext prog ctx) (typeCheckM prog)
+typeCheck :: CoreProg -> Maybe TypeCoreError
+typeCheck prog = either Just (const Nothing) $
+  runCheck (loadContext prog) (typeCheckM prog)
 
 
 -- | Monad for the type inference.
@@ -84,20 +67,17 @@ runCheck ctx (Check m) = runReaderT m ctx
 typeCheckM :: CoreProg -> Check ()
 typeCheckM (CoreProg prog) = mapM_ typeCheckScomb  prog
 
-getSignature :: Name -> Check SignatureCore
-getSignature name = maybe err pure =<< fmap (lookupSignature name) ask
+getSignature :: Name -> Check TypeCore
+getSignature name = maybe err pure =<< asks (lookupSignature name)
   where
     err = throwError $ VarIsNotDefined name
 
 -- | Reads  type signature of supercombinator
 getScombType :: Scomb -> TypeCore
-getScombType Scomb{..} = foldr (H.arrowT ()) res args
+getScombType Scomb{..} = foldr (:->) res args
   where
     args = fmap typed'type $ V.toList scomb'args
     res  = typed'type scomb'body
-
-getScombSignature :: Scomb -> SignatureCore
-getScombSignature sc = foldr (\v z -> H.forAllT () v z) (H.monoT $ getScombType sc) (scomb'forall sc)
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
@@ -105,7 +85,7 @@ typeCheckScomb Scomb{..} =
   local (loadArgs (V.toList scomb'args)) $
     typeCheckExpr scomb'body
 
-typeCheckExpr :: Typed ExprCore -> Check ()
+typeCheckExpr :: Typed TypeCore ExprCore -> Check ()
 typeCheckExpr Typed{..} =
   hasType (MonoType typed'type) =<< inferExpr typed'value
 
@@ -121,16 +101,16 @@ fromMonoType = \case
 
 isMonoType :: MonoType -> Bool
 isMonoType x = case x of
-  AnyType -> False
-  MonoType t -> H.isMono t
+  AnyType    -> False
+  MonoType _ -> True
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
     EVar var       -> inferVar var
-    EPolyVar v ts  -> inferPolyVar v ts
     EPrim prim     -> inferPrim prim
+    EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
-    ELet es e      -> inferLet es e
+    ELet nm e body -> inferLet nm e body
     ECase e alts   -> inferCase e alts
     EConstr ty _ _ -> pure $ MonoType ty
     EIf c t e      -> inferIf c t e
@@ -140,29 +120,7 @@ inferVar :: Name -> Check MonoType
 inferVar name = getMonoType name
 
 getMonoType :: Name -> Check MonoType
-getMonoType name =
-  fmap MonoType $ (\sig -> maybe (noMonoSignature name sig) pure $ extractMonoType sig) =<< getSignature name
-
-noMonoSignature :: Name -> SignatureCore -> Check a
-noMonoSignature name x = notMonomorphicType name $ H.stripSignature x
-
-extractMonoType :: SignatureCore -> Maybe TypeCore
-extractMonoType x = flip cataM (H.unSignature x) $ \case
-  H.MonoT ty      -> Just ty
-  H.ForAllT _ _ _ -> Nothing
-
-inferPolyVar :: Name -> [TypeCore] -> Check MonoType
-inferPolyVar name ts = do
-  sig <- getSignature name
-  maybe (noMonoSignature name sig) (pure . MonoType) $ instantiateType ts sig
-
-instantiateType :: [TypeCore] -> SignatureCore -> Maybe TypeCore
-instantiateType argTys sig
-  | length argTys == length vars = Just $ H.apply subst ty
-  | otherwise                    = Nothing
-  where
-    subst = H.Subst $ M.fromList $ zip vars argTys
-    (vars, ty) = H.splitSignature sig
+getMonoType name = fmap MonoType $ getSignature name
 
 inferPrim :: Prim -> Check MonoType
 inferPrim p = return $ MonoType $ primToType p
@@ -181,19 +139,16 @@ inferAp f a = do
 
     getArrowTypes :: MonoType -> Check (MonoType, MonoType)
     getArrowTypes ty = case ty of
-      AnyType -> return (AnyType, AnyType)
-      MonoType (H.Type (Fix t)) ->
-        case t of
-          H.ArrowT () arg res -> return (MonoType $ H.Type arg, MonoType $ H.Type res)
-          _                   -> throwError $ ArrowTypeExpected $ H.Type $ Fix t
+      AnyType            -> return (AnyType, AnyType)
+      MonoType (x :-> y) -> return (MonoType x, MonoType y)
+      MonoType t         -> throwError $ ArrowTypeExpected t
 
-inferLet :: [(Name, ExprCore)] -> ExprCore -> Check MonoType
-inferLet binds body = do
-  typeMap <- forM binds $ \(nm, e) -> do ty <- inferExpr e >>= \case
-                                           MonoType ty -> pure ty
-                                           AnyType     -> throwError PolymorphicLet
-                                         return $ Typed nm ty
-  local (loadArgs typeMap) $ inferExpr body
+inferLet :: Name -> ExprCore -> ExprCore -> Check MonoType
+inferLet nm expr body = do
+  ty <- inferExpr expr >>= \case
+    MonoType ty -> pure ty
+    AnyType     -> throwError PolymorphicLet
+  local (loadName (Typed nm ty)) $ inferExpr body
 
 inferCase :: ExprCore -> [CaseAlt] -> Check MonoType
 inferCase e alts = do
@@ -217,33 +172,33 @@ inferIf c t e = do
   cT <- inferExpr c
   tT <- inferExpr t
   eT <- inferExpr e
-  hasType cT (MonoType boolT)
+  hasType cT (MonoType BoolT)
   unifyMonoType tT eT
 
 -------------------------------------------------------
 -- type inference context
 
 -- | Type context of the known signatures
-newtype TypeContext = TypeContext (Map Name SignatureCore)
+newtype TypeContext = TypeContext (Map Name TypeCore)
   deriving newtype (Semigroup, Monoid)
 
 -- | Loads all user defined signatures to context
-loadContext :: CoreProg -> TypeContext -> TypeContext
-loadContext (CoreProg defs) ctx =
-  L.foldl' (\res sc -> insertSignature (scomb'name sc) (getScombSignature sc) res) ctx defs
+loadContext :: CoreProg -> TypeContext
+loadContext (CoreProg defs) =
+  foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) mempty defs
 
-insertSignature :: Name -> SignatureCore -> TypeContext -> TypeContext
+insertSignature :: Name -> TypeCore -> TypeContext -> TypeContext
 insertSignature name sig (TypeContext m) =
   TypeContext $ M.insert name sig m
 
-loadArgs :: [Typed Name] -> TypeContext -> TypeContext
+loadArgs :: [Typed TypeCore Name] -> TypeContext -> TypeContext
 loadArgs args ctx =
-  L.foldl' (\res arg -> loadName arg res) ctx args
+  foldl' (\res arg -> loadName arg res) ctx args
 
-loadName :: Typed Name -> TypeContext -> TypeContext
-loadName Typed{..} = insertSignature typed'value (H.monoT typed'type)
+loadName :: Typed TypeCore Name -> TypeContext -> TypeContext
+loadName Typed{..} = insertSignature typed'value typed'type
 
-lookupSignature :: Name -> TypeContext -> Maybe SignatureCore
+lookupSignature :: Name -> TypeContext -> Maybe TypeCore
 lookupSignature name (TypeContext m) = M.lookup name m
 
 -------------------------------------------------------
@@ -251,53 +206,99 @@ lookupSignature name (TypeContext m) = M.lookup name m
 
 primToType :: Prim -> TypeCore
 primToType = \case
-  PrimInt   _ -> intT
-  PrimText  _ -> textT
-  PrimBool  _ -> boolT
-  PrimSigma _ -> sigmaT
-  PrimBytes _ -> bytesT
+  PrimInt   _ -> IntT
+  PrimText  _ -> TextT
+  PrimBool  _ -> BoolT
+  PrimSigma _ -> SigmaT
+  PrimBytes _ -> BytesT
 
-intT :: TypeCore
-intT = primT "Int"
+primopToType :: PrimOp TypeCore -> Check TypeCore
+primopToType = \case
+  OpAdd -> pure $ IntT :-> IntT :-> IntT
+  OpSub -> pure $ IntT :-> IntT :-> IntT
+  OpMul -> pure $ IntT :-> IntT :-> IntT 
+  OpDiv -> pure $ IntT :-> IntT :-> IntT
+  OpNeg -> pure $ IntT :-> IntT
+  --
+  OpBoolAnd -> pure $ BoolT :-> BoolT :-> BoolT
+  OpBoolOr  -> pure $ BoolT :-> BoolT :-> BoolT
+  OpBoolXor -> pure $ BoolT :-> BoolT :-> BoolT
+  OpBoolNot -> pure $ BoolT :-> BoolT
+  --
+  OpSigPK        -> pure $ TextT  :-> SigmaT
+  OpSigBool      -> pure $ BoolT  :-> SigmaT
+  OpSigAnd       -> pure $ SigmaT :-> SigmaT :-> SigmaT
+  OpSigOr        -> pure $ SigmaT :-> SigmaT :-> SigmaT
+  OpSigListAnd   -> pure $ ListT SigmaT :-> SigmaT
+  OpSigListOr    -> pure $ ListT SigmaT :-> SigmaT
+  OpSigListAll a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
+  OpSigListAny a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
+  --
+  OpSHA256      -> pure $ BytesT :-> BytesT
+  OpTextLength  -> pure $ TextT  :-> IntT
+  OpTextAppend  -> pure $ TextT  :-> TextT :-> TextT
+  OpBytesLength -> pure $ BytesT :-> IntT
+  OpBytesAppend -> pure $ BytesT :-> BytesT :-> BytesT
+  --
+  OpEQ ty -> compareType ty
+  OpNE ty -> compareType ty
+  OpGT ty -> compareType ty
+  OpGE ty -> compareType ty
+  OpLT ty -> compareType ty
+  OpLE ty -> compareType ty
+  --
+  OpArgs tag     -> pure $ ListT (tagToType tag)
+  OpGetBoxId     -> pure $ BoxT :-> BytesT
+  OpGetBoxScript -> pure $ BoxT :-> BytesT
+  OpGetBoxValue  -> pure $ BoxT :-> IntT
+  OpGetBoxArgs t -> pure $ BoxT :-> ListT (tagToType t)
+  OpMakeBox      -> pure $ BytesT :-> BytesT :-> IntT :-> argsTuple :-> BoxT
+  --
+  OpShow      ty  -> showType ty
+  OpToBytes   tag -> pure $ tagToType tag :-> BytesT
+  -- FIXME: Function is in fact partial
+  OpFromBytes tag -> pure $ BytesT :-> (tagToType tag)
+  --
+  OpEnvGetHeight  -> pure IntT
+  OpEnvGetSelf    -> pure BoxT
+  OpEnvGetInputs  -> pure $ ListT BoxT
+  OpEnvGetOutputs -> pure $ ListT BoxT
+  --
+  OpListMap    a b -> pure $ (a :-> b) :-> ListT a :-> ListT b
+  OpListAt     a   -> pure $ ListT a :-> IntT    :-> a
+  OpListAppend a   -> pure $ ListT a :-> ListT a :-> ListT a
+  OpListLength a   -> pure $ ListT a :-> IntT
+  OpListFoldr  a b -> pure $ (a :-> b :-> b) :-> b :-> ListT a :-> b
+  OpListFoldl  a b -> pure $ (b :-> a :-> b) :-> b :-> ListT a :-> b
+  OpListFilter a   -> pure $ (a :-> BoolT) :-> ListT a :-> ListT a
+  OpListSum        -> pure $ ListT IntT  :-> IntT
+  OpListAnd        -> pure $ ListT BoolT :-> BoolT
+  OpListOr         -> pure $ ListT BoolT :-> BoolT
+  OpListAll    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
+  OpListAny    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
+  OpListNil    a   -> pure $ ListT a
+  OpListCons   a   -> pure $ a :-> ListT a :-> ListT a
+  where
+    tagToType = \case
+      IntArg   -> IntT
+      BoolArg  -> BoolT
+      TextArg  ->TextT
+      BytesArg -> BytesT
 
-textT :: TypeCore
-textT = primT "Text"
+compareType :: TypeCore -> Check TypeCore
+compareType ty = case ty of
+  IntT      -> pure r
+  TextT     -> pure r
+  BytesT    -> pure r
+  BoolT     -> pure r
+  _         -> throwError $ BadEquality ty
+  where
+    r = ty :-> ty :-> BoolT
 
-bytesT :: TypeCore
-bytesT = primT "Bytes"
-
-boolT :: TypeCore
-boolT = primT "Bool"
-
-sigmaT :: TypeCore
-sigmaT = primT "Sigma"
-
-boxT :: TypeCore
-boxT = primT "Box"
-
-envT :: TypeCore
-envT = primT "Environment"
-
-primT :: Name -> TypeCore
-primT name = H.conT () name []
-
-varT :: Name -> TypeCore
-varT name = H.varT () name
-
-listT :: TypeCore -> TypeCore
-listT ty = H.listT () ty
-
-tupleT :: [TypeCore] -> TypeCore
-tupleT ts = H.tupleT () ts
-
-arrowT :: TypeCore -> TypeCore -> TypeCore
-arrowT a b = H.arrowT () a b
-
-funT :: [TypeCore] -> TypeCore -> TypeCore
-funT args resT = foldr arrowT resT args
-
-argsT :: TypeCore
-argsT = tupleT argsTypes
-
-argsTypes :: [TypeCore]
-argsTypes = [listT intT, listT textT, listT boolT]
+showType :: TypeCore -> Check TypeCore
+showType ty = case ty of
+  IntT      -> pure r
+  BoolT     -> pure r
+  _         -> throwError $ BadEquality ty
+  where
+    r = ty :-> TextT

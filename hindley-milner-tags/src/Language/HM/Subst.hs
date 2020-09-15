@@ -16,8 +16,8 @@ newtype Subst loc v = Subst { unSubst :: M.Map v (Type loc v) }
   deriving (Eq, Ord, Semigroup, Monoid)
 
 -- | Singleton substitution.
-delta :: IsVar v => v -> Type loc v -> Subst loc v
-delta v ty = Subst $ M.singleton v ty
+delta :: v -> Type loc v -> Subst loc v
+delta v = Subst . M.singleton v
 
 applyToVar :: Ord v => Subst loc v -> v -> Maybe (Type loc v)
 applyToVar (Subst m) v = M.lookup v m
