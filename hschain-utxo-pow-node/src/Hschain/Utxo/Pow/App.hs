@@ -11,6 +11,7 @@
 
 {-# OPTIONS  -Wno-orphans               #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE UndecidableInstances       #-}
 module Hschain.Utxo.Pow.App(
   runApp
@@ -73,6 +74,11 @@ import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
 import HSChain.Types
 import HSChain.Types.Merkle.Types
+
+import HSChain.PoW.Consensus
+import qualified HSChain.PoW.Types as POWTypes
+
+import HSChain.Store
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.Lang.Build
@@ -162,6 +168,96 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine dbPath) = do
       where
         txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
 
+
+makeStateView
+  :: (MonadDB m, MonadThrow m, MonadIO m)
+  => PrivKey Alg
+  -> BlockIndex UTXOBlock
+  -> StateOverlay
+  -> StateView m UTXOBlock
+makeStateView pk bIdx0 overlay = sview where
+  bh0    = overlayTip overlay
+  sview  = StateView
+    { stateBID          = bhBID bh0
+    -- FIXME: We need block index in order to be able to compute path
+    --        from state to last known state
+    , applyBlock        = \bIdx bh b -> runExceptT $ do
+        -- Consistency checks
+        unless (bhPrevious bh == Just bh0)  $ throwError $ InternalErr "BH mismatich"
+        unless (bhBID bh      == blockID b) $ throwError $ InternalErr "BH don't match block"
+        --
+        let txList = merkleValue $ ubpBlockData $ ubProper $ blockData b
+        -- Perform context free validation of all transactions in
+        -- block
+        () <- except
+            $ mapM_ (validateTxContextFree @UTXOBlock) txList
+        -- Now we need to fully verify each transaction and build new
+        -- overlay for database
+        overlay' <- hoist mustQueryRW $ do
+          -- First we need to prepare path between block corresponding
+          -- to current state of block
+          pathInDB <- do
+            Just stateBid <- retrieveCurrentStateBlock
+            let Just bhState = lookupIdx stateBid bIdx
+            makeBlockIndexPathM (retrieveCoinBlockTableID . bhBID)
+              bhState (overlayBase overlay)
+          -- Now we can just validate every TX and update overlay
+          let activeOverlay = addOverlayLayer overlay
+          case txList of
+            []            -> return activeOverlay
+            coinbase:rest -> do
+              o' <- processCoinbaseTX (bhBID bh0) activeOverlay coinbase
+              foldM (processTX pathInDB) o' rest
+        return
+          $ makeStateView pk bIdx
+          $ fromMaybe (error "Coin: invalid BH in apply block")
+          $ finalizeOverlay bh overlay'
+    --
+    , revertBlock = return $ makeStateView pk bIdx0 (rollbackOverlay overlay)
+    --
+    , flushState = mustQueryRW $ do
+        -- Dump overlay content.
+        dumpOverlay overlay
+        -- Rewind state stored in the database from its current state
+        -- to current head.
+        Just bid <- retrieveCurrentStateBlock
+        case bid `lookupIdx` bIdx0 of
+          Nothing -> error "makeStateView: bad index"
+          Just bh -> traverseBlockIndexM_ revertBlockDB applyBlockDB bh bh0
+        do i <- retrieveCoinBlockTableID (bhBID bh0)
+           basicExecute "UPDATE coin_state_bid SET state_block = ?" (Only i)
+        return $ makeStateView pk bIdx0 (emptyOverlay bh0)
+      -- FIXME: not implemented
+    , checkTx = \tx@(TxCoin _ _ TxSend{..}) -> queryRO $ runExceptT $ do
+        inputs <- forM txInputs $ \utxo -> do
+          u <- getDatabaseUTXO NoChange utxo
+          return (utxo,u)
+        checkSpendability inputs tx
+      --
+    , createCandidateBlockData = \bh _ txlist -> queryRO $ do
+        -- Create and process coinbase transaction
+        let coinbase = signTX pk $ TxSend
+              { txInputs  = [ UTXO 0 (coerce (bhBID bh)) ]
+              , txOutputs = [ Unspent (publicKey pk) 100 ]
+              }
+            activeOverlay = addOverlayLayer overlay
+        aOverlay <- runExceptT (processCoinbaseTX (bhBID bh0) activeOverlay coinbase) >>= \case
+          Left  e -> error $ "Invalid coinbase: " ++ show e
+          Right o -> return o
+        -- Select transactions
+        let selectTX []     _ = return []
+            selectTX (t:ts) o = runExceptT (processTX NoChange o t) >>= \case
+              Left  _  -> selectTX ts o
+              Right o' -> (t:) <$> selectTX ts o'
+        txs <- selectTX txlist aOverlay
+        -- Create block!
+        return UTXOBlock
+          { ubNonce  = ""
+          , ubProper = UTXOBlockProper
+                      {
+                      }
+          }
+    }
 runApp :: IO ()
 runApp = readOptions >>= runNode
 

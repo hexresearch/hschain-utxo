@@ -33,6 +33,7 @@ library
                      , hschain-utxo-api-rest
                      , hschain-utxo-state
                      , hschain-PoW
+                     , hschain
                      , hschain-pow-func
                      , containers
                      , exceptions
