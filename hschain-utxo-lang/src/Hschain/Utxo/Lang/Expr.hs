@@ -29,12 +29,12 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes (encodeBase58, decodeBase58)
+import HSChain.Crypto              (Hash(..),hashBlob,encodeBase58, decodeBase58)
 import HSChain.Crypto.Classes      (ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
+import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
-import Hschain.Utxo.Lang.Utils.ByteString
 import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..), argsTuple)
 
 import qualified Language.HM as H
@@ -293,7 +293,7 @@ newtype TxId = TxId { unTxId :: ByteString }
 
 -- | Identifier of the box. Box holds value protected by the script.
 -- It equals to the hash of Box-content.
-newtype BoxId = BoxId { unBoxId :: ByteString }
+newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
   deriving newtype  (Show, Eq, Ord, NFData)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
@@ -335,7 +335,7 @@ data PreBox = PreBox
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 getBoxToHashId :: BoxToHash -> BoxId
-getBoxToHashId = BoxId . getSha256 . LB.toStrict . serialise
+getBoxToHashId = BoxId . hashBlob . LB.toStrict . serialise
 
 -- | Values that are used to get the hash of the box to create identifier for it.
 data BoxToHash = BoxToHash

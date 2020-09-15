@@ -10,9 +10,11 @@ import Hex.Common.Text (showt)
 
 import Control.Arrow (first)
 
+import Data.Coerce
 import Data.Fix
 import Data.Text (Text)
 
+import HSChain.Crypto (Hash(..))
 import Hschain.Utxo.Lang.Expr hiding (Expr)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
@@ -250,7 +252,7 @@ exprToExtendedLC typeCtx = cataM $ \case
             -- consider other primitive types
             boxConsTy = foldr arrowT boxT [textT, intT, textT, listT intT]
 
-            id'    = prim loc $ P.PrimBytes $ unBoxId box'id
+            id'    = prim loc $ P.PrimBytes $ coerce box'id
             value  = prim loc $ P.PrimInt   $ box'value
             script = prim loc $ P.PrimBytes $ unScript box'script
             args   = Fix $ EConstr loc (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
