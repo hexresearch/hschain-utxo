@@ -1,5 +1,26 @@
 -- | Defines basic types for blockchain.
-module Hschain.Utxo.Lang.Types where
+module Hschain.Utxo.Lang.Types
+  ( Tx(..)
+  , PreTx(..)
+  , TxHash(..)
+  , TxArg(..)
+  , BoxInput(..)
+  , BoxInputRef(..)
+  , ExpectedBox(..)
+  , Env(..)
+  , InputEnv(..)
+    -- * Functions
+  , newTx
+  , newProofTx
+  , newProofTxOrFail
+  , hashScript
+  , splitInputs
+  , txPreservesValue
+  , getPreTxBytes
+  , getTxBytes
+  , singleOwnerInput
+  , validateOutputBoxIds
+  ) where
 
 import Hex.Common.Aeson
 import Control.DeepSeq (NFData)
@@ -15,8 +36,8 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (encodeBase58, ViaBase58(..), ByteRepr)
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
+import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashBlob, genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
@@ -97,7 +118,7 @@ getPreTxBytes :: PreTx BoxInputRef -> SignMessage
 getPreTxBytes = SignMessage . LB.toStrict . serialise . clearProofs
 
 getTxId :: SignMessage -> TxId
-getTxId (SignMessage bs) = TxId $ getSha256 bs
+getTxId (SignMessage bs) = TxId $ hashBlob bs
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
@@ -271,8 +292,6 @@ validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
 hashScript :: Script -> ByteString
 hashScript = getSha256 . unScript
 
-scriptToText :: Script -> Text
-scriptToText = encodeBase58 . unScript
 
 --------------------------------------------
 -- useful utils

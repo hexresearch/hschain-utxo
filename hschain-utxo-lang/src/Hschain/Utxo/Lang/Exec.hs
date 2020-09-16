@@ -27,11 +27,13 @@ import Control.Monad.Extra (firstJustM)
 import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Int
+import Data.Coerce
 import Data.Map.Strict (Map)
 import Data.String
 import Data.Text (Text)
 import Data.Vector (Vector)
 
+import HSChain.Crypto (Hash(..))
 import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
@@ -519,7 +521,7 @@ execLang (Fix topExpr) = case topExpr of
 
     getBoxField :: Loc -> Box -> BoxField Lang -> Exec Lang
     getBoxField loc Box{..} field = case field of
-      BoxFieldId         -> prim loc $ PrimBytes $ unBoxId box'id
+      BoxFieldId         -> prim loc $ PrimBytes $ coerce box'id
       BoxFieldValue      -> prim loc $ PrimInt $ box'value
       BoxFieldScript     -> prim loc $ PrimBytes $ unScript $ box'script
       BoxFieldArgList ty -> return $ case ty of
