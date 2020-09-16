@@ -126,6 +126,18 @@ instance Crypto.CryptoHashable Ed.Scalar where
 instance Crypto.CryptoHashable Pico where
   hashStep = hashStep . serialise
 
+instance SQL.ToRow BoxId where
+  toRow = undefined
+
+instance SQL.FromRow BoxId where
+  fromRow = undefined
+
+instance SQL.ToRow Box where
+  toRow = undefined
+
+instance SQL.FromRow box where
+  fromRow = undefined
+
 -------------------------------------------------------------------------------
 -- The Block.
 
@@ -362,16 +374,17 @@ processTX
   -> ExceptT (POWTypes.BlockException UTXOBlock) (Query rw) ActiveOverlay
 processTX pathInDB overlay tx@Tx{..} = do
   -- Fetch all inputs & check that we can spend them
-  inputs <- forM tx'inputs $ \box@Box{..} -> do
-    case getOverlayBoxId overlay box'id of
+  inputs <- forM tx'inputs $ \box@BoxInputRef{..} -> do
+    let boxid = boxInputRef'id
+    case getOverlayBoxId overlay boxid of
       Just (Spent _) -> throwError $ InternalErr "Input already spent"
-      Just (Added u) -> return (box'id,u)
-      Nothing        -> (,) box'id <$> getDatabaseBox pathInDB box
+      Just (Added u) -> return (boxid,u)
+      Nothing        -> (,) boxid <$> getDatabaseBox pathInDB boxid
   checkSpendability inputs tx
   -- Update overlay
-  let txHash   = hashed tx
-      overlay1 = foldl' (\o (boxid,u) -> spendBox  boxid u o) overlay inputs
-      overlay2 = foldl' (\o (boxid,u) -> createUnspentBox boxid u o) overlay1 $ error "no outputs!!!"
+  let overlay1 = foldl' (\o (boxid,u) -> spendBox boxid u o) overlay inputs
+      overlay2 = foldl' (\o (boxid,u) -> createUnspentBox boxid u o) overlay1 $
+                        V.map (\b -> (box'id b, b)) tx'outputs
   return overlay2
 
 -- |Validate transaction against block environment.
