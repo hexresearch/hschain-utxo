@@ -13,7 +13,6 @@ module Hschain.Utxo.Lang.Types
   , newTx
   , newProofTx
   , newProofTxOrFail
-  , scriptToText
   , hashScript
   , splitInputs
   , txPreservesValue
@@ -37,7 +36,7 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (encodeBase58, ViaBase58(..), ByteRepr)
+import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashBlob, genericHashStep)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
@@ -293,8 +292,6 @@ validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
 hashScript :: Script -> ByteString
 hashScript = getSha256 . unScript
 
-scriptToText :: Script -> Text
-scriptToText = encodeBase58 . unScript
 
 --------------------------------------------
 -- useful utils

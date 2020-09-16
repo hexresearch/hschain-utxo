@@ -52,7 +52,7 @@ instance Pretty BoxId where
 
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
-    Left  _ -> "Left: " <> pretty (scriptToText (Script bs))
+    Left  _ -> "Left: " <> pretty (encodeBase58 bs)
     Right e -> fromString $ show (e :: CoreProg)
 
 instance Pretty Box where
