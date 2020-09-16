@@ -37,7 +37,7 @@ import Data.Vector (Vector)
 import GHC.Generics
 
 import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashBlob, genericHashStep)
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashLazyBlob, genericHashStep)
 import Hschain.Utxo.Lang.Expr ( TxId(..), Script(..), Args(..)
                               , Box(..), BoxId(..), PreBox(..), BoxOrigin(..)
                               , computeBoxId
@@ -46,7 +46,6 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
-import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 
 -- | Hash of transaction.
@@ -118,7 +117,7 @@ computeTxId :: Tx -> TxId
 computeTxId = computePreTxId . getPreTx
 
 computePreTxId :: PreTx BoxInputRef -> TxId
-computePreTxId = TxId . hashBlob . LB.toStrict . serialise . clearProofs
+computePreTxId = TxId . hashLazyBlob . serialise . clearProofs
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
