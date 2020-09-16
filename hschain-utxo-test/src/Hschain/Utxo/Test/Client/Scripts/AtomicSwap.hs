@@ -165,10 +165,7 @@ aliceGrabTx aliceKeys inputId spec = newProofTx aliceKeys preTx
 
     saveMoney = getChangeBox (fromIntegral aliceValue) alicePubKey
 
-    addSecret box = box { expectedBox'input = setArgs (byteArgs [ aliceSecret ]) $ expectedBox'input box  }
-      where
-        setArgs args ref = ref { boxInputRef'args = args }
-
+    addSecret box = box { boxInputRef'args = byteArgs [ aliceSecret ] }
     aliceSecret = swapSpec'secret spec
     aliceValue  = swapUser'value $ swapSpec'alice spec
     alicePubKey = swapUser'pk $ swapSpec'alice spec
@@ -237,9 +234,7 @@ bobGrabTx bobKeys aliceSecret inputId spec = newProofTx bobKeys preTx
 
     saveMoney = getChangeBox (fromIntegral bobValue) bobPubKey
 
-    addSecret box = box { expectedBox'input = setArgs (byteArgs [ aliceSecret ]) $ expectedBox'input box  }
-      where
-        setArgs args ref = ref { boxInputRef'args = args }
+    addSecret box = box { boxInputRef'args = byteArgs [ aliceSecret ] }
 
     bobValue  = swapUser'value $ swapSpec'bob spec
     bobPubKey = swapUser'pk $ swapSpec'bob spec

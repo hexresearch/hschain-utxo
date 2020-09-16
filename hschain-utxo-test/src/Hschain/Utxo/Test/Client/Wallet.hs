@@ -126,14 +126,14 @@ toSendTx wallet Send{..} SendBack{..} =
   fmap (fmap appendSenderReceiverIds) $ newProofTxOrFail (getProofEnv wallet) preTx
   where
     preTx = PreTx
-      { preTx'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      { preTx'inputs  = V.fromList [inputBox]
       , preTx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
     inputBox = BoxInputRef
       { boxInputRef'id    = send'from
       , boxInputRef'args  = mempty
-      , boxInputRef'proof = Nothing
+      , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
       }
 
     senderUtxo

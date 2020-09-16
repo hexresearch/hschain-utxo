@@ -141,14 +141,14 @@ toSendTxDelayed wallet SendDelayed{..} = do
   fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
   where
     preTx = PreTx
-      { preTx'inputs   = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
+      { preTx'inputs   = V.fromList [inputBox]
       , preTx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
     inputBox = BoxInputRef
-      { boxInputRef'id   = sendDelayed'from
-      , boxInputRef'args = mempty
-      , boxInputRef'proof = Nothing
+      { boxInputRef'id    = sendDelayed'from
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
       }
 
     height = sendDelayed'height

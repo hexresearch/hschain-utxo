@@ -6,7 +6,7 @@ module Hschain.Utxo.Lang.Types
   , TxArg(..)
   , BoxInput(..)
   , BoxInputRef(..)
-  , ExpectedBox(..)
+  , ExpectedBox
   , Env(..)
   , Money
   , InputEnv(..)
@@ -168,8 +168,10 @@ newtype TxHash = TxHash ByteString
 -- send API-query to know the sigma-expression that is going to be result
 -- of the calculation of the input scripts within the context of the current blockchain state.
 data Tx = Tx
-  { tx'inputs  :: !(Vector BoxInputRef)   -- ^ List of inputs
-  , tx'outputs :: !(Vector Box)           -- ^ List of outputs
+  { tx'inputs  :: !(Vector (BoxInputRef Proof))
+    -- ^ List of inputs
+  , tx'outputs :: !(Vector Box)
+    -- ^ List of outputs
   }
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
@@ -181,12 +183,12 @@ data TxSignMessage = TxSignMessage { unTxSignMessage :: ByteString }
 -- | Input is an unspent Box that exists in blockchain.
 -- To spend the input we need to provide right arguments and proof
 -- of reulting sigma expression.
-data BoxInputRef = BoxInputRef
+data BoxInputRef a = BoxInputRef
   { boxInputRef'id    :: BoxId
   , boxInputRef'args  :: Args
-  , boxInputRef'proof :: Maybe Proof
+  , boxInputRef'proof :: Maybe a
   }
-  deriving stock    (Show, Eq, Ord, Generic)
+  deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
 
 -- | This is used for hashing the TX, to get its id and
@@ -198,7 +200,7 @@ data PreTx a = PreTx
   deriving stock    (Show, Eq, Ord, Generic, Functor)
   deriving anyclass (Serialise, NFData)
 
-getPreTx :: Tx -> PreTx BoxInputRef
+getPreTx :: Tx -> PreTx (BoxInputRef Proof)
 getPreTx Tx{..} = clearProofs $ PreTx
   { preTx'inputs  = tx'inputs
   , preTx'outputs = fmap toPreBox tx'outputs
@@ -211,7 +213,7 @@ toPreBox Box{..} = PreBox
   , preBox'args   = box'args
   }
 
-clearProofs :: PreTx BoxInputRef -> PreTx BoxInputRef
+clearProofs :: PreTx (BoxInputRef a) -> PreTx (BoxInputRef b)
 clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
   where
     clearProof box = box { boxInputRef'proof = Nothing }
@@ -219,8 +221,8 @@ clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
 computeTxId :: Tx -> TxId
 computeTxId = computePreTxId . getPreTx
 
-computePreTxId :: PreTx BoxInputRef -> TxId
-computePreTxId = TxId . hashLazyBlob . serialise . clearProofs
+computePreTxId :: PreTx (BoxInputRef a) -> TxId
+computePreTxId = TxId . hashLazyBlob . serialise . clearProofs @_ @()
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
@@ -283,7 +285,7 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 -- | Creates TX and assigns properly all box identifiers.
 -- It does not create the proofs.
-newTx :: PreTx BoxInputRef -> Tx
+newTx :: PreTx (BoxInputRef Proof)-> Tx
 newTx tx = Tx
   { tx'inputs  = preTx'inputs tx
   , tx'outputs = makeOutputs txId $ preTx'outputs tx
@@ -306,29 +308,27 @@ makeOutputs txId outputs = V.imap toBox outputs
                 , boxOrigin'txId        = txId
                 } box
 
-makeInputs :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Vector BoxInputRef)
-makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
+makeInputs :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Vector (BoxInputRef Proof))
+makeInputs proofEnv message
+  = traverse toInput
   where
-    toInput ExpectedBox{..} = do
-      mProof <- mapM (\sigma -> newProof proofEnv sigma message) expectedBox'sigma
-      return $ expectedBox'input { boxInputRef'proof = either (const Nothing) Just =<< mProof }
+    toInput BoxInputRef{..} = do
+      mProof <- mapM (\sigma -> newProof proofEnv sigma message) boxInputRef'proof
+      return BoxInputRef{ boxInputRef'proof = either (const Nothing) Just =<< mProof
+                        , ..
+                        }
 
-makeInputsOrFail :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Either Text (Vector BoxInputRef))
-makeInputsOrFail proofEnv message expectedInputs = runExceptT $ mapM toInput expectedInputs
+makeInputsOrFail :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Either Text (Vector (BoxInputRef Proof)))
+makeInputsOrFail proofEnv message
+  = runExceptT . (traverse . traverse) toInput
   where
-    toInput ExpectedBox{..} = do
-      mProof <- mapM (\sigma -> ExceptT $ newProof proofEnv sigma message) expectedBox'sigma
-      return $ expectedBox'input { boxInputRef'proof = mProof }
+    toInput sigma = ExceptT $ newProof proofEnv sigma message
+
 
 -- | Expectation of the result of the box. We use it when we know to
 -- what sigma expression input box script is going to be executed.
 -- Then we can generate proofs with function @newProofTx@.
-data ExpectedBox = ExpectedBox
-  { expectedBox'sigma   :: Maybe (Sigma PublicKey)
-    -- ^ Expected result of sigma expression (Nothing if result is constant boolean)
-  , expectedBox'input   :: BoxInputRef
-    -- ^ content of box input reference (id, arguments)
-  }
+type ExpectedBox = BoxInputRef (Sigma PublicKey)
 
 -- | If we know the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -346,8 +346,7 @@ newProofTx proofEnv tx = liftIO $ do
     , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }
   where
-    txId      = computePreTxId preTx
-    preTx = fmap expectedBox'input tx
+    txId  = computePreTxId tx
 
 -- | If we now the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -363,8 +362,7 @@ newProofTxOrFail proofEnv tx = liftIO $ do
     , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }) eInputs
   where
-    txId  = computePreTxId preTx
-    preTx = fmap expectedBox'input tx
+    txId  = computePreTxId tx
 
 --------------------------------------------
 -- box ids validation
@@ -394,14 +392,12 @@ singleOwnerSigma :: PublicKey -> Sigma PublicKey
 singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
 
 singleOwnerInput :: BoxId -> PublicKey -> Vector ExpectedBox
-singleOwnerInput boxId pubKey = return $ ExpectedBox
-  { expectedBox'sigma = Just $ singleOwnerSigma pubKey
-  , expectedBox'input = BoxInputRef
-      { boxInputRef'id    = boxId
-      , boxInputRef'args  = mempty
-      , boxInputRef'proof = Nothing
-      }
+singleOwnerInput boxId pubKey = return $ BoxInputRef
+  { boxInputRef'id    = boxId
+  , boxInputRef'args  = mempty
+  , boxInputRef'proof = Just $ singleOwnerSigma pubKey
   }
+
 
 --------------------------------------------
 -- JSON instnaces
@@ -419,7 +415,7 @@ instance CryptoHashable Tx where
 instance CryptoHashable BoxInput where
   hashStep = genericHashStep hashDomain
 
-instance CryptoHashable BoxInputRef where
+instance CryptoHashable a => CryptoHashable (BoxInputRef a) where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Script where

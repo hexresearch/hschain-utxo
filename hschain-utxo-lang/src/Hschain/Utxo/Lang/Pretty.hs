@@ -99,7 +99,7 @@ instance Pretty BoxInput where
     , ("proof", pretty boxInput'proof)
     ]
 
-instance Pretty BoxInputRef where
+instance Pretty a => Pretty (BoxInputRef a) where
   pretty BoxInputRef{..} = prettyRecord "BoxInputRef"
     [ ("id",    pretty boxInputRef'id)
     , ("args",  prettyArgs boxInputRef'args)
