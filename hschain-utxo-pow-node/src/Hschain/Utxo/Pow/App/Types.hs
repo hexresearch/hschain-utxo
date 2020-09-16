@@ -14,7 +14,7 @@
 {-# LANGUAGE DeriveAnyClass, DerivingVia, DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts                                #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving                      #-}
-{-# LANGUAGE MultiWayIf                                      #-}
+{-# LANGUAGE MultiWayIf, TypeOperators                       #-}
 {-# LANGUAGE UndecidableInstances                            #-}
 module Hschain.Utxo.Pow.App.Types where
 
@@ -23,6 +23,8 @@ import Hex.Common.Yaml
 
 import Codec.Serialise
 
+import Control.Applicative
+import Control.Lens
 import Control.Monad
 import Control.Concurrent.STM
 import Control.Monad.Base
@@ -45,8 +47,12 @@ import Data.Fixed
 
 import Data.Functor.Classes (Show1)
 
+import Data.Generics.Product.Typed (typed)
+
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+
+import Data.List (foldl')
 
 import Data.Maybe
 
@@ -56,8 +62,11 @@ import qualified Data.Vector as V
 
 import Data.Word
 
+import qualified Database.SQLite.Simple           as SQL
 import qualified Database.SQLite.Simple.ToField   as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
+import qualified Database.SQLite.Simple.FromRow   as SQL
+import qualified Database.SQLite.Simple.ToRow     as SQL
 
 import GHC.Generics
 
@@ -69,6 +78,7 @@ import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
 import qualified HSChain.POW as POWFunc
 import qualified HSChain.PoW.Consensus as POWConsensus
+import qualified HSChain.PoW.BlockIndex as POWBlockIndex
 import qualified HSChain.PoW.Types as POWTypes
 import qualified HSChain.PoW.Node as POWNode
 import HSChain.Types.Merkle.Types
@@ -118,6 +128,9 @@ instance Crypto.CryptoHashable Pico where
 
 -------------------------------------------------------------------------------
 -- The Block.
+
+-- |Signature and hash used.
+type Alg = Ed25519 :& SHA512
 
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
@@ -227,7 +240,7 @@ instance POWTypes.BlockData UTXOBlock where
 
   validateBlock = const $ return $ Right ()
 
-  validateTxContextFree _ = return ()
+  validateTxContextFree = validateTransactionContextFree
 
   blockWork b = POWTypes.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
                               $ POWTypes.targetInteger $ ubpTarget $ ubProper
@@ -308,4 +321,141 @@ data Layer = Layer
   , utxoSpent   :: Map.Map BoxId Unspent
   }
 
-type Unspent = (BoxId, Word64)
+-- | Change to UTXO set
+data Change a
+  = Added a
+  | Spent a
+
+type Unspent = Box
+
+lensCreated, lensSpent :: Lens' Layer (Map.Map BoxId Unspent)
+lensCreated = lens utxoCreated (\m x -> m { utxoCreated = x })
+lensSpent   = lens utxoSpent   (\m x -> m { utxoSpent   = x })
+
+-------------------------------------------------------------------------------
+-- Transaction validation.
+
+-- | Context free TX validation for transactions. This function
+--   performs all checks that could be done having only transaction at
+--   hand.
+validateTransactionContextFree :: Tx -> Either (POWTypes.BlockException UTXOBlock) ()
+validateTransactionContextFree (Tx{}) = do
+  return ()
+--  -- Inputs and outputs are not null
+--  when (null txInputs)  $ Left $ CoinError "Empty input list"
+--  when (null txOutputs) $ Left $ CoinError "Empty output list"
+--  -- No duplicate inputs
+--  when (nub txInputs /= txInputs) $ Left $ CoinError "Duplicate inputs"
+--  -- Outputs are all positive
+--  forM_ txOutputs $ \(Unspent _ n) ->
+--    unless (n > 0) $ Left $ CoinError "Negative output"
+--  -- Signature must be valid.
+--  unless (verifySignatureHashed pubK txSend sig)
+--    $ Left $ CoinError "Invalid signature"
+
+-- | Finally process transaction. Check that sum of inputs is greater or equal to
+-- sum of outputs.
+processTX
+  :: POWBlockIndex.BlockIndexPath (ID (POWTypes.Block UTXOBlock))
+  -> ActiveOverlay
+  -> Tx
+  -> ExceptT (POWTypes.BlockException UTXOBlock) (Query rw) ActiveOverlay
+processTX pathInDB overlay tx@Tx{..} = do
+  -- Fetch all inputs & check that we can spend them
+  inputs <- forM tx'inputs $ \box@Box{..} -> do
+    case getOverlayBoxId overlay box'id of
+      Just (Spent _) -> throwError $ InternalErr "Input already spent"
+      Just (Added u) -> return (box'id,u)
+      Nothing        -> (,) box'id <$> getDatabaseBox pathInDB box
+  checkSpendability inputs tx
+  -- Update overlay
+  let txHash   = hashed tx
+      overlay1 = foldl' (\o (boxid,u) -> spendBox  boxid u o) overlay inputs
+      overlay2 = foldl' (\o (boxid,u) -> createUnspentBox boxid u o) overlay1 $ error "no outputs!!!"
+  return overlay2
+
+-- |Validate transaction against block environment.
+checkSpendability
+  :: V.Vector (BoxId, Unspent)
+  -> Tx
+  -> ExceptT (POWTypes.BlockException UTXOBlock) (Query rw) ()
+checkSpendability inputs tx@Tx{..} = do
+  -- XXX TODO: validate transaction against environment with our own machinery.
+  return ()
+
+-- | Find whether given UTXO is awaialble to be spent or spent
+--   already. We need latter since UTXO could be available in
+--   underlying state but spent in overlay and we need to account for
+--   that explicitly.
+getOverlayBoxId :: ActiveOverlay -> BoxId -> Maybe (Change Unspent)
+getOverlayBoxId (ActiveOverlay l0 o0) boxid
+  =  getFromLayer l0
+ <|> recur o0
+ where
+   recur (OverlayBase  _)     = Nothing
+   recur (OverlayLayer _ l o) =  getFromLayer l
+                             <|> recur o
+   getFromLayer Layer{..}
+     =  Spent <$> Map.lookup boxid utxoSpent
+    <|> Added <$> Map.lookup boxid utxoCreated
+
+
+
+getDatabaseBox
+  :: ()
+  => POWBlockIndex.BlockIndexPath (ID (POWTypes.Block UTXOBlock))
+  -> BoxId
+  -> ExceptT (POWTypes.BlockException UTXOBlock) (Query rw) Unspent
+-- Check whether output was created in the block
+getDatabaseBox (POWBlockIndex.ApplyBlock i path) boxid = do
+  isSpentAtBlock i boxid >>= \case
+    Just _  -> throwError $ InternalErr "Output is already spent"
+    Nothing -> return ()
+  isCreatedAtBlock i boxid >>= \case
+    Just u  -> return u
+    Nothing -> getDatabaseBox path boxid
+-- Perform check in block being reverted. If UTXO was create in that
+-- block it didn't exist before and we should abort.
+getDatabaseBox (POWBlockIndex.RevertBlock i path) boxid = do
+  isCreatedAtBlock i boxid >>= \case
+    Just _  -> throwError $ InternalErr "Output does not exists"
+    Nothing -> return ()
+  isSpentAtBlock i boxid >>= \case
+    Just u  -> return u
+    Nothing -> getDatabaseBox path boxid
+getDatabaseBox POWBlockIndex.NoChange boxid = do
+  r <- basicQuery1
+    "SELECT pk_dest, n_coins \
+    \  FROM coin_utxo \
+    \  JOIN coin_state ON live_utxo = utxo_id \
+    \ WHERE n_out = ? AND tx_hash = ?"
+    boxid
+  case r of
+    Just u  -> return u
+    Nothing -> throwError $ InternalErr "No such UTXO"
+
+spendBox :: BoxId -> Unspent -> ActiveOverlay -> ActiveOverlay
+spendBox boxid val
+  = typed . lensSpent . at boxid .~ Just val
+
+createUnspentBox :: BoxId -> Unspent -> ActiveOverlay -> ActiveOverlay
+createUnspentBox boxid val
+  = typed . lensCreated . at boxid .~ Just val
+
+isSpentAtBlock :: MonadQueryRO m => ID (POWTypes.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
+isSpentAtBlock i boxid = basicQuery1
+  "SELECT pk_dest, n_coins \
+  \  FROM coin_utxo \
+  \  JOIN coin_utxo_spent ON utxo_id = utxo_ref \
+  \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
+  (boxid SQL.:. SQL.Only i)
+
+isCreatedAtBlock :: MonadQueryRO m => ID (POWTypes.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
+isCreatedAtBlock i boxid = basicQuery1
+  "SELECT pk_dest, n_coins \
+  \  FROM coin_utxo \
+  \  JOIN coin_utxo_created ON utxo_id = utxo_ref \
+  \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
+  (boxid SQL.:. SQL.Only i)
+
+

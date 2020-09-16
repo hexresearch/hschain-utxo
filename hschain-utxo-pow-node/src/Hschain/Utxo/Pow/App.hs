@@ -230,18 +230,15 @@ makeStateView pk bIdx0 overlay = sview where
            basicExecute "UPDATE coin_state_bid SET state_block = ?" (Only i)
         return $ makeStateView pk bIdx0 (emptyOverlay bh0)
       -- FIXME: not implemented
-    , checkTx = \tx@(TxCoin _ _ TxSend{..}) -> queryRO $ runExceptT $ do
-        inputs <- forM txInputs $ \utxo -> do
+    , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
+        inputs <- forM tx'inputs $ \utxo -> do
           u <- getDatabaseUTXO NoChange utxo
           return (utxo,u)
         checkSpendability inputs tx
       --
     , createCandidateBlockData = \bh _ txlist -> queryRO $ do
         -- Create and process coinbase transaction
-        let coinbase = signTX pk $ TxSend
-              { txInputs  = [ UTXO 0 (coerce (bhBID bh)) ]
-              , txOutputs = [ Unspent (publicKey pk) 100 ]
-              }
+        let coinbase = error "coinbase is not ready"
             activeOverlay = addOverlayLayer overlay
         aOverlay <- runExceptT (processCoinbaseTX (bhBID bh0) activeOverlay coinbase) >>= \case
           Left  e -> error $ "Invalid coinbase: " ++ show e

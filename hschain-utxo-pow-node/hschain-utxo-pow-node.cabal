@@ -24,6 +24,8 @@ library
                      , bytestring
                      , cryptonite
                      , data-fix
+                     , generic-lens
+                     , lens
                      , hex-common
                      , hschain-crypto
                      , hschain-db
