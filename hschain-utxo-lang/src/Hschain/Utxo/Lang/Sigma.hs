@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 -- | It defines types and functions for Sigma-expressions.
 -- Sigma-expressions are used to sign scripts without providing
 -- the information on who signed the script.
@@ -44,7 +45,7 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes      (ViaBase58(..))
+import HSChain.Crypto.Classes      (ViaBase58(..),ByteRepr(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
@@ -52,7 +53,7 @@ import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 
 newtype SignMessage = SignMessage { unSignMessage :: ByteString }
-  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
@@ -112,8 +113,8 @@ instance Serialise a => FromJSON (Sigma a) where
 -- It's message to be signed.
 --
 -- For the message use getTxBytes from TX that has no proof.
-newProof :: ProofEnv -> Sigma PublicKey -> SignMessage -> IO (Either Text Proof)
-newProof env expr (SignMessage message) =
+newProof :: ByteRepr bs => ProofEnv -> Sigma PublicKey -> bs -> IO (Either Text Proof)
+newProof env expr (encodeToBS -> message) =
   case toSigmaExpr expr of
     Right sigma -> Sigma.newProof env sigma message
     Left  _     -> return catchBoolean
@@ -125,8 +126,8 @@ newProof env expr (SignMessage message) =
 -- > verifyProof proof message
 --
 -- For the message use getTxBytes from TX.
-verifyProof :: Proof -> SignMessage -> Bool
-verifyProof proof (SignMessage msg) = Sigma.verifyProof proof msg
+verifyProof :: ByteRepr bs => Proof -> bs -> Bool
+verifyProof proof (encodeToBS -> msg) = Sigma.verifyProof proof msg
 
 type Sigma k = Fix (SigmaF k)
 
