@@ -31,6 +31,7 @@ import Data.Functor.Foldable.TH
 import qualified Data.Map.Strict as Map
 import GHC.Generics
 
+import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Core.Data.Prim
 import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypes, argTypeName)
 
@@ -177,9 +178,7 @@ data CaseAlt = CaseAlt
 
 makeBaseFunctor ''ExprCore
 
-$(makeLensesWith
-   (defaultFieldRules & lensField .~ (mappingNamer (\nm -> [nm++"L"])))
-   ''Scomb)
+$(makeLensesWithL ''Scomb)
 
 
 ----------------------------------------------------------------
