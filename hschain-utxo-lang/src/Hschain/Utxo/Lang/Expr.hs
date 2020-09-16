@@ -30,7 +30,7 @@ import GHC.Generics
 import Text.Show.Deriving
 
 import HSChain.Crypto              (Hash(..),hashBlob,encodeBase58, decodeBase58)
-import HSChain.Crypto.Classes      (ViaBase58(..))
+import HSChain.Crypto.Classes      (ByteRepr,ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
 import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Sigma
@@ -286,7 +286,7 @@ byteArgs xs = Args
 -- | Identifier of TX. We can derive it from the PreTx.
 --  It equals to hash of serialised PreTx
 newtype TxId = TxId { unTxId :: Hash SHA256 }
-  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
@@ -294,7 +294,7 @@ newtype TxId = TxId { unTxId :: Hash SHA256 }
 -- | Identifier of the box. Box holds value protected by the script.
 -- It equals to the hash of Box-content.
 newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
-  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
