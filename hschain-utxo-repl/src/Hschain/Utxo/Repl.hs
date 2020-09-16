@@ -70,6 +70,6 @@ runRepl = runReplM txArg $ evalRepl (pure " > ") eval options Nothing (Word comp
         { txArg'inputs  = mempty
         , txArg'outputs = mempty
         , txArg'env     = Env 0
-        , txArg'txBytes = getPreTxBytes $ PreTx mempty mempty
+        , txArg'txBytes = computePreTxId $ PreTx mempty mempty
         }
 

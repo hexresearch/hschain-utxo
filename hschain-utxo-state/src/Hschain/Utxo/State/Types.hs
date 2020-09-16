@@ -49,7 +49,7 @@ toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
     { txArg'outputs = tx'outputs
     , txArg'inputs  = inputs
     , txArg'env     = getEnv bch
-    , txArg'txBytes = getTxBytes tx
+    , txArg'txBytes = computeTxId tx
     }
   ) mInputs
   where

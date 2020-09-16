@@ -11,7 +11,6 @@ module Hschain.Utxo.Lang.Sigma(
   , Secret
   , ProofEnv
   , Proof
-  , SignMessage(..)
   , Sigma
   , SigmaF(..)
   , newProof
@@ -35,7 +34,6 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.Either
 import Data.Fix
 import Data.Functor.Classes (Eq1(..))
@@ -45,18 +43,13 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes      (ViaBase58(..),ByteRepr(..))
+import HSChain.Crypto.Classes      (ByteRepr(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 
-newtype SignMessage = SignMessage { unSignMessage :: ByteString }
-  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
-  deriving stock    (Generic)
-  deriving anyclass (Serialise)
-  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
 
 -- | Cryptographic algorithm that we use.
 type CryptoAlg = Sigma.Ed25519

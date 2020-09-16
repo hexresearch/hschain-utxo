@@ -23,7 +23,7 @@ tests = testGroup "sigma-protocols"
 verifySameSignMessage :: IO Bool
 verifySameSignMessage = do
   (tx, preTx) <- initTx
-  return $ getTxBytes tx == getPreTxBytes preTx
+  return $ computeTxId tx == computePreTxId preTx
 
 verifyValidBoxIds :: IO Bool
 verifyValidBoxIds = do
@@ -77,7 +77,7 @@ verifyBrokenTx = do
 
 -- | External TX verifier.
 verifyTx :: Tx -> Bool
-verifyTx tx = all (maybe False (\proof -> verifyProof proof message) . boxInputRef'proof) $ tx'inputs tx
+verifyTx tx = all (maybe False (\proof -> verifyProof proof tid) . boxInputRef'proof) $ tx'inputs tx
   where
-    message = getTxBytes tx
+    tid = computeTxId tx
 
