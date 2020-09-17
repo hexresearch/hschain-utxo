@@ -238,7 +238,9 @@ data Args = Args
   , args'bools :: Vector Bool
   , args'texts :: Vector Text
   , args'bytes :: Vector ByteString
-  } deriving (Show, Eq, Ord, Generic, NFData, Serialise)
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (NFData, Serialise)
 
 instance Semigroup Args where
   (Args intsA boolsA textsA bytesA) <> (Args intsB boolsB textsB bytesB) =
@@ -321,7 +323,9 @@ data Box = Box
   , box'script :: !Script   -- ^ Protecting script
   , box'args   :: !Args     -- ^ arguments for the script
   }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
 
 -- | PreBox holds all meaningfull data of the Box.
 -- we use it to get Hashes for transaction and Box itself.
