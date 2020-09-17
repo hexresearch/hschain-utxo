@@ -38,7 +38,9 @@ import GHC.Generics
 
 import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashBlob, genericHashStep)
-import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Expr ( TxId(..), Script(..), Args(..)
+                              , Box(..), BoxId(..), PreBox(..), BoxOrigin(..), BoxToHash(..)
+                              , getBoxToHashId)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
