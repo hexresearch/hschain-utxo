@@ -13,8 +13,8 @@
 {-# LANGUAGE DataKinds                                       #-}
 {-# LANGUAGE DeriveAnyClass, DerivingVia, DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts                                #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving                      #-}
-{-# LANGUAGE MultiWayIf, TypeOperators                       #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TypeApplications    #-}
+{-# LANGUAGE MultiWayIf, ScopedTypeVariables, TypeOperators  #-}
 {-# LANGUAGE UndecidableInstances                            #-}
 module Hschain.Utxo.Pow.App.Types where
 
@@ -31,8 +31,10 @@ import Control.Monad.Base
 import Control.Monad.Catch hiding (Handler)
 import Control.Monad.Error.Class
 import Control.Monad.Except
+import Control.Monad.Morph (hoist)
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Except (except)
 import Control.Monad.Trans.Maybe
 
 import qualified Data.Aeson as JSON
@@ -76,11 +78,11 @@ import Servant.Server
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
-import qualified HSChain.POW as POWFunc
-import qualified HSChain.PoW.Consensus as POWConsensus
-import qualified HSChain.PoW.BlockIndex as POWBlockIndex
-import qualified HSChain.PoW.Types as POWTypes
-import qualified HSChain.PoW.Node as POWNode
+import qualified HSChain.POW            as POW
+import qualified HSChain.PoW.Consensus  as POW
+import qualified HSChain.PoW.BlockIndex as POW
+import qualified HSChain.PoW.Types      as POW
+import qualified HSChain.PoW.Node       as POW
 import HSChain.Types.Merkle.Types
 
 import HSChain.Crypto hiding (PublicKey)
@@ -147,14 +149,14 @@ type Alg = Ed25519 :& SHA512
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
 data UTXOBlockProper f = UTXOBlockProper
-  { ubpPrevious   :: !(Maybe (POWTypes.BlockID UTXOBlock))
+  { ubpPrevious   :: !(Maybe (POW.BlockID UTXOBlock))
   -- ^Previous block.
   , ubpData       :: !(MerkleNode f SHA256 [Tx])
   -- ^ List of key-value pairs
-  , ubpTarget     :: !POWTypes.Target
+  , ubpTarget     :: !POW.Target
   -- ^ Current difficulty of mining. It means a complicated thing
   -- right now.
-  , ubpTime       :: !POWTypes.Time
+  , ubpTime       :: !POW.Time
   -- ^ Block creation time.
   }
   deriving stock (Generic)
@@ -165,10 +167,10 @@ instance IsMerkle f => JSON.FromJSON (UTXOBlockProper f) where
     UTXOBlockProper
       <$> (bp JSON..: "previous")
       <*> (bp JSON..: "data")
-      <*> (POWTypes.Target <$> bp JSON..: "target")
+      <*> (POW.Target <$> bp JSON..: "target")
       <*> (bp JSON..: "time")
 instance IsMerkle f => JSON.ToJSON (UTXOBlockProper f) where
-  toJSON (UTXOBlockProper prev d (POWTypes.Target t) time) =
+  toJSON (UTXOBlockProper prev d (POW.Target t) time) =
     JSON.object
       [ "previous" JSON..= prev
       , "data" JSON..= d
@@ -210,19 +212,19 @@ instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
   hashStep = Crypto.genericHashStep "block proper"
 
 
-instance POWTypes.BlockData UTXOBlock where
+instance POW.BlockData UTXOBlock where
 
   newtype BlockID UTXOBlock = UB'BID { fromUBBID :: Crypto.Hash SHA256 }
     deriving newtype
       (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON, ByteRepr)
-    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POWTypes.BlockID UTXOBlock)
+    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POW.BlockID UTXOBlock)
 
   type Tx UTXOBlock = Tx
 
   newtype TxID UTXOBlock = UTXOTxID (Hash SHA256)
     deriving newtype ( Show, Eq, Ord, CryptoHashable, Serialise, ByteRepr
                      , JSON.ToJSON, JSON.FromJSON)
-    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POWTypes.TxID UTXOBlock)
+    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POW.TxID UTXOBlock)
 
   data BlockException UTXOBlock =
                                   WrongAnswer
@@ -234,49 +236,49 @@ instance POWTypes.BlockData UTXOBlock where
 
   txID    = UTXOTxID . hash
   blockID = UB'BID   . hash
-  blockTransactions = merkleValue . ubpData . ubProper . POWTypes.blockData
+  blockTransactions = merkleValue . ubpData . ubProper . POW.blockData
 
-  validateHeader bh (POWTypes.Time now) header
-    | POWTypes.blockHeight header == 0 = return $ Right () -- skip genesis check.
+  validateHeader bh (POW.Time now) header
+    | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
     | otherwise = do
       answerIsGood <- error "no puzzle check right now"
       return $ if
          | not answerIsGood -> Left WrongAnswer
-         | ubpTarget (ubProper $ POWTypes.blockData header) /= POWTypes.retarget bh
+         | ubpTarget (ubProper $ POW.blockData header) /= POW.retarget bh
                             -> Left WrongTarget
          | t > now + (2 * 60 * 60 * 1000)
                             -> Left AheadOfTime
          | otherwise        -> Right ()
     where
-      POWTypes.Time t = POWTypes.blockTime header
+      POW.Time t = POW.blockTime header
 
   validateBlock = const $ return $ Right ()
 
   validateTxContextFree = validateTransactionContextFree
 
-  blockWork b = POWTypes.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
-                              $ POWTypes.targetInteger $ ubpTarget $ ubProper
-                              $ POWTypes.blockData b
+  blockWork b = POW.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
+                              $ POW.targetInteger $ ubpTarget $ ubProper
+                              $ POW.blockData b
 
-  blockTargetThreshold b = POWTypes.Target $ POWTypes.targetInteger $
-                          ubpTarget $ ubProper $ POWTypes.blockData b
+  blockTargetThreshold b = POW.Target $ POW.targetInteger $
+                          ubpTarget $ ubProper $ POW.blockData b
 
 
 instance MerkleMap UTXOBlock where
   merkleMap f ub = ub
                  { ubProper = (ubProper ub) { ubpData = mapMerkleNode f $ ubpData $ ubProper ub } }
 
-instance POWTypes.Mineable UTXOBlock where
-  adjustPuzzle b0@POWTypes.GBlock{..} = do
-    (maybeAnswer, hash) <- liftIO $ POWFunc.solve [LBS.toStrict $ serialise blockData] powCfg
-    let tgt = POWTypes.hash256AsTarget hash
-    return (fmap (\answer -> b0 { POWTypes.blockData = blockData { ubNonce = answer} }) maybeAnswer, tgt)
+instance POW.Mineable UTXOBlock where
+  adjustPuzzle b0@POW.GBlock{..} = do
+    (maybeAnswer, hash) <- liftIO $ POW.solve [LBS.toStrict $ serialise blockData] powCfg
+    let tgt = POW.hash256AsTarget hash
+    return (fmap (\answer -> b0 { POW.blockData = blockData { ubNonce = answer} }) maybeAnswer, tgt)
     where
-      h0 = POWTypes.toHeader b0
+      h0 = POW.toHeader b0
       powCfg = defaultPOWConfig
-                       { POWFunc.powCfgTarget = POWTypes.targetInteger tgt }
-      tgt = POWTypes.blockTargetThreshold b0
-      defaultPOWConfig = POWFunc.defaultPOWConfig
+                       { POW.powCfgTarget = POW.targetInteger tgt }
+      tgt = POW.blockTargetThreshold b0
+      defaultPOWConfig = POW.defaultPOWConfig
 
 
 -------------------------------------------------------------------------------
@@ -320,8 +322,8 @@ initialUTXONodeState = UTXONodeState
 --   Note that it only contains block that are added to blockchain but
 --   not rollbacks since latter are already commited.
 data StateOverlay
-  = OverlayBase  (POWTypes.BH UTXOBlock)
-  | OverlayLayer (POWTypes.BH UTXOBlock) Layer StateOverlay
+  = OverlayBase  (POW.BH UTXOBlock)
+  | OverlayLayer (POW.BH UTXOBlock) Layer StateOverlay
 
 -- | Overlay that is guaranteed to have layer to add UTXOs
 data ActiveOverlay = ActiveOverlay Layer StateOverlay
@@ -344,13 +346,120 @@ lensCreated, lensSpent :: Lens' Layer (Map.Map BoxId Unspent)
 lensCreated = lens utxoCreated (\m x -> m { utxoCreated = x })
 lensSpent   = lens utxoSpent   (\m x -> m { utxoSpent   = x })
 
+addOverlayLayer :: StateOverlay -> ActiveOverlay
+addOverlayLayer = ActiveOverlay (Layer mempty mempty)
+
+-- | Create empty overlay build over given block. It correspond to
+--   state after evaluation of that block.
+emptyOverlay :: POW.BH UTXOBlock -> StateOverlay
+emptyOverlay = OverlayBase
+
+-- | Get pointer to block index to block over which overlay is built.
+overlayBase :: StateOverlay -> POW.BH UTXOBlock
+overlayBase (OverlayBase  bh)    = bh
+overlayBase (OverlayLayer _ _ o) = overlayBase o
+
+overlayTip :: StateOverlay -> POW.BH UTXOBlock
+overlayTip (OverlayBase  bh)     = bh
+overlayTip (OverlayLayer bh _ _) = bh
+
+makeStateView
+  :: (MonadDB m, MonadThrow m, MonadIO m)
+  => PrivKey Alg
+  -> POW.BlockIndex UTXOBlock
+  -> StateOverlay
+  -> POW.StateView m UTXOBlock
+makeStateView pk bIdx0 overlay = sview where
+  bh0    = overlayTip overlay
+  sview  = POW.StateView
+    { stateBID          = POW.bhBID bh0
+    -- FIXME: We need block index in order to be able to compute path
+    --        from state to last known state
+    , applyBlock        = \bIdx bh b -> runExceptT $ do
+        -- Consistency checks
+        unless (POW.bhPrevious bh ==      Just bh0)  $ throwError $ InternalErr "BH mismatich"
+        unless (POW.bhBID bh      == POW.blockID b) $ throwError $ InternalErr "BH don't match block"
+        --
+        let txList = merkleValue $ ubpData $ ubProper $ POW.blockData b
+        -- Perform context free validation of all transactions in
+        -- block
+        () <- except
+            $ mapM_ (POW.validateTxContextFree @UTXOBlock) txList
+        -- Now we need to fully verify each transaction and build new
+        -- overlay for database
+        overlay' <- hoist mustQueryRW $ do
+          -- First we need to prepare path between block corresponding
+          -- to current state of block
+          pathInDB <- do
+            Just stateBid <- retrieveCurrentStateBlock
+            let Just bhState = POW.lookupIdx stateBid bIdx
+            POW.makeBlockIndexPathM (retrieveUTXOBlockTableID . POW.bhBID)
+              bhState (overlayBase overlay)
+          -- Now we can just validate every TX and update overlay
+          let activeOverlay = addOverlayLayer overlay
+          case txList of
+            []            -> return activeOverlay
+            coinbase:rest -> do
+              o' <- processCoinbaseTX (POW.bhBID bh0) activeOverlay coinbase
+              foldM (processTX pathInDB) o' rest
+        return
+          $ makeStateView pk bIdx
+          $ fromMaybe (error "UTXO: invalid BH in apply block")
+          $ finalizeOverlay bh overlay'
+    --
+    , revertBlock = return $ makeStateView pk bIdx0 (rollbackOverlay overlay)
+    --
+    , flushState = mustQueryRW $ do
+        -- Dump overlay content.
+        dumpOverlay overlay
+        -- Rewind state stored in the database from its current state
+        -- to current head.
+        Just bid <- retrieveCurrentStateBlock
+        case bid `POW.lookupIdx` bIdx0 of
+          Nothing -> error "makeStateView: bad index"
+          Just bh -> POW.traverseBlockIndexM_ revertBlockDB applyBlockDB bh bh0
+        do i <- retrieveUTXOBlockTableID (POW.bhBID bh0)
+           basicExecute "UPDATE coin_state_bid SET state_block = ?" (Only i)
+        return $ makeStateView pk bIdx0 (emptyOverlay bh0)
+      -- FIXME: not implemented
+    , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
+        inputs <- forM tx'inputs $ \utxo -> do
+          u <- getDatabaseBox POW.NoChange utxo
+          return (utxo,u)
+        checkSpendability inputs tx
+      --
+    , createCandidateBlockData = \bh _ txlist -> queryRO $ do
+        -- Create and process coinbase transaction
+        let coinbase = error "coinbase"
+            activeOverlay = addOverlayLayer overlay
+        aOverlay <- runExceptT (processCoinbaseTX (POW.bhBID bh0) activeOverlay coinbase) >>= \case
+          Left  e -> error $ "Invalid coinbase: " ++ show e
+          Right o -> return o
+        -- Select transactions
+        let selectTX []     _ = return []
+            selectTX (t:ts) o = runExceptT (processTX POW.NoChange o t) >>= \case
+              Left  _  -> selectTX ts o
+              Right o' -> (t:) <$> selectTX ts o'
+        txs <- selectTX txlist aOverlay
+        -- Create block!
+        return UTXOBlock
+          { ubNonce    = ""
+          , ubProper   = UTXOBlockProper
+                           { ubpData     = merkled $ coinbase : txs
+                           , ubpPrevious = undefined
+                           , ubpTarget   = undefined
+                           , ubpTime     = undefined
+                           }
+          }
+    }
+
 -------------------------------------------------------------------------------
 -- Transaction validation.
 
 -- | Context free TX validation for transactions. This function
 --   performs all checks that could be done having only transaction at
 --   hand.
-validateTransactionContextFree :: Tx -> Either (POWTypes.BlockException UTXOBlock) ()
+validateTransactionContextFree :: Tx -> Either (POW.BlockException UTXOBlock) ()
 validateTransactionContextFree (Tx{}) = do
   return ()
 --  -- Inputs and outputs are not null
@@ -368,10 +477,10 @@ validateTransactionContextFree (Tx{}) = do
 -- | Finally process transaction. Check that sum of inputs is greater or equal to
 -- sum of outputs.
 processTX
-  :: POWBlockIndex.BlockIndexPath (ID (POWTypes.Block UTXOBlock))
+  :: POW.BlockIndexPath (ID (POW.Block UTXOBlock))
   -> ActiveOverlay
   -> Tx
-  -> ExceptT (POWTypes.BlockException UTXOBlock) (Query rw) ActiveOverlay
+  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ActiveOverlay
 processTX pathInDB overlay tx@Tx{..} = do
   -- Fetch all inputs & check that we can spend them
   inputs <- forM tx'inputs $ \box@BoxInputRef{..} -> do
@@ -387,11 +496,36 @@ processTX pathInDB overlay tx@Tx{..} = do
                         V.map (\b -> (box'id b, b)) tx'outputs
   return overlay2
 
+-- | Rules for the coinbase transactions are special. It should
+--   contain only one mock input which refers to hash of previous block
+--   and single output with 100 coins.
+processCoinbaseTX
+  :: POW.BlockID UTXOBlock
+  -> ActiveOverlay
+  -> Tx
+  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ActiveOverlay
+processCoinbaseTX prevBID overlay tx@Tx{..} = do
+  error "process coinbase"
+{-
+  -- Check inputs
+  case ins of
+    [UTXO 0 h] | h == coerce prevBID -> return ()
+    _ -> throwError $ InternalErr "Invalid backreference in coinbase"
+  -- Check outputs
+  u <- case outs of
+    [u@(Unspent _ 100)] -> return u
+    _ -> throwError $ InternalErr "Invalid output in coinbase"
+  return $ createUnspentBox boxid u overlay
+  where
+    txHash = hashed tx
+    utxo   = UTXO 0 txHash
+-}
+
 -- |Validate transaction against block environment.
 checkSpendability
   :: V.Vector (BoxId, Unspent)
   -> Tx
-  -> ExceptT (POWTypes.BlockException UTXOBlock) (Query rw) ()
+  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ()
 checkSpendability inputs tx@Tx{..} = do
   -- XXX TODO: validate transaction against environment with our own machinery.
   return ()
@@ -412,15 +546,13 @@ getOverlayBoxId (ActiveOverlay l0 o0) boxid
      =  Spent <$> Map.lookup boxid utxoSpent
     <|> Added <$> Map.lookup boxid utxoCreated
 
-
-
 getDatabaseBox
   :: ()
-  => POWBlockIndex.BlockIndexPath (ID (POWTypes.Block UTXOBlock))
+  => POW.BlockIndexPath (ID (POW.Block UTXOBlock))
   -> BoxId
-  -> ExceptT (POWTypes.BlockException UTXOBlock) (Query rw) Unspent
+  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) Unspent
 -- Check whether output was created in the block
-getDatabaseBox (POWBlockIndex.ApplyBlock i path) boxid = do
+getDatabaseBox (POW.ApplyBlock i path) boxid = do
   isSpentAtBlock i boxid >>= \case
     Just _  -> throwError $ InternalErr "Output is already spent"
     Nothing -> return ()
@@ -429,14 +561,14 @@ getDatabaseBox (POWBlockIndex.ApplyBlock i path) boxid = do
     Nothing -> getDatabaseBox path boxid
 -- Perform check in block being reverted. If UTXO was create in that
 -- block it didn't exist before and we should abort.
-getDatabaseBox (POWBlockIndex.RevertBlock i path) boxid = do
+getDatabaseBox (POW.RevertBlock i path) boxid = do
   isCreatedAtBlock i boxid >>= \case
     Just _  -> throwError $ InternalErr "Output does not exists"
     Nothing -> return ()
   isSpentAtBlock i boxid >>= \case
     Just u  -> return u
     Nothing -> getDatabaseBox path boxid
-getDatabaseBox POWBlockIndex.NoChange boxid = do
+getDatabaseBox POW.NoChange boxid = do
   r <- basicQuery1
     "SELECT pk_dest, n_coins \
     \  FROM coin_utxo \
@@ -455,7 +587,7 @@ createUnspentBox :: BoxId -> Unspent -> ActiveOverlay -> ActiveOverlay
 createUnspentBox boxid val
   = typed . lensCreated . at boxid .~ Just val
 
-isSpentAtBlock :: MonadQueryRO m => ID (POWTypes.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
+isSpentAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
 isSpentAtBlock i boxid = basicQuery1
   "SELECT pk_dest, n_coins \
   \  FROM coin_utxo \
@@ -463,7 +595,7 @@ isSpentAtBlock i boxid = basicQuery1
   \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
   (boxid SQL.:. SQL.Only i)
 
-isCreatedAtBlock :: MonadQueryRO m => ID (POWTypes.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
+isCreatedAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
 isCreatedAtBlock i boxid = basicQuery1
   "SELECT pk_dest, n_coins \
   \  FROM coin_utxo \
@@ -471,4 +603,152 @@ isCreatedAtBlock i boxid = basicQuery1
   \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
   (boxid SQL.:. SQL.Only i)
 
+retrieveCurrentStateBlock :: MonadQueryRO m => m (Maybe (POW.BlockID UTXOBlock))
+retrieveCurrentStateBlock = fmap fromOnly <$> basicQuery1
+  "SELECT bid \
+  \  FROM coin_blocks \
+  \  JOIN coin_state_bid ON state_block = blk_id"
+  ()
+
+retrieveUTXOBlockTableID :: MonadQueryRO m => POW.BlockID UTXOBlock -> m (ID (POW.Block UTXOBlock))
+retrieveUTXOBlockTableID bid = do
+  r <- basicQuery1
+    "SELECT blk_id FROM utxo_blocks WHERE bid =?"
+    (Only bid)
+  case r of
+    Nothing       -> error "Unknown BID"
+    Just (Only i) -> return i
+
+retrieveUtxoIO :: MonadQueryRO m => BoxId -> m Unspent
+retrieveUtxoIO utxo = do
+  r <- basicQuery1
+    "SELECT utxo_id FROM coin_utxo WHERE n_out = ? AND tx_hash = ?"
+    utxo
+  case r of
+    Just (Only i) -> return i
+    Nothing       -> error "retrieveUtxoIO"
+
+
+
+revertBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
+revertBlockDB bh = do
+  i <- retrieveUTXOBlockTableID $ POW.bhBID bh
+  basicExecute
+    "DELETE FROM coin_state WHERE live_utxo IN \
+    \  (SELECT utxo_ref FROM coin_utxo_created WHERE block_ref = ?)"
+    (SQL.Only i)
+  basicExecute
+    "INSERT OR IGNORE INTO coin_state \
+    \  SELECT utxo_ref FROM coin_utxo_spent WHERE block_ref = ?"
+    (SQL.Only i)
+
+applyBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
+applyBlockDB bh = do
+  i <- retrieveUTXOBlockTableID $ POW.bhBID bh
+  basicExecute
+    "DELETE FROM coin_state WHERE live_utxo IN \
+    \  (SELECT utxo_ref FROM coin_utxo_spent WHERE block_ref = ?)"
+    (SQL.Only i)
+  basicExecute
+    "INSERT OR IGNORE INTO coin_state \
+    \  SELECT utxo_ref FROM coin_utxo_created WHERE block_ref = ?"
+    (SQL.Only i)
+
+-- | Roll back overlay by one block. Will throw if rolling past
+--   genesis is attempted.
+rollbackOverlay :: StateOverlay -> StateOverlay
+rollbackOverlay (OverlayBase bh0) = case POW.bhPrevious bh0 of
+  Just bh -> OverlayBase bh
+  Nothing -> error "Cant rewind overlay pas genesis"
+rollbackOverlay (OverlayLayer _ _ o) = o
+
+finalizeOverlay :: POW.BH UTXOBlock -> ActiveOverlay -> Maybe StateOverlay
+finalizeOverlay bh (ActiveOverlay l o) = do
+  bid <- POW.bhBID <$> POW.bhPrevious bh
+  guard $ POW.bhBID (overlayTip o) == bid
+  pure  $ OverlayLayer bh l o
+
+dumpOverlay :: MonadQueryRW m => StateOverlay -> m ()
+dumpOverlay (OverlayLayer bh Layer{..} o) = do
+  dumpOverlay o
+  -- Store create UTXO
+  forM_ (Map.toList utxoCreated) $ \(utxo, unspent) -> do
+    basicExecute
+      "INSERT OR IGNORE INTO coin_utxo VALUES (NULL,?,?,?,?)"
+      (utxo SQL.:. unspent)
+  -- Write down block delta
+  bid <- retrieveUTXOBlockTableID (POW.bhBID bh)
+  forM_ (Map.keys utxoCreated) $ \utxo -> do
+    uid <- retrieveUtxoIO utxo
+    basicExecute
+      "INSERT OR IGNORE INTO coin_utxo_created VALUES (?,?)"
+      (bid, uid)
+  forM_ (Map.keys utxoSpent) $ \utxo -> do
+    uid <- retrieveUtxoIO utxo
+    basicExecute
+      "INSERT OR IGNORE INTO coin_utxo_spent VALUES (?,?)"
+      (bid, uid)
+dumpOverlay OverlayBase{} = return ()
+
+-- Initialize database for mock coin blockchain
+initUTXODB :: (MonadThrow m, MonadDB m, MonadIO m) => m ()
+initUTXODB = mustQueryRW $ do
+  -- Table for blocks. We store both block data is serialized form and
+  -- separately UTXOs for working with blockchain state so data is
+  -- duplicated
+  basicExecute_
+    "CREATE TABLE IF NOT EXISTS utxo_blocks \
+    \  ( blk_id     INTEGER PRIMARY KEY AUTOINCREMENT \
+    \  , bid        BLOB NOT NULL UNIQUE \
+    \  , height     INTEGER NOT NULL \
+    \  , time       INTEGER NUT NULL \
+    \  , prev       BLOB NULL \
+    \  , dataHash   BLOB NOT NULL \
+    \  , blockData  BLOB NOT NULL \
+    \  , target     BLOB NOT NULL \
+    \  , nonce      BLOB NOT NULL \
+    \)"
+  -- All UTXOs known to blockchain. We never delete them so node works
+  -- as archival node.
+  basicExecute_
+    "CREATE TABLE IF NOT EXISTS utxo_set \
+    \  ( utxo_id INTEGER PRIMARY KEY \
+    \  , n_out   BLOB NOT NULL \
+    \  , tx_hash BLOB NOT NULL \
+    \  , pk_dest BLOB NOT NULL \
+    \  , n_coins INTEGER NOT NULL \
+    \)"
+  -- UTXO's created in given block. Due to blockchain reorganizations
+  -- same UTXO may appear in several blocks
+  basicExecute_
+    "CREATE TABLE IF NOT EXISTS utxo_created \
+    \  ( block_ref INTEGER NOT NULL \
+    \  , utxo_ref  INTEGER NOT NULL \
+    \  , FOREIGN KEY (block_ref) REFERENCES coin_blocks(blk_id) \
+    \  , FOREIGN KEY (utxo_ref)  REFERENCES coin_utxo(utxo_id)  \
+    \  , UNIQUE (block_ref, utxo_ref) \
+    \)"
+  basicExecute_
+    "CREATE TABLE IF NOT EXISTS utxo_spent \
+    \  ( block_ref INTEGER NOT NULL \
+    \  , utxo_ref  INTEGER NOT NULL \
+    \  , FOREIGN KEY (block_ref) REFERENCES coin_blocks(blk_id) \
+    \  , FOREIGN KEY (utxo_ref)  REFERENCES coin_utxo(utxo_id)  \
+    \  , UNIQUE (block_ref, utxo_ref) \
+    \)"
+  -- Current state of blockchain. It's just set of currently live UTXO
+  -- with pointer to the block for which it corresponds
+  basicExecute_
+    "CREATE TABLE IF NOT EXISTS utxo_state \
+    \  ( live_utxo INTEGER NOT NULL \
+    \  , FOREIGN KEY (live_utxo) REFERENCES coin_utxo(utxo_id)\
+    \  , UNIQUE (live_utxo) \
+    \)"
+  basicExecute_
+    "CREATE TABLE IF NOT EXISTS utxo_state_bid \
+    \  ( state_block INTEGER NOT NULL \
+    \  , uniq        INTEGER NOT NULL UNIQUE \
+    \  , FOREIGN KEY (state_block) REFERENCES utxo_blocks(blk_id) \
+    \  , CHECK (uniq = 0) \
+    \)"
 
