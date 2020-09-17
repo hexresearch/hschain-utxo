@@ -24,7 +24,7 @@ import Data.String
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
-
+import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import GHC.Generics
 
 import Text.Show.Deriving
@@ -67,13 +67,10 @@ data UserTypeCtx = UserTypeCtx
   , userTypeCtx'constrs    :: Map ConsName ConsInfo          -- ^ Map from constructor names to it's low-level data, for further compilation
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
-  } deriving (Show, Eq)
+  }
+  deriving (Show, Eq, Generic)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
-instance Semigroup UserTypeCtx where
-  UserTypeCtx a1 b1 c1 d1 <> UserTypeCtx a2 b2 c2 d2 = UserTypeCtx (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2)
-
-instance Monoid UserTypeCtx where
-  mempty = UserTypeCtx mempty mempty mempty mempty
 
 setupUserTypeInfo :: UserTypeCtx -> UserTypeCtx
 setupUserTypeInfo = setupConsInfo . setupUserRecords
@@ -241,13 +238,7 @@ data Args = Args
   }
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData, Serialise)
-
-instance Semigroup Args where
-  (Args intsA boolsA textsA bytesA) <> (Args intsB boolsB textsB bytesB) =
-    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB) (bytesA <> bytesB)
-
-instance Monoid Args where
-  mempty = Args mempty mempty mempty mempty
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
 
 -- | Construct args that contain only integers
 intArgs :: [Int64] -> Args
@@ -382,37 +373,20 @@ data InferCtx = InferCtx
   { inferCtx'binds :: TypeContext  -- ^ Already derived signatures for
                                    -- all free variables in the expression
   , inferCtx'types :: UserTypeCtx  -- ^ User-defined types
-  } deriving (Show, Eq)
-
-instance Semigroup InferCtx where
-  a <> b = InferCtx
-      { inferCtx'binds = inferCtx'binds a <> inferCtx'binds b
-      , inferCtx'types = inferCtx'types a <> inferCtx'types b
-      }
-
-instance Monoid InferCtx where
-  mempty = InferCtx mempty mempty
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid InferCtx
 
 -- | Evaluated module
 data ModuleCtx = ModuleCtx
   { moduleCtx'types  :: !InferCtx
   , moduleCtx'exprs  :: !ExecCtx
-  } deriving (Show, Eq)
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid ModuleCtx
 
 getModuleCtxNames :: ModuleCtx -> [Text]
 getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
-
-instance Semigroup ModuleCtx where
-  (<>) a b = ModuleCtx
-    { moduleCtx'types = moduleCtx'types a <> moduleCtx'types b
-    , moduleCtx'exprs = moduleCtx'exprs a <> moduleCtx'exprs b
-    }
-
-instance Monoid ModuleCtx where
-  mempty = ModuleCtx
-    { moduleCtx'types = mempty
-    , moduleCtx'exprs = mempty
-    }
 
 -- | Alternatives for declarations right-hand-sides.
 -- Because of pattern matching we can have several alternatives
