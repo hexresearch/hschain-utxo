@@ -137,8 +137,14 @@ instance SQL.FromRow BoxId where
 instance SQL.ToRow Box where
   toRow = undefined
 
-instance SQL.FromRow box where
+instance SQL.FromRow Box where
   fromRow = undefined
+
+instance SQL.ToField Box where
+  toField = undefined
+
+instance SQL.FromField Box where
+  fromField = undefined
 
 -------------------------------------------------------------------------------
 -- The Block.
@@ -423,9 +429,9 @@ makeStateView pk bIdx0 overlay = sview where
         return $ makeStateView pk bIdx0 (emptyOverlay bh0)
       -- FIXME: not implemented
     , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
-        inputs <- forM tx'inputs $ \utxo -> do
-          u <- getDatabaseBox POW.NoChange utxo
-          return (utxo,u)
+        inputs <- forM tx'inputs $ \BoxInputRef{..} -> do
+          u <- getDatabaseBox POW.NoChange boxInputRef'id
+          return (boxInputRef'id, u)
         checkSpendability inputs tx
       --
     , createCandidateBlockData = \bh _ txlist -> queryRO $ do
@@ -452,6 +458,43 @@ makeStateView pk bIdx0 overlay = sview where
                            }
           }
     }
+
+utxoStateView
+  :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m)
+  => PrivKey Alg
+  -> POW.Block UTXOBlock
+  -> m (POW.BlockDB m UTXOBlock, POW.BlockIndex UTXOBlock, POW.StateView m UTXOBlock)
+utxoStateView pk genesis = do
+  initUTXODB
+  storeUTXOBlock genesis
+  bIdx <- POW.buildBlockIndex db
+  st   <- mustQueryRW $ initializeStateView pk genesis bIdx
+  return (db, bIdx, st)
+  where
+    db = POW.BlockDB { storeBlock         = storeUTXOBlock
+                     , retrieveBlock      = retrieveUTXOBlock
+                     , retrieveHeader     = retrieveUTXOHeader
+                     , retrieveAllHeaders = retrieveAllUTXOHeaders
+                     }
+
+initializeStateView
+  :: (MonadDB m, MonadThrow m, MonadQueryRW q,  MonadIO m)
+  => PrivKey Alg                    -- ^ Private key of miner
+  -> POW.Block UTXOBlock            -- ^ Genesis block
+  -> POW.BlockIndex UTXOBlock       -- ^ Block index
+  -> q (POW.StateView m UTXOBlock)
+initializeStateView pk genesis bIdx = do
+  retrieveCurrentStateBlock >>= \case
+    Just bid -> do let Just bh = POW.lookupIdx bid bIdx
+                   return $ makeStateView pk bIdx (emptyOverlay bh)
+    -- We need to initialize state table
+    Nothing  -> do
+      let bid     = POW.blockID genesis
+          Just bh = POW.lookupIdx bid bIdx
+      basicExecute
+        "INSERT INTO coin_state_bid SELECT blk_id,0 FROM coin_blocks WHERE bid = ?"
+        (Only bid)
+      return $ makeStateView pk bIdx (emptyOverlay bh)
 
 -------------------------------------------------------------------------------
 -- Transaction validation.
@@ -689,6 +732,52 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
       "INSERT OR IGNORE INTO coin_utxo_spent VALUES (?,?)"
       (bid, uid)
 dumpOverlay OverlayBase{} = return ()
+
+storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
+storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
+  basicExecute
+    "INSERT OR IGNORE INTO coin_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ( POW.blockID b
+    , blockHeight
+    , blockTime
+    , prevBlock
+    , CBORed blk
+    )
+
+retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header UTXOBlock]
+retrieveAllUTXOHeaders = queryRO $ basicQueryWith_
+  utxoBlockHeaderDecoder
+  "SELECT height, time, prev, dataHash, target, nonce FROM coin_blocks ORDER BY height"
+
+retrieveUTXOHeader :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Header UTXOBlock))
+retrieveUTXOHeader bid = queryRO $ basicQueryWith1
+  utxoBlockHeaderDecoder
+  "SELECT height, time, prev, dataHash, target, nonce FROM coin_blocks WHERE bid = ?"
+  (Only bid)
+
+retrieveUTXOBlock :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Block UTXOBlock))
+retrieveUTXOBlock bid = queryRO $ basicQueryWith1
+  utxoBlockDecoder
+  "SELECT height, time, prev, blockData, target, nonce FROM coin_blocks WHERE bid = ?"
+  (Only bid)
+
+utxoBlockDecoder :: SQL.RowParser (POW.Block UTXOBlock)
+utxoBlockDecoder = do
+  blockHeight <- field
+  blockTime   <- field
+  prevBlock   <- field
+  ubNonce   <- field
+  ubProper  <- undefined
+  return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
+
+utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header UTXOBlock)
+utxoBlockHeaderDecoder = do
+  blockHeight <- field
+  blockTime   <- field
+  prevBlock   <- field
+  ubNonce   <- field
+  ubProper  <- undefined
+  return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
 
 -- Initialize database for mock coin blockchain
 initUTXODB :: (MonadThrow m, MonadDB m, MonadIO m) => m ()

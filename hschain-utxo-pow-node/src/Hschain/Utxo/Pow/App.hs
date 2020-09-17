@@ -171,43 +171,6 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine dbPath) = do
       where
         txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
 
-utxoStateView
-  :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m)
-  => PrivKey Alg
-  -> POWTypes.Block UTXOBlock
-  -> m (BlockDB m UTXOBlock, BlockIndex UTXOBlock, StateView m UTXOBlock)
-utxoStateView pk genesis = do
-  initUTXODB
-  storeUTXOBlock genesis
-  bIdx <- buildBlockIndex db
-  st   <- mustQueryRW $ initializeStateView pk genesis bIdx
-  return (db, bIdx, st)
-  where
-    db = BlockDB { storeBlock         = storeCoinBlock
-                 , retrieveBlock      = retrieveCoinBlock
-                 , retrieveHeader     = retrieveCoinHeader
-                 , retrieveAllHeaders = retrieveAllCoinHeaders
-                 }
-
-initializeStateView
-  :: (MonadDB m, MonadThrow m, MonadQueryRW q,  MonadIO m)
-  => PrivKey Alg                -- ^ Private key of miner
-  -> POWTypes.Block UTXOBlock   -- ^ Genesis block
-  -> BlockIndex UTXOBlock       -- ^ Block index
-  -> q (StateView m UTXOBlock)
-initializeStateView pk genesis bIdx = do
-  retrieveCurrentStateBlock >>= \case
-    Just bid -> do let Just bh = lookupIdx bid bIdx
-                   return $ makeStateView pk bIdx (emptyOverlay bh)
-    -- We need to initialize state table
-    Nothing  -> do
-      let bid     = blockID genesis
-          Just bh = lookupIdx bid bIdx
-      basicExecute
-        "INSERT INTO coin_state_bid SELECT blk_id,0 FROM coin_blocks WHERE bid = ?"
-        (Only bid)
-      return $ makeStateView pk bIdx (emptyOverlay bh)
-
 
 runApp :: IO ()
 runApp = readOptions >>= runNode
