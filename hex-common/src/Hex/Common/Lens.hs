@@ -1,6 +1,7 @@
 module Hex.Common.Lens(
     humbleFields
   , apostrophedFields
+  , makeLensesWithL
   , module X
 ) where
 
@@ -46,3 +47,10 @@ apostrophedNamer _ _ field = maybeToList $ do
     prefix _                        = Nothing
     niceLens    = prefix field' <&> \n -> drop (length n + 1) field'
     classNaming = niceLens <&> ("Has_" ++)
+
+
+-- | Generate plain lenses where each field is just has @L@ suffix
+makeLensesWithL :: Name -> DecsQ
+makeLensesWithL
+  = makeLensesWith (defaultFieldRules & lensField .~ mappingNamer (\nm -> [nm++"L"]))
+

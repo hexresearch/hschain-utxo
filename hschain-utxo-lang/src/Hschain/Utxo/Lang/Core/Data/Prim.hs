@@ -14,7 +14,6 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
 
 import Codec.Serialise
 import Control.DeepSeq
-import Control.Lens
 
 import Data.Fix
 import Data.Int
@@ -24,6 +23,7 @@ import qualified Language.HM as H
 import Data.Text.Prettyprint.Doc
 import GHC.Generics (Generic)
 
+import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
 
 import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
@@ -85,9 +85,7 @@ instance Serialise (Fix (H.TypeF () Text))
 instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
 instance Serialise TypeCore
 
-$(makeLensesWith
-   (defaultFieldRules & lensField .~ (mappingNamer (\nm -> [nm++"L"])))
-   ''Typed)
+$(makeLensesWithL ''Typed)
 
 
 
