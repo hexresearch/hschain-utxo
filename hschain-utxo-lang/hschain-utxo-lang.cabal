@@ -105,6 +105,7 @@ library
                      , pretty-show
                      , safe
                      , serialise
+                     , semigroups
                      , prettyprinter
                      , serialise
                      , strict

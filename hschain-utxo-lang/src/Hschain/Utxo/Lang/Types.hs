@@ -38,7 +38,10 @@ import GHC.Generics
 
 import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashBlob, genericHashStep)
-import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Expr ( TxId(..), Script(..), Args(..)
+                              , Box(..), BoxId(..), PreBox(..), BoxOrigin(..)
+                              , computeBoxId
+                              )
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
@@ -199,13 +202,10 @@ makeOutputs txId outputs = V.imap toBox outputs
       , box'args   = preBox'args
       }
       where
-        boxId = getBoxToHashId $ BoxToHash
-            { boxToHash'origin  = BoxOrigin
+        boxId = computeBoxId BoxOrigin
                 { boxOrigin'outputIndex = fromIntegral outputIndex
                 , boxOrigin'txId        = txId
-                }
-            , boxToHash'content = box
-            }
+                } box
 
 makeInputs :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Vector BoxInputRef)
 makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
@@ -280,13 +280,10 @@ validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
 
     checkBoxId n box@Box{..} = box'id == getId n box
 
-    getId n box = getBoxToHashId $ BoxToHash
-      { boxToHash'origin  = BoxOrigin
-                              { boxOrigin'outputIndex = fromIntegral n
-                              , boxOrigin'txId        = txId
-                              }
-      , boxToHash'content = toPreBox box
-      }
+    getId n box = computeBoxId BoxOrigin
+                  { boxOrigin'outputIndex = fromIntegral n
+                  , boxOrigin'txId        = txId
+                  } (toPreBox box)
 
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString
@@ -326,4 +323,3 @@ instance CryptoHashable BoxInput where
 
 instance CryptoHashable BoxInputRef where
   hashStep = genericHashStep hashDomain
-
