@@ -17,9 +17,9 @@ module Hschain.Utxo.Lang.Types
   , splitInputs
   , txPreservesValue
   , computeTxId
-  , computePreTxId
-  , singleOwnerInput
   , validateOutputBoxIds
+    -- * Helperes
+  , singleOwnerInput
   ) where
 
 import Hex.Common.Aeson

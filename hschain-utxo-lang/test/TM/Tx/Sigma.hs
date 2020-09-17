@@ -14,16 +14,10 @@ import Hschain.Utxo.Lang.Types
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
-  [ testCase "verify correct sign message (same for pre-tx)" $ ( @=? True)  =<< verifySameSignMessage
-  , testCase "verify correct box identifiers"                $ ( @=? True)  =<< verifyValidBoxIds
+  [ testCase "verify correct box identifiers"                $ ( @=? True)  =<< verifyValidBoxIds
   , testCase "verify correct single owner script"            $ ( @=? True)  =<< verifyAliceTx
   , testCase "verify broken tx"                              $ ( @=? False) =<< verifyBrokenTx
   ]
-
-verifySameSignMessage :: IO Bool
-verifySameSignMessage = do
-  (tx, preTx) <- initTx
-  return $ computeTxId tx == computePreTxId preTx
 
 verifyValidBoxIds :: IO Bool
 verifyValidBoxIds = do
