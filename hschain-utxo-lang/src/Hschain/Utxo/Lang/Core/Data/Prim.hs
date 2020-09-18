@@ -15,7 +15,6 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
 import Codec.Serialise
 import Control.DeepSeq
 
-import Data.Fix
 import Data.Int
 import Data.ByteString (ByteString)
 import Data.Text (Text)
@@ -65,14 +64,14 @@ data TypeCore
   | BoxT
     -- ^ Box. 4-tuple of box ID, spend script, value of box, and arguments
   deriving stock    (Show, Eq, Generic)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData,Serialise)
 infixr 5 :->
 
 argsTuple :: TypeCore
 argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 
 -----------------------------------------------------
--- instnaces
+-- instances
 
 instance IsVar Name where
   intToVar = stringIntToVar
@@ -81,12 +80,7 @@ instance IsVar Name where
 instance HasPrefix Name where
   getFixity = const Nothing
 
-instance Serialise (Fix (H.TypeF () Text))
-instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
-instance Serialise TypeCore
-
 $(makeLensesWithL ''Typed)
-
 
 
 
