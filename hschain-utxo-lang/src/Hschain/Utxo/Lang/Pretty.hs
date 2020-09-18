@@ -29,6 +29,7 @@ import qualified Hschain.Utxo.Lang.Sigma as S
 import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg)
 
 import qualified Language.HM as H
+import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
@@ -288,3 +289,5 @@ instance Pretty Hask.SrcLoc where
     , pretty srcLine, ":"
     , pretty srcColumn ]
 
+instance H.HasPrefix Text where
+  getFixity = const Nothing
