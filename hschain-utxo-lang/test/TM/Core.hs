@@ -39,6 +39,9 @@ tests = testGroup "core"
   , testGroup "env"
     [ testProgram "getHeight" progHeight (PrimInt 123)
     ]
+  , testGroup "case"
+    [ testProgram "case of list" progListCase (PrimInt 123)
+    ]
   ]
 
 testProgram :: String -> CoreProg -> Prim -> TestTree
@@ -74,6 +77,26 @@ progEquality p = CoreProg
   ]
   where
     ty = primToType p
+
+
+progListCase :: CoreProg
+progListCase = CoreProg
+  [ mkMain $ Typed
+    { typed'value =
+        EPrimOp OpAdd
+          `EAp` safeHead (EPrimOp (OpListNil IntT))
+          `EAp` safeHead (EPrimOp (OpListCons IntT)
+                          `EAp` EPrim (PrimInt 123)
+                          `EAp` EPrimOp (OpListNil IntT)
+                         )
+    , typed'type  = IntT
+    }
+  ]
+  where
+    safeHead e = ECase e
+      [ CaseAlt 0 [] (EPrim (PrimInt 0))
+      , CaseAlt 1 [Typed "x" IntT, Typed "xs" (ListT IntT)] (EVar "x")
+      ]
 
 
 ----------------------------------------------------------------
