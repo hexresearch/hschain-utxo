@@ -1003,4 +1003,9 @@ instance ToJSON Args where
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
 
+instance H.IsVar Text where
+  intToVar = H.stringIntToVar
+  prettyLetters = H.stringPrettyLetters
+
+
 $(deriveJSON dropPrefixOptions ''Box)

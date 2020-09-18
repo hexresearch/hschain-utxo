@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Common primitive type definitions
 module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
@@ -17,14 +16,11 @@ import Control.DeepSeq
 import Data.Int
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import qualified Language.HM as H
 import Data.Text.Prettyprint.Doc
 import GHC.Generics (Generic)
 
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
-
-import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
 
 
 -- | Type tags for values
@@ -70,9 +66,6 @@ argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 -----------------------------------------------------
 -- instances
 
-instance IsVar Name where
-  intToVar = stringIntToVar
-  prettyLetters = stringPrettyLetters
 
 $(makeLensesWithL ''Typed)
 
