@@ -4,7 +4,6 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
     Name
   , TypeCore(..)
   , argsTuple
-  , SignatureCore
   , Typed(..)
   , Prim(..)
     -- * Lens
@@ -27,7 +26,6 @@ import Hschain.Utxo.Lang.Sigma
 
 import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
 
-type SignatureCore = H.Signature () Name
 
 -- | Type tags for values
 data Typed ty a = Typed
