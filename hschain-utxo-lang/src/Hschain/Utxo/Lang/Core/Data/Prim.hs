@@ -26,7 +26,6 @@ import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
 
 import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
-import Language.HM.Pretty (HasPrefix(..))
 
 type SignatureCore = H.Signature () Name
 
@@ -76,9 +75,6 @@ argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 instance IsVar Name where
   intToVar = stringIntToVar
   prettyLetters = stringPrettyLetters
-
-instance HasPrefix Name where
-  getFixity = const Nothing
 
 $(makeLensesWithL ''Typed)
 
