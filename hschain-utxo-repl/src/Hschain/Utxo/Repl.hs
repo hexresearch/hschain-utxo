@@ -14,7 +14,7 @@ import System.Console.Repline hiding (options)
 import System.Process
 
 import qualified Data.Text as T
-
+import HSChain.Crypto
 import Hschain.Utxo.Repl.Cmd
 import Hschain.Utxo.Repl.Eval
 import Hschain.Utxo.Repl.Monad
@@ -70,6 +70,5 @@ runRepl = runReplM txArg $ evalRepl (pure " > ") eval options Nothing (Word comp
         { txArg'inputs  = mempty
         , txArg'outputs = mempty
         , txArg'env     = Env 0
-        , txArg'txBytes = getPreTxBytes $ PreTx mempty mempty
+        , txArg'txBytes = TxId $ hash ()
         }
-

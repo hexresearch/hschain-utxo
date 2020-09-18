@@ -14,16 +14,10 @@ import Hschain.Utxo.Lang.Types
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
-  [ testCase "verify correct sign message (same for pre-tx)" $ ( @=? True)  =<< verifySameSignMessage
-  , testCase "verify correct box identifiers"                $ ( @=? True)  =<< verifyValidBoxIds
+  [ testCase "verify correct box identifiers"                $ ( @=? True)  =<< verifyValidBoxIds
   , testCase "verify correct single owner script"            $ ( @=? True)  =<< verifyAliceTx
   , testCase "verify broken tx"                              $ ( @=? False) =<< verifyBrokenTx
   ]
-
-verifySameSignMessage :: IO Bool
-verifySameSignMessage = do
-  (tx, preTx) <- initTx
-  return $ getTxBytes tx == getPreTxBytes preTx
 
 verifyValidBoxIds :: IO Bool
 verifyValidBoxIds = do
@@ -77,7 +71,7 @@ verifyBrokenTx = do
 
 -- | External TX verifier.
 verifyTx :: Tx -> Bool
-verifyTx tx = all (maybe False (\proof -> verifyProof proof message) . boxInputRef'proof) $ tx'inputs tx
+verifyTx tx = all (maybe False (\proof -> verifyProof proof tid) . boxInputRef'proof) $ tx'inputs tx
   where
-    message = getTxBytes tx
+    tid = computeTxId tx
 

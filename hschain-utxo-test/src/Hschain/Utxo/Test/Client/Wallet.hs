@@ -70,7 +70,7 @@ getBalance Wallet{..} = do
 -- | Create proof for a most simple expression of @pk user-key@
 getOwnerProof :: MonadIO io => Wallet -> Tx -> io (Either Text Proof)
 getOwnerProof w@Wallet{..} tx =
-  liftIO $ newProof env (Fix $ SigmaPk (getWalletPublicKey w)) (getTxBytes tx)
+  liftIO $ newProof env (Fix $ SigmaPk (getWalletPublicKey w)) (computeTxId tx)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 
@@ -102,7 +102,7 @@ newSendTx wallet send@Send{..} = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount
 
-newProofOrFail :: ProofEnv -> Sigma PublicKey -> SignMessage -> App Proof
+newProofOrFail :: ProofEnv -> Sigma PublicKey -> TxId -> App Proof
 newProofOrFail env expr message = do
   eProof <- liftIO $ newProof env expr message
   case eProof of

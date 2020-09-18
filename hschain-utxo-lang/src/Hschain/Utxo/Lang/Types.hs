@@ -16,10 +16,10 @@ module Hschain.Utxo.Lang.Types
   , hashScript
   , splitInputs
   , txPreservesValue
-  , getPreTxBytes
-  , getTxBytes
-  , singleOwnerInput
+  , computeTxId
   , validateOutputBoxIds
+    -- * Helperes
+  , singleOwnerInput
   ) where
 
 import Hex.Common.Aeson
@@ -37,7 +37,7 @@ import Data.Vector (Vector)
 import GHC.Generics
 
 import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashBlob, genericHashStep)
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashLazyBlob, genericHashStep)
 import Hschain.Utxo.Lang.Expr ( TxId(..), Script(..), Args(..)
                               , Box(..), BoxId(..), PreBox(..), BoxOrigin(..)
                               , computeBoxId
@@ -46,7 +46,6 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
-import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 
 -- | Hash of transaction.
@@ -114,14 +113,11 @@ clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
   where
     clearProof box = box { boxInputRef'proof = Nothing }
 
-getTxBytes :: Tx -> SignMessage
-getTxBytes = getPreTxBytes . getPreTx
+computeTxId :: Tx -> TxId
+computeTxId = computePreTxId . getPreTx
 
-getPreTxBytes :: PreTx BoxInputRef -> SignMessage
-getPreTxBytes = SignMessage . LB.toStrict . serialise . clearProofs
-
-getTxId :: SignMessage -> TxId
-getTxId (SignMessage bs) = TxId $ hashBlob bs
+computePreTxId :: PreTx BoxInputRef -> TxId
+computePreTxId = TxId . hashLazyBlob . serialise . clearProofs
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
@@ -130,7 +126,7 @@ data TxArg = TxArg
   { txArg'inputs   :: !(Vector BoxInput)
   , txArg'outputs  :: !(Vector Box)
   , txArg'env      :: !Env
-  , txArg'txBytes  :: !SignMessage -- ^ serialised content of TX (it's used to verify the proof)
+  , txArg'txBytes  :: !TxId
   }
   deriving (Show, Eq)
 
@@ -190,7 +186,7 @@ newTx tx = Tx
   , tx'outputs = makeOutputs txId $ preTx'outputs tx
   }
   where
-    txId = getTxId $ getPreTxBytes tx
+    txId = computePreTxId tx
 
 makeOutputs :: TxId -> Vector PreBox -> Vector Box
 makeOutputs txId outputs = V.imap toBox outputs
@@ -207,14 +203,14 @@ makeOutputs txId outputs = V.imap toBox outputs
                 , boxOrigin'txId        = txId
                 } box
 
-makeInputs :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Vector BoxInputRef)
+makeInputs :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Vector BoxInputRef)
 makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
   where
     toInput ExpectedBox{..} = do
       mProof <- mapM (\sigma -> newProof proofEnv sigma message) expectedBox'sigma
       return $ expectedBox'input { boxInputRef'proof = either (const Nothing) Just =<< mProof }
 
-makeInputsOrFail :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Either Text (Vector BoxInputRef))
+makeInputsOrFail :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Either Text (Vector BoxInputRef))
 makeInputsOrFail proofEnv message expectedInputs = runExceptT $ mapM toInput expectedInputs
   where
     toInput ExpectedBox{..} = do
@@ -241,14 +237,13 @@ data ExpectedBox = ExpectedBox
 -- it produces @Nothing@ in the @boxInputRef'proof@.
 newProofTx :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io Tx
 newProofTx proofEnv tx = liftIO $ do
-  inputs <- makeInputs proofEnv message $ preTx'inputs tx
+  inputs <- makeInputs proofEnv txId $ preTx'inputs tx
   return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }
   where
-    txId      = getTxId message
-    message   = getPreTxBytes preTx
+    txId      = computePreTxId preTx
     preTx = fmap expectedBox'input tx
 
 -- | If we now the expected sigma expressions for the inputs
@@ -259,14 +254,13 @@ newProofTx proofEnv tx = liftIO $ do
 -- over API.
 newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
-  eInputs <- makeInputsOrFail proofEnv message $ preTx'inputs tx
+  eInputs <- makeInputsOrFail proofEnv txId $ preTx'inputs tx
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
     , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }) eInputs
   where
-    txId      = getTxId message
-    message   = getPreTxBytes preTx
+    txId  = computePreTxId preTx
     preTx = fmap expectedBox'input tx
 
 --------------------------------------------
@@ -276,7 +270,7 @@ newProofTxOrFail proofEnv tx = liftIO $ do
 validateOutputBoxIds :: Tx -> Bool
 validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
   where
-    txId = getTxId $ getTxBytes tx
+    txId = computeTxId tx
 
     checkBoxId n box@Box{..} = box'id == getId n box
 
