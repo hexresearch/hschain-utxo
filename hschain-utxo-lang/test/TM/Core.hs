@@ -41,8 +41,15 @@ tests = testGroup "core"
     ]
   , testGroup "case"
     [ testProgram "case of list" progListCase (PrimInt 123)
+    , shouldFail "List bad pattern" badListCase
     ]
   ]
+
+shouldFail :: String -> CoreProg -> TestTree
+shouldFail nm prog = testCase nm $ case typeCheck prog of
+  Nothing -> assertFailure "Type checking should fail"
+  Just _  -> return ()
+
 
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
@@ -98,6 +105,20 @@ progListCase = CoreProg
       , CaseAlt 1 [Typed "x" IntT, Typed "xs" (ListT IntT)] (EVar "x")
       ]
 
+badListCase :: CoreProg
+badListCase = CoreProg
+  [ mkMain $ Typed
+    { typed'value = ECase nil
+        [ CaseAlt 0 [Typed "x" IntT]                          zero
+        , CaseAlt 1 [Typed "x" IntT, Typed "xs" (ListT IntT)] zero
+        ]
+    , typed'type  = IntT
+    }
+  ]
+  where
+    zero = EPrim (PrimInt 0)
+    nil  = (EPrimOp (OpListNil IntT))
+
 
 ----------------------------------------------------------------
 
@@ -114,4 +135,3 @@ env = InputEnv
   , inputEnv'outputs  = mempty
   , inputEnv'args     = mempty
   }
-
