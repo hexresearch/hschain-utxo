@@ -120,7 +120,7 @@ newProof env expr (encodeToBS -> message) =
 --
 -- For the message use getTxBytes from TX.
 verifyProof :: ByteRepr bs => Proof -> bs -> Bool
-verifyProof proof (encodeToBS -> msg) = Sigma.verifyProof proof msg
+verifyProof proof = Sigma.verifyProof proof . encodeToBS
 
 type Sigma k = Fix (SigmaF k)
 
