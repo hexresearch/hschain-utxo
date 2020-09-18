@@ -36,10 +36,14 @@ library
                      , hschain-utxo-state
                      , hschain-PoW
                      , hschain
+                     , hschain-control
+                     , hschain-logger
+                     , hschain-net
                      , hschain-pow-func
                      , containers
                      , exceptions
                      , monad-control
+                     , katip
                      , mtl
                      , optparse-applicative
                      , serialise

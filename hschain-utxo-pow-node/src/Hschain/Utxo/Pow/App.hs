@@ -24,6 +24,8 @@ import Hex.Common.Yaml
 
 import Codec.Serialise
 
+import Control.Concurrent
+
 import Control.Monad
 import Control.Concurrent.STM
 import Control.Monad.Base
@@ -66,20 +68,26 @@ import Servant.Server
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
-import qualified HSChain.POW as POWFunc
-import qualified HSChain.PoW.Types as POWTypes
-import qualified HSChain.PoW.Node as POWNode
 import HSChain.Types.Merkle.Types
 
+import qualified HSChain.Control.Channels as HControl
+import qualified HSChain.Control.Class    as HControl
+import qualified HSChain.Control.Util     as HControl
 import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
 import HSChain.Types.Merkle.Types
 
-import HSChain.PoW.Consensus
-import HSChain.PoW.BlockIndex
-import qualified HSChain.PoW.Types as POWTypes
+import HSChain.Network.TCP
+
+import qualified HSChain.POW            as POW
+import qualified HSChain.PoW.P2P        as POW
+import qualified HSChain.PoW.P2P.Types  as POW
+import qualified HSChain.PoW.Consensus  as POW
+import qualified HSChain.PoW.BlockIndex as POW
+import qualified HSChain.PoW.Node       as POW
+import qualified HSChain.PoW.Types      as POW
 
 import HSChain.Store
 
@@ -106,13 +114,13 @@ import Hschain.Utxo.Pow.App.Types
 
 -------------------------------------------------------------------------------
 -- Executable part.
-
+{-
 -- |Run the PoW node.
 runNode :: Options -> IO ()
-runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine dbPath) = do
+runNode (Options cfgConfigPath pathToGenesis mbNodeSecret dbPath) = do
   genesisBlock <- readGenesis pathToGenesis
-  db <- POWNode.inMemoryDB genesisBlock --POWNode.blockDatabase genesisBlock
-  POWNode.runNode [cfgConfigPath] optMine undefined db
+  db <- POW.inMemoryDB genesisBlock --POWNode.blockDatabase genesisBlock
+  POW.runNode [cfgConfigPath] optMine undefined db
   where
     readGenesis :: FilePath -> IO (POWTypes.Block UTXOBlock)
     readGenesis = fmap (fromMaybe err) . readJson
@@ -170,10 +178,36 @@ runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine dbPath) = do
       | otherwise                               = error "utxo view step is not done"
       where
         txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
-
+-}
 
 runApp :: IO ()
-runApp = readOptions >>= runNode
+runApp = do
+  -- Parse configuration
+  Options{..} <- readOptions
+  POW.Cfg{..} <- loadYamlSettings cmdConfigPath [] requireEnv
+  -- Acquire resources
+  let net    = newNetworkTcp cfgPort
+      netcfg = POW.NetCfg { POW.nKnownPeers     = 3
+                          , POW.nConnectedPeers = 3
+                          }
+  withConnection (fromMaybe "" cfgDB) $ \conn -> 
+    withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
+      (db, bIdx, sView) <- lift $ utxoStateView cfgPriv genesis
+      c0  <- lift $ POW.createConsensus db sView bIdx
+      pow <- POW.startNode netcfg net cfgPeers db c0
+      -- report progress
+      void $ liftIO $ forkIO $ do
+        ch <- HControl.atomicallyIO (POW.chainUpdate pow)
+        forever $ do (bh,_) <- HControl.awaitIO ch
+                     print (POW.bhHeight bh, POW.bhBID bh)
+                     print $ POW.retarget bh
+      -- Mining and TX generation
+--      when optGenerate $ do
+--        cforkLinked $ txGeneratorLoop pow (cfgPriv : take 100 (makePrivKeyStream 1433))
+      when optMine $ do
+        HControl.cforkLinked $ POW.genericMiningLoop pow
+      -- Wait forever
+      liftIO $ forever $ threadDelay maxBound
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM

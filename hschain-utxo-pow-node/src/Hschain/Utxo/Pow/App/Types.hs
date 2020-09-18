@@ -72,6 +72,8 @@ import qualified Database.SQLite.Simple.ToRow     as SQL
 
 import GHC.Generics
 
+import Katip (LogEnv, Namespace)
+
 import Servant.API
 import Servant.Server
 
@@ -81,15 +83,19 @@ import qualified HSChain.Crypto.Classes.Hash as Crypto
 import qualified HSChain.POW            as POW
 import qualified HSChain.PoW.Consensus  as POW
 import qualified HSChain.PoW.BlockIndex as POW
+import qualified HSChain.PoW.P2P        as POW
 import qualified HSChain.PoW.Types      as POW
 import qualified HSChain.PoW.Node       as POW
 import HSChain.Types.Merkle.Types
 
+import HSChain.Control.Class
 import HSChain.Crypto hiding (PublicKey)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.Ed25519
 import HSChain.Crypto.SHA
 import HSChain.Types.Merkle.Types
+
+import HSChain.Logger
 
 import HSChain.Store.Query
 
@@ -286,6 +292,22 @@ instance POW.Mineable UTXOBlock where
       tgt = POW.blockTargetThreshold b0
       defaultPOWConfig = POW.defaultPOWConfig
 
+data UTXOEnv = UTXOEnv
+  { ueLogEnv      :: !LogEnv
+  , ueNamespace   :: !Namespace
+  , ueConn        :: !(Connection 'RW)
+  }
+  deriving (Generic)
+
+newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
+  deriving newtype ( Functor, Applicative, Monad, MonadIO
+                   , MonadCatch, MonadThrow, MonadMask, MonadFork)
+  deriving (MonadLogger)          via LoggerByTypes  (ReaderT UTXOEnv m)
+  deriving (MonadDB, MonadReadDB) via DatabaseByType (ReaderT UTXOEnv m)
+
+
+runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
+runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
 
 -------------------------------------------------------------------------------
 -- Executable part.
