@@ -201,15 +201,6 @@ data VarName = VarName
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
-{-
-instance H.IsVar Text where
-  intToVar n = mappend "$$" (showt n)
-  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
-
-instance H.HasPrefix Text where
-  getFixity = const Nothing
--}
-
 -- | Name of the constructor
 data ConsName = ConsName
   { consName'loc  :: !Loc   -- ^ source code location
