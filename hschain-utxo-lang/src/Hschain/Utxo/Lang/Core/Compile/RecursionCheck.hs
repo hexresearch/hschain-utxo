@@ -53,7 +53,7 @@ freeVars = \case
   where
     fromVar name = S.singleton name
     freeAltVars CaseAlt{..} =
-      freeVars caseAlt'rhs S.\\ (S.fromList $ fmap typed'value caseAlt'args)
+      freeVars caseAlt'rhs S.\\ (S.fromList caseAlt'args)
     freeLetVars nm e body = S.delete nm (freeVars e <> freeVars body)
 
 

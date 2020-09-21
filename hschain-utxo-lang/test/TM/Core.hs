@@ -39,7 +39,17 @@ tests = testGroup "core"
   , testGroup "env"
     [ testProgram "getHeight" progHeight (PrimInt 123)
     ]
+  , testGroup "case"
+    [ testProgram "case of list" progListCase (PrimInt 123)
+    , shouldFail "List bad pattern" badListCase
+    ]
   ]
+
+shouldFail :: String -> CoreProg -> TestTree
+shouldFail nm prog = testCase nm $ case typeCheck prog of
+  Nothing -> assertFailure "Type checking should fail"
+  Just _  -> return ()
+
 
 testProgram :: String -> CoreProg -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
@@ -76,6 +86,40 @@ progEquality p = CoreProg
     ty = primToType p
 
 
+progListCase :: CoreProg
+progListCase = CoreProg
+  [ mkMain $ Typed
+    { typed'value =
+        EPrimOp OpAdd
+          `EAp` safeHead (EPrimOp (OpListNil IntT))
+          `EAp` safeHead (EPrimOp (OpListCons IntT)
+                          `EAp` EPrim (PrimInt 123)
+                          `EAp` EPrimOp (OpListNil IntT)
+                         )
+    , typed'type  = IntT
+    }
+  ]
+  where
+    safeHead e = ECase e
+      [ CaseAlt 0 [] (EPrim (PrimInt 0))
+      , CaseAlt 1 ["x", "xs"] (EVar "x")
+      ]
+
+badListCase :: CoreProg
+badListCase = CoreProg
+  [ mkMain $ Typed
+    { typed'value = ECase nil
+        [ CaseAlt 0 ["x"]                          zero
+        , CaseAlt 1 ["x", "xs"] zero
+        ]
+    , typed'type  = IntT
+    }
+  ]
+  where
+    zero = EPrim (PrimInt 0)
+    nil  = (EPrimOp (OpListNil IntT))
+
+
 ----------------------------------------------------------------
 
 env :: InputEnv
@@ -91,4 +135,3 @@ env = InputEnv
   , inputEnv'outputs  = mempty
   , inputEnv'args     = mempty
   }
-
