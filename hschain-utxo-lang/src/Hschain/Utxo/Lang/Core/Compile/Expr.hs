@@ -33,8 +33,8 @@ import GHC.Generics
 
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Expr  (ArgType, argTypes, argTypeName)
-import Hschain.Utxo.Lang.Types (Script(..))
+import Hschain.Utxo.Lang.Expr  (argTypeName)
+import Hschain.Utxo.Lang.Types (Script(..),ArgType, argTypes)
 
 import qualified Data.ByteString.Lazy as LB
 

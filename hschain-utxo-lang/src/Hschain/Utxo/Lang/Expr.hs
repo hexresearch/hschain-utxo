@@ -31,7 +31,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes      (ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types          (TypeCore(..), argsTuple)
-import Hschain.Utxo.Lang.Types          (Args(..), Box(..) )
+import Hschain.Utxo.Lang.Types          (Args(..), ArgType(..), Box(..) )
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
@@ -447,15 +447,6 @@ data BoxField a
   -- ^ Get box argument. It should be primitive value stored in the vector.
   -- We get the vector of primitive values stored by primitive-value tag.
   deriving (Show, Eq, Functor, Foldable, Traversable)
-
--- | Types that we can store as arguments in transactions.
--- We store lists of them.
-data ArgType = IntArg | TextArg | BoolArg | BytesArg
-  deriving stock    (Show, Eq, Generic)
-  deriving anyclass (NFData, Serialise)
-
-argTypes :: [ArgType]
-argTypes = [IntArg, TextArg, BoolArg, BytesArg]
 
 argTagToType :: ArgType -> Type
 argTagToType = \case

@@ -21,7 +21,8 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
 import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..))
-import Hschain.Utxo.Lang.Expr ( Loc, noLoc, boolT, VarName(..), argTypeName, argTypes
+import Hschain.Utxo.Lang.Types (argTypes)
+import Hschain.Utxo.Lang.Expr ( Loc, noLoc, boolT, VarName(..), argTypeName
                               , funT, boolT, typeCoreToType)
 
 import qualified Language.HM as H

@@ -28,9 +28,8 @@ import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Expr  (ArgType(..))
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (Box(..),Args(..),Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
 
 -- | Value hanled by evaluator
 data Val

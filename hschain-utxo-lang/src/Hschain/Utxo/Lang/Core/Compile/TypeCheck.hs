@@ -22,7 +22,7 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Expr (ArgType(..))
+import Hschain.Utxo.Lang.Types (ArgType(..))
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V

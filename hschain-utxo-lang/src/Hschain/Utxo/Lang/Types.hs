@@ -13,11 +13,13 @@ module Hschain.Utxo.Lang.Types
   , TxId(..)
   , Script(..)
   , Args(..)
+  , ArgType(..)
   , Box(..)
   , BoxId(..)
   , PreBox(..)
   , BoxOrigin(..)
   , computeBoxId
+  , argTypes
     -- * Functions
   , newTx
   , newProofTx
@@ -72,6 +74,16 @@ data Args = Args
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData, Serialise)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
+
+-- | Types that we can store as arguments in transactions.
+-- We store lists of them.
+data ArgType = IntArg | TextArg | BoolArg | BytesArg
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData, Serialise)
+
+argTypes :: [ArgType]
+argTypes = [IntArg, TextArg, BoolArg, BytesArg]
+
 
 -- | Identifier of TX. We can derive it from the PreTx.
 --  It equals to hash of serialised PreTx
