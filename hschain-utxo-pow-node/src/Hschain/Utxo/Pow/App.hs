@@ -33,6 +33,7 @@ import Control.Monad.Catch hiding (Handler)
 import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Reader
+import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Maybe
 
@@ -60,10 +61,14 @@ import qualified Data.Vector as V
 
 import Data.Word
 
+import Data.Yaml.Config (loadYamlSettings, requireEnv)
+
 import GHC.Generics
 
 import Servant.API
 import Servant.Server
+
+import qualified System.Environment as SE
 
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
@@ -89,6 +94,7 @@ import qualified HSChain.PoW.BlockIndex as POW
 import qualified HSChain.PoW.Node       as POW
 import qualified HSChain.PoW.Types      as POW
 
+import HSChain.Logger
 import HSChain.Store
 
 import Hschain.Utxo.Lang hiding (Height)
@@ -184,7 +190,9 @@ runApp :: IO ()
 runApp = do
   -- Parse configuration
   Options{..} <- readOptions
-  POW.Cfg{..} <- loadYamlSettings cmdConfigPath [] requireEnv
+  --secret <- maybe (return Nothing) (fmap (Just . read) . SE.getEnv) options'nodeSecret
+  genesis <- readGenesis options'genesis
+  POW.Cfg{..} <- loadYamlSettings options'config [] requireEnv
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
       netcfg = POW.NetCfg { POW.nKnownPeers     = 3
@@ -192,7 +200,7 @@ runApp = do
                           }
   withConnection (fromMaybe "" cfgDB) $ \conn -> 
     withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
-      (db, bIdx, sView) <- lift $ utxoStateView cfgPriv genesis
+      (db, bIdx, sView) <- lift $ utxoStateView genesis
       c0  <- lift $ POW.createConsensus db sView bIdx
       pow <- POW.startNode netcfg net cfgPeers db c0
       -- report progress
@@ -204,10 +212,17 @@ runApp = do
       -- Mining and TX generation
 --      when optGenerate $ do
 --        cforkLinked $ txGeneratorLoop pow (cfgPriv : take 100 (makePrivKeyStream 1433))
-      when optMine $ do
-        HControl.cforkLinked $ POW.genericMiningLoop pow
+      case options'nodeSecret of
+        Just pk -> do
+          HControl.cforkLinked $ POW.genericMiningLoop pow
+        Nothing -> return ()
       -- Wait forever
       liftIO $ forever $ threadDelay maxBound
+
+readGenesis :: FilePath -> IO (POW.Block UTXOBlock)
+readGenesis = fmap (fromMaybe err) . readJson
+  where
+    err = error "Error: failed to read genesis"
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM

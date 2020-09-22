@@ -156,7 +156,7 @@ instance SQL.FromField Box where
 -- The Block.
 
 -- |Signature and hash used.
-type Alg = Ed25519 :& SHA512
+type Alg = Ed25519 :& SHA256
 
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
@@ -393,11 +393,10 @@ overlayTip (OverlayLayer bh _ _) = bh
 
 makeStateView
   :: (MonadDB m, MonadThrow m, MonadIO m)
-  => PrivKey Alg
-  -> POW.BlockIndex UTXOBlock
+  => POW.BlockIndex UTXOBlock
   -> StateOverlay
   -> POW.StateView m UTXOBlock
-makeStateView pk bIdx0 overlay = sview where
+makeStateView bIdx0 overlay = sview where
   bh0    = overlayTip overlay
   sview  = POW.StateView
     { stateBID          = POW.bhBID bh0
@@ -431,11 +430,11 @@ makeStateView pk bIdx0 overlay = sview where
               o' <- processCoinbaseTX (POW.bhBID bh0) activeOverlay coinbase
               foldM (processTX pathInDB) o' rest
         return
-          $ makeStateView pk bIdx
+          $ makeStateView bIdx
           $ fromMaybe (error "UTXO: invalid BH in apply block")
           $ finalizeOverlay bh overlay'
     --
-    , revertBlock = return $ makeStateView pk bIdx0 (rollbackOverlay overlay)
+    , revertBlock = return $ makeStateView bIdx0 (rollbackOverlay overlay)
     --
     , flushState = mustQueryRW $ do
         -- Dump overlay content.
@@ -448,7 +447,7 @@ makeStateView pk bIdx0 overlay = sview where
           Just bh -> POW.traverseBlockIndexM_ revertBlockDB applyBlockDB bh bh0
         do i <- retrieveUTXOBlockTableID (POW.bhBID bh0)
            basicExecute "UPDATE coin_state_bid SET state_block = ?" (Only i)
-        return $ makeStateView pk bIdx0 (emptyOverlay bh0)
+        return $ makeStateView bIdx0 (emptyOverlay bh0)
       -- FIXME: not implemented
     , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
         inputs <- forM tx'inputs $ \BoxInputRef{..} -> do
@@ -483,14 +482,13 @@ makeStateView pk bIdx0 overlay = sview where
 
 utxoStateView
   :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m)
-  => PrivKey Alg
-  -> POW.Block UTXOBlock
+  => POW.Block UTXOBlock
   -> m (POW.BlockDB m UTXOBlock, POW.BlockIndex UTXOBlock, POW.StateView m UTXOBlock)
-utxoStateView pk genesis = do
+utxoStateView genesis = do
   initUTXODB
   storeUTXOBlock genesis
   bIdx <- POW.buildBlockIndex db
-  st   <- mustQueryRW $ initializeStateView pk genesis bIdx
+  st   <- mustQueryRW $ initializeStateView genesis bIdx
   return (db, bIdx, st)
   where
     db = POW.BlockDB { storeBlock         = storeUTXOBlock
@@ -501,14 +499,13 @@ utxoStateView pk genesis = do
 
 initializeStateView
   :: (MonadDB m, MonadThrow m, MonadQueryRW q,  MonadIO m)
-  => PrivKey Alg                    -- ^ Private key of miner
-  -> POW.Block UTXOBlock            -- ^ Genesis block
+  => POW.Block UTXOBlock            -- ^ Genesis block
   -> POW.BlockIndex UTXOBlock       -- ^ Block index
   -> q (POW.StateView m UTXOBlock)
-initializeStateView pk genesis bIdx = do
+initializeStateView genesis bIdx = do
   retrieveCurrentStateBlock >>= \case
     Just bid -> do let Just bh = POW.lookupIdx bid bIdx
-                   return $ makeStateView pk bIdx (emptyOverlay bh)
+                   return $ makeStateView bIdx (emptyOverlay bh)
     -- We need to initialize state table
     Nothing  -> do
       let bid     = POW.blockID genesis
@@ -516,7 +513,7 @@ initializeStateView pk genesis bIdx = do
       basicExecute
         "INSERT INTO coin_state_bid SELECT blk_id,0 FROM coin_blocks WHERE bid = ?"
         (Only bid)
-      return $ makeStateView pk bIdx (emptyOverlay bh)
+      return $ makeStateView bIdx (emptyOverlay bh)
 
 -------------------------------------------------------------------------------
 -- Transaction validation.

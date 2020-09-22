@@ -15,7 +15,7 @@ readOptions = execParser opts
 
 data Options
   = Options
-      { options'config     :: FilePath
+      { options'config     :: [FilePath]
       , options'genesis    :: FilePath
       , options'nodeSecret :: Maybe String
       , options'dbPath     :: FilePath
@@ -23,21 +23,21 @@ data Options
 
 options :: Parser Options
 options = Options
-          <$> strOption
+          <$> some (strOption
               (  metavar "CONFIG_FILE_PATH"
               <> long "config"
               <> short 'c'
-              <> help "path to config")
+              <> help "path to config"))
           <*> strOption
               (  metavar "GENESIS_FILE_PATH"
               <> long "genesis"
               <> short 'g'
               <> help "path to genesis")
           <*> (Just <$> strOption
-                        (  metavar "NODE_SECRET"
-                        <> long "secret"
+                        (  metavar "NODE_SECRET_ENV_VAR"
+                        <> long "secret-env-var"
                         <> short 's'
-                        <> help "secret of the node")
+                        <> help "name of environment variable with the node's secret - enables mining process")
               <|> pure Nothing)
           <*> strOption
               (  metavar "DB_PATH"
