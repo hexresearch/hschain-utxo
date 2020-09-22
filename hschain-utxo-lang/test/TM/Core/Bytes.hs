@@ -11,8 +11,7 @@ import Test.Tasty.HUnit
 
 import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Utils.ByteString
-import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
-import Hschain.Utxo.Lang.Types (InputEnv(..))
+import Hschain.Utxo.Lang.Types (InputEnv(..),Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types

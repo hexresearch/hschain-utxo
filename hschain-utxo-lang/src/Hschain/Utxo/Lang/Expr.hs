@@ -12,7 +12,6 @@ import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
-import Data.Coerce
 import Data.Fix
 import Data.Function (on)
 import Data.Foldable
@@ -29,24 +28,19 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto              (Hash(..),hashBlob,encodeBase58, decodeBase58)
-import HSChain.Crypto.Classes      (ByteRepr,ViaBase58(..))
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
-import HSChain.Crypto.SHA          (SHA256)
+import HSChain.Crypto.Classes      (ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Core.Types          (TypeCore(..), argsTuple)
-
+import Hschain.Utxo.Lang.Types          (Args(..), Box(..) )
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
 import qualified Data.Vector as V
-import qualified Data.ByteString.Lazy as LB
-
 
 import qualified Hschain.Utxo.Lang.Const as Const
+
 
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
@@ -183,9 +177,6 @@ newtype RecordFieldOrder = RecordFieldOrder
   { unRecordFieldOrder :: [Text]
   } deriving (Show, Eq)
 
--- | Type synonym for money values
-type Money = Int64
-
 -- | Type for expression of our language that has type.
 --
 -- This is phantom type for covenience of type-checker.
@@ -217,19 +208,6 @@ consToVarName (ConsName loc name) = VarName loc name
 -- | Convert variable name to constructor name
 varToConsName :: VarName -> ConsName
 varToConsName VarName{..} = ConsName varName'loc varName'name
-
--- | Argument for script in the transaction
---
--- It's Key-Value map from argument-names to primitive constant values.
-data Args = Args
-  { args'ints  :: Vector Int64
-  , args'bools :: Vector Bool
-  , args'texts :: Vector Text
-  , args'bytes :: Vector ByteString
-  }
-  deriving stock    (Show, Eq, Ord, Generic)
-  deriving anyclass (NFData, Serialise)
-  deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
 
 -- | Construct args that contain only integers
 intArgs :: [Int64] -> Args
@@ -266,71 +244,6 @@ byteArgs xs = Args
   , args'texts = mempty
   , args'bytes = V.fromList xs
   }
-
--- | Identifier of TX. We can derive it from the PreTx.
---  It equals to hash of serialised PreTx
-newtype TxId = TxId { unTxId :: Hash SHA256 }
-  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
-  deriving stock    (Generic)
-  deriving anyclass (Serialise)
-  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
-
--- | Identifier of the box. Box holds value protected by the script.
--- It equals to the hash of Box-content.
-newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
-  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
-  deriving stock    (Generic)
-  deriving anyclass (Serialise)
-  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
-
-instance ToText BoxId where
-  toText (BoxId bs) = encodeBase58 bs
-
-instance FromText BoxId where
-  fromText txt = fmap BoxId $ decodeBase58 txt
-
--- | Type for script that goes over the wire.
-newtype Script = Script { unScript :: ByteString }
-  deriving newtype  (Show, Eq, Ord, NFData)
-  deriving stock    (Generic)
-  deriving anyclass (Serialise)
-  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
-
--- | Box holds the value protected by the script.
--- We use boxes as inputs for transaction and create new output boxes
--- when script is correct.
-data Box = Box
-  { box'id     :: !BoxId    -- ^ box identifier
-  , box'value  :: !Money    -- ^ Value of the box
-  , box'script :: !Script   -- ^ Protecting script
-  , box'args   :: !Args     -- ^ arguments for the script
-  }
-  deriving stock    (Show, Eq, Ord, Generic)
-  deriving anyclass (Serialise, NFData)
-
-
--- | PreBox holds all meaningfull data of the Box.
--- we use it to get Hashes for transaction and Box itself.
--- Comparing to Box it omits identifier that is generated from PreBox
--- and origin that can be derived from TX identifier (hash of @getTxBytes tx@).
-data PreBox = PreBox
-  { preBox'value  :: !Money    -- ^ Value of the box
-  , preBox'script :: !Script   -- ^ Protecting script
-  , preBox'args   :: !Args     -- ^ arguments for the script
-  }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
-
-computeBoxId :: BoxOrigin -> PreBox -> BoxId
-computeBoxId origin box
-  = BoxId . hashBlob . LB.toStrict . serialise
-  $ ( origin , box )
-
--- | Data encodes the source of the Box when it was produced.
-data BoxOrigin = BoxOrigin
-  { boxOrigin'txId        :: !TxId   -- ^ identifier of TX that produced the Box
-  , boxOrigin'outputIndex :: !Int64  -- ^ index in the vector of outputs for the box
-  }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 -- | Pattern matching elements (in the arguments or in cases)
 data Pat
@@ -968,44 +881,6 @@ $(deriveShow1 ''SigmaExpr)
 $(deriveShow1 ''VecExpr)
 $(deriveShow1 ''BoxExpr)
 
-instance (forall k. CryptoHashable k => CryptoHashable (f k)) => CryptoHashable (Fix f) where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Prim where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Script where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxId where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Box where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable Args where
-  hashStep = genericHashStep hashDomain
-
-instance FromJSON Args where
-  parseJSON = withObject "Args" $ \o -> do
-    args'ints  <- o .: "ints"
-    args'bools <- o .: "bools"
-    args'texts <- o .: "texts"
-    bytes      <- o .: "bytes"
-    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
-               , ..
-               }
-instance ToJSON Args where
-  toJSON Args{..} = object
-    [ "ints"  .= args'ints
-    , "bools" .= args'bools
-    , "texts" .= args'texts
-    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
-    ]
-
 instance H.IsVar Text where
   intToVar = H.stringIntToVar
   prettyLetters = H.stringPrettyLetters
-
-
-$(deriveJSON dropPrefixOptions ''Box)

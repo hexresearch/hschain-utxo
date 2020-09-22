@@ -9,7 +9,6 @@ import Test.Tasty.HUnit
 import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 
 tests :: TestTree

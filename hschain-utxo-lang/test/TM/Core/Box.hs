@@ -8,7 +8,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import HSChain.Crypto (Hash(..))
-import Hschain.Utxo.Lang.Expr (Box(..), intArgs, textArgs, boolArgs, Script(..), BoxId(..))
+import Hschain.Utxo.Lang.Expr (intArgs, textArgs, boolArgs)
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build

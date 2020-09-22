@@ -28,9 +28,9 @@ import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..))
+import Hschain.Utxo.Lang.Expr  (ArgType(..))
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),Args(..),Script(..),BoxId(..),InputEnv(..))
 
 -- | Value hanled by evaluator
 data Val
