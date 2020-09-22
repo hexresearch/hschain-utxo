@@ -115,7 +115,7 @@ import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 
 import Hschain.Utxo.API.Rest
 
-import Hschain.Utxo.Pow.App.Options (Options(..), readOptions)
+import Hschain.Utxo.Pow.App.Options (Command(..), readCommandOptions)
 import Hschain.Utxo.Pow.App.Types
 
 -------------------------------------------------------------------------------
@@ -189,35 +189,39 @@ runNode (Options cfgConfigPath pathToGenesis mbNodeSecret dbPath) = do
 runApp :: IO ()
 runApp = do
   -- Parse configuration
-  Options{..} <- readOptions
-  --secret <- maybe (return Nothing) (fmap (Just . read) . SE.getEnv) options'nodeSecret
-  genesis <- readGenesis options'genesis
-  POW.Cfg{..} <- loadYamlSettings options'config [] requireEnv
-  -- Acquire resources
-  let net    = newNetworkTcp cfgPort
-      netcfg = POW.NetCfg { POW.nKnownPeers     = 3
-                          , POW.nConnectedPeers = 3
-                          }
-  withConnection (fromMaybe "" cfgDB) $ \conn -> 
-    withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
-      (db, bIdx, sView) <- lift $ utxoStateView genesis
-      c0  <- lift $ POW.createConsensus db sView bIdx
-      pow <- POW.startNode netcfg net cfgPeers db c0
+  command <- readCommandOptions
+  case command of
+    GenerateKey {..} -> do
+      error "gen key is not done!"
+    RunNode {..} -> do
+      --secret <- maybe (return Nothing) (fmap (Just . read) . SE.getEnv) options'nodeSecret
+      genesis <- readGenesis runnode'genesis
+      POW.Cfg{..} <- loadYamlSettings runnode'config [] requireEnv
+      -- Acquire resources
+      let net    = newNetworkTcp cfgPort
+          netcfg = POW.NetCfg { POW.nKnownPeers     = 3
+                              , POW.nConnectedPeers = 3
+                              }
+      withConnection (fromMaybe "" cfgDB) $ \conn -> 
+        withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
+          (db, bIdx, sView) <- lift $ utxoStateView genesis
+          c0  <- lift $ POW.createConsensus db sView bIdx
+          pow <- POW.startNode netcfg net cfgPeers db c0
       -- report progress
-      void $ liftIO $ forkIO $ do
-        ch <- HControl.atomicallyIO (POW.chainUpdate pow)
-        forever $ do (bh,_) <- HControl.awaitIO ch
-                     print (POW.bhHeight bh, POW.bhBID bh)
-                     print $ POW.retarget bh
+          void $ liftIO $ forkIO $ do
+            ch <- HControl.atomicallyIO (POW.chainUpdate pow)
+            forever $ do (bh,_) <- HControl.awaitIO ch
+                         print (POW.bhHeight bh, POW.bhBID bh)
+                         print $ POW.retarget bh
       -- Mining and TX generation
 --      when optGenerate $ do
 --        cforkLinked $ txGeneratorLoop pow (cfgPriv : take 100 (makePrivKeyStream 1433))
-      case options'nodeSecret of
-        Just pk -> do
-          HControl.cforkLinked $ POW.genericMiningLoop pow
-        Nothing -> return ()
-      -- Wait forever
-      liftIO $ forever $ threadDelay maxBound
+          case runnode'nodeSecret of
+            Just pk -> do
+              HControl.cforkLinked $ POW.genericMiningLoop pow
+            Nothing -> return ()
+          -- Wait forever
+          liftIO $ forever $ threadDelay maxBound
 
 readGenesis :: FilePath -> IO (POW.Block UTXOBlock)
 readGenesis = fmap (fromMaybe err) . readJson

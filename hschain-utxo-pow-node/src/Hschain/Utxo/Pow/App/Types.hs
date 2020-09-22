@@ -117,8 +117,6 @@ import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 
 import Hschain.Utxo.API.Rest
 
-import Hschain.Utxo.Pow.App.Options (Options(..), readOptions)
-
 -------------------------------------------------------------------------------
 -- Instances.
 
