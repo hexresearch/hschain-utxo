@@ -152,9 +152,10 @@ data ExprCore
   -- ^ if expressions
   | ECase !ExprCore [CaseAlt]
   -- ^ case alternatives
-  | EConstr TypeCore !Int !Int
-  -- ^ constructor with tag and arity, also we should provide the type
-  -- of constructor as afunction for a type-checker
+  | EConstr TypeCore !Int
+  -- ^ Constructor of ADT. First field is a type of value being
+  --   constructed. For example both constructors of @ListT IntT@ will
+  --   have that type as parameter. Second is constructor's tag.
   | EBottom
   -- ^ failed termination for the program
   deriving stock    (Show, Eq, Generic)

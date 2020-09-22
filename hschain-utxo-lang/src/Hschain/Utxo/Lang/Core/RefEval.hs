@@ -139,7 +139,10 @@ evalExpr inpEnv genv = recur
             bindParams _      _      = error "Type error in case"
         ValBottom err -> ValBottom err
         _             -> ValBottom TypeMismatch
-      EConstr _ tag arity    -> constr tag arity
+      EConstr (TupleT ts) 0 -> constr 0 (length ts)
+      EConstr (ListT  _ ) 0 -> constr 0 0
+      EConstr (ListT  _ ) 1 -> constr 1 2
+      EConstr _           _ -> ValBottom $ EvalErr "Invalid constructor"
       --
       EBottom{} -> ValBottom $ EvalErr "Bottom encountered"
 
