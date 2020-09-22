@@ -91,15 +91,14 @@ progListCase = CoreProg
   [ mkMain $ Typed
     { typed'value =
         EPrimOp OpAdd
-          `EAp` safeHead (EPrimOp (OpListNil IntT))
-          `EAp` safeHead (EPrimOp (OpListCons IntT)
-                          `EAp` EPrim (PrimInt 123)
-                          `EAp` EPrimOp (OpListNil IntT)
-                         )
+          `EAp` safeHead nil
+          `EAp` safeHead (cons `EAp` EPrim (PrimInt 123) `EAp` nil)
     , typed'type  = IntT
     }
   ]
   where
+    cons = EConstr (ListT IntT) 1
+    nil  = EConstr (ListT IntT) 0
     safeHead e = ECase e
       [ CaseAlt 0 [] (EPrim (PrimInt 0))
       , CaseAlt 1 ["x", "xs"] (EVar "x")
@@ -109,7 +108,7 @@ badListCase :: CoreProg
 badListCase = CoreProg
   [ mkMain $ Typed
     { typed'value = ECase nil
-        [ CaseAlt 0 ["x"]                          zero
+        [ CaseAlt 0 ["x"]       zero
         , CaseAlt 1 ["x", "xs"] zero
         ]
     , typed'type  = IntT
@@ -117,7 +116,7 @@ badListCase = CoreProg
   ]
   where
     zero = EPrim (PrimInt 0)
-    nil  = (EPrimOp (OpListNil IntT))
+    nil  = EConstr (ListT IntT) 0
 
 
 ----------------------------------------------------------------

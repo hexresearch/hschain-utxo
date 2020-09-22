@@ -131,8 +131,6 @@ data PrimOp a
   | OpListOr              -- ^ OR for all elements
   | OpListAll    !a       -- ^ Every element of list satisfy predicate
   | OpListAny    !a       -- ^ Any element of list satisfy predicate
-  | OpListNil    !a
-  | OpListCons   !a
   deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
@@ -249,8 +247,6 @@ monoPrimopName = \case
   OpListOr       -> Just "or"
   OpListAll{}    -> Nothing
   OpListAny{}    -> Nothing
-  OpListNil{}    -> Nothing
-  OpListCons{}   -> Nothing
 
 -- | List of all monomorphic primops
 monomorphicPrimops :: [PrimOp a]

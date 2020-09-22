@@ -297,8 +297,6 @@ evalPrimOp env = \case
         step (Right False : as) = step as
         step (Left e      : _ ) = ValBottom e
     return $ step $ map (match . f) xs
-  OpListNil  _ -> inj ([] @Val)
-  OpListCons _ -> Val2F $ \x xs -> ValCon 1 [x , xs]
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
