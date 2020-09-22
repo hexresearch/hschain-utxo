@@ -1,0 +1,17 @@
+{
+    "blockTime": 0,
+    "prevBlock": null,
+    "blockData": {
+        "proper": {
+            "time": 1600430460056,
+            "data": {
+                "tag": "SMerkleValue",
+                "contents": []
+            },
+            "target": 1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77,
+            "previous": null
+        },
+        "nonce": ""
+    },
+    "blockHeight": 0
+}
