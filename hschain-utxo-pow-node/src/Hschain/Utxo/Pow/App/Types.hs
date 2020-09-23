@@ -342,10 +342,10 @@ initialUTXONodeState = UTXONodeState
 -- Blockchain state management
 ----------------------------------------------------------------
 
--- | In-memory overlay for coin state. It contain changes to UTXO set
+-- | In-memory overlay for UTXO state. It contain changes to UTXO set
 --   that are not commited to the database.
 --
---   Note that it only contains block that are added to blockchain but
+--   Note that it only contains blocks that are added to blockchain but
 --   not rollbacks since latter are already commited.
 data StateOverlay
   = OverlayBase  (POW.BH UTXOBlock)
@@ -444,7 +444,7 @@ makeStateView bIdx0 overlay = sview where
           Nothing -> error "makeStateView: bad index"
           Just bh -> POW.traverseBlockIndexM_ revertBlockDB applyBlockDB bh bh0
         do i <- retrieveUTXOBlockTableID (POW.bhBID bh0)
-           basicExecute "UPDATE coin_state_bid SET state_block = ?" (Only i)
+           basicExecute "UPDATE utxo_state_bid SET state_block = ?" (Only i)
         return $ makeStateView bIdx0 (emptyOverlay bh0)
       -- FIXME: not implemented
     , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
@@ -509,7 +509,7 @@ initializeStateView genesis bIdx = do
       let bid     = POW.blockID genesis
           Just bh = POW.lookupIdx bid bIdx
       basicExecute
-        "INSERT INTO coin_state_bid SELECT blk_id,0 FROM coin_blocks WHERE bid = ?"
+        "INSERT INTO utxo_state_bid SELECT blk_id,0 FROM utxo_blocks WHERE bid = ?"
         (Only bid)
       return $ makeStateView bIdx (emptyOverlay bh)
 
@@ -631,8 +631,8 @@ getDatabaseBox (POW.RevertBlock i path) boxid = do
 getDatabaseBox POW.NoChange boxid = do
   r <- basicQuery1
     "SELECT pk_dest, n_coins \
-    \  FROM coin_utxo \
-    \  JOIN coin_state ON live_utxo = utxo_id \
+    \  FROM utxo_set \
+    \  JOIN utxo_state ON live_utxo = utxo_id \
     \ WHERE n_out = ? AND tx_hash = ?"
     boxid
   case r of
@@ -650,24 +650,24 @@ createUnspentBox boxid val
 isSpentAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
 isSpentAtBlock i boxid = basicQuery1
   "SELECT pk_dest, n_coins \
-  \  FROM coin_utxo \
-  \  JOIN coin_utxo_spent ON utxo_id = utxo_ref \
+  \  FROM utxo_set \
+  \  JOIN utxo_spent ON utxo_id = utxo_ref \
   \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
   (boxid SQL.:. SQL.Only i)
 
 isCreatedAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
 isCreatedAtBlock i boxid = basicQuery1
   "SELECT pk_dest, n_coins \
-  \  FROM coin_utxo \
-  \  JOIN coin_utxo_created ON utxo_id = utxo_ref \
+  \  FROM utxo_set \
+  \  JOIN utxo_created ON utxo_id = utxo_ref \
   \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
   (boxid SQL.:. SQL.Only i)
 
 retrieveCurrentStateBlock :: MonadQueryRO m => m (Maybe (POW.BlockID UTXOBlock))
 retrieveCurrentStateBlock = fmap fromOnly <$> basicQuery1
   "SELECT bid \
-  \  FROM coin_blocks \
-  \  JOIN coin_state_bid ON state_block = blk_id"
+  \  FROM utxo_blocks \
+  \  JOIN utxo_state_bid ON state_block = blk_id"
   ()
 
 retrieveUTXOBlockTableID :: MonadQueryRO m => POW.BlockID UTXOBlock -> m (ID (POW.Block UTXOBlock))
@@ -682,7 +682,7 @@ retrieveUTXOBlockTableID bid = do
 retrieveUtxoIO :: MonadQueryRO m => BoxId -> m Unspent
 retrieveUtxoIO utxo = do
   r <- basicQuery1
-    "SELECT utxo_id FROM coin_utxo WHERE n_out = ? AND tx_hash = ?"
+    "SELECT utxo_id FROM utxo_set WHERE n_out = ? AND tx_hash = ?"
     utxo
   case r of
     Just (Only i) -> return i
@@ -694,24 +694,24 @@ revertBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
 revertBlockDB bh = do
   i <- retrieveUTXOBlockTableID $ POW.bhBID bh
   basicExecute
-    "DELETE FROM coin_state WHERE live_utxo IN \
-    \  (SELECT utxo_ref FROM coin_utxo_created WHERE block_ref = ?)"
+    "DELETE FROM utxo_state WHERE live_utxo IN \
+    \  (SELECT utxo_ref FROM utxo_created WHERE block_ref = ?)"
     (SQL.Only i)
   basicExecute
-    "INSERT OR IGNORE INTO coin_state \
-    \  SELECT utxo_ref FROM coin_utxo_spent WHERE block_ref = ?"
+    "INSERT OR IGNORE INTO utxo_state \
+    \  SELECT utxo_ref FROM utxo_spent WHERE block_ref = ?"
     (SQL.Only i)
 
 applyBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
 applyBlockDB bh = do
   i <- retrieveUTXOBlockTableID $ POW.bhBID bh
   basicExecute
-    "DELETE FROM coin_state WHERE live_utxo IN \
-    \  (SELECT utxo_ref FROM coin_utxo_spent WHERE block_ref = ?)"
+    "DELETE FROM utxo_state WHERE live_utxo IN \
+    \  (SELECT utxo_ref FROM utxo_spent WHERE block_ref = ?)"
     (SQL.Only i)
   basicExecute
-    "INSERT OR IGNORE INTO coin_state \
-    \  SELECT utxo_ref FROM coin_utxo_created WHERE block_ref = ?"
+    "INSERT OR IGNORE INTO utxo_state \
+    \  SELECT utxo_ref FROM utxo_created WHERE block_ref = ?"
     (SQL.Only i)
 
 -- | Roll back overlay by one block. Will throw if rolling past
@@ -719,7 +719,7 @@ applyBlockDB bh = do
 rollbackOverlay :: StateOverlay -> StateOverlay
 rollbackOverlay (OverlayBase bh0) = case POW.bhPrevious bh0 of
   Just bh -> OverlayBase bh
-  Nothing -> error "Cant rewind overlay pas genesis"
+  Nothing -> error "Cant rewind overlay past genesis"
 rollbackOverlay (OverlayLayer _ _ o) = o
 
 finalizeOverlay :: POW.BH UTXOBlock -> ActiveOverlay -> Maybe StateOverlay
@@ -734,26 +734,26 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
   -- Store create UTXO
   forM_ (Map.toList utxoCreated) $ \(utxo, unspent) -> do
     basicExecute
-      "INSERT OR IGNORE INTO coin_utxo VALUES (NULL,?,?,?,?)"
+      "INSERT OR IGNORE INTO utxo_set VALUES (NULL,?,?,?,?)"
       (utxo SQL.:. unspent)
   -- Write down block delta
   bid <- retrieveUTXOBlockTableID (POW.bhBID bh)
   forM_ (Map.keys utxoCreated) $ \utxo -> do
     uid <- retrieveUtxoIO utxo
     basicExecute
-      "INSERT OR IGNORE INTO coin_utxo_created VALUES (?,?)"
+      "INSERT OR IGNORE INTO utxo_created VALUES (?,?)"
       (bid, uid)
   forM_ (Map.keys utxoSpent) $ \utxo -> do
     uid <- retrieveUtxoIO utxo
     basicExecute
-      "INSERT OR IGNORE INTO coin_utxo_spent VALUES (?,?)"
+      "INSERT OR IGNORE INTO utxo_spent VALUES (?,?)"
       (bid, uid)
 dumpOverlay OverlayBase{} = return ()
 
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
 storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
   basicExecute
-    "INSERT OR IGNORE INTO coin_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
     ( POW.blockID b
     , blockHeight
     , blockTime
@@ -764,18 +764,18 @@ storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
 retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header UTXOBlock]
 retrieveAllUTXOHeaders = queryRO $ basicQueryWith_
   utxoBlockHeaderDecoder
-  "SELECT height, time, prev, dataHash, target, nonce FROM coin_blocks ORDER BY height"
+  "SELECT height, time, prev, dataHash, target, nonce FROM utxo_blocks ORDER BY height"
 
 retrieveUTXOHeader :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Header UTXOBlock))
 retrieveUTXOHeader bid = queryRO $ basicQueryWith1
   utxoBlockHeaderDecoder
-  "SELECT height, time, prev, dataHash, target, nonce FROM coin_blocks WHERE bid = ?"
+  "SELECT height, time, prev, dataHash, target, nonce FROM utxo_blocks WHERE bid = ?"
   (Only bid)
 
 retrieveUTXOBlock :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Block UTXOBlock))
 retrieveUTXOBlock bid = queryRO $ basicQueryWith1
   utxoBlockDecoder
-  "SELECT height, time, prev, blockData, target, nonce FROM coin_blocks WHERE bid = ?"
+  "SELECT height, time, prev, blockData, target, nonce FROM utxo_blocks WHERE bid = ?"
   (Only bid)
 
 utxoBlockDecoder :: SQL.RowParser (POW.Block UTXOBlock)
@@ -830,16 +830,16 @@ initUTXODB = mustQueryRW $ do
     "CREATE TABLE IF NOT EXISTS utxo_created \
     \  ( block_ref INTEGER NOT NULL \
     \  , utxo_ref  INTEGER NOT NULL \
-    \  , FOREIGN KEY (block_ref) REFERENCES coin_blocks(blk_id) \
-    \  , FOREIGN KEY (utxo_ref)  REFERENCES coin_utxo(utxo_id)  \
+    \  , FOREIGN KEY (block_ref) REFERENCES utxo_blocks(blk_id) \
+    \  , FOREIGN KEY (utxo_ref)  REFERENCES utxo_set(utxo_id)  \
     \  , UNIQUE (block_ref, utxo_ref) \
     \)"
   basicExecute_
     "CREATE TABLE IF NOT EXISTS utxo_spent \
     \  ( block_ref INTEGER NOT NULL \
     \  , utxo_ref  INTEGER NOT NULL \
-    \  , FOREIGN KEY (block_ref) REFERENCES coin_blocks(blk_id) \
-    \  , FOREIGN KEY (utxo_ref)  REFERENCES coin_utxo(utxo_id)  \
+    \  , FOREIGN KEY (block_ref) REFERENCES utxo_blocks(blk_id) \
+    \  , FOREIGN KEY (utxo_ref)  REFERENCES utxo_utxo(utxo_id)  \
     \  , UNIQUE (block_ref, utxo_ref) \
     \)"
   -- Current state of blockchain. It's just set of currently live UTXO
@@ -847,7 +847,7 @@ initUTXODB = mustQueryRW $ do
   basicExecute_
     "CREATE TABLE IF NOT EXISTS utxo_state \
     \  ( live_utxo INTEGER NOT NULL \
-    \  , FOREIGN KEY (live_utxo) REFERENCES coin_utxo(utxo_id)\
+    \  , FOREIGN KEY (live_utxo) REFERENCES utxo_set(utxo_id)\
     \  , UNIQUE (live_utxo) \
     \)"
   basicExecute_
