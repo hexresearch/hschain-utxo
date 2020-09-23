@@ -48,7 +48,7 @@ freeVars = \case
   ELet nm e body  -> freeLetVars nm e body
   EIf a b c       -> freeVars a <> freeVars b <> freeVars c
   ECase e alts    -> freeVars e <> foldMap freeAltVars alts
-  EConstr _ _ _   -> S.empty
+  EConstr{}       -> S.empty
   EBottom         -> S.empty
   where
     fromVar name = S.singleton name
@@ -73,7 +73,7 @@ checkLetExpr = \case
   EIf a b c      -> checkLetExpr a && checkLetExpr b && checkLetExpr c
   ECase e alts   -> checkLetExpr e && all (checkLetExpr . caseAlt'rhs) alts
   EVar _         -> True
-  EConstr _ _ _  -> True
+  EConstr{}      -> True
   EPrim _        -> True
   EPrimOp{}      -> True
   EBottom        -> True

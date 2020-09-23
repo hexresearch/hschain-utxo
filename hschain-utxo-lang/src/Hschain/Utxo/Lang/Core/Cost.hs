@@ -113,7 +113,7 @@ exprCost typeCostMap costMap expr = case expr of
   ELet name v body  -> costLet name v body
   EIf  c t e        -> costIf c t e
   ECase e alts      -> costCase e alts
-  EConstr ty m n    -> costConstr ty m n
+  EConstr _ _       -> pure unitCost
   EBottom           -> costBottom
   where
     rec = exprCost typeCostMap costMap
@@ -139,8 +139,6 @@ exprCost typeCostMap costMap expr = case expr of
     -- FIXME: We dropped types from case alternatives
     costAlt CaseAlt{..} = Just unitCost
     -- exprCost typeCostMap (appendArgs typeCostMap caseAlt'args costMap) caseAlt'rhs
-
-    costConstr _ _ _ = return unitCost
 
     costBottom = return unitCost
 

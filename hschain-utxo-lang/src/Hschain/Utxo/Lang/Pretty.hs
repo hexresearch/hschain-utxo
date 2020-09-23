@@ -261,6 +261,7 @@ instance Pretty TypeCoreError where
     BadEquality ty           -> hsep ["Error: non comparable type:", pretty ty]
     BadShow     ty           -> hsep ["Error: non showable type:", pretty ty]
     BadCase                  -> "Error: Type error in case expression"
+    BadConstructor           -> "Error: Bad constuctor"
 
 instance Pretty InternalError where
   pretty = \case

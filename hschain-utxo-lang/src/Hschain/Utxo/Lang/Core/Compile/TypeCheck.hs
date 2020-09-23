@@ -112,7 +112,11 @@ inferExpr = \case
     EAp  f a       -> inferAp f a
     ELet nm e body -> inferLet nm e body
     ECase e alts   -> inferCase e alts
-    EConstr ty _ _ -> pure $ MonoType ty
+    -- Constructors
+    EConstr (TupleT ts) 0 -> pure $ MonoType $ foldr (:->) (TupleT ts) ts
+    EConstr (ListT  t)  0 -> pure $ MonoType $ ListT t
+    EConstr (ListT  t)  1 -> pure $ MonoType $ t :-> ListT t :-> ListT t
+    EConstr{}             -> throwError BadConstructor
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
@@ -297,8 +301,6 @@ primopToType = \case
   OpListOr         -> pure $ ListT BoolT :-> BoolT
   OpListAll    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
   OpListAny    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
-  OpListNil    a   -> pure $ ListT a
-  OpListCons   a   -> pure $ a :-> ListT a :-> ListT a
   where
     tagToType = \case
       IntArg   -> IntT

@@ -265,7 +265,7 @@ getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
       Just info -> pure info
       Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
 
-fromType :: Type -> H.Type () Name
+fromType :: H.Type loc v -> H.Type () v
 fromType = H.mapLoc (const ())
 
 desugarModule :: MonadLang m => Module -> m Module

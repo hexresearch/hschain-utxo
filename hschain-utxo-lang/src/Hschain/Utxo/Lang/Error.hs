@@ -89,6 +89,7 @@ data TypeCoreError
   | BadEquality TypeCore
   | BadShow     TypeCore
   | BadCase
+  | BadConstructor
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 

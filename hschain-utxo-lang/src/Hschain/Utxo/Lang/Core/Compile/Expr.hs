@@ -131,8 +131,6 @@ data PrimOp a
   | OpListOr              -- ^ OR for all elements
   | OpListAll    !a       -- ^ Every element of list satisfy predicate
   | OpListAny    !a       -- ^ Any element of list satisfy predicate
-  | OpListNil    !a
-  | OpListCons   !a
   deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
@@ -152,9 +150,10 @@ data ExprCore
   -- ^ if expressions
   | ECase !ExprCore [CaseAlt]
   -- ^ case alternatives
-  | EConstr TypeCore !Int !Int
-  -- ^ constructor with tag and arity, also we should provide the type
-  -- of constructor as afunction for a type-checker
+  | EConstr TypeCore !Int
+  -- ^ Constructor of ADT. First field is a type of value being
+  --   constructed. For example both constructors of @ListT IntT@ will
+  --   have that type as parameter. Second is constructor's tag.
   | EBottom
   -- ^ failed termination for the program
   deriving stock    (Show, Eq, Generic)
@@ -248,8 +247,6 @@ monoPrimopName = \case
   OpListOr       -> Just "or"
   OpListAll{}    -> Nothing
   OpListAny{}    -> Nothing
-  OpListNil{}    -> Nothing
-  OpListCons{}   -> Nothing
 
 -- | List of all monomorphic primops
 monomorphicPrimops :: [PrimOp a]

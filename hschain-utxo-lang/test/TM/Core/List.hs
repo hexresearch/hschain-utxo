@@ -70,11 +70,8 @@ testTypeCheckCase testName prog =
 listToExpr :: TypeCore -> [ExprCore] -> ExprCore
 listToExpr ty = foldr cons nil
   where
-    nil      = EConstr nilTy 0 0
-    cons a b = ap (EConstr consTy 1 2) [a, b]
-
-    nilTy = ListT ty
-    consTy = ty :-> ListT ty :-> ListT ty
+    nil      = EConstr (ListT ty) 0
+    cons a b = ap (EConstr (ListT ty) 1) [a, b]
 
 listConsts :: CoreProg
 listConsts = CoreProg

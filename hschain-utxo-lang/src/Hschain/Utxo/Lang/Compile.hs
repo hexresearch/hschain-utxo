@@ -93,8 +93,8 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
           ELam _ _ _           -> eliminateLamError
           EIf _ c t e          -> pure $ Core.EIf c t e
           ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
-          EConstr _ consTy m n -> do ty <- toCoreType consTy
-                                     pure $ Core.EConstr ty m n
+          EConstr _ consTy m _ -> do ty <- toCoreType consTy
+                                     pure $ Core.EConstr (resultType ty) m
           EAssertType _ e _    -> pure e
           EBottom _            -> pure $ Core.EBottom
 
@@ -107,6 +107,9 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
 
         typeCtx = mempty
 
+resultType :: TypeCore -> TypeCore
+resultType (_ :-> b) = resultType b
+resultType  a        = a
 
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
