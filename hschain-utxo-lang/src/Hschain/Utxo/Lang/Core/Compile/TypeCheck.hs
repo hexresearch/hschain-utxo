@@ -160,7 +160,7 @@ inferCase expr alts = inferExpr expr >>= \case
       []   -> throwError EmptyCaseExpression
       t:ts -> foldM unifyMonoType t ts
 
-matchTypes :: [Name] -> [TypeCore] -> Check [Typed TypeCore Name]
+matchTypes :: [a] -> [t] -> Check [Typed t a]
 matchTypes []     []     =  return []
 matchTypes (n:ns) (t:ts) = (Typed n t:) <$> matchTypes ns ts
 matchTypes  _      _     = throwError BadCase
