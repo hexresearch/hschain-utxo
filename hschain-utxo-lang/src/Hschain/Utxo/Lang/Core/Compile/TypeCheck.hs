@@ -13,8 +13,6 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , primopToType
   ) where
 
-
-import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Except
 
@@ -83,17 +81,17 @@ typeCheckExpr Typed{..} =
 hasType :: MonoType -> MonoType -> Check ()
 hasType a b = do
   isOk <- fmap isMonoType $ unifyMonoType a b
-  sequence_ $ liftA2 (\ta tb -> when (not isOk) $ typeCoreMismatch ta tb) (fromMonoType a) (fromMonoType b)
-
-fromMonoType :: MonoType -> Maybe TypeCore
-fromMonoType = \case
-  MonoType a -> Just a
-  AnyType    -> Nothing
-
-isMonoType :: MonoType -> Bool
-isMonoType x = case x of
-  AnyType    -> False
-  MonoType _ -> True
+  sequence_ $ do
+    ta <- fromMonoType a
+    tb <- fromMonoType b
+    return $ when (not isOk) $ typeCoreMismatch ta tb
+  where
+    fromMonoType = \case
+      MonoType x -> Just x
+      AnyType    -> Nothing
+    isMonoType = \case
+      AnyType    -> False
+      MonoType _ -> True
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
