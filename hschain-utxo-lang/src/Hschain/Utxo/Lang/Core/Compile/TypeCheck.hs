@@ -29,16 +29,6 @@ import Hschain.Utxo.Lang.Expr (ArgType(..))
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-{- for debug
-import Debug.Trace
-import Text.Show.Pretty hiding (Name)
-
-trace' :: Show a => a -> a
-trace' a = trace (ppShow a) a
-
-traceT :: Type -> Type
-traceT ty = trace (show $ pretty ty) ty
--}
 
 data MonoType
   = MonoType TypeCore  -- ^ simple case when we know the type
