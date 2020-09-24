@@ -70,13 +70,9 @@ getScombType Scomb{..} = foldr (:->) res args
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
-typeCheckScomb Scomb{..} =
-  local (loadArgs (V.toList scomb'args)) $
-    typeCheckExpr scomb'body
-
-typeCheckExpr :: Typed TypeCore ExprCore -> Check ()
-typeCheckExpr Typed{..} =
-  hasType (MonoType typed'type) =<< inferExpr typed'value
+typeCheckScomb Scomb{scomb'body = Typed{..}, ..}
+  = local (loadArgs (V.toList scomb'args))
+  $ hasType (MonoType typed'type) =<< inferExpr typed'value
 
 hasType :: MonoType -> MonoType -> Check ()
 hasType a b = do
@@ -95,8 +91,8 @@ hasType a b = do
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
-    EVar var       -> inferVar var
-    EPrim prim     -> inferPrim prim
+    EVar  var      -> MonoType <$> getSignature var
+    EPrim prim     -> pure $ MonoType $ primToType prim
     EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
     ELet nm e body -> inferLet nm e body
@@ -108,15 +104,6 @@ inferExpr = \case
     EConstr{}             -> throwError BadConstructor
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
-
-inferVar :: Name -> Check MonoType
-inferVar name = getMonoType name
-
-getMonoType :: Name -> Check MonoType
-getMonoType name = fmap MonoType $ getSignature name
-
-inferPrim :: Prim -> Check MonoType
-inferPrim p = return $ MonoType $ primToType p
 
 inferAp :: ExprCore -> ExprCore -> Check MonoType
 inferAp f a = do
