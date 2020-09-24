@@ -31,13 +31,14 @@ import qualified Data.Vector as V
 
 
 data MonoType
-  = MonoType TypeCore  -- ^ simple case when we know the type
-  | AnyType            -- ^ type that can be anything
-                       --    we use it for bottoms
+  = MonoType TypeCore  -- ^ Simple case when we know the type
+  | AnyType            -- ^ Type that can be anything we use it for bottoms
 
 unifyMonoType :: MonoType -> MonoType -> Check MonoType
 unifyMonoType a b = case (a, b) of
-  (MonoType ta, MonoType tb) -> if (ta == tb) then return a else throwError (TypeCoreMismatch ta tb)
+  (MonoType ta, MonoType tb)
+    | ta == tb  -> return a
+    | otherwise -> throwError (TypeCoreMismatch ta tb)
   (AnyType, tb) -> return tb
   (ta, AnyType) -> return ta
 
