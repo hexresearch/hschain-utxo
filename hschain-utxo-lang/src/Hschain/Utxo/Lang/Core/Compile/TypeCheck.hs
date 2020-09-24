@@ -124,14 +124,11 @@ inferAp :: ExprCore -> ExprCore -> Check MonoType
 inferAp f a = do
   fT <- inferExpr f
   aT <- inferExpr a
-  getApTy fT aT
+  -- Check type
+  (farg, fres) <- getArrowTypes fT
+  hasType farg aT
+  return fres
   where
-    getApTy :: MonoType -> MonoType -> Check MonoType
-    getApTy fT aT = do
-      (farg, fres) <- getArrowTypes fT
-      hasType farg aT
-      return fres
-
     getArrowTypes :: MonoType -> Check (MonoType, MonoType)
     getArrowTypes ty = case ty of
       AnyType            -> return (AnyType, AnyType)
