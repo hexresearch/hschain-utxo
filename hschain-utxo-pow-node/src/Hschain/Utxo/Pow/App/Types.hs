@@ -750,17 +750,6 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
       (bid, uid)
 dumpOverlay OverlayBase{} = return ()
 
-storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
-storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
-  basicExecute
-    "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ( POW.blockID b
-    , blockHeight
-    , blockTime
-    , prevBlock
-    , CBORed blk
-    )
-
 retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header UTXOBlock]
 retrieveAllUTXOHeaders = queryRO $ basicQueryWith_
   utxoBlockHeaderDecoder
@@ -778,13 +767,27 @@ retrieveUTXOBlock bid = queryRO $ basicQueryWith1
   "SELECT height, time, prev, blockData, target, nonce FROM utxo_blocks WHERE bid = ?"
   (Only bid)
 
+storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
+storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
+  basicExecute
+    "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ( POW.blockID b
+    , blockHeight
+    , blockTime
+    , prevBlock
+    , ByteRepred $ merkleHash $ ubpData $ ubProper blk
+    , CBORed blk
+    , CBORed $ ubpTarget $ ubProper blk
+    , ubNonce blk
+    )
+
 utxoBlockDecoder :: SQL.RowParser (POW.Block UTXOBlock)
 utxoBlockDecoder = do
   blockHeight <- field
   blockTime   <- field
   prevBlock   <- field
   ubNonce   <- field
-  ubProper  <- undefined
+  ubProper  <- fieldCBOR
   return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
 
 utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header UTXOBlock)
@@ -792,8 +795,10 @@ utxoBlockHeaderDecoder = do
   blockHeight <- field
   blockTime   <- field
   prevBlock   <- field
+  ubpData  <- fromHashed <$> fieldByteRepr
+  ubpTarget <- fieldCBOR
   ubNonce   <- field
-  ubProper  <- undefined
+  let ubProper = UTXOBlockProper prevBlock ubpData ubpTarget blockTime
   return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
 
 -- Initialize database for mock coin blockchain

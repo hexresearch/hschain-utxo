@@ -71,7 +71,7 @@ let
     in
       derivations // locals // {
         mkDerivation = args: hsOld.mkDerivation (args // {
-          enableLibraryProfiling = false;
+          # enableLibraryProfiling = false;
           doHaddock = false;
         });
       } // {
