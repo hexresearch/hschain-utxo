@@ -113,7 +113,7 @@ inferLet nm expr body = do
   ty <- inferExpr expr >>= \case
     MonoType ty -> pure ty
     AnyType     -> throwError PolymorphicLet
-  local (loadName (Typed nm ty)) $ inferExpr body
+  nm .:. ty $ inferExpr body
 
 inferCase :: ExprCore -> [CaseAlt] -> Check MonoType
 inferCase expr alts = inferExpr expr >>= \case
@@ -127,20 +127,18 @@ inferCase expr alts = inferExpr expr >>= \case
   MonoType (ListT  t) -> getResultType =<< traverse (inferListAlt t) alts
    -- Box
   MonoType  BoxT -> case alts of
-    [ CaseAlt 0 [a,b,c,d] e] -> local (loadArgs [ Typed a BytesT
-                                                , Typed b BytesT
-                                                , Typed c IntT
-                                                , Typed d argsTuple
-                                                ])
+    [ CaseAlt 0 [a,b,c,d] e] -> a .:. BytesT
+                              $ b .:. BytesT
+                              $ c .:. IntT
+                              $ d .:. argsTuple
                               $ inferExpr e
     _ -> throwError BadCase
   _ -> throwError BadCase
   where
     inferListAlt _  (CaseAlt 0 []     e) = inferExpr e
     inferListAlt ty (CaseAlt 1 [x,xs] e)
-      = local (loadArgs [ Typed x  ty
-                        , Typed xs (ListT ty)
-                        ])
+      = x  .:. ty
+      $ xs .:. ListT ty
       $ inferExpr e
     inferListAlt _ _ = throwError BadCase
     --
@@ -188,6 +186,9 @@ loadName Typed{..} = insertSignature typed'value typed'type
 
 lookupSignature :: Name -> TypeContext -> Maybe TypeCore
 lookupSignature name (TypeContext m) = M.lookup name m
+
+(.:.) :: Name -> TypeCore -> Check a -> Check a
+nm .:. ty = local (loadName (Typed nm ty))
 
 -------------------------------------------------------
 -- constants
