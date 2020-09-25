@@ -72,22 +72,11 @@ getScombType Scomb{..} = foldr (:->) res args
 typeCheckScomb :: Scomb -> Check ()
 typeCheckScomb Scomb{scomb'body = Typed{..}, ..}
   = local (loadArgs (V.toList scomb'args))
-  $ hasType (MonoType typed'type) =<< inferExpr typed'value
-
-hasType :: MonoType -> MonoType -> Check ()
-hasType a b = do
-  isOk <- fmap isMonoType $ unifyMonoType a b
-  sequence_ $ do
-    ta <- fromMonoType a
-    tb <- fromMonoType b
-    return $ when (not isOk) $ typeCoreMismatch ta tb
-  where
-    fromMonoType = \case
-      MonoType x -> Just x
-      AnyType    -> Nothing
-    isMonoType = \case
-      AnyType    -> False
-      MonoType _ -> True
+  $ inferExpr typed'value >>= \case
+      AnyType             -> pure ()
+      MonoType t
+        | t == typed'type -> pure ()
+        | otherwise       -> typeCoreMismatch t typed'type
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
@@ -107,18 +96,17 @@ inferExpr = \case
 
 inferAp :: ExprCore -> ExprCore -> Check MonoType
 inferAp f a = do
-  fT <- inferExpr f
-  aT <- inferExpr a
-  -- Check type
-  (farg, fres) <- getArrowTypes fT
-  hasType farg aT
-  return fres
-  where
-    getArrowTypes :: MonoType -> Check (MonoType, MonoType)
-    getArrowTypes ty = case ty of
-      AnyType            -> return (AnyType, AnyType)
-      MonoType (x :-> y) -> return (MonoType x, MonoType y)
-      MonoType t         -> throwError $ ArrowTypeExpected t
+  funTy <- inferExpr f
+  aTy   <- inferExpr a
+  case (funTy, aTy) of
+    (MonoType (aT' :-> bT), MonoType aT)
+      | aT' == aT -> pure (MonoType bT)
+      | otherwise -> throwError (TypeCoreMismatch aT aT')
+    (MonoType (_ :-> bT), AnyType)
+      -> pure (MonoType bT)
+    (MonoType t, _         ) -> throwError $ ArrowTypeExpected t
+    (AnyType   , MonoType _) -> pure AnyType
+    (AnyType   , AnyType   ) -> pure AnyType
 
 inferLet :: Name -> ExprCore -> ExprCore -> Check MonoType
 inferLet nm expr body = do
@@ -167,10 +155,12 @@ matchTypes  _      _     = throwError BadCase
 
 inferIf :: ExprCore -> ExprCore -> ExprCore -> Check MonoType
 inferIf c t e = do
-  cT <- inferExpr c
+  inferExpr c >>= \case
+    AnyType        -> pure ()
+    MonoType BoolT -> pure ()
+    MonoType ty    -> throwError (TypeCoreMismatch ty BoolT)
   tT <- inferExpr t
   eT <- inferExpr e
-  hasType cT (MonoType BoolT)
   unifyMonoType tT eT
 
 -------------------------------------------------------
