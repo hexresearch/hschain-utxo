@@ -53,7 +53,7 @@ substPrimOp
   where
     go = RS.cata $ \case
       Core.EVarF v
-        | Just op <- Map.lookup v Core.monoPrimopNameMap
+        | Just op <- Map.lookup v monoPrimopNameMap
           -> Core.EPrimOp op
       e -> RS.embed e
 

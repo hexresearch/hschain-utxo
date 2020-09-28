@@ -17,8 +17,8 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, funT, listT
-                              , arrowT, intT, boolT, textT, sigmaT)
-import Hschain.Utxo.Lang.Core.Compile.Expr      (monoPrimopNameMap)
+                              , arrowT, intT, boolT, textT, sigmaT
+                              , monoPrimopNameMap)
 
 import qualified Language.HM as H
 import qualified Data.Sequence as S
