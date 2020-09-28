@@ -33,6 +33,7 @@ library
                      , data-fix
                      , exceptions
                      , haskeline
+                     , hschain-crypto
                      , hex-common
                      , hschain-utxo-lang
                      , mtl

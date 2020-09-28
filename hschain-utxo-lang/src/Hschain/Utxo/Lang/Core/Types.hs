@@ -1,10 +1,8 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Common primitive type definitions
-module Hschain.Utxo.Lang.Core.Data.Prim(
+module Hschain.Utxo.Lang.Core.Types (
     Name
   , TypeCore(..)
   , argsTuple
-  , SignatureCore
   , Typed(..)
   , Prim(..)
     -- * Lens
@@ -14,22 +12,16 @@ module Hschain.Utxo.Lang.Core.Data.Prim(
 
 import Codec.Serialise
 import Control.DeepSeq
-import Control.Lens
 
-import Data.Fix
 import Data.Int
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import qualified Language.HM as H
 import Data.Text.Prettyprint.Doc
 import GHC.Generics (Generic)
 
+import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
 
-import Language.HM (IsVar, stringIntToVar, stringPrettyLetters)
-import Language.HM.Pretty (HasPrefix(..))
-
-type SignatureCore = H.Signature () Name
 
 -- | Type tags for values
 data Typed ty a = Typed
@@ -65,30 +57,17 @@ data TypeCore
   | BoxT
     -- ^ Box. 4-tuple of box ID, spend script, value of box, and arguments
   deriving stock    (Show, Eq, Generic)
-  deriving anyclass (NFData)
+  deriving anyclass (NFData,Serialise)
 infixr 5 :->
 
 argsTuple :: TypeCore
 argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 
 -----------------------------------------------------
--- instnaces
+-- instances
 
-instance IsVar Name where
-  intToVar = stringIntToVar
-  prettyLetters = stringPrettyLetters
 
-instance HasPrefix Name where
-  getFixity = const Nothing
-
-instance Serialise (Fix (H.TypeF () Text))
-instance (Serialise loc, Serialise var, Serialise a) => Serialise (H.TypeF loc var a)
-instance Serialise TypeCore
-
-$(makeLensesWith
-   (defaultFieldRules & lensField .~ (mappingNamer (\nm -> [nm++"L"])))
-   ''Typed)
-
+$(makeLensesWithL ''Typed)
 
 
 

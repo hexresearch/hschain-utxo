@@ -20,7 +20,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType)
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
+import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..))
 import Hschain.Utxo.Lang.Expr ( Loc, noLoc, boolT, VarName(..), argTypeName, argTypes
                               , funT, boolT, typeCoreToType)
 

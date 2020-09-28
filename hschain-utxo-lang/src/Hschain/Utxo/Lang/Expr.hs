@@ -24,18 +24,18 @@ import Data.String
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
-
+import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes (encodeBase58, decodeBase58)
-import HSChain.Crypto.Classes      (ViaBase58(..))
+import HSChain.Crypto              (Hash(..),hashBlob,encodeBase58, decodeBase58)
+import HSChain.Crypto.Classes      (ByteRepr,ViaBase58(..))
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..),genericHashStep)
+import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
-import Hschain.Utxo.Lang.Utils.ByteString
-import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore(..), argsTuple)
+import Hschain.Utxo.Lang.Core.Types          (TypeCore(..), argsTuple)
 
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -67,13 +67,10 @@ data UserTypeCtx = UserTypeCtx
   , userTypeCtx'constrs    :: Map ConsName ConsInfo          -- ^ Map from constructor names to it's low-level data, for further compilation
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
-  } deriving (Show, Eq)
+  }
+  deriving (Show, Eq, Generic)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
-instance Semigroup UserTypeCtx where
-  UserTypeCtx a1 b1 c1 d1 <> UserTypeCtx a2 b2 c2 d2 = UserTypeCtx (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2)
-
-instance Monoid UserTypeCtx where
-  mempty = UserTypeCtx mempty mempty mempty mempty
 
 setupUserTypeInfo :: UserTypeCtx -> UserTypeCtx
 setupUserTypeInfo = setupConsInfo . setupUserRecords
@@ -204,15 +201,6 @@ data VarName = VarName
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
-{-
-instance H.IsVar Text where
-  intToVar n = mappend "$$" (showt n)
-  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
-
-instance H.HasPrefix Text where
-  getFixity = const Nothing
--}
-
 -- | Name of the constructor
 data ConsName = ConsName
   { consName'loc  :: !Loc   -- ^ source code location
@@ -238,14 +226,10 @@ data Args = Args
   , args'bools :: Vector Bool
   , args'texts :: Vector Text
   , args'bytes :: Vector ByteString
-  } deriving (Show, Eq, Ord, Generic, NFData, Serialise)
-
-instance Semigroup Args where
-  (Args intsA boolsA textsA bytesA) <> (Args intsB boolsB textsB bytesB) =
-    Args (intsA <> intsB) (boolsA <> boolsB) (textsA <> textsB) (bytesA <> bytesB)
-
-instance Monoid Args where
-  mempty = Args mempty mempty mempty mempty
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (NFData, Serialise)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
 
 -- | Construct args that contain only integers
 intArgs :: [Int64] -> Args
@@ -285,16 +269,16 @@ byteArgs xs = Args
 
 -- | Identifier of TX. We can derive it from the PreTx.
 --  It equals to hash of serialised PreTx
-newtype TxId = TxId { unTxId :: ByteString }
-  deriving newtype  (Show, Eq, Ord, NFData)
+newtype TxId = TxId { unTxId :: Hash SHA256 }
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
 
 -- | Identifier of the box. Box holds value protected by the script.
 -- It equals to the hash of Box-content.
-newtype BoxId = BoxId { unBoxId :: ByteString }
-  deriving newtype  (Show, Eq, Ord, NFData)
+newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
@@ -321,7 +305,9 @@ data Box = Box
   , box'script :: !Script   -- ^ Protecting script
   , box'args   :: !Args     -- ^ arguments for the script
   }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
 
 -- | PreBox holds all meaningfull data of the Box.
 -- we use it to get Hashes for transaction and Box itself.
@@ -334,15 +320,10 @@ data PreBox = PreBox
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
-getBoxToHashId :: BoxToHash -> BoxId
-getBoxToHashId = BoxId . getSha256 . LB.toStrict . serialise
-
--- | Values that are used to get the hash of the box to create identifier for it.
-data BoxToHash = BoxToHash
-  { boxToHash'content  :: !PreBox  -- ^ meaningful data of the box
-  , boxToHash'origin   :: !BoxOrigin   -- ^ origin of the box
-  }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+computeBoxId :: BoxOrigin -> PreBox -> BoxId
+computeBoxId origin box
+  = BoxId . hashBlob . LB.toStrict . serialise
+  $ ( origin , box )
 
 -- | Data encodes the source of the Box when it was produced.
 data BoxOrigin = BoxOrigin
@@ -383,37 +364,20 @@ data InferCtx = InferCtx
   { inferCtx'binds :: TypeContext  -- ^ Already derived signatures for
                                    -- all free variables in the expression
   , inferCtx'types :: UserTypeCtx  -- ^ User-defined types
-  } deriving (Show, Eq)
-
-instance Semigroup InferCtx where
-  a <> b = InferCtx
-      { inferCtx'binds = inferCtx'binds a <> inferCtx'binds b
-      , inferCtx'types = inferCtx'types a <> inferCtx'types b
-      }
-
-instance Monoid InferCtx where
-  mempty = InferCtx mempty mempty
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid InferCtx
 
 -- | Evaluated module
 data ModuleCtx = ModuleCtx
   { moduleCtx'types  :: !InferCtx
   , moduleCtx'exprs  :: !ExecCtx
-  } deriving (Show, Eq)
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid ModuleCtx
 
 getModuleCtxNames :: ModuleCtx -> [Text]
 getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
-
-instance Semigroup ModuleCtx where
-  (<>) a b = ModuleCtx
-    { moduleCtx'types = moduleCtx'types a <> moduleCtx'types b
-    , moduleCtx'exprs = moduleCtx'exprs a <> moduleCtx'exprs b
-    }
-
-instance Monoid ModuleCtx where
-  mempty = ModuleCtx
-    { moduleCtx'types = mempty
-    , moduleCtx'exprs = mempty
-    }
 
 -- | Alternatives for declarations right-hand-sides.
 -- Because of pattern matching we can have several alternatives
@@ -1038,5 +1002,10 @@ instance ToJSON Args where
     , "texts" .= args'texts
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
+
+instance H.IsVar Text where
+  intToVar = H.stringIntToVar
+  prettyLetters = H.stringPrettyLetters
+
 
 $(deriveJSON dropPrefixOptions ''Box)

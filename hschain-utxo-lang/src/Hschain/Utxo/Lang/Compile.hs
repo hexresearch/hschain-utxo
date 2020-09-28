@@ -18,7 +18,7 @@ import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
-import Hschain.Utxo.Lang.Core.Data.Prim (Typed(..), TypeCore(..), Name, typed'valueL)
+import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name, typed'valueL)
 import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, scomb'bodyL, coreProgToScript)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
@@ -93,14 +93,13 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
           ELam _ _ _           -> eliminateLamError
           EIf _ c t e          -> pure $ Core.EIf c t e
           ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
-          EConstr _ consTy m n -> do ty <- toCoreType consTy
-                                     pure $ Core.EConstr ty m n
+          EConstr _ consTy m _ -> do ty <- toCoreType consTy
+                                     pure $ Core.EConstr (resultType ty) m
           EAssertType _ e _    -> pure e
           EBottom _            -> pure $ Core.EBottom
 
-        convertAlt CaseAlt{..} = do
-          args <- traverse convertTyped caseAlt'args
-          return Core.CaseAlt { caseAlt'args = args
+        convertAlt CaseAlt{..} =
+          return Core.CaseAlt { caseAlt'args = typed'value <$> caseAlt'args
                               , ..
                               }
 
@@ -108,6 +107,9 @@ toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
 
         typeCtx = mempty
 
+resultType :: TypeCore -> TypeCore
+resultType (_ :-> b) = resultType b
+resultType  a        = a
 
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.

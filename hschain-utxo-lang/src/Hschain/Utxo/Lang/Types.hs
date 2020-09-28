@@ -1,5 +1,26 @@
 -- | Defines basic types for blockchain.
-module Hschain.Utxo.Lang.Types where
+module Hschain.Utxo.Lang.Types
+  ( Tx(..)
+  , PreTx(..)
+  , TxHash(..)
+  , TxArg(..)
+  , BoxInput(..)
+  , BoxInputRef(..)
+  , ExpectedBox(..)
+  , Env(..)
+  , InputEnv(..)
+    -- * Functions
+  , newTx
+  , newProofTx
+  , newProofTxOrFail
+  , hashScript
+  , splitInputs
+  , txPreservesValue
+  , computeTxId
+  , validateOutputBoxIds
+    -- * Helperes
+  , singleOwnerInput
+  ) where
 
 import Hex.Common.Aeson
 import Control.DeepSeq (NFData)
@@ -15,20 +36,17 @@ import Data.Vector (Vector)
 
 import GHC.Generics
 
-import HSChain.Crypto.Classes (encodeBase58, ViaBase58(..), ByteRepr)
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
-import Hschain.Utxo.Lang.Expr
+import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
+import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashLazyBlob, genericHashStep)
+import Hschain.Utxo.Lang.Expr ( TxId(..), Script(..), Args(..)
+                              , Box(..), BoxId(..), PreBox(..), BoxOrigin(..)
+                              , computeBoxId
+                              )
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
-import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
-
--- | User identifier.
-newtype UserId = UserId { unUserId :: Text }
-  deriving newtype  (Show, Eq, ToJSON, FromJSON)
-  deriving stock    (Generic)
 
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
@@ -95,14 +113,11 @@ clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
   where
     clearProof box = box { boxInputRef'proof = Nothing }
 
-getTxBytes :: Tx -> SignMessage
-getTxBytes = getPreTxBytes . getPreTx
+computeTxId :: Tx -> TxId
+computeTxId = computePreTxId . getPreTx
 
-getPreTxBytes :: PreTx BoxInputRef -> SignMessage
-getPreTxBytes = SignMessage . LB.toStrict . serialise . clearProofs
-
-getTxId :: SignMessage -> TxId
-getTxId (SignMessage bs) = TxId $ getSha256 bs
+computePreTxId :: PreTx BoxInputRef -> TxId
+computePreTxId = TxId . hashLazyBlob . serialise . clearProofs
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
@@ -111,7 +126,7 @@ data TxArg = TxArg
   { txArg'inputs   :: !(Vector BoxInput)
   , txArg'outputs  :: !(Vector Box)
   , txArg'env      :: !Env
-  , txArg'txBytes  :: !SignMessage -- ^ serialised content of TX (it's used to verify the proof)
+  , txArg'txBytes  :: !TxId
   }
   deriving (Show, Eq)
 
@@ -171,7 +186,7 @@ newTx tx = Tx
   , tx'outputs = makeOutputs txId $ preTx'outputs tx
   }
   where
-    txId = getTxId $ getPreTxBytes tx
+    txId = computePreTxId tx
 
 makeOutputs :: TxId -> Vector PreBox -> Vector Box
 makeOutputs txId outputs = V.imap toBox outputs
@@ -183,22 +198,19 @@ makeOutputs txId outputs = V.imap toBox outputs
       , box'args   = preBox'args
       }
       where
-        boxId = getBoxToHashId $ BoxToHash
-            { boxToHash'origin  = BoxOrigin
+        boxId = computeBoxId BoxOrigin
                 { boxOrigin'outputIndex = fromIntegral outputIndex
                 , boxOrigin'txId        = txId
-                }
-            , boxToHash'content = box
-            }
+                } box
 
-makeInputs :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Vector BoxInputRef)
+makeInputs :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Vector BoxInputRef)
 makeInputs proofEnv message expectedInputs = mapM toInput expectedInputs
   where
     toInput ExpectedBox{..} = do
       mProof <- mapM (\sigma -> newProof proofEnv sigma message) expectedBox'sigma
       return $ expectedBox'input { boxInputRef'proof = either (const Nothing) Just =<< mProof }
 
-makeInputsOrFail :: ProofEnv -> SignMessage -> Vector ExpectedBox -> IO (Either Text (Vector BoxInputRef))
+makeInputsOrFail :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Either Text (Vector BoxInputRef))
 makeInputsOrFail proofEnv message expectedInputs = runExceptT $ mapM toInput expectedInputs
   where
     toInput ExpectedBox{..} = do
@@ -225,14 +237,13 @@ data ExpectedBox = ExpectedBox
 -- it produces @Nothing@ in the @boxInputRef'proof@.
 newProofTx :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io Tx
 newProofTx proofEnv tx = liftIO $ do
-  inputs <- makeInputs proofEnv message $ preTx'inputs tx
+  inputs <- makeInputs proofEnv txId $ preTx'inputs tx
   return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }
   where
-    txId      = getTxId message
-    message   = getPreTxBytes preTx
+    txId      = computePreTxId preTx
     preTx = fmap expectedBox'input tx
 
 -- | If we now the expected sigma expressions for the inputs
@@ -243,14 +254,13 @@ newProofTx proofEnv tx = liftIO $ do
 -- over API.
 newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
-  eInputs <- makeInputsOrFail proofEnv message $ preTx'inputs tx
+  eInputs <- makeInputsOrFail proofEnv txId $ preTx'inputs tx
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
     , tx'outputs = makeOutputs txId $ preTx'outputs tx
     }) eInputs
   where
-    txId      = getTxId message
-    message   = getPreTxBytes preTx
+    txId  = computePreTxId preTx
     preTx = fmap expectedBox'input tx
 
 --------------------------------------------
@@ -260,24 +270,19 @@ newProofTxOrFail proofEnv tx = liftIO $ do
 validateOutputBoxIds :: Tx -> Bool
 validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
   where
-    txId = getTxId $ getTxBytes tx
+    txId = computeTxId tx
 
     checkBoxId n box@Box{..} = box'id == getId n box
 
-    getId n box = getBoxToHashId $ BoxToHash
-      { boxToHash'origin  = BoxOrigin
-                              { boxOrigin'outputIndex = fromIntegral n
-                              , boxOrigin'txId        = txId
-                              }
-      , boxToHash'content = toPreBox box
-      }
+    getId n box = computeBoxId BoxOrigin
+                  { boxOrigin'outputIndex = fromIntegral n
+                  , boxOrigin'txId        = txId
+                  } (toPreBox box)
 
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString
 hashScript = getSha256 . unScript
 
-scriptToText :: Script -> Text
-scriptToText = encodeBase58 . unScript
 
 --------------------------------------------
 -- useful utils
@@ -312,4 +317,3 @@ instance CryptoHashable BoxInput where
 
 instance CryptoHashable BoxInputRef where
   hashStep = genericHashStep hashDomain
-

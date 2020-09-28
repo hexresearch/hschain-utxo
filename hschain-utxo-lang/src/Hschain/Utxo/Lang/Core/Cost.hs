@@ -11,7 +11,7 @@ import Data.Fix
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck (progDependencySort)
 
@@ -113,7 +113,7 @@ exprCost typeCostMap costMap expr = case expr of
   ELet name v body  -> costLet name v body
   EIf  c t e        -> costIf c t e
   ECase e alts      -> costCase e alts
-  EConstr ty m n    -> costConstr ty m n
+  EConstr _ _       -> pure unitCost
   EBottom           -> costBottom
   where
     rec = exprCost typeCostMap costMap
@@ -136,9 +136,9 @@ exprCost typeCostMap costMap expr = case expr of
 
     costCase e alts = liftA2 addCost (rec e) (fmap maximumCost $ mapM costAlt alts)
 
-    costAlt CaseAlt{..} = exprCost typeCostMap (appendArgs typeCostMap caseAlt'args costMap) caseAlt'rhs
-
-    costConstr _ _ _ = return unitCost
+    -- FIXME: We dropped types from case alternatives
+    costAlt CaseAlt{..} = Just unitCost
+    -- exprCost typeCostMap (appendArgs typeCostMap caseAlt'args costMap) caseAlt'rhs
 
     costBottom = return unitCost
 

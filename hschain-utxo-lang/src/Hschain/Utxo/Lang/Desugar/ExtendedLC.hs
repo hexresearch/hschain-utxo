@@ -10,9 +10,11 @@ import Hex.Common.Text (showt)
 
 import Control.Arrow (first)
 
+import Data.Coerce
 import Data.Fix
 import Data.Text (Text)
 
+import HSChain.Crypto (Hash(..))
 import Hschain.Utxo.Lang.Expr hiding (Expr)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
@@ -22,12 +24,12 @@ import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
-import Hschain.Utxo.Lang.Core.Data.Prim(Name)
+import Hschain.Utxo.Lang.Core.Types (Name)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-import qualified Hschain.Utxo.Lang.Core.Data.Prim as P
+import qualified Hschain.Utxo.Lang.Core.Types as P
 import qualified Hschain.Utxo.Lang.Const as Const
 
 import qualified Language.HM as H
@@ -250,7 +252,7 @@ exprToExtendedLC typeCtx = cataM $ \case
             -- consider other primitive types
             boxConsTy = foldr arrowT boxT [textT, intT, textT, listT intT]
 
-            id'    = prim loc $ P.PrimBytes $ unBoxId box'id
+            id'    = prim loc $ P.PrimBytes $ coerce box'id
             value  = prim loc $ P.PrimInt   $ box'value
             script = prim loc $ P.PrimBytes $ unScript box'script
             args   = Fix $ EConstr loc (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
@@ -263,7 +265,7 @@ getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
       Just info -> pure info
       Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
 
-fromType :: Type -> H.Type () Name
+fromType :: H.Type loc v -> H.Type () v
 fromType = H.mapLoc (const ())
 
 desugarModule :: MonadLang m => Module -> m Module

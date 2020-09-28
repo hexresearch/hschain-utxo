@@ -65,6 +65,7 @@ import qualified Data.Vector as V
 import Data.Word
 
 import qualified Database.SQLite.Simple           as SQL
+import qualified Database.SQLite.Simple.Ok        as SQL
 import qualified Database.SQLite.Simple.ToField   as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.FromRow   as SQL
@@ -132,23 +133,30 @@ instance Crypto.CryptoHashable Ed.Scalar where
 instance Crypto.CryptoHashable Pico where
   hashStep = hashStep . serialise
 
+deriving newtype instance ByteRepr BoxId
+
 instance SQL.ToRow BoxId where
-  toRow = undefined
+  toRow b = [SQL.toField $ ByteRepred b]
 
 instance SQL.FromRow BoxId where
-  fromRow = undefined
+  fromRow = BoxId <$> fieldByteRepr
 
 instance SQL.ToRow Box where
-  toRow = undefined
+  toRow box = [SQL.toField box]
 
 instance SQL.FromRow Box where
-  fromRow = undefined
+  fromRow = SQL.field
 
+instance ByteRepr Box where
+  encodeToBS box = LBS.toStrict $ serialise box
+  decodeFromBS bs = case deserialise $ LBS.fromStrict bs of
+                      Just r -> r
+                      Nothing -> error "error deserealising box"
 instance SQL.ToField Box where
-  toField = undefined
+  toField = SQL.toField . encodeToBS
 
 instance SQL.FromField Box where
-  fromField = undefined
+  fromField field = fmap (maybe (error "decoding box") id) $ (decodeFromBS <$> SQL.fromField field)
 
 -------------------------------------------------------------------------------
 -- The Block.
@@ -453,7 +461,7 @@ makeStateView bIdx0 overlay = sview where
           return (boxInputRef'id, u)
         checkSpendability inputs tx
       --
-    , createCandidateBlockData = \bh _ txlist -> queryRO $ do
+    , createCandidateBlockData = \bh time txlist -> queryRO $ do
         -- Create and process coinbase transaction
         let coinbase = error "coinbase"
             activeOverlay = addOverlayLayer overlay
@@ -471,9 +479,9 @@ makeStateView bIdx0 overlay = sview where
           { ubNonce    = ""
           , ubProper   = UTXOBlockProper
                            { ubpData     = merkled $ coinbase : txs
-                           , ubpPrevious = undefined
-                           , ubpTarget   = undefined
-                           , ubpTime     = undefined
+                           , ubpPrevious = Just $ POW.bhBID bh
+                           , ubpTarget   = POW.retarget bh
+                           , ubpTime     = time
                            }
           }
     }

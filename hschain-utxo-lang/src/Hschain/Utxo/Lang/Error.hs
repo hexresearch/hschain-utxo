@@ -9,7 +9,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (TypeCore)
+import Hschain.Utxo.Lang.Core.Types (TypeCore)
 
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Parser as H
@@ -88,6 +88,8 @@ data TypeCoreError
   | PolymorphicLet
   | BadEquality TypeCore
   | BadShow     TypeCore
+  | BadCase
+  | BadConstructor
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 

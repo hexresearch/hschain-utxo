@@ -14,12 +14,13 @@ import Data.Int
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
 
@@ -69,11 +70,8 @@ testTypeCheckCase testName prog =
 listToExpr :: TypeCore -> [ExprCore] -> ExprCore
 listToExpr ty = foldr cons nil
   where
-    nil      = EConstr nilTy 0 0
-    cons a b = ap (EConstr consTy 1 2) [a, b]
-
-    nilTy = ListT ty
-    consTy = ty :-> ListT ty :-> ListT ty
+    nil      = EConstr (ListT ty) 0
+    cons a b = ap (EConstr (ListT ty) 1) [a, b]
 
 listConsts :: CoreProg
 listConsts = CoreProg
@@ -134,7 +132,7 @@ env :: InputEnv
 env = InputEnv
   { inputEnv'height   = 123
   , inputEnv'self     = Box
-    { box'id     = BoxId ""
+    { box'id     = BoxId $ hashBlob ""
     , box'value  = 100
     , box'script = Script ""
     , box'args   = mempty

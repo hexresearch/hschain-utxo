@@ -29,6 +29,7 @@ import qualified Hschain.Utxo.Lang.Sigma as S
 import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg)
 
 import qualified Language.HM as H
+import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
@@ -52,7 +53,7 @@ instance Pretty BoxId where
 
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
-    Left  _ -> "Left: " <> pretty (scriptToText (Script bs))
+    Left  _ -> "Left: " <> pretty (encodeBase58 bs)
     Right e -> fromString $ show (e :: CoreProg)
 
 instance Pretty Box where
@@ -107,9 +108,6 @@ instance Pretty BoxInputRef where
 
 instance Pretty Env where
   pretty Env{..} = prettyRecord "Env" [("height", pretty env'height)]
-
-instance Pretty UserId where
-  pretty (UserId txt) = pretty txt
 
 -- TODO
 instance Pretty Proof where
@@ -262,6 +260,8 @@ instance Pretty TypeCoreError where
     PolymorphicLet           -> "polymorphic type in the let binding"
     BadEquality ty           -> hsep ["Error: non comparable type:", pretty ty]
     BadShow     ty           -> hsep ["Error: non showable type:", pretty ty]
+    BadCase                  -> "Error: Type error in case expression"
+    BadConstructor           -> "Error: Bad constuctor"
 
 instance Pretty InternalError where
   pretty = \case
@@ -291,3 +291,5 @@ instance Pretty Hask.SrcLoc where
     , pretty srcLine, ":"
     , pretty srcColumn ]
 
+instance H.HasPrefix Text where
+  getFixity = const Nothing

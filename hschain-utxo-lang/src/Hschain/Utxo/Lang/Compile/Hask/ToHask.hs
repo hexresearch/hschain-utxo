@@ -11,7 +11,7 @@ import Hex.Common.Text (showt)
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Hask.Utils
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Prim(..))
+import Hschain.Utxo.Lang.Core.Types (Name, Prim(..))
 
 import Data.Fix
 

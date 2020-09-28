@@ -26,7 +26,7 @@ import qualified Data.ByteString.Lazy as LB
 
 import HSChain.Crypto     (Hash(..),hashBlob)
 import HSChain.Crypto.SHA (SHA256)
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Expr  (ArgType(..), Box(..), Args(..), Script(..), BoxId(..))
 import Hschain.Utxo.Lang.Sigma
@@ -134,12 +134,15 @@ evalExpr inpEnv genv = recur
               | otherwise          = matchCase cs
             matchCase [] = ValBottom $ EvalErr "No match in case"
             --
-            bindParams []             []             = id
-            bindParams (v:vs) (Typed n _:ts) = bindParams vs ts . Map.insert n v
-            bindParams _ _ = error "Type error in case"
+            bindParams []     []     = id
+            bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
+            bindParams _      _      = error "Type error in case"
         ValBottom err -> ValBottom err
         _             -> ValBottom TypeMismatch
-      EConstr _ tag arity    -> constr tag arity
+      EConstr (TupleT ts) 0 -> constr 0 (length ts)
+      EConstr (ListT  _ ) 0 -> constr 0 0
+      EConstr (ListT  _ ) 1 -> constr 1 2
+      EConstr _           _ -> ValBottom $ EvalErr "Invalid constructor"
       --
       EBottom{} -> ValBottom $ EvalErr "Bottom encountered"
 
@@ -294,8 +297,6 @@ evalPrimOp env = \case
         step (Right False : as) = step as
         step (Left e      : _ ) = ValBottom e
     return $ step $ map (match . f) xs
-  OpListNil  _ -> inj ([] @Val)
-  OpListCons _ -> Val2F $ \x xs -> ValCon 1 [x , xs]
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of

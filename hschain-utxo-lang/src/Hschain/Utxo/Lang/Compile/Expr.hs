@@ -28,7 +28,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
 ) where
 
 import Data.Fix
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
 import Hschain.Utxo.Lang.Expr (Loc, VarName)
 

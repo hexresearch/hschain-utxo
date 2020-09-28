@@ -107,7 +107,7 @@ signSigma secretFile exprFile txFile output = do
     ConstBool _       -> errorExpressionIsConst
     SigmaResult sigma -> do
       let env = Sigma.proofEnvFromKeys [Sigma.getKeyPair secret]
-      signedSigma <- Sigma.newProof env sigma (getTxBytes tx)
+      signedSigma <- Sigma.newProof env sigma (computeTxId tx)
       saveSigma signedSigma
   where
     readSecret :: IO Sigma.Secret

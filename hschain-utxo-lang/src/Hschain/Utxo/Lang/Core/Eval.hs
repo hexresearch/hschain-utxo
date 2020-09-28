@@ -25,14 +25,14 @@ evalInput env =
     Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
     Nothing   -> Left $ ExecError FailedToDecodeScript
 
-verifyInput :: SignMessage -> Maybe Proof -> InputEnv -> Either Error Bool
-verifyInput message mProof env = fmap verifyResult $ evalInput env
+verifyInput :: TxId -> Maybe Proof -> InputEnv -> Either Error Bool
+verifyInput txid mProof env = fmap verifyResult $ evalInput env
   where
     verifyResult = \case
       ConstBool b       -> b
       SigmaResult sigma -> case sigma of
         Fix (SigmaBool b) -> b
-        _                 -> maybe False (\proof -> equalSigmaProof sigma proof && verifyProof proof message) mProof
+        _                 -> maybe False (\proof -> equalSigmaProof sigma proof && verifyProof proof txid) mProof
 
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.

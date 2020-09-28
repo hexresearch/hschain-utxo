@@ -8,7 +8,7 @@ import Data.Maybe
 import Data.Set (Set)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 
 import qualified Data.Graph as G
 import qualified Data.Set   as S
@@ -48,12 +48,12 @@ freeVars = \case
   ELet nm e body  -> freeLetVars nm e body
   EIf a b c       -> freeVars a <> freeVars b <> freeVars c
   ECase e alts    -> freeVars e <> foldMap freeAltVars alts
-  EConstr _ _ _   -> S.empty
+  EConstr{}       -> S.empty
   EBottom         -> S.empty
   where
     fromVar name = S.singleton name
     freeAltVars CaseAlt{..} =
-      freeVars caseAlt'rhs S.\\ (S.fromList $ fmap typed'value caseAlt'args)
+      freeVars caseAlt'rhs S.\\ (S.fromList caseAlt'args)
     freeLetVars nm e body = S.delete nm (freeVars e <> freeVars body)
 
 
@@ -73,7 +73,7 @@ checkLetExpr = \case
   EIf a b c      -> checkLetExpr a && checkLetExpr b && checkLetExpr c
   ECase e alts   -> checkLetExpr e && all (checkLetExpr . caseAlt'rhs) alts
   EVar _         -> True
-  EConstr _ _ _  -> True
+  EConstr{}      -> True
   EPrim _        -> True
   EPrimOp{}      -> True
   EBottom        -> True
