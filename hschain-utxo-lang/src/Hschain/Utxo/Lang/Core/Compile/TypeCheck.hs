@@ -84,6 +84,9 @@ inferExpr = \case
     EPrim prim     -> pure $ MonoType $ primToType prim
     EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
+    ELam x ty f    -> (x .:. ty $ inferExpr f) >>= \case
+      MonoType tyR -> pure $ MonoType $ ty :-> tyR
+      AnyType      -> pure $ AnyType
     ELet nm e body -> inferLet nm e body
     ECase e alts   -> inferCase e alts
     -- Constructors

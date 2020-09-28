@@ -109,6 +109,7 @@ exprCost typeCostMap costMap expr = case expr of
   EVar name         -> costVar name
   EPrim p           -> costPrim p
   EPrimOp op        -> costPrimOp op
+  ELam{}            -> pure unitCost -- FIXME: arbitrary value
   EAp f a           -> costAp f a
   ELet name v body  -> costLet name v body
   EIf  c t e        -> costIf c t e

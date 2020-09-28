@@ -135,6 +135,8 @@ data ExprCore
   -- ^ constant primitive
   | EPrimOp !(PrimOp TypeCore)
   -- ^ Primitive operation
+  | ELam !Name !TypeCore ExprCore
+  -- ^ Lambda abstraction
   | EAp  ExprCore ExprCore
   -- ^ application
   | ELet Name ExprCore ExprCore

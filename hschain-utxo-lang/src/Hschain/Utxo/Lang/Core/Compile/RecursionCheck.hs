@@ -40,6 +40,7 @@ freeVars = \case
   EVar name       -> S.singleton name
   EPrim _         -> S.empty
   EPrimOp{}       -> S.empty
+  ELam x _ e      -> S.delete x (freeVars e)
   EAp f a         -> freeVars f <> freeVars a
   ELet nm e body  -> freeVars e <> S.delete nm (freeVars body)
   EIf a b c       -> freeVars a <> freeVars b <> freeVars c

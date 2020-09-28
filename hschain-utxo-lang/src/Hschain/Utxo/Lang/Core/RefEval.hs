@@ -115,6 +115,7 @@ evalExpr inpEnv genv = recur
       EAp f x -> inj $ do
         valF <- match $ recur lenv f
         return (valF $ recur lenv x :: Val)
+      ELam nm _ body -> ValF $ \x -> recur (Map.insert nm x lenv) body
       EIf e a b -> case recur lenv e of
         ValP (PrimBool f) -> recur lenv $ if f then a else b
         ValBottom err     -> ValBottom err
