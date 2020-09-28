@@ -20,7 +20,7 @@ import Data.Foldable
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr (ArgType(..))
 

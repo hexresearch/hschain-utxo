@@ -24,12 +24,12 @@ import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
-import Hschain.Utxo.Lang.Core.Data.Prim(Name)
+import Hschain.Utxo.Lang.Core.Types (Name)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-import qualified Hschain.Utxo.Lang.Core.Data.Prim as P
+import qualified Hschain.Utxo.Lang.Core.Types as P
 import qualified Hschain.Utxo.Lang.Const as Const
 
 import qualified Language.HM as H

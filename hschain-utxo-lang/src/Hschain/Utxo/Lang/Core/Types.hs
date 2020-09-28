@@ -1,5 +1,5 @@
 -- | Common primitive type definitions
-module Hschain.Utxo.Lang.Core.Data.Prim(
+module Hschain.Utxo.Lang.Core.Types (
     Name
   , TypeCore(..)
   , argsTuple

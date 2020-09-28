@@ -44,7 +44,7 @@ import Data.Text (Text)
 import Hschain.Utxo.Lang.Expr (ArgType(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L

@@ -32,7 +32,7 @@ import qualified Data.Map.Strict as Map
 import GHC.Generics
 
 import Hex.Common.Lens (makeLensesWithL)
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Expr (Script(..), ArgType, argTypes, argTypeName)
 
 import qualified Data.ByteString.Lazy as LB

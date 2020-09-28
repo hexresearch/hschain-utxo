@@ -11,7 +11,7 @@ import Data.Set (Set)
 
 import Hschain.Utxo.Lang.Expr (VarName(..))
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
+import Hschain.Utxo.Lang.Core.Types (Name, Typed(..))
 
 import qualified Data.List as L
 import qualified Data.Set  as S

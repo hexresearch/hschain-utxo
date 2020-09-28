@@ -14,7 +14,7 @@ import Data.Strict.Tuple (Pair(..))
 import Hex.Common.Text
 
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 
 import qualified Data.List       as L
 import qualified Data.Map.Strict as M
