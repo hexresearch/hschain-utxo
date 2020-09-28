@@ -45,7 +45,7 @@ import qualified Hschain.Utxo.Lang.Const as Const
 -- for the execution of the program.
 newtype CoreProg = CoreProg [Scomb]
   deriving stock    (Generic)
-  deriving newtype  (Semigroup, Monoid, Show, Serialise)
+  deriving newtype  (Show, Serialise)
 instance Wrapped CoreProg
 
 coreProgToScript :: CoreProg -> Script
