@@ -87,8 +87,7 @@ toCoreExpr expr@(Fix (Ann expressionTy _)) = do
       ELet _ binds body    -> pure $
         let addLet (nm, e) = Core.ELet (typed'value nm) e
         in foldr addLet body binds
-      ELam _ _ _           ->
-        failedToEliminate "Lambda-expressions for core language. Do lambda-lifting to eliminate."
+      ELam _ xs body       -> toLambda xs body
       EIf _ c t e          -> pure $ Core.EIf c t e
       ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
       EConstr _ consTy m _ -> do ty <- toCoreType consTy
@@ -100,7 +99,11 @@ toCoreExpr expr@(Fix (Ann expressionTy _)) = do
       { caseAlt'args = typed'value <$> caseAlt'args
       , ..
       }
-
+    toLambda []                  body = pure body
+    toLambda (Typed x ty : vars) body = do
+      e   <- toLambda vars body
+      ty' <- toCoreType ty
+      pure $ Core.ELam x ty' e
     typeCtx = mempty
 
 convertTyped :: MonadLang m => Typed (H.Type loc Name) a -> m (Typed TypeCore a)
