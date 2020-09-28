@@ -422,12 +422,6 @@ instance CryptoHashable BoxInput where
 instance CryptoHashable BoxInputRef where
   hashStep = genericHashStep hashDomain
 
-instance (forall k. CryptoHashable k => CryptoHashable (f k)) => CryptoHashable (Fix f) where
-  hashStep = genericHashStep hashDomain
-
--- instance CryptoHashable Prim where
---   hashStep = genericHashStep hashDomain
-
 instance CryptoHashable Script where
   hashStep = genericHashStep hashDomain
 
