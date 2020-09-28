@@ -10,7 +10,7 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Types (InputEnv(..))
 import Hschain.Utxo.Lang.Core.Compile
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
 import Examples.Simple

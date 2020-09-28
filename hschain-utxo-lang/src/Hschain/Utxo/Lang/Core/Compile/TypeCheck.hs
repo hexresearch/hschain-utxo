@@ -13,8 +13,6 @@ module Hschain.Utxo.Lang.Core.Compile.TypeCheck(
   , primopToType
   ) where
 
-
-import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.Except
 
@@ -22,32 +20,23 @@ import Data.Foldable
 import Data.Map.Strict (Map)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr (ArgType(..))
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-{- for debug
-import Debug.Trace
-import Text.Show.Pretty hiding (Name)
-
-trace' :: Show a => a -> a
-trace' a = trace (ppShow a) a
-
-traceT :: Type -> Type
-traceT ty = trace (show $ pretty ty) ty
--}
 
 data MonoType
-  = MonoType TypeCore  -- ^ simple case when we know the type
-  | AnyType            -- ^ type that can be anything
-                       --    we use it for bottoms
+  = MonoType TypeCore  -- ^ Simple case when we know the type
+  | AnyType            -- ^ Type that can be anything we use it for bottoms
 
 unifyMonoType :: MonoType -> MonoType -> Check MonoType
 unifyMonoType a b = case (a, b) of
-  (MonoType ta, MonoType tb) -> if (ta == tb) then return a else throwError (TypeCoreMismatch ta tb)
+  (MonoType ta, MonoType tb)
+    | ta == tb  -> return a
+    | otherwise -> throwError (TypeCoreMismatch ta tb)
   (AnyType, tb) -> return tb
   (ta, AnyType) -> return ta
 
@@ -81,33 +70,18 @@ getScombType Scomb{..} = foldr (:->) res args
 
 -- | Check types for a supercombinator
 typeCheckScomb :: Scomb -> Check ()
-typeCheckScomb Scomb{..} =
-  local (loadArgs (V.toList scomb'args)) $
-    typeCheckExpr scomb'body
-
-typeCheckExpr :: Typed TypeCore ExprCore -> Check ()
-typeCheckExpr Typed{..} =
-  hasType (MonoType typed'type) =<< inferExpr typed'value
-
-hasType :: MonoType -> MonoType -> Check ()
-hasType a b = do
-  isOk <- fmap isMonoType $ unifyMonoType a b
-  sequence_ $ liftA2 (\ta tb -> when (not isOk) $ typeCoreMismatch ta tb) (fromMonoType a) (fromMonoType b)
-
-fromMonoType :: MonoType -> Maybe TypeCore
-fromMonoType = \case
-  MonoType a -> Just a
-  AnyType    -> Nothing
-
-isMonoType :: MonoType -> Bool
-isMonoType x = case x of
-  AnyType    -> False
-  MonoType _ -> True
+typeCheckScomb Scomb{scomb'body = Typed{..}, ..}
+  = local (loadArgs (V.toList scomb'args))
+  $ inferExpr typed'value >>= \case
+      AnyType             -> pure ()
+      MonoType t
+        | t == typed'type -> pure ()
+        | otherwise       -> typeCoreMismatch t typed'type
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
-    EVar var       -> inferVar var
-    EPrim prim     -> inferPrim prim
+    EVar  var      -> MonoType <$> getSignature var
+    EPrim prim     -> pure $ MonoType $ primToType prim
     EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
     ELet nm e body -> inferLet nm e body
@@ -120,39 +94,26 @@ inferExpr = \case
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
-inferVar :: Name -> Check MonoType
-inferVar name = getMonoType name
-
-getMonoType :: Name -> Check MonoType
-getMonoType name = fmap MonoType $ getSignature name
-
-inferPrim :: Prim -> Check MonoType
-inferPrim p = return $ MonoType $ primToType p
-
 inferAp :: ExprCore -> ExprCore -> Check MonoType
 inferAp f a = do
-  fT <- inferExpr f
-  aT <- inferExpr a
-  getApTy fT aT
-  where
-    getApTy :: MonoType -> MonoType -> Check MonoType
-    getApTy fT aT = do
-      (farg, fres) <- getArrowTypes fT
-      hasType farg aT
-      return fres
-
-    getArrowTypes :: MonoType -> Check (MonoType, MonoType)
-    getArrowTypes ty = case ty of
-      AnyType            -> return (AnyType, AnyType)
-      MonoType (x :-> y) -> return (MonoType x, MonoType y)
-      MonoType t         -> throwError $ ArrowTypeExpected t
+  funTy <- inferExpr f
+  aTy   <- inferExpr a
+  case (funTy, aTy) of
+    (MonoType (aT' :-> bT), MonoType aT)
+      | aT' == aT -> pure (MonoType bT)
+      | otherwise -> throwError (TypeCoreMismatch aT aT')
+    (MonoType (_ :-> bT), AnyType)
+      -> pure (MonoType bT)
+    (MonoType t, _         ) -> throwError $ ArrowTypeExpected t
+    (AnyType   , MonoType _) -> pure AnyType
+    (AnyType   , AnyType   ) -> pure AnyType
 
 inferLet :: Name -> ExprCore -> ExprCore -> Check MonoType
 inferLet nm expr body = do
   ty <- inferExpr expr >>= \case
     MonoType ty -> pure ty
     AnyType     -> throwError PolymorphicLet
-  local (loadName (Typed nm ty)) $ inferExpr body
+  nm .:. ty $ inferExpr body
 
 inferCase :: ExprCore -> [CaseAlt] -> Check MonoType
 inferCase expr alts = inferExpr expr >>= \case
@@ -166,20 +127,18 @@ inferCase expr alts = inferExpr expr >>= \case
   MonoType (ListT  t) -> getResultType =<< traverse (inferListAlt t) alts
    -- Box
   MonoType  BoxT -> case alts of
-    [ CaseAlt 0 [a,b,c,d] e] -> local (loadArgs [ Typed a BytesT
-                                                , Typed b BytesT
-                                                , Typed c IntT
-                                                , Typed d argsTuple
-                                                ])
+    [ CaseAlt 0 [a,b,c,d] e] -> a .:. BytesT
+                              $ b .:. BytesT
+                              $ c .:. IntT
+                              $ d .:. argsTuple
                               $ inferExpr e
     _ -> throwError BadCase
   _ -> throwError BadCase
   where
     inferListAlt _  (CaseAlt 0 []     e) = inferExpr e
     inferListAlt ty (CaseAlt 1 [x,xs] e)
-      = local (loadArgs [ Typed x  ty
-                        , Typed xs (ListT ty)
-                        ])
+      = x  .:. ty
+      $ xs .:. ListT ty
       $ inferExpr e
     inferListAlt _ _ = throwError BadCase
     --
@@ -187,17 +146,19 @@ inferCase expr alts = inferExpr expr >>= \case
       []   -> throwError EmptyCaseExpression
       t:ts -> foldM unifyMonoType t ts
 
-matchTypes :: [Name] -> [TypeCore] -> Check [Typed TypeCore Name]
+matchTypes :: [a] -> [t] -> Check [Typed t a]
 matchTypes []     []     =  return []
 matchTypes (n:ns) (t:ts) = (Typed n t:) <$> matchTypes ns ts
 matchTypes  _      _     = throwError BadCase
 
 inferIf :: ExprCore -> ExprCore -> ExprCore -> Check MonoType
 inferIf c t e = do
-  cT <- inferExpr c
+  inferExpr c >>= \case
+    AnyType        -> pure ()
+    MonoType BoolT -> pure ()
+    MonoType ty    -> throwError (TypeCoreMismatch ty BoolT)
   tT <- inferExpr t
   eT <- inferExpr e
-  hasType cT (MonoType BoolT)
   unifyMonoType tT eT
 
 -------------------------------------------------------
@@ -225,6 +186,9 @@ loadName Typed{..} = insertSignature typed'value typed'type
 
 lookupSignature :: Name -> TypeContext -> Maybe TypeCore
 lookupSignature name (TypeContext m) = M.lookup name m
+
+(.:.) :: Name -> TypeCore -> Check a -> Check a
+nm .:. ty = local (loadName (Typed nm ty))
 
 -------------------------------------------------------
 -- constants

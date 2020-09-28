@@ -10,7 +10,7 @@ import Data.Sequence (Seq)
 
 import Hschain.Utxo.Lang.Expr (VarName(..))
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 
 import qualified Data.Sequence   as Seq
 

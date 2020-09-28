@@ -13,7 +13,7 @@ module Hschain.Utxo.Lang.Compile.LambdaLifting(
 
 import Data.Fix
 
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.LambdaLifting.Abstract
 import Hschain.Utxo.Lang.Compile.LambdaLifting.Collect

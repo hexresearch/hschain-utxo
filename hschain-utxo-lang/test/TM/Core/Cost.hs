@@ -9,7 +9,7 @@ import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Core.Cost
 import Hschain.Utxo.Lang.Core.Compile
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 
 import Examples.SKI
 

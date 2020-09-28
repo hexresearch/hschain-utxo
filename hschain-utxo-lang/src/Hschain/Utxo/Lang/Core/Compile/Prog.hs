@@ -11,7 +11,7 @@ import Data.Fix
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.RecursionCheck
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (InputEnv)
 

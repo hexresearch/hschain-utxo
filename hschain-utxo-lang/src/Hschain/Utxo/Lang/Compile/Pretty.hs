@@ -7,7 +7,7 @@ import Data.Text.Prettyprint.Doc
 
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Hask.ToHask
-import Hschain.Utxo.Lang.Core.Data.Prim (Name)
+import Hschain.Utxo.Lang.Core.Types (Name)
 
 import qualified Language.Haskell.Exts.Pretty as H
 import qualified Hschain.Utxo.Lang.Compile.Hask.TypedToHask as TypedToHask

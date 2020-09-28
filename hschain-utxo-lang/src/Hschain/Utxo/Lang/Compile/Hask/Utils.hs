@@ -18,7 +18,7 @@ import Data.Text (Text)
 
 import HSChain.Crypto.Classes (encodeBase58)
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
-import Hschain.Utxo.Lang.Core.Data.Prim (Name, Typed(..))
+import Hschain.Utxo.Lang.Core.Types (Name, Typed(..))
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L

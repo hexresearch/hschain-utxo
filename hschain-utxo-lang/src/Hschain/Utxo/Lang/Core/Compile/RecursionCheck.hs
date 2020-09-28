@@ -8,7 +8,7 @@ import Data.Maybe
 import Data.Set (Set)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 
 import qualified Data.Graph as G
 import qualified Data.Set   as S

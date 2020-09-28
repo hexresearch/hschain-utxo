@@ -10,7 +10,7 @@ import Data.Fix
 
 import Hschain.Utxo.Lang.Expr (Loc)
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 
 import qualified Data.List as L
 

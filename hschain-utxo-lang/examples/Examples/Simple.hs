@@ -5,7 +5,7 @@
 module Examples.Simple where
 
 import Hschain.Utxo.Lang.Core.Compile
-import Hschain.Utxo.Lang.Core.Data.Prim
+import Hschain.Utxo.Lang.Core.Types
 import Examples.SKI (mkMain)
 
 -- | Addition of two integers
