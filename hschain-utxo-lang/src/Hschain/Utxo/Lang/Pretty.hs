@@ -26,7 +26,7 @@ import qualified Data.Vector as V
 import HSChain.Crypto.Classes (encodeBase58)
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg)
+-- import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg)
 
 import qualified Language.HM as H
 import qualified Language.HM.Pretty as H
@@ -52,9 +52,9 @@ instance Pretty BoxId where
   pretty (BoxId txt) = pretty $ encodeBase58 txt
 
 instance Pretty Script where
-  pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
-    Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    Right e -> fromString $ show (e :: CoreProg)
+  -- pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
+  --   Left  _ -> "Left: " <> pretty (encodeBase58 bs)
+  --   Right e -> fromString $ show (e :: CoreProg)
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
@@ -243,7 +243,6 @@ instance Pretty TypeError where
 
 instance Pretty CoreScriptError where
   pretty = \case
-    NoMainFunction                 -> "Error: No main function is defined"
     ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
     TypeCoreError err              -> pretty err
     NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
@@ -251,7 +250,7 @@ instance Pretty CoreScriptError where
 
 instance Pretty TypeCoreError where
   pretty = \case
-    NotMonomorphicType v t   -> hsep ["Error: variable", pretty v, "is not monomorphic. Got type", pretty t]
+    NotMonomorphicType v     -> hsep ["Error: variable", pretty v, "is not monomorphic" ]
     VarIsNotDefined v        -> hsep ["Error: variable", pretty v, "is not defined"]
     ArrowTypeExpected t      -> hsep ["Error: arrow type expected, but got", pretty t]
     TypeCoreMismatch ta tb   -> hsep ["Error: type mismatch. Got", pretty ta, "expected", pretty tb]

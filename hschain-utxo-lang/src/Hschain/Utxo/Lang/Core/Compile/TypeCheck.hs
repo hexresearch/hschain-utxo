@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- | Type checker for core language.
 --
 -- Now it works only for monomorphic types.
@@ -40,10 +41,13 @@ unifyMonoType a b = case (a, b) of
   (AnyType, tb) -> return tb
   (ta, AnyType) -> return ta
 
--- | Check the types for core programm.
-typeCheck :: CoreProg -> Maybe TypeCoreError
-typeCheck prog = either Just (const Nothing) $
-  runCheck (loadContext prog) (typeCheckM prog)
+-- | Check the types for core program.
+typeCheck :: ExprCore -> Either TypeCoreError TypeCore
+typeCheck prog
+  = runCheck mempty
+  $ inferExpr prog >>= \case
+      AnyType    -> throwError $ NotMonomorphicType "Top level is bottom"
+      MonoType t -> return t
 
 
 -- | Monad for the type inference.
@@ -53,30 +57,10 @@ newtype Check a = Check (ReaderT TypeContext (Either TypeCoreError) a)
 runCheck :: TypeContext -> Check a -> Either TypeCoreError a
 runCheck ctx (Check m) = runReaderT m ctx
 
-typeCheckM :: CoreProg -> Check ()
-typeCheckM (CoreProg prog) = mapM_ typeCheckScomb  prog
-
 getSignature :: Name -> Check TypeCore
 getSignature name = maybe err pure =<< asks (lookupSignature name)
   where
     err = throwError $ VarIsNotDefined name
-
--- | Reads  type signature of supercombinator
-getScombType :: Scomb -> TypeCore
-getScombType Scomb{..} = foldr (:->) res args
-  where
-    args = fmap typed'type $ V.toList scomb'args
-    res  = typed'type scomb'body
-
--- | Check types for a supercombinator
-typeCheckScomb :: Scomb -> Check ()
-typeCheckScomb Scomb{scomb'body = Typed{..}, ..}
-  = local (loadArgs (V.toList scomb'args))
-  $ inferExpr typed'value >>= \case
-      AnyType             -> pure ()
-      MonoType t
-        | t == typed'type -> pure ()
-        | otherwise       -> typeCoreMismatch t typed'type
 
 inferExpr :: ExprCore -> Check MonoType
 inferExpr = \case
@@ -170,11 +154,6 @@ inferIf c t e = do
 -- | Type context of the known signatures
 newtype TypeContext = TypeContext (Map Name TypeCore)
   deriving newtype (Semigroup, Monoid)
-
--- | Loads all user defined signatures to context
-loadContext :: CoreProg -> TypeContext
-loadContext (CoreProg defs) =
-  foldl' (\res sc -> insertSignature (scomb'name sc) (getScombType sc) res) mempty defs
 
 insertSignature :: Name -> TypeCore -> TypeContext -> TypeContext
 insertSignature name sig (TypeContext m) =

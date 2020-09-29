@@ -67,47 +67,29 @@ data EvalErr
   | EvalErr String  -- ^ Some other error
   deriving (Show, Eq)
 
--- | Global environment. Values for globally defined function.
-type GEnv = Map.Map Name Val
-
--- | Local evaluation environment. Map from supercombinator names to
---   their evaluation.
+-- | Local evaluation environment. Map from variable bindings to values
 type LEnv = Map.Map Name Val
 
-
 -- | Evaluate program
-evalProg :: InputEnv -> CoreProg -> EvalResult
-evalProg env (CoreProg prog) =
-  case "main" `Map.lookup` genv of
-    Nothing -> EvalFail $ EvalErr "No main function"
-    Just v  -> case v of
-      ValP p      -> EvalPrim p
-      ValBottom e -> EvalFail e
-      ValF{}      -> EvalFail $ EvalErr "Returning function"
-      Val2F{}     -> EvalFail $ EvalErr "Returning function"
-      ValCon i xs -> maybe (EvalFail $ EvalErr "Not a list") EvalList
-                   $ con2list i xs
+evalProg :: InputEnv -> ExprCore -> EvalResult
+evalProg env prog =
+  case evalExpr env mempty prog of
+    ValP p      -> EvalPrim p
+    ValBottom e -> EvalFail e
+    ValF{}      -> EvalFail $ EvalErr "Returning function"
+    Val2F{}     -> EvalFail $ EvalErr "Returning function"
+    ValCon i xs -> maybe (EvalFail $ EvalErr "Not a list") EvalList
+                 $ con2list i xs
   where
-    genv = MapL.fromList [ (scomb'name s, evalScomb env genv s)
-                         | s <- prog
-                         ]
-    --
     con2list 0 []                   = Just []
     con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
     con2list _ _                    = Nothing
 
-evalScomb :: InputEnv -> GEnv -> Scomb -> Val
-evalScomb inpEnv genv Scomb{..} = buildArg Map.empty (V.toList scomb'args)
-  where
-    buildArg e (x:xs) = ValF $ \a -> buildArg (Map.insert (typed'value x) a e) xs
-    buildArg e []     = evalExpr inpEnv genv e $ typed'value scomb'body
-
-evalExpr :: InputEnv -> GEnv -> LEnv -> ExprCore -> Val
-evalExpr inpEnv genv = recur
+evalExpr :: InputEnv -> LEnv -> ExprCore -> Val
+evalExpr inpEnv = recur
   where
     evalVar lenv x
       | Just v <- x `Map.lookup` lenv = v
-      | Just v <- x `Map.lookup` genv = v
       | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
     recur lenv = \case
       EVar     x   -> evalVar lenv x
@@ -121,8 +103,6 @@ evalExpr inpEnv genv = recur
         ValP (PrimBool f) -> recur lenv $ if f then a else b
         ValBottom err     -> ValBottom err
         _                 -> ValBottom TypeMismatch
-      -- FIXME: Here we assume that let is completely nonrecursive
-      --        (For simplicity)
       ELet nm bind body ->
         let lenv' = MapL.insert nm (recur lenv bind) lenv
         in recur lenv' body

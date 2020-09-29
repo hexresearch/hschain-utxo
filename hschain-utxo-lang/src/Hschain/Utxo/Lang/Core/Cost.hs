@@ -13,7 +13,6 @@ import Data.Map.Strict (Map)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.RecursionCheck (progDependencySort)
 
 import qualified Data.ByteString as BS
 import qualified Data.List as L
@@ -36,10 +35,6 @@ fromMonoCost :: CostVar -> Cost
 fromMonoCost = \case
   MonoCost c -> c
 
-
--- | Programm definitions as map
-type ProgMap = Map Name Scomb
-
 -- | Costs for free variables
 type CostMap = Map Name CostVar
 
@@ -47,37 +42,20 @@ type CostMap = Map Name CostVar
 type TypeCostMap = Map Name Cost
 
 data St = St
-  { st'prog :: ProgMap
-  , st'cost :: CostMap
+  { st'cost :: CostMap
   }
 
 type CostM a = State St a
 
-runCostM :: CostM a -> ProgMap -> a
-runCostM act prog = evalState act st
+runCostM :: CostM a -> a
+runCostM act = evalState act st
   where
-    st = St
-      { st'prog = prog
-      , st'cost = emptyCostMap
-      }
+    st = St { st'cost = emptyCostMap
+            }
 
 -- | Evaluates the execution of "main" expression
-getProgCost :: CoreProg -> Maybe Cost
-getProgCost prog =
-  (\sortedNames -> runCostM (findMainCost sortedNames) (toProgMap prog) ) =<< progDependencySort prog
-
-findMainCost :: [Name] -> CostM (Maybe Cost)
-findMainCost xs = do
-  mapM_ putScombCost xs
-  fmap (fmap fromMonoCost . lookupCost Const.main . st'cost) $ get
-
-putScombCost :: Name -> CostM ()
-putScombCost name = do
-  mCost <- getScombCost name
-  modify' $ \st -> maybe st (\cost -> st { st'cost = insertCost name cost $ st'cost st }) mCost
-
-toProgMap :: CoreProg -> ProgMap
-toProgMap (CoreProg prog) = M.fromList $ fmap (\sc -> (scomb'name sc, sc)) prog
+getProgCost :: ExprCore -> Maybe Cost
+getProgCost = exprCost mempty mempty
 
 emptyCostMap :: CostMap
 emptyCostMap = M.empty
@@ -87,19 +65,6 @@ lookupCost = M.lookup
 
 insertCost :: Name -> CostVar -> CostMap -> CostMap
 insertCost = M.insert
-
-getScombCost :: Name -> CostM (Maybe CostVar)
-getScombCost name = do
-  st <- get
-  return $ do
-    comb <- M.lookup name $ st'prog st
-    scombCost (st'cost st) comb
-
-scombCost :: CostMap -> Scomb -> Maybe CostVar
-scombCost costMap Scomb{..}
-  = fmap MonoCost bodyCost
-  where
-    bodyCost = exprCost M.empty (appendArgs M.empty (V.toList scomb'args) costMap) $ typed'value scomb'body
 
 appendArgs :: TypeCostMap -> [Typed TypeCore Name] -> CostMap -> CostMap
 appendArgs tcm args mp = L.foldl' (\m arg -> maybe m (\c -> insertCost (typed'value arg) (MonoCost c) m) (typeCoreToCost tcm $ typed'type arg)) mp args

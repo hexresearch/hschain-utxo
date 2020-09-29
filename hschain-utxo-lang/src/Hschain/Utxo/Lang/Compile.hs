@@ -19,7 +19,7 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name, typed'valueL)
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, scomb'bodyL, coreProgToScript)
+import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
@@ -35,7 +35,7 @@ toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
 -- | Compilation to Core-lang program from the script-language.
-compile :: MonadLang m => Module -> m CoreProg
+compile :: MonadLang m => Module -> m ExprCore
 compile
   =  return . substPrimOp
  <=< toCoreProg
@@ -46,9 +46,9 @@ compile
  <=< toExtendedLC
 
 -- | Perform sunbstiturion of primops
-substPrimOp :: CoreProg -> CoreProg
+substPrimOp :: ExprCore -> ExprCore
 substPrimOp
-  = _Wrapped' . each . scomb'bodyL . typed'valueL %~ go
+  = go
   where
     go = RS.cata $ \case
       Core.EVarF v
@@ -58,25 +58,22 @@ substPrimOp
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
-toCoreProg :: MonadLang m => TypedLamProg -> m CoreProg
-toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
+toCoreProg :: MonadLang m => TypedLamProg -> m ExprCore
+toCoreProg = undefined -- fmap CoreProg . mapM toScomb . unAnnLamProg
 
-toScomb :: MonadLang m => TypedDef -> m Core.Scomb
-toScomb Def{..} = do
-  args <- traverse convertTyped def'args
-  expr <- toCoreExpr def'body
-  return $ Core.Scomb
-      { Core.scomb'name   = varName'name def'name
-      , Core.scomb'args   = V.fromList args
-      , Core.scomb'body   = expr
-      }
+-- toScomb :: MonadLang m => TypedDef -> m Core.Scomb
+-- toScomb Def{..} = do
+--   args <- traverse convertTyped def'args
+--   expr <- toCoreExpr def'body
+--   return $ Core.Scomb
+--       { Core.scomb'name   = varName'name def'name
+--       , Core.scomb'args   = V.fromList args
+--       , Core.scomb'body   = expr
+--       }
 
 
-toCoreExpr :: MonadLang m => TypedExprLam -> m (Typed TypeCore ExprCore)
-toCoreExpr expr@(Fix (Ann expressionTy _)) = do
-  e  <- cataM convert expr
-  ty <- toCoreType expressionTy
-  return $ Typed e ty
+toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
+toCoreExpr expr@(Fix (Ann expressionTy _)) = cataM convert expr
   where
     convert (Ann exprTy val) = case val of
       EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
