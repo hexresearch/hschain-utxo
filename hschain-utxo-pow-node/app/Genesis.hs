@@ -29,7 +29,7 @@ singleOwnerGenesis = withSecret =<< newSecret
       time <- POWTypes.getCurrentTime
       let blk = POWTypes.GBlock
                                   { POWTypes.blockHeight = POWTypes.Height 0
-                                  , POWTypes.blockTime   = POWTypes.Time 0
+                                  , POWTypes.blockTime   = time
                                   , POWTypes.prevBlock   = Nothing
                                   , POWTypes.blockData   = UTXOBlock
                                       { ubNonce = ""

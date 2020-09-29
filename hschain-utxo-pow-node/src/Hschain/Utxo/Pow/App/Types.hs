@@ -115,8 +115,9 @@ import qualified Crypto.ECC.Edwards25519  as Ed
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 
-
 import Hschain.Utxo.API.Rest
+
+import qualified Debug.Trace as Debug
 
 -------------------------------------------------------------------------------
 -- Instances.
@@ -132,8 +133,6 @@ instance Crypto.CryptoHashable Ed.Scalar where
 
 instance Crypto.CryptoHashable Pico where
   hashStep = hashStep . serialise
-
-deriving newtype instance ByteRepr BoxId
 
 instance SQL.ToRow BoxId where
   toRow b = [SQL.toField $ ByteRepred b]
@@ -229,7 +228,6 @@ instance Serialise (UTXOBlock Proxy)
 instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
   hashStep = Crypto.genericHashStep "block proper"
 
-
 instance POW.BlockData UTXOBlock where
 
   newtype BlockID UTXOBlock = UB'BID { fromUBBID :: Crypto.Hash SHA256 }
@@ -248,6 +246,9 @@ instance POW.BlockData UTXOBlock where
                                   WrongAnswer
                                 | WrongTarget
                                 | AheadOfTime
+                                | BadCoinbase String
+                                | BadTx String
+                                | EmptyBlock
                                 | InternalErr String
     deriving stock    (Show,Generic)
     deriving anyclass (Exception,JSON.ToJSON)
@@ -259,7 +260,7 @@ instance POW.BlockData UTXOBlock where
   validateHeader bh (POW.Time now) header
     | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
     | otherwise = do
-      answerIsGood <- error "no puzzle check right now"
+      answerIsGood <- Debug.trace "no puzzle check right now" $ return True
       return $ if
          | not answerIsGood -> Left WrongAnswer
          | ubpTarget (ubProper $ POW.blockData header) /= POW.retarget bh
@@ -285,6 +286,10 @@ instance POW.BlockData UTXOBlock where
 instance MerkleMap UTXOBlock where
   merkleMap f ub = ub
                  { ubProper = (ubProper ub) { ubpData = mapMerkleNode f $ ubpData $ ubProper ub } }
+
+-- |The Reward.
+miningRewardAmount :: Money
+miningRewardAmount = 100
 
 instance POW.Mineable UTXOBlock where
   adjustPuzzle b0@POW.GBlock{..} = do
@@ -430,11 +435,9 @@ makeStateView bIdx0 overlay = sview where
               bhState (overlayBase overlay)
           -- Now we can just validate every TX and update overlay
           let activeOverlay = addOverlayLayer overlay
-          case txList of
-            []            -> return activeOverlay
-            coinbase:rest -> do
-              o' <- processCoinbaseTX (POW.bhBID bh0) activeOverlay coinbase
-              foldM (processTX pathInDB) o' rest
+          when (null txList) $ throwError EmptyBlock
+          checkBlockTransactions (POW.bhBID bh0) POW.NoChange activeOverlay txList
+          foldM (\o tx -> snd <$> processTX pathInDB o tx) activeOverlay txList
         return
           $ makeStateView bIdx
           $ fromMaybe (error "UTXO: invalid BH in apply block")
@@ -456,29 +459,43 @@ makeStateView bIdx0 overlay = sview where
         return $ makeStateView bIdx0 (emptyOverlay bh0)
       -- FIXME: not implemented
     , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
-        inputs <- forM tx'inputs $ \BoxInputRef{..} -> do
-          u <- getDatabaseBox POW.NoChange boxInputRef'id
+        inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
+          u <- getDatabaseBox POW.NoChange bir
           return (boxInputRef'id, u)
         checkSpendability inputs tx
       --
     , createCandidateBlockData = \bh time txlist -> queryRO $ do
-        -- Create and process coinbase transaction
-        let coinbase = error "coinbase"
-            activeOverlay = addOverlayLayer overlay
-        aOverlay <- runExceptT (processCoinbaseTX (POW.bhBID bh0) activeOverlay coinbase) >>= \case
-          Left  e -> error $ "Invalid coinbase: " ++ show e
-          Right o -> return o
         -- Select transactions
         let selectTX []     _ = return []
             selectTX (t:ts) o = runExceptT (processTX POW.NoChange o t) >>= \case
               Left  _  -> selectTX ts o
-              Right o' -> (t:) <$> selectTX ts o'
-        txs <- selectTX txlist aOverlay
+              Right (comission, o') -> ((comission, t):) <$> selectTX ts o'
+
+            activeOverlay = addOverlayLayer overlay
+
+        commissionsTxs <- Debug.trace "selecting transactions" $ selectTX txlist activeOverlay
+        -- Create and process coinbase transaction
+        let (commissions, txs) = unzip commissionsTxs
+            commission = sum commissions
+            coinbaseBox = Box
+                          { box'id     = BoxId $ hash $ BS.pack $ map (fromIntegral . fromEnum) $ "reward:height:"++show (POW.bhHeight bh)
+                          , box'value  = miningRewardAmount + commission
+                          , box'script = mainScriptUnsafe true
+                          , box'args   = mempty
+                          }
+            coinbase = Tx
+                       { tx'inputs = V.empty
+                       , tx'outputs = V.fromList [coinbaseBox]
+                       }
+            blockTxs = coinbase : txs
+        Debug.trace ("block transactions: "++show blockTxs) $ runExceptT (checkBlockTransactions (POW.bhBID bh0) POW.NoChange activeOverlay blockTxs) >>= \case
+          Left  e -> Debug.trace ("checking transactions error: "++show e) $ error $ "Invalid block: " ++ show e
+          Right () -> return ()
         -- Create block!
         return UTXOBlock
           { ubNonce    = ""
           , ubProper   = UTXOBlockProper
-                           { ubpData     = merkled $ coinbase : txs
+                           { ubpData     = merkled blockTxs
                            , ubpPrevious = Just $ POW.bhBID bh
                            , ubpTarget   = POW.retarget bh
                            , ubpTime     = time
@@ -510,7 +527,7 @@ initializeStateView
   -> q (POW.StateView m UTXOBlock)
 initializeStateView genesis bIdx = do
   retrieveCurrentStateBlock >>= \case
-    Just bid -> do let Just bh = POW.lookupIdx bid bIdx
+    Just bid -> do let Just bh = Debug.trace ("looking up bid "++show bid) $ POW.lookupIdx bid bIdx
                    return $ makeStateView bIdx (emptyOverlay bh)
     -- We need to initialize state table
     Nothing  -> do
@@ -548,32 +565,48 @@ processTX
   :: POW.BlockIndexPath (ID (POW.Block UTXOBlock))
   -> ActiveOverlay
   -> Tx
-  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ActiveOverlay
+  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) (Money, ActiveOverlay)
 processTX pathInDB overlay tx@Tx{..} = do
   -- Fetch all inputs & check that we can spend them
-  inputs <- forM tx'inputs $ \box@BoxInputRef{..} -> do
+  inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
     let boxid = boxInputRef'id
     case getOverlayBoxId overlay boxid of
       Just (Spent _) -> throwError $ InternalErr "Input already spent"
       Just (Added u) -> return (boxid,u)
-      Nothing        -> (,) boxid <$> getDatabaseBox pathInDB boxid
+      Nothing        -> (,) boxid <$> getDatabaseBox pathInDB bir
   checkSpendability inputs tx
+  let inputsSum = sum $ fmap (box'value . snd) inputs
+      outputsSum = sum $ fmap box'value tx'outputs
   -- Update overlay
   let overlay1 = foldl' (\o (boxid,u) -> spendBox boxid u o) overlay inputs
       overlay2 = foldl' (\o (boxid,u) -> createUnspentBox boxid u o) overlay1 $
                         V.map (\b -> (box'id b, b)) tx'outputs
-  return overlay2
+  return (outputsSum - inputsSum, overlay2)
 
--- | Rules for the coinbase transactions are special. It should
---   contain only one mock input which refers to hash of previous block
---   and single output with 100 coins.
-processCoinbaseTX
+-- | We check transactions in block as a whole.
+--
+checkBlockTransactions
   :: POW.BlockID UTXOBlock
+  -> POW.BlockIndexPath (ID (POW.Block UTXOBlock))
   -> ActiveOverlay
-  -> Tx
-  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ActiveOverlay
-processCoinbaseTX prevBID overlay tx@Tx{..} = do
-  error "process coinbase"
+  -> [Tx]
+  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ()
+checkBlockTransactions prevBID pathInDB overlay txs = do
+  moneyCreated <- fmap sum $ forM (zip txs $ True : repeat False) $ \(tx@Tx{..}, canCreateMoney) -> do
+    inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
+      let boxid = boxInputRef'id
+      case getOverlayBoxId overlay boxid of
+        Just (Spent _) -> throwError $ InternalErr "Input already spent"
+        Just (Added u) -> return (boxid,u)
+        Nothing        -> (,) boxid <$> getDatabaseBox pathInDB bir
+    checkSpendability inputs tx
+    let inputsSum = sum $ fmap (box'value . snd) inputs
+        outputsSum = sum $ fmap box'value tx'outputs
+    when (inputsSum < outputsSum && not canCreateMoney) $ throwError $ BadTx "money creation not in coinbase"
+    return $ outputsSum - inputsSum
+  when (moneyCreated /= miningRewardAmount) $ throwError $
+                                                BadCoinbase $ "block reward is "++show moneyCreated++" instead of "++show miningRewardAmount
+  return ()
 {-
   -- Check inputs
   case ins of
@@ -617,26 +650,29 @@ getOverlayBoxId (ActiveOverlay l0 o0) boxid
 getDatabaseBox
   :: ()
   => POW.BlockIndexPath (ID (POW.Block UTXOBlock))
-  -> BoxId
+  -> BoxInputRef
   -> ExceptT (POW.BlockException UTXOBlock) (Query rw) Unspent
 -- Check whether output was created in the block
-getDatabaseBox (POW.ApplyBlock i path) boxid = do
+getDatabaseBox (POW.ApplyBlock i path) boxInputRef@BoxInputRef{..} = do
+  let boxid = boxInputRef'id
   isSpentAtBlock i boxid >>= \case
     Just _  -> throwError $ InternalErr "Output is already spent"
     Nothing -> return ()
   isCreatedAtBlock i boxid >>= \case
     Just u  -> return u
-    Nothing -> getDatabaseBox path boxid
+    Nothing -> getDatabaseBox path boxInputRef
 -- Perform check in block being reverted. If UTXO was create in that
 -- block it didn't exist before and we should abort.
-getDatabaseBox (POW.RevertBlock i path) boxid = do
+getDatabaseBox (POW.RevertBlock i path) boxInputRef@BoxInputRef{..} = do
+  let boxid = boxInputRef'id
   isCreatedAtBlock i boxid >>= \case
     Just _  -> throwError $ InternalErr "Output does not exists"
     Nothing -> return ()
   isSpentAtBlock i boxid >>= \case
     Just u  -> return u
-    Nothing -> getDatabaseBox path boxid
-getDatabaseBox POW.NoChange boxid = do
+    Nothing -> getDatabaseBox path boxInputRef
+getDatabaseBox POW.NoChange boxInputRef@BoxInputRef{..} = do
+  let boxid = boxInputRef'id
   r <- basicQuery1
     "SELECT pk_dest, n_coins \
     \  FROM utxo_set \
@@ -759,7 +795,7 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
 dumpOverlay OverlayBase{} = return ()
 
 retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header UTXOBlock]
-retrieveAllUTXOHeaders = queryRO $ basicQueryWith_
+retrieveAllUTXOHeaders = fmap (\x -> Debug.trace ("retrieved headers: "++show (map (\x -> (POW.blockID x, x)) x)) $ x) $ queryRO $ basicQueryWith_
   utxoBlockHeaderDecoder
   "SELECT height, time, prev, dataHash, target, nonce FROM utxo_blocks ORDER BY height"
 
@@ -770,16 +806,17 @@ retrieveUTXOHeader bid = queryRO $ basicQueryWith1
   (Only bid)
 
 retrieveUTXOBlock :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Block UTXOBlock))
-retrieveUTXOBlock bid = queryRO $ basicQueryWith1
+retrieveUTXOBlock bid = Debug.trace ("retrieve block by "++show bid) $ queryRO $ basicQueryWith1
   utxoBlockDecoder
   "SELECT height, time, prev, blockData, target, nonce FROM utxo_blocks WHERE bid = ?"
   (Only bid)
 
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
 storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
-  basicExecute
+  let bid = POW.blockID b
+  Debug.trace ("storing block: "++ show b++" at "++show bid) $ basicExecute
     "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ( POW.blockID b
+    ( bid
     , blockHeight
     , blockTime
     , prevBlock

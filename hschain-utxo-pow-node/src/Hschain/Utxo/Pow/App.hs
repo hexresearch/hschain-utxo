@@ -69,6 +69,7 @@ import Servant.API
 import Servant.Server
 
 import qualified System.Environment as SE
+import System.IO
 
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
@@ -188,6 +189,8 @@ runNode (Options cfgConfigPath pathToGenesis mbNodeSecret dbPath) = do
 
 runApp :: IO ()
 runApp = do
+  hSetBuffering stderr NoBuffering
+  hSetBuffering stdout NoBuffering
   -- Parse configuration
   command <- readCommandOptions
   case command of

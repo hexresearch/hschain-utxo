@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-trap 'echo TRAP; pkill -P $$' SIGINT SIGTERM
+#trap 'echo TRAP; pkill -P $$' SIGINT SIGTERM
 
 cabal new-build hschain-utxo-pow-node --enable-profiling --enable-library-profiling
 echo ====
