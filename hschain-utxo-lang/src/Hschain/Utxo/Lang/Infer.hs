@@ -23,6 +23,7 @@ import Language.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)
 
 import Hschain.Utxo.Lang.Desugar hiding (app1, app2, app3)
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Types  (ArgType(..), argTypes)
 import Hschain.Utxo.Lang.Monad
 
 import qualified Data.Map as M

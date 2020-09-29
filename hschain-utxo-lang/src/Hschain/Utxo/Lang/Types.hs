@@ -8,7 +8,18 @@ module Hschain.Utxo.Lang.Types
   , BoxInputRef(..)
   , ExpectedBox(..)
   , Env(..)
+  , Money
   , InputEnv(..)
+  , TxId(..)
+  , Script(..)
+  , Args(..)
+  , ArgType(..)
+  , Box(..)
+  , BoxId(..)
+  , PreBox(..)
+  , BoxOrigin(..)
+  , computeBoxId
+  , argTypes
     -- * Functions
   , newTx
   , newProofTx
@@ -23,30 +34,122 @@ module Hschain.Utxo.Lang.Types
   ) where
 
 import Hex.Common.Aeson
+import Hex.Common.Text
 import Control.DeepSeq (NFData)
 import Control.Monad.Except
 
 import Codec.Serialise
+import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
+import Data.Coerce
 import Data.Fix
 import Data.Int
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
-
+import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import GHC.Generics
 
-import HSChain.Crypto.Classes (ViaBase58(..), ByteRepr)
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), hashLazyBlob, genericHashStep)
-import Hschain.Utxo.Lang.Expr ( TxId(..), Script(..), Args(..)
-                              , Box(..), BoxId(..), PreBox(..), BoxOrigin(..)
-                              , computeBoxId
-                              )
+import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr, decodeBase58, encodeBase58)
+import HSChain.Crypto.Classes.Hash (Hash(..),CryptoHashable(..),hashLazyBlob,genericHashStep)
+import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Data.Vector as V
+
+-- | Type synonym for money values
+type Money = Int64
+
+-- | Argument for script in the transaction
+--
+-- It's Key-Value map from argument-names to primitive constant values.
+data Args = Args
+  { args'ints  :: Vector Int64
+  , args'bools :: Vector Bool
+  , args'texts :: Vector Text
+  , args'bytes :: Vector ByteString
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (NFData, Serialise)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
+
+-- | Types that we can store as arguments in transactions.
+-- We store lists of them.
+data ArgType = IntArg | TextArg | BoolArg | BytesArg
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (NFData, Serialise)
+
+argTypes :: [ArgType]
+argTypes = [IntArg, TextArg, BoolArg, BytesArg]
+
+
+-- | Identifier of TX. We can derive it from the PreTx.
+--  It equals to hash of serialised PreTx
+newtype TxId = TxId { unTxId :: Hash SHA256 }
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
+
+-- | Identifier of the box. Box holds value protected by the script.
+-- It equals to the hash of Box-content.
+newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
+
+instance ToText BoxId where
+  toText (BoxId bs) = encodeBase58 bs
+
+instance FromText BoxId where
+  fromText txt = fmap BoxId $ decodeBase58 txt
+
+-- | Type for script that goes over the wire.
+newtype Script = Script { unScript :: ByteString }
+  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
+
+-- | Box holds the value protected by the script.
+-- We use boxes as inputs for transaction and create new output boxes
+-- when script is correct.
+data Box = Box
+  { box'id     :: !BoxId    -- ^ box identifier
+  , box'value  :: !Money    -- ^ Value of the box
+  , box'script :: !Script   -- ^ Protecting script
+  , box'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+
+
+-- | PreBox holds all meaningfull data of the Box.
+-- we use it to get Hashes for transaction and Box itself.
+-- Comparing to Box it omits identifier that is generated from PreBox
+-- and origin that can be derived from TX identifier (hash of @getTxBytes tx@).
+data PreBox = PreBox
+  { preBox'value  :: !Money    -- ^ Value of the box
+  , preBox'script :: !Script   -- ^ Protecting script
+  , preBox'args   :: !Args     -- ^ arguments for the script
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+computeBoxId :: BoxOrigin -> PreBox -> BoxId
+computeBoxId origin box
+  = BoxId . hashLazyBlob . serialise
+  $ ( origin , box )
+
+-- | Data encodes the source of the Box when it was produced.
+data BoxOrigin = BoxOrigin
+  { boxOrigin'txId        :: !TxId   -- ^ identifier of TX that produced the Box
+  , boxOrigin'outputIndex :: !Int64  -- ^ index in the vector of outputs for the box
+  }
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
 
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
@@ -308,6 +411,7 @@ $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
 $(deriveJSON dropPrefixOptions ''BoxInput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
+$(deriveJSON dropPrefixOptions ''Box)
 
 instance CryptoHashable Tx where
   hashStep = genericHashStep hashDomain
@@ -317,3 +421,32 @@ instance CryptoHashable BoxInput where
 
 instance CryptoHashable BoxInputRef where
   hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Script where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxId where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Box where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable Args where
+  hashStep = genericHashStep hashDomain
+
+instance FromJSON Args where
+  parseJSON = withObject "Args" $ \o -> do
+    args'ints  <- o .: "ints"
+    args'bools <- o .: "bools"
+    args'texts <- o .: "texts"
+    bytes      <- o .: "bytes"
+    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
+               , ..
+               }
+instance ToJSON Args where
+  toJSON Args{..} = object
+    [ "ints"  .= args'ints
+    , "bools" .= args'bools
+    , "texts" .= args'texts
+    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
+    ]

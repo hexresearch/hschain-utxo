@@ -16,6 +16,7 @@ import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
 import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
+import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name, typed'valueL)
@@ -52,7 +53,7 @@ substPrimOp
   where
     go = RS.cata $ \case
       Core.EVarF v
-        | Just op <- Map.lookup v Core.monoPrimopNameMap
+        | Just op <- Map.lookup v monoPrimopNameMap
           -> Core.EPrimOp op
       e -> RS.embed e
 

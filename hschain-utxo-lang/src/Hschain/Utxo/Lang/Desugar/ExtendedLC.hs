@@ -16,6 +16,7 @@ import Data.Text (Text)
 
 import HSChain.Crypto (Hash(..))
 import Hschain.Utxo.Lang.Expr hiding (Expr)
+import Hschain.Utxo.Lang.Types (Box(..),Script(..),BoxId(..))
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build

@@ -15,6 +15,7 @@ import Hschain.Utxo.Lang.Sigma
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import Hschain.Utxo.Lang.Types
 import HSChain.Crypto.Classes (encodeBase58)
 import qualified Language.Haskell.Exts.Syntax as H
 

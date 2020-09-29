@@ -16,6 +16,7 @@ import Data.Text (Text)
 import Data.Fix hiding ((~>))
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Types (ArgType(..),argTypes)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 
