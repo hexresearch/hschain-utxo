@@ -45,57 +45,40 @@ tests = testGroup "core"
     ]
   ]
 
-shouldFail :: String -> CoreProg -> TestTree
+shouldFail :: String -> ExprCore -> TestTree
 shouldFail nm prog = testCase nm $ case typeCheck prog of
-  Nothing -> assertFailure "Type checking should fail"
-  Just _  -> return ()
+  Right _ -> assertFailure "Type checking should fail"
+  Left  _ -> return ()
 
 
-testProgram :: String -> CoreProg -> Prim -> TestTree
+testProgram :: String -> ExprCore -> Prim -> TestTree
 testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ Nothing       @=? typeCheck prog
+  [ testCase "typecheck" $ case typeCheck prog of
+      Left  e -> assertFailure $ show e
+      Right _ -> pure ()
   , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
   ]
 
 
 -- Trivial
-progLiteral :: Prim -> CoreProg
-progLiteral p = CoreProg
-  [ mkMain $ Typed
-    { typed'value = EPrim p
-    , typed'type  = primToType p
-    }
-  ]
+progLiteral :: Prim -> ExprCore
+progLiteral = EPrim
 
-progHeight :: CoreProg
-progHeight = CoreProg
-  [ mkMain $ Typed
-    { typed'value = EPrimOp OpEnvGetHeight
-    , typed'type  = IntT
-    }
-  ]
+progHeight :: ExprCore
+progHeight = EPrimOp OpEnvGetHeight
 
-progEquality :: Prim -> CoreProg
-progEquality p = CoreProg
-  [ mkMain $ Typed
-    { typed'value = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
-    , typed'type  = BoolT
-    }
-  ]
+progEquality :: Prim -> ExprCore
+progEquality p
+  = EPrimOp (OpEQ ty) `EAp` EPrim p `EAp` EPrim p
   where
     ty = primToType p
 
 
-progListCase :: CoreProg
-progListCase = CoreProg
-  [ mkMain $ Typed
-    { typed'value =
-        EPrimOp OpAdd
-          `EAp` safeHead nil
-          `EAp` safeHead (cons `EAp` EPrim (PrimInt 123) `EAp` nil)
-    , typed'type  = IntT
-    }
-  ]
+progListCase :: ExprCore
+progListCase
+  =     EPrimOp OpAdd
+  `EAp` safeHead nil
+  `EAp` safeHead (cons `EAp` EPrim (PrimInt 123) `EAp` nil)
   where
     cons = EConstr (ListT IntT) 1
     nil  = EConstr (ListT IntT) 0
@@ -104,18 +87,13 @@ progListCase = CoreProg
       , CaseAlt 1 ["x", "xs"] (EVar "x")
       ]
 
-badListCase :: CoreProg
-badListCase = CoreProg
-  [ mkMain $ Typed
-    { typed'value = ECase nil
-        [ CaseAlt 0 ["x"]       zero
-        , CaseAlt 1 ["x", "xs"] zero
-        ]
-    , typed'type  = IntT
-    }
+badListCase :: ExprCore
+badListCase = ECase nil
+  [ CaseAlt 0 ["x"]       zero
+  , CaseAlt 1 ["x", "xs"] zero
   ]
   where
-    zero = EPrim (PrimInt 0)
+    zero = EPrim   (PrimInt 0)
     nil  = EConstr (ListT IntT) 0
 
 

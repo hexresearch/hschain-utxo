@@ -15,16 +15,12 @@ import Examples.SKI
 
 tests :: TestTree
 tests = testGroup "test-cost"
-  [ testCase "Cost works" $ (isJust $ getProgCost $ progEquality $ PrimInt 0) @=? True ]
-
-
-progEquality :: Prim -> CoreProg
-progEquality p = CoreProg
-  [ mkMain $ Typed
-    { typed'value = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
-    , typed'type  = BoolT
-    }
+  [ testCase "Cost works" $ (isJust $ getProgCost $ progEquality $ PrimInt 0) @=? True
   ]
+
+
+progEquality :: Prim -> ExprCore
+progEquality p = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
   where
     ty = primToType p
 
