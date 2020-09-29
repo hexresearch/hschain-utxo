@@ -58,54 +58,55 @@ substPrimOp
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
-toCoreProg :: forall m . MonadLang m => TypedLamProg -> m CoreProg
+toCoreProg :: MonadLang m => TypedLamProg -> m CoreProg
 toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
+
+toScomb :: MonadLang m => TypedDef -> m Core.Scomb
+toScomb Def{..} = do
+  args <- traverse convertTyped def'args
+  expr <- toCoreExpr def'body
+  return $ Core.Scomb
+      { Core.scomb'name   = varName'name def'name
+      , Core.scomb'args   = V.fromList args
+      , Core.scomb'body   = expr
+      }
+
+
+toCoreExpr :: MonadLang m => TypedExprLam -> m (Typed TypeCore ExprCore)
+toCoreExpr expr@(Fix (Ann expressionTy _)) = do
+  e  <- cataM convert expr
+  ty <- toCoreType expressionTy
+  return $ Typed e ty
   where
-    toScomb :: TypedDef -> m Core.Scomb
-    toScomb Def{..} = do
-      args <- traverse convertTyped def'args
-      expr <- toCoreExpr def'body
-      return $ Core.Scomb
-          { Core.scomb'name   = varName'name def'name
-          , Core.scomb'args   = V.fromList args
-          , Core.scomb'body   = expr
-          }
+    convert (Ann exprTy val) = case val of
+      EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
+      EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
+      EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
+      EAp _  f a           -> pure $ Core.EAp f a
+      -- FIXME: We don't take recurion between let bindings into account
+      ELet _ binds body    -> pure $
+        let addLet (nm, e) = Core.ELet (typed'value nm) e
+        in foldr addLet body binds
+      ELam _ _ _           ->
+        failedToEliminate "Lambda-expressions for core language. Do lambda-lifting to eliminate."
+      EIf _ c t e          -> pure $ Core.EIf c t e
+      ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
+      EConstr _ consTy m _ -> do ty <- toCoreType consTy
+                                 pure $ Core.EConstr (resultType ty) m
+      EAssertType _ e _    -> pure e
+      EBottom _            -> pure $ Core.EBottom
+    
+    convertAlt CaseAlt{..} = return Core.CaseAlt
+      { caseAlt'args = typed'value <$> caseAlt'args
+      , ..
+      }
 
-    convertTyped (Typed a ty) = do
-      ty' <- toCoreType ty
-      return $ Typed a ty'
+    typeCtx = mempty
 
-    toCoreExpr :: TypedExprLam -> m (Typed TypeCore ExprCore)
-    toCoreExpr expr@(Fix (Ann expressionTy _)) = do
-      e  <- cataM convert expr
-      ty <- toCoreType expressionTy
-      return $ Typed e ty
-      where
-        convert (Ann exprTy val) = case val of
-          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
-          EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
-          EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
-          EAp _  f a           -> pure $ Core.EAp f a
-          -- FIXME: We don't take recurion between let bindings into account
-          ELet _ binds body    -> pure $
-            let addLet (nm, e) = Core.ELet (typed'value nm) e
-            in foldr addLet body binds
-          ELam _ _ _           -> eliminateLamError
-          EIf _ c t e          -> pure $ Core.EIf c t e
-          ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
-          EConstr _ consTy m _ -> do ty <- toCoreType consTy
-                                     pure $ Core.EConstr (resultType ty) m
-          EAssertType _ e _    -> pure e
-          EBottom _            -> pure $ Core.EBottom
-
-        convertAlt CaseAlt{..} =
-          return Core.CaseAlt { caseAlt'args = typed'value <$> caseAlt'args
-                              , ..
-                              }
-
-        eliminateLamError = failedToEliminate "Lambda-expressions for core language. Do lambda-lifting to eliminate."
-
-        typeCtx = mempty
+convertTyped :: MonadLang m => Typed (H.Type loc Name) a -> m (Typed TypeCore a)
+convertTyped (Typed a ty) = do
+  ty' <- toCoreType ty
+  return $ Typed a ty'
 
 resultType :: TypeCore -> TypeCore
 resultType (_ :-> b) = resultType b
