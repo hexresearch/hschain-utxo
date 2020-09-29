@@ -1,9 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 -- | Types for core language and its compiled form.
 module Hschain.Utxo.Lang.Core.Compile.Expr(
-    CoreProg(..)
-  , Scomb(..)
-  , PrimOp(..)
+    PrimOp(..)
   , Typed(..)
   , TypeCore
   , ExprCore(..)
@@ -19,8 +17,6 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   ) where
 
 import Codec.Serialise
-import Control.Lens  hiding (op)
-
 import Data.String
 import Data.Vector (Vector)
 import Data.Functor.Foldable.TH
@@ -33,18 +29,10 @@ import Hschain.Utxo.Lang.Types (Script(..),ArgType)
 import qualified Data.ByteString.Lazy as LB
 
 
--- | core program is a sequence of supercombinator definitions
--- that includes supercombinator called main. The main is an entry point
--- for the execution of the program.
-newtype CoreProg = CoreProg [Scomb]
-  deriving stock    (Generic)
-  deriving newtype  (Semigroup, Monoid, Show, Serialise)
-instance Wrapped CoreProg
-
-coreProgToScript :: CoreProg -> Script
+coreProgToScript :: ExprCore -> Script
 coreProgToScript = Script . LB.toStrict . serialise
 
-coreProgFromScript :: Script -> Maybe CoreProg
+coreProgFromScript :: Script -> Maybe ExprCore
 coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
 
 -- | Supercobinators do not contain free variables except for references to other supercombinators.

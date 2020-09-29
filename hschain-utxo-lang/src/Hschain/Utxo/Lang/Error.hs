@@ -54,6 +54,7 @@ data PatError
   | EmptyArgument
   | WrongPatPrimMixture Loc
   | WrongPatConsMixture Loc
+  | MissingMain
   deriving stock    (Show,Eq,Generic)
 
 data InternalError
@@ -68,9 +69,8 @@ data MonoError
   | CompareForNonPrim Loc
   deriving stock    (Show,Eq,Generic)
 
-data CoreScriptError =
-    NoMainFunction
-  | ResultIsNotSigma
+data CoreScriptError
+  = ResultIsNotSigma
   | TypeCoreError TypeCoreError
   | RecursiveScript
   | NotMonomorphicTypes
@@ -79,7 +79,7 @@ data CoreScriptError =
 
 -- | Errors for core language type-checker.
 data TypeCoreError
-  = NotMonomorphicType Text TypeCore
+  = NotMonomorphicType Text
   | VarIsNotDefined Text
   | ArrowTypeExpected TypeCore
   | TypeCoreMismatch TypeCore TypeCore
@@ -92,9 +92,6 @@ data TypeCoreError
   | BadConstructor
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
-
-notMonomorphicType :: MonadError TypeCoreError m => Text -> TypeCore -> m a
-notMonomorphicType name ty = throwError $ NotMonomorphicType name ty
 
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
 typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb
