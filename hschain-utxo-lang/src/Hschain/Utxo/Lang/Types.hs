@@ -41,6 +41,7 @@ import Control.Monad.Except
 import Codec.Serialise
 import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
+import Data.Bifunctor
 import Data.Coerce
 import Data.Fix
 import Data.Int
@@ -194,14 +195,20 @@ data BoxInputRef a = BoxInputRef
 
 -- | This is used for hashing the TX, to get its id and
 -- for serialization to get message to be signed for verification.
-data PreTx a = PreTx
-  { preTx'inputs  :: !(Vector (BoxInputRef a))
-  , preTx'outputs :: !(Vector PreBox)
+data PreTx i o = PreTx
+  { preTx'inputs  :: !(Vector (BoxInputRef i))
+  , preTx'outputs :: !(Vector o)
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor)
   deriving anyclass (Serialise, NFData)
 
-getPreTx :: Tx -> PreTx Proof
+instance Bifunctor PreTx where
+  first f PreTx{..} = PreTx { preTx'inputs = (fmap . fmap) f preTx'inputs
+                            , ..
+                            }
+  second = fmap
+
+getPreTx :: Tx -> PreTx Proof PreBox
 getPreTx Tx{..} = clearProofs $ PreTx
   { preTx'inputs  = tx'inputs
   , preTx'outputs = fmap toPreBox tx'outputs
@@ -214,7 +221,7 @@ toPreBox Box{..} = PreBox
   , preBox'args   = box'args
   }
 
-clearProofs :: PreTx a -> PreTx b
+clearProofs :: PreTx a o -> PreTx b o
 clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
   where
     clearProof box = box { boxInputRef'proof = Nothing }
@@ -222,7 +229,7 @@ clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
 computeTxId :: Tx -> TxId
 computeTxId = computePreTxId . getPreTx
 
-computePreTxId :: PreTx a -> TxId
+computePreTxId :: PreTx a PreBox -> TxId
 computePreTxId PreTx{..}
   = TxId . hashBuilder
   $ hashStep (UserType hashDomain "Tx")
@@ -295,7 +302,7 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 -- | Creates TX and assigns properly all box identifiers.
 -- It does not create the proofs.
-newTx :: PreTx Proof-> Tx
+newTx :: PreTx Proof PreBox -> Tx
 newTx tx = Tx
   { tx'inputs  = preTx'inputs tx
   , tx'outputs = makeOutputs txId $ preTx'outputs tx
@@ -356,7 +363,7 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 --
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) -> io Tx
+newProofTx :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) PreBox -> io Tx
 newProofTx proofEnv tx = liftIO $ do
   inputs <- makeInputs proofEnv txId $ preTx'inputs tx
   return $ Tx
@@ -372,7 +379,7 @@ newProofTx proofEnv tx = liftIO $ do
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
-newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) -> io (Either Text Tx)
+newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) PreBox -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
   eInputs <- makeInputsOrFail proofEnv txId $ preTx'inputs tx
   return $ fmap (\inputs -> Tx

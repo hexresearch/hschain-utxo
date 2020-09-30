@@ -24,7 +24,7 @@ verifyValidBoxIds = do
   return $ validateOutputBoxIds tx
 
 -- | Inits transaction that is owned by alice and has correct proof.
-initTx :: IO (Tx, PreTx ExpectedBox)
+initTx :: IO (Tx, PreTx (Sigma PublicKey) PreBox)
 initTx = do
   aliceSecret <- newSecret
   let alicePubKey = getPublicKey aliceSecret
