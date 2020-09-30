@@ -138,8 +138,8 @@ data PreBox = PreBox
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
-computeBoxId :: BoxOrigin -> PreBox -> BoxId
-computeBoxId BoxOrigin{..} _box
+computeBoxId :: BoxOrigin -> BoxId
+computeBoxId BoxOrigin{..}
   = BoxId . hashBuilder
   $ hashStep boxOrigin'txId
  <> hashStep boxOrigin'outputIndex
@@ -306,7 +306,7 @@ newTx tx = Tx
 makeOutputs :: TxId -> Vector PreBox -> Vector Box
 makeOutputs txId outputs = V.imap toBox outputs
   where
-    toBox outputIndex box@PreBox{..} = Box
+    toBox outputIndex PreBox{..} = Box
       { box'id     = boxId
       , box'value  = preBox'value
       , box'script = preBox'script
@@ -316,7 +316,7 @@ makeOutputs txId outputs = V.imap toBox outputs
         boxId = computeBoxId BoxOrigin
                 { boxOrigin'outputIndex = fromIntegral outputIndex
                 , boxOrigin'txId        = txId
-                } box
+                }
 
 makeInputs
   :: ProofEnv
@@ -391,12 +391,12 @@ validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
   where
     txId = computeTxId tx
 
-    checkBoxId n box@Box{..} = box'id == getId n box
+    checkBoxId n Box{..} = box'id == getId n
 
-    getId n box = computeBoxId BoxOrigin
-                  { boxOrigin'outputIndex = fromIntegral n
-                  , boxOrigin'txId        = txId
-                  } (toPreBox box)
+    getId n = computeBoxId BoxOrigin
+              { boxOrigin'outputIndex = fromIntegral n
+              , boxOrigin'txId        = txId
+              }
 
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString
