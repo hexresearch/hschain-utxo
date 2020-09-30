@@ -194,13 +194,13 @@ data BoxInputRef a = BoxInputRef
 -- | This is used for hashing the TX, to get its id and
 -- for serialization to get message to be signed for verification.
 data PreTx a = PreTx
-  { preTx'inputs  :: !(Vector a)
+  { preTx'inputs  :: !(Vector (BoxInputRef a))
   , preTx'outputs :: !(Vector PreBox)
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor)
   deriving anyclass (Serialise, NFData)
 
-getPreTx :: Tx -> PreTx (BoxInputRef Proof)
+getPreTx :: Tx -> PreTx Proof
 getPreTx Tx{..} = clearProofs $ PreTx
   { preTx'inputs  = tx'inputs
   , preTx'outputs = fmap toPreBox tx'outputs
@@ -213,7 +213,7 @@ toPreBox Box{..} = PreBox
   , preBox'args   = box'args
   }
 
-clearProofs :: PreTx (BoxInputRef a) -> PreTx (BoxInputRef b)
+clearProofs :: PreTx a -> PreTx b
 clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
   where
     clearProof box = box { boxInputRef'proof = Nothing }
@@ -221,7 +221,7 @@ clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
 computeTxId :: Tx -> TxId
 computeTxId = computePreTxId . getPreTx
 
-computePreTxId :: PreTx (BoxInputRef a) -> TxId
+computePreTxId :: PreTx a -> TxId
 computePreTxId = TxId . hashLazyBlob . serialise . clearProofs @_ @()
 
 -- | Tx with substituted inputs and environment.
@@ -285,7 +285,7 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 -- | Creates TX and assigns properly all box identifiers.
 -- It does not create the proofs.
-newTx :: PreTx (BoxInputRef Proof)-> Tx
+newTx :: PreTx Proof-> Tx
 newTx tx = Tx
   { tx'inputs  = preTx'inputs tx
   , tx'outputs = makeOutputs txId $ preTx'outputs tx
@@ -308,7 +308,11 @@ makeOutputs txId outputs = V.imap toBox outputs
                 , boxOrigin'txId        = txId
                 } box
 
-makeInputs :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Vector (BoxInputRef Proof))
+makeInputs
+  :: ProofEnv
+  -> TxId
+  -> Vector (BoxInputRef (Sigma PublicKey))
+  -> IO (Vector (BoxInputRef Proof))
 makeInputs proofEnv message
   = traverse toInput
   where
@@ -318,7 +322,11 @@ makeInputs proofEnv message
                         , ..
                         }
 
-makeInputsOrFail :: ProofEnv -> TxId -> Vector ExpectedBox -> IO (Either Text (Vector (BoxInputRef Proof)))
+makeInputsOrFail
+  :: ProofEnv
+  -> TxId
+  -> Vector (BoxInputRef (Sigma PublicKey))
+  -> IO (Either Text (Vector (BoxInputRef Proof)))
 makeInputsOrFail proofEnv message
   = runExceptT . (traverse . traverse) toInput
   where
@@ -338,7 +346,7 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 --
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io Tx
+newProofTx :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) -> io Tx
 newProofTx proofEnv tx = liftIO $ do
   inputs <- makeInputs proofEnv txId $ preTx'inputs tx
   return $ Tx
@@ -354,7 +362,7 @@ newProofTx proofEnv tx = liftIO $ do
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
-newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx ExpectedBox -> io (Either Text Tx)
+newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
   eInputs <- makeInputsOrFail proofEnv txId $ preTx'inputs tx
   return $ fmap (\inputs -> Tx
