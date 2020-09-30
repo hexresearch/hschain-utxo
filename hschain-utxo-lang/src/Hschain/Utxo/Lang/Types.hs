@@ -88,7 +88,7 @@ argTypes = [IntArg, TextArg, BoolArg, BytesArg]
 -- | Identifier of TX. We can derive it from the PreTx.
 --  It equals to hash of serialised PreTx
 newtype TxId = TxId { unTxId :: Hash SHA256 }
-  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr, CryptoHashable)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
@@ -96,7 +96,7 @@ newtype TxId = TxId { unTxId :: Hash SHA256 }
 -- | Identifier of the box. Box holds value protected by the script.
 -- It equals to the hash of Box-content.
 newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
-  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr, CryptoHashable)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
@@ -139,9 +139,10 @@ data PreBox = PreBox
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
 computeBoxId :: BoxOrigin -> PreBox -> BoxId
-computeBoxId origin box
-  = BoxId . hashLazyBlob . serialise
-  $ ( origin , box )
+computeBoxId BoxOrigin{..} _box
+  = BoxId . hashBuilder
+  $ hashStep boxOrigin'txId
+ <> hashStep boxOrigin'outputIndex
 
 -- | Data encodes the source of the Box when it was produced.
 data BoxOrigin = BoxOrigin
@@ -436,9 +437,6 @@ instance CryptoHashable a => CryptoHashable (BoxInputRef a) where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Script where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable BoxId where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Box where
