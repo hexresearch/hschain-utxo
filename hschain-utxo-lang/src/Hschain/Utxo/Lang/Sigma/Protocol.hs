@@ -17,16 +17,17 @@ data SigmaE k a
   | AND k [SigmaE k a]
     -- ^ AND connective
   | OR  k [SigmaE k a]
+    -- ^ OR connective
   deriving (Functor, Foldable, Traversable, Show)
 
 sexprAnn :: SigmaE k a -> k
 sexprAnn = \case
   Leaf k _ -> k
-  AND     k _ -> k
-  OR      k _ -> k
+  AND  k _ -> k
+  OR   k _ -> k
 
 -- | Set of known keys
-newtype Env a = Env [KeyPair a]
+newtype Env a = Env { unEnv :: [KeyPair a] }
 
 -- | Proof of knowledge of discrete logarithm
 data ProofDL a = ProofDL
