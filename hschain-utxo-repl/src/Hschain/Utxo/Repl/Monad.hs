@@ -27,8 +27,10 @@ import Data.Text (Text)
 import System.Console.Repline
 import System.Console.Haskeline.MonadException
 
-import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Repl.Imports
 
 -- | Parse user input in the repl

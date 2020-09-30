@@ -15,9 +15,12 @@ import Control.Monad.State.Strict
 import Data.Maybe
 
 import HSChain.Crypto (hashBlob)
-import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Types
+import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Repl.Monad
+import Hschain.Utxo.Lang.Exec    (execLang, runExec)
 
 import qualified Data.ByteString as BS
 import qualified Data.Text as T

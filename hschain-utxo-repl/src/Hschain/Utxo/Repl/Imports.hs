@@ -10,8 +10,10 @@ module Hschain.Utxo.Repl.Imports(
 import Control.Exception.Base
 import Control.Monad.IO.Class
 
-import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Lib.Base
+import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Exec (evalModule)
 
 import Data.Default
 import Data.Map.Strict (Map)
@@ -73,8 +75,8 @@ load file imp0 = liftIO $ do
         P.ParseOk m -> do
           let typeCtx = inferCtx'binds $ moduleCtx'types $ imports'current imp
           case evalModule typeCtx m of
-            Right modCtx   -> return $ Right $ loadCtx file modCtx imp
-            Left tyErr -> return $ Left $ ImportTypeError tyErr
+            Right modCtx -> return $ Right $ loadCtx file modCtx imp
+            Left  tyErr  -> return $ Left $ ImportTypeError tyErr
         P.ParseFailed loc err -> return $ Left $ ImportParseError loc err
     Left _ -> return $ Left $ ImportFileMissing file
 

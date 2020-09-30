@@ -10,9 +10,7 @@ module Hschain.Utxo.Lang.Exec(
     execLang
   , evalModule
   , runExec
-  , Error(..)
-  , BoolExprResult(..)
-) where
+  ) where
 
 import Hex.Common.Control
 import Hex.Common.Text (showt)
