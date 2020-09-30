@@ -1,7 +1,7 @@
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types
-  ( Tx(..)
-  , PreTx(..)
+  ( Tx
+  , GTx(..)
   , TxHash(..)
   , TxArg(..)
   , BoxInput(..)
@@ -160,23 +160,30 @@ newtype TxHash = TxHash ByteString
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
        via ViaBase58 "TxHash" TxHash
 
--- | Type for transactions.
+-- | Type for transaction. It spends values from the input boxes and
+--   create output boxes.
 --
--- Transaction spends values from the input boxes to create output boxes.
--- The result is boolean AND fold over all scripts in the input boxes.
--- The sum of the input values should be equal to the sum of the output values.
---
--- The proof can be missing (Nothing) if we not commiting transaction but
--- send API-query to know the sigma-expression that is going to be result
--- of the calculation of the input scripts within the context of the current blockchain state.
-data Tx = Tx
-  { tx'inputs  :: !(Vector (BoxInputRef Proof))
+--   Each input references another box and contains proof for complete
+--   transaction or sigma expression that should be proven when we
+--   assemble transaction. Proof will be missing if spend script
+--   evaluated to boolean.
+data GTx i o = Tx
+  { tx'inputs  :: !(Vector (BoxInputRef i))
     -- ^ List of inputs
-  , tx'outputs :: !(Vector Box)
+  , tx'outputs :: !(Vector o)
     -- ^ List of outputs
   }
-  deriving stock    (Show, Eq, Ord, Generic)
+  deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
+
+-- | Transaction which is part of block and which are exchanged between clients
+type Tx = GTx Proof Box
+
+instance Bifunctor GTx where
+  first f Tx{..} = Tx { tx'inputs = (fmap . fmap) f tx'inputs
+                      , ..
+                      }
+  second = fmap
 
 data TxSignMessage = TxSignMessage { unTxSignMessage :: ByteString }
   deriving stock    (Show, Eq, Ord, Generic)
@@ -193,26 +200,9 @@ data BoxInputRef a = BoxInputRef
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
 
--- | This is used for hashing the TX, to get its id and
--- for serialization to get message to be signed for verification.
-data PreTx i o = PreTx
-  { preTx'inputs  :: !(Vector (BoxInputRef i))
-  , preTx'outputs :: !(Vector o)
-  }
-  deriving stock    (Show, Eq, Ord, Generic, Functor)
-  deriving anyclass (Serialise, NFData)
 
-instance Bifunctor PreTx where
-  first f PreTx{..} = PreTx { preTx'inputs = (fmap . fmap) f preTx'inputs
-                            , ..
-                            }
-  second = fmap
-
-getPreTx :: Tx -> PreTx Proof PreBox
-getPreTx Tx{..} = clearProofs $ PreTx
-  { preTx'inputs  = tx'inputs
-  , preTx'outputs = fmap toPreBox tx'outputs
-  }
+getPreTx :: Tx -> GTx Proof PreBox
+getPreTx = fmap toPreBox
 
 toPreBox :: Box -> PreBox
 toPreBox Box{..} = PreBox
@@ -221,20 +211,15 @@ toPreBox Box{..} = PreBox
   , preBox'args   = box'args
   }
 
-clearProofs :: PreTx a o -> PreTx b o
-clearProofs tx = tx { preTx'inputs = fmap clearProof $ preTx'inputs tx }
-  where
-    clearProof box = box { boxInputRef'proof = Nothing }
-
 computeTxId :: Tx -> TxId
 computeTxId = computePreTxId . getPreTx
 
-computePreTxId :: PreTx a PreBox -> TxId
-computePreTxId PreTx{..}
+computePreTxId :: GTx a PreBox -> TxId
+computePreTxId Tx{..}
   = TxId . hashBuilder
   $ hashStep (UserType hashDomain "Tx")
- <> hashStepFoldableWith stepIn  preTx'inputs
- <> hashStepFoldableWith stepOut preTx'outputs
+ <> hashStepFoldableWith stepIn  tx'inputs
+ <> hashStepFoldableWith stepOut tx'outputs
   where
     stepIn BoxInputRef{..}  = hashStep boxInputRef'id
                            <> hashStep boxInputRef'args
@@ -302,11 +287,9 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 -- | Creates TX and assigns properly all box identifiers.
 -- It does not create the proofs.
-newTx :: PreTx Proof PreBox -> Tx
-newTx tx = Tx
-  { tx'inputs  = preTx'inputs tx
-  , tx'outputs = makeOutputs txId $ preTx'outputs tx
-  }
+newTx :: GTx Proof PreBox -> Tx
+newTx tx = tx { tx'outputs = makeOutputs txId $ tx'outputs tx
+              }
   where
     txId = computePreTxId tx
 
@@ -363,12 +346,12 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 --
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) PreBox -> io Tx
+newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) PreBox -> io Tx
 newProofTx proofEnv tx = liftIO $ do
-  inputs <- makeInputs proofEnv txId $ preTx'inputs tx
+  inputs <- makeInputs proofEnv txId $ tx'inputs tx
   return $ Tx
     { tx'inputs  = inputs
-    , tx'outputs = makeOutputs txId $ preTx'outputs tx
+    , tx'outputs = makeOutputs txId $ tx'outputs tx
     }
   where
     txId  = computePreTxId tx
@@ -379,12 +362,12 @@ newProofTx proofEnv tx = liftIO $ do
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
-newProofTxOrFail :: MonadIO io => ProofEnv -> PreTx (Sigma PublicKey) PreBox -> io (Either Text Tx)
+newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) PreBox -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
-  eInputs <- makeInputsOrFail proofEnv txId $ preTx'inputs tx
+  eInputs <- makeInputsOrFail proofEnv txId $ tx'inputs tx
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
-    , tx'outputs = makeOutputs txId $ preTx'outputs tx
+    , tx'outputs = makeOutputs txId $ tx'outputs tx
     }) eInputs
   where
     txId  = computePreTxId tx
@@ -427,7 +410,7 @@ singleOwnerInput boxId pubKey = return $ BoxInputRef
 --------------------------------------------
 -- JSON instnaces
 
-$(deriveJSON dropPrefixOptions ''Tx)
+$(deriveJSON dropPrefixOptions ''GTx)
 $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
 $(deriveJSON dropPrefixOptions ''BoxInput)
