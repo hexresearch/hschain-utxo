@@ -137,9 +137,9 @@ aliceInitSwapTx aliceKeys inputId spec = do
   where
     swapHash = swapSpec'hash spec
 
-    preTx totalValue = PreTx
-      { preTx'inputs  = singleOwnerInput inputId alicePubKey
-      , preTx'outputs = [ swapBox, changeBox totalValue ]
+    preTx totalValue = Tx
+      { tx'inputs  = singleOwnerInput inputId alicePubKey
+      , tx'outputs = [ swapBox, changeBox totalValue ]
       }
 
     alicePubKey = swapUser'pk $ swapSpec'alice spec
@@ -158,17 +158,14 @@ aliceInitSwapTx aliceKeys inputId spec = do
 aliceGrabTx :: ProofEnv -> BoxId -> SwapSpec -> App Tx
 aliceGrabTx aliceKeys inputId spec = newProofTx aliceKeys preTx
   where
-    preTx = PreTx
-      { preTx'inputs  = fmap addSecret $ singleOwnerInput inputId alicePubKey
-      , preTx'outputs = [ saveMoney ]
+    preTx = Tx
+      { tx'inputs  = fmap addSecret $ singleOwnerInput inputId alicePubKey
+      , tx'outputs = [ saveMoney ]
       }
 
     saveMoney = getChangeBox (fromIntegral aliceValue) alicePubKey
 
-    addSecret box = box { expectedBox'input = setArgs (byteArgs [ aliceSecret ]) $ expectedBox'input box  }
-      where
-        setArgs args ref = ref { boxInputRef'args = args }
-
+    addSecret box = box { boxInputRef'args = byteArgs [ aliceSecret ] }
     aliceSecret = swapSpec'secret spec
     aliceValue  = swapUser'value $ swapSpec'alice spec
     alicePubKey = swapUser'pk $ swapSpec'alice spec
@@ -177,9 +174,9 @@ aliceGrabTx aliceKeys inputId spec = newProofTx aliceKeys preTx
 aliceDoubleSpendTx :: ProofEnv -> BoxId -> SwapSpec -> App Tx
 aliceDoubleSpendTx aliceKeys inputId spec = newProofTx aliceKeys preTx
   where
-    preTx = PreTx
-      { preTx'inputs  = singleOwnerInput inputId alicePubKey
-      , preTx'outputs = [ saveMoney ]
+    preTx = Tx
+      { tx'inputs  = singleOwnerInput inputId alicePubKey
+      , tx'outputs = [ saveMoney ]
       }
 
     saveMoney = getChangeBox (fromIntegral bobValue) alicePubKey
@@ -211,9 +208,9 @@ bobInitSwapTx bobKeys swapHash inputId spec = do
   Just totalValue <- getBoxBalance inputId
   newProofTx bobKeys $ preTx totalValue
   where
-    preTx totalValue = PreTx
-      { preTx'inputs   = singleOwnerInput inputId bobPubKey
-      , preTx'outputs  = [ swapBox, changeBox totalValue ]
+    preTx totalValue = Tx
+      { tx'inputs   = singleOwnerInput inputId bobPubKey
+      , tx'outputs  = [ swapBox, changeBox totalValue ]
       }
 
     bobPubKey  = swapUser'pk $ swapSpec'bob spec
@@ -230,16 +227,14 @@ bobInitSwapTx bobKeys swapHash inputId spec = do
 bobGrabTx :: ProofEnv -> SwapSecret -> BoxId -> SwapSpec -> App Tx
 bobGrabTx bobKeys aliceSecret inputId spec = newProofTx bobKeys preTx
   where
-    preTx = PreTx
-      { preTx'inputs  = fmap addSecret $ singleOwnerInput inputId bobPubKey
-      , preTx'outputs = [ saveMoney ]
+    preTx = Tx
+      { tx'inputs  = fmap addSecret $ singleOwnerInput inputId bobPubKey
+      , tx'outputs = [ saveMoney ]
       }
 
     saveMoney = getChangeBox (fromIntegral bobValue) bobPubKey
 
-    addSecret box = box { expectedBox'input = setArgs (byteArgs [ aliceSecret ]) $ expectedBox'input box  }
-      where
-        setArgs args ref = ref { boxInputRef'args = args }
+    addSecret box = box { boxInputRef'args = byteArgs [ aliceSecret ] }
 
     bobValue  = swapUser'value $ swapSpec'bob spec
     bobPubKey = swapUser'pk $ swapSpec'bob spec

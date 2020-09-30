@@ -24,21 +24,21 @@ verifyValidBoxIds = do
   return $ validateOutputBoxIds tx
 
 -- | Inits transaction that is owned by alice and has correct proof.
-initTx :: IO (Tx, PreTx BoxInputRef)
+initTx :: IO (Tx, GTx (Sigma PublicKey) PreBox)
 initTx = do
   aliceSecret <- newSecret
   let alicePubKey = getPublicKey aliceSecret
       aliceProofEnv = toProofEnv [getKeyPair aliceSecret]
   resTx <- newProofTx aliceProofEnv $ tx alicePubKey
-  return (resTx, fmap expectedBox'input $ tx alicePubKey)
+  return (resTx, tx alicePubKey)
   where
-    tx pubKey = PreTx
-      { preTx'inputs = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
-      , preTx'outputs = return $ PreBox
-                                      { preBox'value  = 1
-                                      , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
-                                      , preBox'args   = mempty
-                                      }
+    tx pubKey = Tx
+      { tx'inputs  = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
+      , tx'outputs = return $ PreBox
+          { preBox'value  = 1
+          , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
+          , preBox'args   = mempty
+          }
       }
 
 -- | Verify that proof is correct

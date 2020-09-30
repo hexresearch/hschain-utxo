@@ -16,9 +16,9 @@ main = B.putStrLn . LB.toStrict . encodePretty =<< singleOwnerGenesis
 singleOwnerGenesis :: IO [Tx]
 singleOwnerGenesis = fmap withSecret newSecret
   where
-    withSecret secret = return $ newTx $ PreTx
-      { preTx'inputs  = V.empty
-      , preTx'outputs = V.fromList [box]
+    withSecret secret = return $ newTx $ Tx
+      { tx'inputs  = V.empty
+      , tx'outputs = V.fromList [box]
       }
       where
         publicKey = getPublicKey secret
