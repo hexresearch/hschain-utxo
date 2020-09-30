@@ -673,11 +673,11 @@ getDatabaseBox (POW.RevertBlock i path) boxInputRef@BoxInputRef{..} = do
     Nothing -> getDatabaseBox path boxInputRef
 getDatabaseBox POW.NoChange boxInputRef@BoxInputRef{..} = do
   let boxid = boxInputRef'id
-  r <- basicQuery1
-    "SELECT pk_dest, n_coins \
+  r <- Debug.trace ("fetching box for id "++show boxid) $ basicQuery1
+    "SELECT box \
     \  FROM utxo_set \
     \  JOIN utxo_state ON live_utxo = utxo_id \
-    \ WHERE n_out = ? AND tx_hash = ?"
+    \ WHERE box_id = ?"
     boxid
   case r of
     Just u  -> return u
@@ -693,18 +693,18 @@ createUnspentBox boxid val
 
 isSpentAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
 isSpentAtBlock i boxid = basicQuery1
-  "SELECT pk_dest, n_coins \
+  "SELECT box \
   \  FROM utxo_set \
   \  JOIN utxo_spent ON utxo_id = utxo_ref \
-  \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
+  \ WHERE box_id = ? AND block_ref = ?"
   (boxid SQL.:. SQL.Only i)
 
 isCreatedAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
 isCreatedAtBlock i boxid = basicQuery1
-  "SELECT pk_dest, n_coins \
+  "SELECT box \
   \  FROM utxo_set \
   \  JOIN utxo_created ON utxo_id = utxo_ref \
-  \ WHERE n_out = ? AND tx_hash = ? AND block_ref = ?"
+  \ WHERE box_id = ? AND block_ref = ?"
   (boxid SQL.:. SQL.Only i)
 
 retrieveCurrentStateBlock :: MonadQueryRO m => m (Maybe (POW.BlockID UTXOBlock))
@@ -723,14 +723,14 @@ retrieveUTXOBlockTableID bid = do
     Nothing       -> error "Unknown BID"
     Just (Only i) -> return i
 
-retrieveUtxoIO :: MonadQueryRO m => BoxId -> m Unspent
-retrieveUtxoIO utxo = do
+retrieveUTXOIO :: MonadQueryRO m => BoxId -> m Int
+retrieveUTXOIO utxo = do
   r <- basicQuery1
-    "SELECT utxo_id FROM utxo_set WHERE n_out = ? AND tx_hash = ?"
+    "SELECT utxo_id FROM utxo_set WHERE box_id = ?"
     utxo
   case r of
     Just (Only i) -> return i
-    Nothing       -> error "retrieveUtxoIO"
+    Nothing       -> error "retrieveUTXOIO"
 
 
 
@@ -777,21 +777,21 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
   dumpOverlay o
   -- Store create UTXO
   forM_ (Map.toList utxoCreated) $ \(utxo, unspent) -> do
-    basicExecute
-      "INSERT OR IGNORE INTO utxo_set VALUES (NULL,?,?,?,?)"
+    Debug.trace ("inserting box "++show unspent++" with id "++show utxo) $ basicExecute
+      "INSERT OR IGNORE INTO utxo_set VALUES (NULL,?,?)"
       (utxo SQL.:. unspent)
   -- Write down block delta
   bid <- retrieveUTXOBlockTableID (POW.bhBID bh)
   forM_ (Map.keys utxoCreated) $ \utxo -> do
-    uid <- retrieveUtxoIO utxo
+    box <- retrieveUTXOIO utxo
     basicExecute
       "INSERT OR IGNORE INTO utxo_created VALUES (?,?)"
-      (bid, uid)
+      (bid, box)
   forM_ (Map.keys utxoSpent) $ \utxo -> do
-    uid <- retrieveUtxoIO utxo
+    box <- retrieveUTXOIO utxo
     basicExecute
       "INSERT OR IGNORE INTO utxo_spent VALUES (?,?)"
-      (bid, uid)
+      (bid, box)
 dumpOverlay OverlayBase{} = return ()
 
 retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header UTXOBlock]
@@ -808,7 +808,7 @@ retrieveUTXOHeader bid = queryRO $ basicQueryWith1
 retrieveUTXOBlock :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Block UTXOBlock))
 retrieveUTXOBlock bid = Debug.trace ("retrieve block by "++show bid) $ queryRO $ basicQueryWith1
   utxoBlockDecoder
-  "SELECT height, time, prev, blockData, target, nonce FROM utxo_blocks WHERE bid = ?"
+  "SELECT height, time, prev, blockData FROM utxo_blocks WHERE bid = ?"
   (Only bid)
 
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
@@ -831,9 +831,11 @@ utxoBlockDecoder = do
   blockHeight <- field
   blockTime   <- field
   prevBlock   <- field
-  ubNonce   <- field
-  ubProper  <- fieldCBOR
-  return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
+  blockData   <- fieldCBOR
+--  _ubpTarget  <- fieldCBOR
+--  _ubNonce    <- field
+  let r = POW.GBlock {..}
+  Debug.trace ("decoded block "++show r) $ return r
 
 utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header UTXOBlock)
 utxoBlockHeaderDecoder = do
@@ -869,10 +871,8 @@ initUTXODB = mustQueryRW $ do
   basicExecute_
     "CREATE TABLE IF NOT EXISTS utxo_set \
     \  ( utxo_id INTEGER PRIMARY KEY \
-    \  , n_out   BLOB NOT NULL \
-    \  , tx_hash BLOB NOT NULL \
-    \  , pk_dest BLOB NOT NULL \
-    \  , n_coins INTEGER NOT NULL \
+    \  , box_id BLOB NOT NULL \
+    \  , box BLOB NOT NULL \
     \)"
   -- UTXO's created in given block. Due to blockchain reorganizations
   -- same UTXO may appear in several blocks
