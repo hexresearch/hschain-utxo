@@ -185,9 +185,6 @@ instance Bifunctor GTx where
                       }
   second = fmap
 
-data TxSignMessage = TxSignMessage { unTxSignMessage :: ByteString }
-  deriving stock    (Show, Eq, Ord, Generic)
-  deriving anyclass (Serialise, NFData)
 
 -- | Input is an unspent Box that exists in blockchain.
 -- To spend the input we need to provide right arguments and proof
