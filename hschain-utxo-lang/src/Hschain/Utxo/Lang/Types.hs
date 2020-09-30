@@ -51,7 +51,7 @@ import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import GHC.Generics
 
 import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr, decodeBase58, encodeBase58)
-import HSChain.Crypto.Classes.Hash (Hash(..),CryptoHashable(..),hashLazyBlob,genericHashStep)
+import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
@@ -222,7 +222,16 @@ computeTxId :: Tx -> TxId
 computeTxId = computePreTxId . getPreTx
 
 computePreTxId :: PreTx a -> TxId
-computePreTxId = TxId . hashLazyBlob . serialise . clearProofs @_ @()
+computePreTxId PreTx{..}
+  = TxId . hashBuilder
+  $ hashStep (UserType hashDomain "Tx")
+ <> hashStepFoldableWith stepIn  preTx'inputs
+ <> hashStepFoldableWith stepOut preTx'outputs
+  where
+    stepIn BoxInputRef{..}  = hashStep boxInputRef'id
+                           <> hashStep boxInputRef'args
+    stepOut = hashStep
+
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
@@ -433,6 +442,9 @@ instance CryptoHashable BoxId where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Box where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable PreBox where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Args where
