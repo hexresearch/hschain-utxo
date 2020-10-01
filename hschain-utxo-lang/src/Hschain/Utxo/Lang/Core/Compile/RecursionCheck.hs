@@ -5,7 +5,7 @@ module Hschain.Utxo.Lang.Core.Compile.RecursionCheck(
 ) where
 
 import Data.Maybe
-import Data.Set (Set)
+import Data.Set (Set, (\\))
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
@@ -40,20 +40,19 @@ progDependencySort (CoreProg prog) = mapM getAcyclic $ G.stronglyConnComp depGra
 -- | Find free variables for expression.
 freeVars :: ExprCore -> Set Name
 freeVars = \case
-  EVar name       -> fromVar name
+  EVar name       -> S.singleton name
   EPrim _         -> S.empty
   EPrimOp{}       -> S.empty
   EAp f a         -> freeVars f <> freeVars a
-  ELet nm e body  -> freeLetVars nm e body
+  ELet nm e body  -> freeVars e <> S.delete nm (freeVars body)
   EIf a b c       -> freeVars a <> freeVars b <> freeVars c
   ECase e alts    -> freeVars e <> foldMap freeAltVars alts
   EConstr{}       -> S.empty
   EBottom         -> S.empty
   where
-    fromVar name = S.singleton name
     freeAltVars CaseAlt{..} =
-      freeVars caseAlt'rhs S.\\ (S.fromList caseAlt'args)
-    freeLetVars nm e body = S.delete nm (freeVars e <> freeVars body)
+      freeVars caseAlt'rhs \\ S.fromList caseAlt'args
+
 
 
 -- | Build dependencies for a single supercmbinator
