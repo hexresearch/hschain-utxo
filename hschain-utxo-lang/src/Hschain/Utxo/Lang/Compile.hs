@@ -14,7 +14,6 @@ import qualified Data.Functor.Foldable as RS
 
 import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
-import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
@@ -43,7 +42,6 @@ compile
 -- <=< makeMonomorphic
  <=< specifyCompareOps
  <=< annotateTypes
-  .  lambdaLifting
  <=< toExtendedLC
 
 -- | Perform sunbstiturion of primops
