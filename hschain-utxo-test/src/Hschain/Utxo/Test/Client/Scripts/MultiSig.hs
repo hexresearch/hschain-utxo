@@ -2,11 +2,14 @@ module Hschain.Utxo.Test.Client.Scripts.MultiSig(
   multiSigExchange
 ) where
 
+import Data.Int
+
 import Hschain.Utxo.Test.Client.Wallet
 
 import Hschain.Utxo.Test.Client.Monad
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Build
 
 -- | Simple exchange test scenario. Master starts with many coins and then
 -- sends 10 coins to Bob and Alice. Then Bob and Alice exchange coins.
@@ -31,8 +34,40 @@ multiSigExchange = do
   testCase "Alice balance becomes 2" $ aliceBalance == Just 2
   return ()
 
-getSharedBoxTx :: ProofEnv -> ProofEnv -> (Int, Int) -> (Int, Int) -> BoxId -> BoxId -> IO Tx
-getSharedBoxTx aliceEnv bobEnv (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = undefined
+getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> IO PreTx
+getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = do
+  let txId = computePreTxId preTx
+  newProof aliceEnv txId
+  return preTx
   where
-    tx =
+    preTx = Tx
+      { tx'inputs   = [inputBox aliceBox alice, inputBox bobBox bob]
+      , tx'outputs  = [commonBox, changeBox aliceValue alicePk, changeBox bobValue bobPk]
+      }
+
+    inputBox boxId wallet = BoxInputRef
+      { boxInputRef'id    = boxId
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
+      }
+
+    commonBox = PreBox
+      { preBox'value  = aliceValue + bobValue
+      , preBox'script = mainScriptUnsafe $ pk' alicePk &&* pk' bobPk
+      , preBox'args   = mempty
+      }
+
+    changeBox value pubKey = PreBox
+      { preBox'value  = value
+      , preBox'script = mainScriptUnsafe $ pk' pubKey
+      , preBox'args   = mempty
+      }
+
+    alicePk = getWalletPublicKey alice
+    bobPk   = getWalletPublicKey bob
+
+    aliceEnv = getProofEnv alice
+    bobEnv   = getProofEnv bob
+
+
 

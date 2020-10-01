@@ -1,6 +1,7 @@
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types
   ( Tx
+  , PreTx
   , GTx(..)
   , TxHash(..)
   , TxArg(..)
@@ -28,6 +29,7 @@ module Hschain.Utxo.Lang.Types
   , splitInputs
   , txPreservesValue
   , computeTxId
+  , computePreTxId
   , validateOutputBoxIds
     -- * Helperes
   , singleOwnerInput
@@ -177,7 +179,8 @@ data GTx i o = Tx
   deriving anyclass (Serialise, NFData)
 
 -- | Transaction which is part of block and which are exchanged between clients
-type Tx = GTx Proof Box
+type Tx    = GTx Proof Box
+type PreTx = GTx Proof PreBox
 
 instance Bifunctor GTx where
   first f Tx{..} = Tx { tx'inputs = (fmap . fmap) f tx'inputs
@@ -198,7 +201,7 @@ data BoxInputRef a = BoxInputRef
   deriving anyclass (Serialise, NFData)
 
 
-getPreTx :: Tx -> GTx Proof PreBox
+getPreTx :: Tx -> PreTx
 getPreTx = fmap toPreBox
 
 toPreBox :: Box -> PreBox
@@ -284,7 +287,7 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 -- | Creates TX and assigns properly all box identifiers.
 -- It does not create the proofs.
-newTx :: GTx Proof PreBox -> Tx
+newTx :: PreTx -> Tx
 newTx tx = tx { tx'outputs = makeOutputs txId $ tx'outputs tx
               }
   where
