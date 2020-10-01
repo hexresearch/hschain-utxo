@@ -16,9 +16,8 @@ import qualified Data.Set   as S
 -- | Check that program has no recursion
 -- We should check all top level bindings and let-expressions.
 recursionCheck :: CoreProg -> Bool
-recursionCheck cp@(CoreProg prog) =
-     (depIsAcyclic $ progDependencySort cp)
-  && (all checkLets prog)
+recursionCheck
+  = depIsAcyclic . progDependencySort
   where
     depIsAcyclic = isJust
 
@@ -60,22 +59,3 @@ freeVars = \case
 -- | Build dependencies for a single supercmbinator
 scombToDep :: Scomb -> Dep
 scombToDep Scomb{..} = (scomb'name, S.toList $ freeVars $ typed'value scomb'body)
-
--- | Check all subexpressions that let'bindings are acyclic.
-checkLets :: Scomb -> Bool
-checkLets = checkLetExpr . typed'value . scomb'body
-
--- | Check all subexpressions that let'bindings are acyclic.
-checkLetExpr :: ExprCore -> Bool
-checkLetExpr = \case
-  EAp f a        -> checkLetExpr f && checkLetExpr a
-  ELet nm e body -> nm `S.notMember` freeVars e && checkLetExpr body
-  EIf a b c      -> checkLetExpr a && checkLetExpr b && checkLetExpr c
-  ECase e alts   -> checkLetExpr e && all (checkLetExpr . caseAlt'rhs) alts
-  EVar _         -> True
-  EConstr{}      -> True
-  EPrim _        -> True
-  EPrimOp{}      -> True
-  EBottom        -> True
-
-
