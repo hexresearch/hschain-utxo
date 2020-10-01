@@ -17,6 +17,7 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , getRootChallengeBy
   , orChallenge
   , toProof
+  , markTree
 ) where
 
 import Control.Applicative

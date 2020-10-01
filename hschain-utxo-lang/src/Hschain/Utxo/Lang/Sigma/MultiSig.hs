@@ -16,8 +16,47 @@
 -- that main prover signed message that they expect.
 --
 -- Let's define the main steps with functions that are defined in this module:
+-- Main prover should know all public keys of the participants. First stage of the proof
+-- is to mark tree nodes as real or simulated proof and generate all simulated proofs:
 --
--- > TODO
+-- > commitmentQueryExpr <- initMultiSigProof knownKeys expr
+--
+-- We get special expression-tree that we can pass to other partners so that they can
+-- provide their commitments. All participants call the function @queryCommitments@.
+-- The result is a pair of public data with filled commitments and private data with secrets
+-- that correspond to commitments.
+--
+-- > (commitmentExpr, secretExpr) <- queryCommitments myKeys querryExpr
+--
+-- Partner should pass @commitmentExpr@ to the main prover but keep @secretExpr@ private.
+-- We need @secretExpr@ on the final round of signature to create responses.
+--
+-- Main prover collects all commitments and joins them with functions: @filterCommitments@ and @appendCommitments@.
+-- With @filterCommitments@ we keep only commitments for specific keys. This way we guarantee that partner
+-- has signed only his own keys and somebodyelses. With @appendCommitments@ we join all commitments to single expression.
+-- Finally we apply function @toCommitmentExpr@. It insures that all commitments are assigned.
+--
+-- > commitmentExpr <- toCommitmentExpr =<< (appendCommitments $ zipWith filterCommitments partnerKeys partnerCommitmments)
+--
+-- With all suuplied commitments @commitmentExpr@ we can calculate all challenges with function @getChallenges@.
+--
+-- > challengeExpr <- getChallenges commitmentExpr message
+--
+-- We get the expression-tree with all challenges for all participants. Now we can query responces.
+-- We give the expression of challenges to participant and he provides needed responces. He should use
+-- the expression of secrets that he created on the second stage of this algorithm (when main prover asks for commitments).
+--
+-- > responseExpr <- queryResponses privateKeyEnv secretExpr challengeExpr
+--
+-- For this stage we need to know private keys. We use @privateKeyEnv@ to do it.
+-- Main priver collects all repsonces and joins them with functions @filterResponses@ and @appendResponses@
+-- just like with commitments.
+--
+-- > responseExpr <- toResponseExpr =<< (appendResponses $ zipWith filterResponses partnerKeys partnerResponses)
+--
+-- At least we can create the proof with function @responsesToProof@. It completes the algorithm.
+--
+-- multiSigProof = responsesToProof responseExpr
 module Hschain.Utxo.Lang.Sigma.MultiSig(
     checkChallenges
   , generateSimulatedProofs
@@ -41,10 +80,31 @@ import Hschain.Utxo.Lang.Sigma.Interpreter
 import Data.ByteString (ByteString)
 import Data.Maybe
 import Data.Set (Set)
+import Data.Text (Text)
 
 import qualified Data.List as L
 import qualified Data.Set as Set
 
+-- | First stage of multi-sig proof. Main prover marks expression tree nodes and leaves
+-- as real and simulated proof and generates simulated proofs.
+--
+-- The result is expression tree for to query commitments for all participants of the signature.
+-- Note that first argument contains all public keys of the participants (not only keys of the main prover).
+-- for this stage we do not need to know the private keys but we should list all public keys
+-- of the participants.
+initMultiSigProof :: EC a
+  => Set (PublicKey a)
+  -> SigmaE () (PublicKey a)
+  -> Prove (CommitmentQueryExpr a)
+initMultiSigProof knownKeys expr =
+  fmap toComQueryExpr $ generateSimulatedProofs $ markTree knownKeys expr
+  where
+    toComQueryExpr = fmap (either (Left . toComQuery) Right)
+
+    toComQuery key = CommitmentQuery
+      { comQuery'publicKey  = key
+      , comQuery'commitment = Nothing
+      }
 
 type ProofExpr leaf a = SigmaE (ProofTag a) (Either (leaf a) (ProofDL a))
 
@@ -84,8 +144,8 @@ generateSimulatedProofs tree = case sexprAnn tree of
                                   OR (ProofTag Simulated $ Just ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
       _ -> throwError "Real node"
 
-type CommitmentQueryExpr a  = SigmaE (ProofTag a) (Either (CommitmentQuery a)  (ProofDL a))
-type CommitmentSecretExpr a = SigmaE (ProofTag a) (Either (CommitmentSecret a) (ProofDL a))
+type CommitmentQueryExpr a  = ProofExpr CommitmentQuery a
+type CommitmentSecretExpr a = ProofExpr CommitmentSecret a
 
 data CommitmentQuery a = CommitmentQuery
   { comQuery'publicKey  :: PublicKey a
@@ -160,8 +220,8 @@ toCommitmentExpr tree = case tree of
 
     noCommitmentError = throwError "No commitment found"
 
-type ChallengeExpr  a = SigmaE (ProofTag a) (Either (ChallengeResult a) (ProofDL a))
-type CommitmentExpr a = SigmaE (ProofTag a) (Either (CommitmentResult a) (ProofDL a))
+type ChallengeExpr  a = ProofExpr ChallengeResult a
+type CommitmentExpr a = ProofExpr CommitmentResult a
 
 data ChallengeResult a = ChallengeResult
   { challengeResult'publicKey  :: PublicKey a
@@ -240,7 +300,7 @@ queryToProofDL ResponseQuery{..} = fmap (\resp -> ProofDL
   }) responseQuery'response
 
 
-type ResponseQueryExpr a = SigmaE (ProofTag a) (Either (ResponseQuery a) (ProofDL a))
+type ResponseQueryExpr a = ProofExpr ResponseQuery a
 
 queryResponses :: EC a => Env a -> CommitmentSecretExpr a -> ChallengeExpr a -> Prove (ResponseQueryExpr a)
 queryResponses env secretExpr expr = case (secretExpr, expr) of
@@ -264,7 +324,7 @@ queryResponses env secretExpr expr = case (secretExpr, expr) of
         e = fromChallenge challenge
         z = rand .+. (privKey .*. e)
 
-appendResponses :: EC a => ResponseQueryExpr a  -> ResponseQueryExpr a -> Maybe (ResponseQueryExpr a)
+appendResponses :: EC a => ResponseQueryExpr a -> ResponseQueryExpr a -> Maybe (ResponseQueryExpr a)
 appendResponses = appendProofExprBy app
   where
     app a b
