@@ -21,9 +21,6 @@ recursionCheck
   where
     depIsAcyclic = isJust
 
--- | Dependency (lefthand side, righthand side)
-type Dep = (Name, [Name])
-
 -- | Returns chain of sorted by dependency top-level combinator names
 -- It's nothing if graph has cycles.
 progDependencySort :: CoreProg -> Maybe [Name]
@@ -56,5 +53,5 @@ freeVars = \case
 
 
 -- | Build dependencies for a single supercmbinator
-scombToDep :: Scomb -> Dep
+scombToDep :: Scomb -> (Name, [Name])
 scombToDep Scomb{..} = (scomb'name, S.toList $ freeVars $ typed'value scomb'body)
