@@ -33,4 +33,6 @@ multiSigExchange = do
 
 getSharedBoxTx :: ProofEnv -> ProofEnv -> (Int, Int) -> (Int, Int) -> BoxId -> BoxId -> IO Tx
 getSharedBoxTx aliceEnv bobEnv (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = undefined
+  where
+    tx =
 
