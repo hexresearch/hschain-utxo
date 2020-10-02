@@ -31,12 +31,11 @@
 -- Partner should pass @commitmentExpr@ to the main prover but keep @secretExpr@ private.
 -- We need @secretExpr@ on the final round of signature to create responses.
 --
--- Main prover collects all commitments and joins them with functions: @filterCommitments@ and @appendCommitments@.
--- With @filterCommitments@ we keep only commitments for specific keys. This way we guarantee that partner
+-- Main prover collects all commitments and joins them with corresponding keys and applies @appendCommitments@.
+-- For each commitment we keep only commitments for specific keys. This way we guarantee that partner
 -- has signed only his own keys and somebodyelses. With @appendCommitments@ we join all commitments to single expression.
--- Finally we apply function @toCommitmentExpr@. It insures that all commitments are assigned.
 --
--- > commitmentExpr <- toCommitmentExpr =<< (appendCommitments $ zipWith filterCommitments partnerKeys partnerCommitmments)
+-- > commitmentExpr <- appendCommitments $ zip partnerKeys partnerCommitmments
 --
 -- With all suuplied commitments @commitmentExpr@ we can calculate all challenges with function @getChallenges@.
 --
@@ -58,12 +57,20 @@
 --
 -- multiSigProof = responsesToProof responseExpr
 module Hschain.Utxo.Lang.Sigma.MultiSig(
-    checkChallenges
+    initMultiSigProof
+  , queryCommitments
+  , appendCommitments
+  , toCommitmentExpr
+  , checkChallenges
   , generateSimulatedProofs
   , getChallenges
-  , CommitmentQuery(..)
-  , CommitmentSecret(..)
-  , CommitmentResult(..)
+  , CommitmentQueryExpr
+  , CommitmentExpr
+  , CommitmentSecretExpr
+  , ChallengeExpr
+  , ResponseQueryExpr
+  , queryResponses
+  , appendResponsesToProof
 ) where
 
 import Control.Applicative
@@ -71,16 +78,18 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
+import Data.ByteString (ByteString)
+import Data.Bifunctor
+import Data.Either.Extra
+import Data.Maybe
+import Data.Set (Set)
+import Data.Text (Text)
+
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
 import Hschain.Utxo.Lang.Sigma.Interpreter
-
-import Data.ByteString (ByteString)
-import Data.Maybe
-import Data.Set (Set)
-import Data.Text (Text)
 
 import qualified Data.List as L
 import qualified Data.Set as Set
@@ -109,8 +118,9 @@ initMultiSigProof knownKeys expr =
 type ProofExpr leaf a = SigmaE (ProofTag a) (Either (leaf a) (ProofDL a))
 
 -- | Checks that right message was signed. Main prover uses the same message as me.
-checkChallenges :: EC a => CommitmentSecretExpr a -> ChallengeExpr a -> ByteString -> Bool
-checkChallenges expr message = undefined
+checkChallenges :: EC a => CommitmentExpr a -> ChallengeExpr a -> ByteString -> Bool
+checkChallenges commitments expectedCommitments message =
+  getChallenges commitments message == Right expectedCommitments
 
 generateSimulatedProofs
   :: EC a
@@ -179,17 +189,18 @@ queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
     go :: CommitmentQueryExpr a -> Prove (CommitmentSecretExpr a)
     go = \case
       -- if we own the key we generate randomness and commitment based on it
-      Leaf (ProofTag Real ch) (Left query) | ownsKey query -> do
+      Leaf tag (Left query) | ownsKey query -> do
                         r <- liftIO generateScalar
-                        return $ Leaf (ProofTag Real ch) $ Left $ CommitmentSecret
+                        return $ Leaf tag $ Left $ CommitmentSecret
                           { comSecret'query  = query { comQuery'commitment = Just $ fromGenerator r }
                           , comSecret'secret = Just r
                           }
       -- if we do not own the key we just copy query (it's someone elses commitment) and leave secret blank
-      Leaf (ProofTag Real ch) (Left query) -> return $ Leaf (ProofTag Real ch) $ Left CommitmentSecret
+      Leaf tag (Left query) -> return $ Leaf tag $ Left CommitmentSecret
                           { comSecret'query  = query
                           , comSecret'secret = Nothing
                           }
+      Leaf tag (Right pdl) -> return $ Leaf tag $ Right pdl
       AND tag es -> AND tag <$> traverse go es
       OR  tag es -> OR  tag <$> traverse go es
 
@@ -201,10 +212,34 @@ queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
       AND  tag es      -> AND tag $ fmap eraseSecrets es
       OR   tag es      -> OR  tag $ fmap eraseSecrets es
 
-appendCommitments
+-- | Erase commitments for keys that we do not own.
+-- We should apply it before appending commitments so that partners could not cheat on somebody else's keys.
+filterCommitments :: EC a => Set (PublicKey a) -> CommitmentQueryExpr a -> CommitmentQueryExpr a
+filterCommitments knownKeys = \case
+  Leaf tag leaf -> Leaf tag $ first (\query ->
+    if ownsPk (comQuery'publicKey query)
+      then query
+      else eraseCommitment query
+    ) leaf
+  AND  tag as -> AND tag $ fmap rec as
+  OR   tag as -> OR  tag $ fmap rec as
+  where
+    rec = filterCommitments knownKeys
+
+    ownsPk key = Set.member key knownKeys
+    eraseCommitment q = q { comQuery'commitment = Nothing }
+
+appendCommitments :: EC a => [(Set (PublicKey a), CommitmentQueryExpr a)] -> Prove (CommitmentExpr a)
+appendCommitments exprs = case fmap (uncurry filterCommitments) exprs of
+  []   -> throwError "List of commitments is empty"
+  a:as -> toCommitmentExpr =<< (liftEither $ maybeToEither commitmentsDoNotMatch $ foldM appendCommitment2 a as)
+  where
+    commitmentsDoNotMatch = "Commitmnt expressions do not match"
+
+appendCommitment2
   :: EC a
   => CommitmentQueryExpr a -> CommitmentQueryExpr a -> Maybe (CommitmentQueryExpr a)
-appendCommitments = appendProofExprBy appendComQueries
+appendCommitment2 = appendProofExprBy appendComQueries
   where
     appendComQueries a b
       | comQuery'publicKey a == comQuery'publicKey b = Just $ a { comQuery'commitment = comQuery'commitment a <|> comQuery'commitment b }
@@ -229,7 +264,9 @@ data ChallengeResult a = ChallengeResult
   , challengeResult'challenge  :: Challenge a
   }
 
-getChallenges :: EC a => CommitmentExpr a -> ByteString -> Prove (ChallengeExpr a)
+deriving stock   instance (Eq (ECPoint a), Eq (Challenge a)) => Eq (ChallengeResult a)
+
+getChallenges :: EC a => CommitmentExpr a -> ByteString -> Either Text (ChallengeExpr a)
 getChallenges expr0 message = goReal ch0 expr0
   where
     -- Prover Step 8: compute the challenge for the root of the tree as the Fiat-Shamir hash of s
@@ -324,8 +361,18 @@ queryResponses env secretExpr expr = case (secretExpr, expr) of
         e = fromChallenge challenge
         z = rand .+. (privKey .*. e)
 
-appendResponses :: EC a => ResponseQueryExpr a -> ResponseQueryExpr a -> Maybe (ResponseQueryExpr a)
-appendResponses = appendProofExprBy app
+filterResponses :: EC a => Set (PublicKey a) -> ResponseQueryExpr a -> ResponseQueryExpr a
+filterResponses = undefined
+
+appendResponsesToProof :: EC a => [(Set (PublicKey a), ResponseQueryExpr a)] -> Prove (Proof a)
+appendResponsesToProof resps = case fmap (uncurry filterResponses) resps of
+  []   -> throwError "List of responses is empty"
+  a:as -> responsesToProof =<< (liftEither $ maybeToEither responsesDoNotMatch $ foldM appendResponse2 a as)
+  where
+    responsesDoNotMatch = "Responses expressions do not match"
+
+appendResponse2 :: EC a => ResponseQueryExpr a -> ResponseQueryExpr a -> Maybe (ResponseQueryExpr a)
+appendResponse2 = appendProofExprBy app
   where
     app a b
       | same a b  = Just $ mixResponse a b

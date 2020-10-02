@@ -18,7 +18,7 @@ data SigmaE k a
     -- ^ AND connective
   | OR  k [SigmaE k a]
     -- ^ OR connective
-  deriving (Functor, Foldable, Traversable, Show)
+  deriving (Functor, Foldable, Traversable, Show, Eq)
 
 sexprAnn :: SigmaE k a -> k
 sexprAnn = \case

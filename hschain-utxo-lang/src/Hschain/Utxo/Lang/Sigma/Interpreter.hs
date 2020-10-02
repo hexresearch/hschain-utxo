@@ -71,6 +71,7 @@ data ProofTag a = ProofTag
   , proofTag'challenge :: Maybe (Challenge a)
   }
 
+deriving stock   instance Eq   (Challenge a) => Eq   (ProofTag a)
 deriving stock   instance Show (Challenge a) => Show (ProofTag a)
 
 -- Partial proof of possession of discrete logarithm
