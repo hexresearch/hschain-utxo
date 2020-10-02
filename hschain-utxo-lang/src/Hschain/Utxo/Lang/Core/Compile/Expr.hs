@@ -10,19 +10,13 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , coreProgFromScript
     -- * Recursion schemes stuff
   , ExprCoreF(..)
-    -- * Lens
-  , scomb'nameL
-  , scomb'argsL
-  , scomb'bodyL
   ) where
 
 import Codec.Serialise
 import Data.String
-import Data.Vector (Vector)
 import Data.Functor.Foldable.TH
 import GHC.Generics
 
-import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Types (Script(..),ArgType)
 
@@ -34,20 +28,6 @@ coreProgToScript = Script . LB.toStrict . serialise
 
 coreProgFromScript :: Script -> Maybe ExprCore
 coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
-
--- | Supercobinators do not contain free variables except for references to other supercombinators.
---
--- > S a1 a2 a3 = expr
-data Scomb = Scomb
-  { scomb'name   :: Name
-    -- ^ name of supercombinator
-  , scomb'args   :: Vector (Typed TypeCore Name)
-    -- ^ list of arguments
-  , scomb'body   :: Typed TypeCore ExprCore
-    -- ^ body
-  }
-  deriving stock    (Show, Eq, Generic)
-  deriving anyclass (Serialise)
 
 data PrimOp a
   = OpAdd                 -- ^ Addition
@@ -159,5 +139,3 @@ data CaseAlt = CaseAlt
   deriving anyclass (Serialise)
 
 makeBaseFunctor ''ExprCore
-
-$(makeLensesWithL ''Scomb)
