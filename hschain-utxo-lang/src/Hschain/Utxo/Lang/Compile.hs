@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Compile(
   , toCoreScript
 ) where
 
-import Control.Lens hiding (op)
 import Control.Monad
 
 import Data.Fix
@@ -18,13 +17,11 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
-import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name, typed'valueL)
+import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
-
-import qualified Data.Vector as V
 
 import qualified Language.HM       as H
 import qualified Language.HM.Subst as H
@@ -72,7 +69,7 @@ fromDefs (Def{..}:rest)
         go (Typed nm ty : args) = Core.ELam nm <$> toCoreType ty <*> go args
 
 toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
-toCoreExpr expr@(Fix (Ann expressionTy _)) = cataM convert expr
+toCoreExpr = cataM convert
   where
     convert (Ann exprTy val) = case val of
       EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
@@ -101,11 +98,6 @@ toCoreExpr expr@(Fix (Ann expressionTy _)) = cataM convert expr
       ty' <- toCoreType ty
       pure $ Core.ELam x ty' e
     typeCtx = mempty
-
-convertTyped :: MonadLang m => Typed (H.Type loc Name) a -> m (Typed TypeCore a)
-convertTyped (Typed a ty) = do
-  ty' <- toCoreType ty
-  return $ Typed a ty'
 
 resultType :: TypeCore -> TypeCore
 resultType (_ :-> b) = resultType b

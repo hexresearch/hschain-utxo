@@ -35,12 +35,10 @@ import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Types (ArgType(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.List as L
-import qualified Data.Vector as V
 
 
 ap :: ExprCore -> [ExprCore] -> ExprCore
