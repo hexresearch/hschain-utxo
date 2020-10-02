@@ -10,18 +10,16 @@ import Hschain.Utxo.Test.Client.Scripts.MultiSig
 
 main :: IO ()
 main = do
-{-  exchangeTest   <- runTestProc simpleExchange
+  exchangeTest   <- runTestProc simpleExchange
   xorTest        <- runTestProc xorGame
   payTest1       <- runTestProc payForCofeeAlice
   payTest2       <- runTestProc payForCofeeBob
   atomicSwapTest <- runTestProc atomicSwap
--}
   multiSigTest   <- runTestProc multiSigExchange
   hspec $ do
-{-    exchangeTest
+    exchangeTest
     payTest1
     payTest2
     xorTest
     atomicSwapTest
--}
     multiSigTest

@@ -34,13 +34,23 @@ multiSigExchange = do
   Scene{..} <- initUsers
   let alice     = user'wallet scene'alice
       bob       = user'wallet scene'bob
+      john      = user'wallet scene'john
       Just aliceBox1 = user'box scene'alice
       Just bobBox1   = user'box scene'bob
   (tx, commonBoxId) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
   void $ postTxDebug True "Alice and Bob post joint multisig TX" tx
-  (multiSigTx, _aliceBox2, _bobBox2) <- spendCommonBoxTx alice bob commonBoxId (4, 6)
+  (multiSigTx, aliceBox2, bobBox2) <- spendCommonBoxTx alice bob commonBoxId (aliceShareValue, bobShareValue)
   void $ postTxDebug True "Alice and bob create shared multi-sig proof and spend common box with it" multiSigTx
+  let johnPubKey = getWalletPublicKey john
+  simpleSpendTo "Alice is able to spends everything to John from her part of shared box"
+      alice aliceBox2 johnPubKey aliceShareValue
+  simpleSpendTo "Bob is able to spends everything to John from her part of shared box"
+      bob bobBox2 johnPubKey bobShareValue
   return ()
+  where
+    aliceShareValue = 4
+    bobShareValue   = 6
+
 
 getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId)
 getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = liftIO $ do
@@ -126,6 +136,28 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
     aliceEnv  = getProofEnv alice
     bobEnv    = getProofEnv bob
 
+
+simpleSpendTo :: Text -> Wallet -> BoxId -> PublicKey -> Int64 -> App ()
+simpleSpendTo message wallet fromId toPubKey value = do
+  eTx <- simpleSpendToTx wallet fromId toPubKey value
+  case eTx of
+    Right tx -> void $ postTxDebug True message tx
+    Left err -> testCase ("Failed to construct tx: " <> err) False
+
+simpleSpendToTx :: Wallet -> BoxId -> PublicKey -> Int64 -> App (Either Text Tx)
+simpleSpendToTx wallet fromId toPubKey value =
+  newProofTxOrFail (getProofEnv wallet) preTx
+  where
+    preTx = Tx
+      { tx'inputs  = [inputRef]
+      , tx'outputs = [changeBox value toPubKey]
+      }
+
+    inputRef = BoxInputRef
+      { boxInputRef'id    = fromId
+      , boxInputRef'args  = mempty
+      , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
+      }
 
 postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
 postTxDebug isSuccess msg tx = do
