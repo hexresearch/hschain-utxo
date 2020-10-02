@@ -246,7 +246,17 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
 --
 -- Tools to create cooperative signature with multiple partners.
 --
--- It takes several steps to complete the proof.
+-- It takes several steps to complete the proof. We should assign main prover.
+-- Main prover carries the main steps of the proof and asks participants for missing info.
+-- As in case of any sigma-protocol there are three key elements: commitments, challenges, responses.
+--
+-- In summary algorithm flows along these steps:
+--  * main prover creates simulated proofs and asks for commitments for real proofs
+--  * participants share commitments and keep corresponfing secret private
+--  * based on commitments main prover calculates challenges and asks for responces
+--  * participants provide responses derived from their private keys and secrets generated on the commitment-stage
+--  * main prover completes the proof when he gets all responses.
+--
 -- For example we have three participants Alice, Bob and John.
 -- They want to sign the TX with sigma-expression:
 --

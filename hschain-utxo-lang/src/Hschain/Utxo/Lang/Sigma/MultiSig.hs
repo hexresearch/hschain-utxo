@@ -217,7 +217,7 @@ queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
 filterCommitments :: EC a => Set (PublicKey a) -> CommitmentQueryExpr a -> CommitmentQueryExpr a
 filterCommitments knownKeys = \case
   Leaf tag leaf -> Leaf tag $ first (\query ->
-    if ownsPk (comQuery'publicKey query)
+    if ownsPk (comQuery'publicKey query) knownKeys
       then query
       else eraseCommitment query
     ) leaf
@@ -226,8 +226,10 @@ filterCommitments knownKeys = \case
   where
     rec = filterCommitments knownKeys
 
-    ownsPk key = Set.member key knownKeys
     eraseCommitment q = q { comQuery'commitment = Nothing }
+
+ownsPk :: EC a => PublicKey a -> Set (PublicKey a) -> Bool
+ownsPk key knownKeys = Set.member key knownKeys
 
 appendCommitments :: EC a => [(Set (PublicKey a), CommitmentQueryExpr a)] -> Prove (CommitmentExpr a)
 appendCommitments exprs = case fmap (uncurry filterCommitments) exprs of
@@ -362,7 +364,18 @@ queryResponses env secretExpr expr = case (secretExpr, expr) of
         z = rand .+. (privKey .*. e)
 
 filterResponses :: EC a => Set (PublicKey a) -> ResponseQueryExpr a -> ResponseQueryExpr a
-filterResponses = undefined
+filterResponses knownKeys = \case
+  Leaf tag leaf -> Leaf tag $ first (\query ->
+    if ownsPk (responseQuery'publicKey query) knownKeys
+      then query
+      else eraseResponse query
+    ) leaf
+  AND  tag as -> AND tag $ fmap rec as
+  OR   tag as -> OR  tag $ fmap rec as
+  where
+    rec = filterResponses knownKeys
+
+    eraseResponse q = q { responseQuery'response = Nothing }
 
 appendResponsesToProof :: EC a => [(Set (PublicKey a), ResponseQueryExpr a)] -> Prove (Proof a)
 appendResponsesToProof resps = case fmap (uncurry filterResponses) resps of

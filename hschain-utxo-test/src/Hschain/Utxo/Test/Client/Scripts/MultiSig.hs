@@ -1,3 +1,8 @@
+-- | Alice and Bob create shared Box sealed with multi-sig:
+--
+-- > pkAlice && pkBob
+--
+-- and then spend it.
 module Hschain.Utxo.Test.Client.Scripts.MultiSig(
   multiSigExchange
 ) where
@@ -20,9 +25,6 @@ import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.MultiSig    as Sigma
-
 import qualified Data.Vector as V
 
 -- | Alice and Bob create joint box that is guarded by multisig and then spend it.
@@ -36,6 +38,8 @@ multiSigExchange = do
       Just bobBox1   = user'box scene'bob
   (tx, commonBoxId) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
   void $ postTxDebug True "Alice and Bob post joint multisig TX" tx
+  (multiSigTx, _aliceBox2, _bobBox2) <- spendCommonBoxTx alice bob commonBoxId (4, 6)
+  void $ postTxDebug True "Alice and bob create shared multi-sig proof and spend common box with it" multiSigTx
   return ()
 
 getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId)
@@ -74,24 +78,37 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
     bobEnv   = getProofEnv bob
 
 
-spendCommonBoxTx :: Wallet -> Wallet -> BoxId -> (Int64, Int64) -> IO (Tx, BoxId, BoxId)
-spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = do
-  _ <- Sigma.runProve $ do
-    commitmentQueryExpr <- Sigma.initMultiSigProof knownKeys commonScript
-    return ()
-  return undefined
+spendCommonBoxTx :: Wallet -> Wallet -> BoxId -> (Int64, Int64) -> App (Tx, BoxId, BoxId)
+spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
+  proof <- fmap eitherToMaybe $ runProve $ do
+    comQueryExpr <- initMultiSigProof knownKeys commonScript
+    (aliceCommitments, aliceSecret) <- queryCommitments aliceKeys comQueryExpr
+    (bobCommitments,   bobSecret)   <- queryCommitments bobKeys   comQueryExpr
+    commitments <- appendCommitments [(aliceKeys, aliceCommitments), (bobKeys, bobCommitments)]
+    challenges <- getChallenges commitments txId
+    aliceResponses <- queryResponses aliceEnv aliceSecret challenges
+    bobResponses   <- queryResponses bobEnv   bobSecret   challenges
+    proof <- appendResponsesToProof [(aliceKeys, aliceResponses), (bobKeys, bobResponses)]
+    return proof
+  return $ appendOutputs $ newTx $ getPreTx proof
   where
-    preTx = Tx
-      { tx'inputs  = [commonInput]
+    appendOutputs tx = (tx, boxId 0, boxId 1)
+      where
+        boxId n = box'id $ tx'outputs tx V.! n
+
+    getPreTx proof = Tx
+      { tx'inputs  = [commonInput proof]
       , tx'outputs = [aliceBox, bobBox]
       }
 
+    preTx = getPreTx Nothing
+
     txId  = computePreTxId preTx
 
-    commonInput = BoxInputRef
+    commonInput proof = BoxInputRef
       { boxInputRef'id    = commonBoxId
       , boxInputRef'args  = mempty
-      , boxInputRef'proof = Nothing
+      , boxInputRef'proof = proof
       }
 
     commonScript = sigmaPk alicePk &&* sigmaPk bobPk
@@ -103,6 +120,11 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = do
     bobPk    = getWalletPublicKey bob
 
     knownKeys = [alicePk, bobPk]
+    aliceKeys = [alicePk]
+    bobKeys   = [bobPk]
+
+    aliceEnv  = getProofEnv alice
+    bobEnv    = getProofEnv bob
 
 
 postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
@@ -120,7 +142,7 @@ postTxDebug isSuccess msg tx = do
   where
     wait = sleep 0.1
 
-
+changeBox :: Int64 -> PublicKey -> PreBox
 changeBox value pubKey = PreBox
   { preBox'value  = value
   , preBox'script = mainScriptUnsafe $ pk' pubKey
