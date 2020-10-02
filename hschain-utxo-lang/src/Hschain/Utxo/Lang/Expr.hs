@@ -212,39 +212,19 @@ varToConsName VarName{..} = ConsName varName'loc varName'name
 
 -- | Construct args that contain only integers
 intArgs :: [Int64] -> Args
-intArgs xs = Args
-  { args'ints  = V.fromList xs
-  , args'bools = mempty
-  , args'texts = mempty
-  , args'bytes = mempty
-  }
+intArgs xs = mempty { args'ints = V.fromList xs }
 
 -- | Construct args that contain only booleans
 boolArgs :: [Bool] -> Args
-boolArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = V.fromList xs
-  , args'texts = mempty
-  , args'bytes = mempty
-  }
+boolArgs xs = mempty { args'bools = V.fromList xs }
 
 -- | Construct args that contain only texts
 textArgs :: [Text] -> Args
-textArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = mempty
-  , args'texts = V.fromList xs
-  , args'bytes = mempty
-  }
+textArgs xs = mempty { args'texts = V.fromList xs }
 
 -- | Construct args that contain only bytestrings
 byteArgs :: [ByteString] -> Args
-byteArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = mempty
-  , args'texts = mempty
-  , args'bytes = V.fromList xs
-  }
+byteArgs xs = mempty { args'bytes = V.fromList xs }
 
 -- | Pattern matching elements (in the arguments or in cases)
 data Pat
