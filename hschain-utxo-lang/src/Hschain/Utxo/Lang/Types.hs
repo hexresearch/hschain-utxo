@@ -117,7 +117,7 @@ instance FromText BoxId where
 
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
-  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
