@@ -142,8 +142,9 @@ runApp = do
           netcfg = POW.NetCfg { POW.nKnownPeers     = 3
                               , POW.nConnectedPeers = 3
                               }
-      withConnection (fromMaybe "" cfgDB) $ \conn -> 
-        withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
+      withConnection (fromMaybe "" cfgDB) $ \conn ->
+        let unassignedMempool = error "mempool is not assigned!"
+        in withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn unassignedMempool $ evalContT $ do
           (db, bIdx, sView) <- lift $ utxoStateView genesis
           c0  <- lift $ POW.createConsensus db sView bIdx
           pow <- POW.startNode netcfg net cfgPeers db c0
@@ -153,11 +154,12 @@ runApp = do
             forever $ do (bh,_) <- HControl.awaitIO ch
                          print (POW.bhHeight bh, POW.bhBID bh)
                          print $ POW.retarget bh
-          let appEnv = AppEnv (POW.mempoolAPI pow)
+          utxoEnv <- lift ask
+          let endpointUTXOEnv = utxoEnv { ueMempool = POW.mempoolAPI pow }
           forM_ cfgWebAPI $ \port -> do
             let api = Proxy :: Proxy UtxoAPI
                 run :: ServerM a -> Servant.Handler a
-                run (UTXOT x) = liftIO $ runReaderT x appEnv
+                run (UTXOT x) = liftIO $ runReaderT x endpointUTXOEnv
             HControl.cforkLinkedIO $ Warp.run port $ Servant.serve api $ Servant.hoistServer api undefined undefined
           case runnode'nodeSecret of
             Just privk -> do
