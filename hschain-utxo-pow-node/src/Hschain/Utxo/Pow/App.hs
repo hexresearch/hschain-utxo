@@ -164,7 +164,7 @@ runApp = do
             liftIO $ hPutStrLn stderr $ "starting server at "++show port
             HControl.cforkLinkedIO $ do
               hPutStrLn stderr $ "server started at "++show port
-              Warp.run port $ Servant.serve api $ Servant.hoistServer api undefined undefined
+              Warp.run port $ Servant.serve api $ Servant.hoistServer api run utxoServer
           case runnode'nodeSecret of
             Just privk -> do
               HControl.cforkLinked $ POW.genericMiningLoop pow
@@ -206,14 +206,12 @@ getTxSigmaEndpoint tx =
 
 getEnvEndpoint :: ServerM GetEnvResponse
 getEnvEndpoint = do
-  --bch <- readBoxChain
-  --GetEnvResponse <$> getEnv bch
-  return undefined
+  bch <- readBoxChain
+  return $ GetEnvResponse $ getEnv bch
 
 getStateEndpoint :: ServerM BoxChain
 getStateEndpoint =
-  --readBoxChain
-  return undefined
+  readBoxChain
 
 getUtxosEndpoint :: ServerM [BoxId]
 getUtxosEndpoint = return []
@@ -239,8 +237,7 @@ type ServerM a = UTXOT IO a
 -- | Reads current state of the block chain
 readBoxChain :: ServerM BoxChain
 readBoxChain =
-  --readBoxChainState
-  return undefined
+  readBoxChainState
 
 
 --------------------------------------------------
@@ -249,7 +246,7 @@ readBoxChain =
 writeTx :: Tx -> UTXOT IO (Maybe TxHash)
 writeTx tx = do
   POW.MempoolAPI {..} <- fmap ueMempool ask
-  liftIO $ hPutStrLn stderr $ "posting transaction "++show  tx
+  liftIO $ hPutStrLn stderr $ "posting transaction "++show tx
   HControl.sinkIO postTransaction tx
   --Bchain{..} <- askBchain
   --liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
@@ -276,7 +273,7 @@ readBoxChainState :: UTXOT IO BoxChain
 readBoxChainState = do
   --Bchain{..} <- askBchain
   --liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
-  return undefined
+  return $ BoxChain Map.empty 0
 
 waitForTx :: UTXOT IO (TxHash -> UTXOT IO Bool)
 waitForTx = do
