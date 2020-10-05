@@ -1,3 +1,4 @@
+{-# LANGUAGE PolyKinds       #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- | Types for core language and its compiled form.
 module Hschain.Utxo.Lang.Core.Compile.Expr(
@@ -144,8 +145,6 @@ data CaseAlt a = CaseAlt
   deriving stock    (Show, Eq, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
-makeBaseFunctor ''Core
-
 
 data Arity
   = One
@@ -159,6 +158,8 @@ data BindDB arity a where
   BindDB1 ::        BindDB 'One  a
   BindDBN :: Int -> BindDB 'Many a
 
+data Scope b arity f a = Scope (b arity a) (f a)
+
 deriving instance Functor     (BindName arity)
 deriving instance Foldable    (BindName arity)
 deriving instance Traversable (BindName arity)
@@ -166,3 +167,10 @@ deriving instance Traversable (BindName arity)
 deriving instance Functor     (BindDB arity)
 deriving instance Foldable    (BindDB arity)
 deriving instance Traversable (BindDB arity)
+
+deriving instance (forall a. Functor     (b a), Functor     f) => Functor     (Scope b arity f)
+deriving instance (forall a. Foldable    (b a), Foldable    f) => Foldable    (Scope b arity f)
+deriving instance (forall a. Traversable (b a), Traversable f) => Traversable (Scope b arity f)
+
+makeBaseFunctor ''Core
+
