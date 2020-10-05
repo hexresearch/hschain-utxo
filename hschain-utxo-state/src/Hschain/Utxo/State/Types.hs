@@ -47,9 +47,8 @@ toTxArg :: BoxChain -> Tx -> Either Text TxArg
 toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
   TxArg
     { txArg'outputs = tx'outputs
-    , txArg'inputs  = inputs
+    , txArg'inputs  = fmap addSig inputs
     , txArg'env     = getEnv bch
-    , txArg'txBytes = computeTxId tx
     }
   ) mInputs
   where
@@ -61,10 +60,13 @@ toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
           M.lookup boxInputRef'id boxChain'boxes
       where
         toBoxInput box = BoxInput
-          { boxInput'box   = box
-          , boxInput'args  = boxInputRef'args
-          , boxInput'proof = boxInputRef'proof
+          { boxInput'box     = box
+          , boxInput'args    = boxInputRef'args
+          , boxInput'proof   = boxInputRef'proof
+          , boxInput'sigMask = boxInputRef'sigMask
           }
+
+    addSig inp@BoxInput{..} = (inp, getSigMessageTx boxInput'sigMask tx)
 
 hasBoxId :: BoxChain -> BoxId -> Bool
 hasBoxId BoxChain{..} boxId = M.member boxId boxChain'boxes

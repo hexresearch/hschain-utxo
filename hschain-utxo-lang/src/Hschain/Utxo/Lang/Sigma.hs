@@ -11,6 +11,7 @@ module Hschain.Utxo.Lang.Sigma(
   , Secret
   , ProofEnv
   , Proof
+  , SigMessage(..)
   , Sigma
   , SigmaF(..)
   , newProof
@@ -34,6 +35,7 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
+import Data.ByteString (ByteString)
 import Data.Either
 import Data.Fix
 import Data.Functor.Classes (Eq1(..))
@@ -43,8 +45,9 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes      (ByteRepr(..))
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
+import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr(..))
+import HSChain.Crypto.Classes.Hash
+import HSChain.Crypto.SHA          (SHA256)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
@@ -70,6 +73,13 @@ type ProofEnv   = Sigma.Env        CryptoAlg
 -- | Proof of the ownership.
 type Proof      = Sigma.Proof      CryptoAlg
 type ProofDL    = Sigma.ProofDL    CryptoAlg
+
+-- | Message for signature it is computed based on Tx.
+newtype SigMessage = SigMessage (Hash SHA256)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr, CryptoHashable)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "SigMessage" ByteString)
 
 -- | Generate new private key.
 newSecret :: IO Secret
@@ -106,10 +116,10 @@ instance Serialise a => FromJSON (Sigma a) where
 -- It's message to be signed.
 --
 -- For the message use getTxBytes from TX that has no proof.
-newProof :: ByteRepr bs => ProofEnv -> Sigma PublicKey -> bs -> IO (Either Text Proof)
-newProof env expr (encodeToBS -> message) =
+newProof :: ProofEnv -> Sigma PublicKey -> SigMessage -> IO (Either Text Proof)
+newProof env expr message =
   case toSigmaExpr expr of
-    Right sigma -> Sigma.newProof env sigma message
+    Right sigma -> Sigma.newProof env sigma $ encodeToBS message
     Left  _     -> return catchBoolean
   where
     catchBoolean = Left "Expression is constant boolean. It is not  a sigma-expression"
@@ -119,7 +129,7 @@ newProof env expr (encodeToBS -> message) =
 -- > verifyProof proof message
 --
 -- For the message use getTxBytes from TX.
-verifyProof :: ByteRepr bs => Proof -> bs -> Bool
+verifyProof :: Proof -> SigMessage -> Bool
 verifyProof proof = Sigma.verifyProof proof . encodeToBS
 
 type Sigma k = Fix (SigmaF k)

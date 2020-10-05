@@ -1,11 +1,15 @@
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types
   ( Tx
+  , PreTx
   , GTx(..)
   , TxHash(..)
   , TxArg(..)
   , BoxInput(..)
   , BoxInputRef(..)
+  , SigMask(..)
+  , nullSigMask
+  , signAll
   , ExpectedBox
   , Env(..)
   , Money
@@ -28,6 +32,10 @@ module Hschain.Utxo.Lang.Types
   , splitInputs
   , txPreservesValue
   , computeTxId
+  , computePreTxId
+  , SigMessage(..)
+  , getSigMessageTx
+  , getSigMessagePreTx
   , validateOutputBoxIds
     -- * Helperes
   , singleOwnerInput
@@ -177,7 +185,13 @@ data GTx i o = Tx
   deriving anyclass (Serialise, NFData)
 
 -- | Transaction which is part of block and which are exchanged between clients
-type Tx = GTx Proof Box
+type Tx    = GTx Proof Box
+type PreTx = GTx Proof PreBox
+
+data TxSizes = TxSizes
+  { txSizes'inputs   :: !Int
+  , txSizes'outputs :: !Int
+  } deriving (Show, Eq)
 
 instance Bifunctor GTx where
   first f Tx{..} = Tx { tx'inputs = (fmap . fmap) f tx'inputs
@@ -186,19 +200,87 @@ instance Bifunctor GTx where
   second = fmap
 
 
+instance Semigroup (GTx ins outs) where
+  (<>) a b = Tx
+    { tx'inputs  = appendInputs (tx'inputs a) (tx'inputs b)
+    , tx'outputs = tx'outputs a <> tx'outputs b
+    }
+    where
+      appendInputs aIns bIns = aIns <> fmap shiftRefMask bIns
+
+      aSizes = getTxSizes a
+      bSizes = getTxSizes b
+
+      shiftRefMask ref@BoxInputRef{..} = ref
+        { boxInputRef'sigMask = shiftMask $ boxInputRef'sigMask
+        }
+
+      shiftMask x = prefix <> fillEmptyMask bSizes x
+        where
+          prefix = SigMask
+            { sigMask'inputs  = V.replicate (txSizes'inputs  aSizes) False
+            , sigMask'outputs = V.replicate (txSizes'outputs aSizes) False
+            }
+
+getTxSizes :: GTx ins outs -> TxSizes
+getTxSizes Tx{..} = TxSizes
+  { txSizes'inputs  = V.length tx'inputs
+  , txSizes'outputs = V.length tx'outputs
+  }
+
+instance Monoid (GTx ins outs) where
+  mempty = Tx
+    { tx'inputs  = mempty
+    , tx'outputs = mempty
+    }
+
 -- | Input is an unspent Box that exists in blockchain.
 -- To spend the input we need to provide right arguments and proof
 -- of reulting sigma expression.
 data BoxInputRef a = BoxInputRef
-  { boxInputRef'id    :: BoxId
-  , boxInputRef'args  :: Args
-  , boxInputRef'proof :: Maybe a
+  { boxInputRef'id       :: BoxId
+  , boxInputRef'args     :: Args
+  , boxInputRef'proof    :: Maybe a
+  , boxInputRef'sigMask  :: SigMask
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
 
+-- | Signature mask. It defines what inputs and outputs
+-- are included in the message to sign.
+--
+-- Empty SigMask means sign all inputs and outputs.
+data SigMask = SigMask
+  { sigMask'inputs   :: Vector Bool
+  , sigMask'outputs  :: Vector Bool
+  }
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
 
-getPreTx :: Tx -> GTx Proof PreBox
+instance Semigroup SigMask where
+  (<>) a b = SigMask
+    { sigMask'inputs  = sigMask'inputs a <> sigMask'inputs b
+    , sigMask'outputs = sigMask'outputs a <> sigMask'outputs b
+    }
+
+instance Monoid SigMask where
+  mempty = SigMask
+            { sigMask'inputs  = mempty
+            , sigMask'outputs = mempty
+            }
+
+nullSigMask :: SigMask -> Bool
+nullSigMask SigMask{..} =
+  null sigMask'inputs && null sigMask'outputs
+
+signAll :: TxSizes -> SigMask
+signAll TxSizes{..} =
+  SigMask
+    { sigMask'inputs  = V.replicate txSizes'inputs  True
+    , sigMask'outputs = V.replicate txSizes'outputs True
+    }
+
+getPreTx :: Tx -> PreTx
 getPreTx = fmap toPreBox
 
 toPreBox :: Box -> PreBox
@@ -222,22 +304,46 @@ computePreTxId Tx{..}
                            <> hashStep boxInputRef'args
     stepOut = hashStep
 
+getSigMessageTx :: SigMask -> Tx -> SigMessage
+getSigMessageTx mask = getSigMessagePreTx mask . getPreTx
+
+getSigMessagePreTx :: SigMask -> GTx a PreBox -> SigMessage
+getSigMessagePreTx mask tx@Tx{..}
+  = SigMessage . hashBuilder
+  $ hashStep (UserType hashDomain "Tx")
+ <> hashStepFoldableWith stepIn  (filterMask (sigMask'inputs  completeMask) tx'inputs)
+ <> hashStepFoldableWith stepOut (filterMask (sigMask'outputs completeMask) tx'outputs)
+  where
+    stepIn BoxInputRef{..}  = hashStep boxInputRef'id
+                           <> hashStep boxInputRef'args
+                           <> hashStep boxInputRef'sigMask
+    stepOut = hashStep
+
+    completeMask = fillEmptyMask (getTxSizes tx) mask
+
+fillEmptyMask :: TxSizes -> SigMask -> SigMask
+fillEmptyMask sizes x
+  | nullSigMask x = signAll sizes
+  | otherwise     = x
+
+filterMask :: Vector Bool -> Vector a -> Vector a
+filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
 
 -- | Tx with substituted inputs and environment.
 --  This type is the same as Tx only it contains Boxes for inputs instead
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
-  { txArg'inputs   :: !(Vector BoxInput)
-  , txArg'outputs  :: !(Vector Box)
-  , txArg'env      :: !Env
-  , txArg'txBytes  :: !TxId
+  { txArg'inputs       :: !(Vector (BoxInput, SigMessage))
+  , txArg'outputs      :: !(Vector Box)
+  , txArg'env          :: !Env
   }
   deriving (Show, Eq)
 
 data BoxInput = BoxInput
-  { boxInput'box   :: !Box
-  , boxInput'args  :: !Args
-  , boxInput'proof :: !(Maybe Proof)
+  { boxInput'box     :: !Box
+  , boxInput'args    :: !Args
+  , boxInput'proof   :: !(Maybe Proof)
+  , boxInput'sigMask :: !SigMask
   }
   deriving (Show, Eq, Generic)
 
@@ -257,14 +363,14 @@ data InputEnv = InputEnv
   }
   deriving (Show, Eq)
 
-splitInputs :: TxArg -> Vector (Maybe Proof, InputEnv)
-splitInputs tx = fmap (\input -> (boxInput'proof input, getInputEnv tx input)) $ txArg'inputs tx
+splitInputs :: TxArg -> Vector (Maybe Proof, SigMessage, InputEnv)
+splitInputs tx = fmap (\(input, msg) -> (boxInput'proof input,msg,  getInputEnv tx input)) $ txArg'inputs tx
 
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
   { inputEnv'self    = boxInput'box input
   , inputEnv'height  = env'height txArg'env
-  , inputEnv'inputs  = fmap boxInput'box txArg'inputs
+  , inputEnv'inputs  = fmap (boxInput'box . fst) txArg'inputs
   , inputEnv'outputs = txArg'outputs
   , inputEnv'args    = boxInput'args input
   }
@@ -272,7 +378,7 @@ getInputEnv TxArg{..} input = InputEnv
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True
-  | otherwise       = toSum (fmap boxInput'box txArg'inputs) == toSum txArg'outputs
+  | otherwise       = toSum (fmap (boxInput'box . fst) txArg'inputs) == toSum txArg'outputs
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
@@ -284,7 +390,7 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 
 -- | Creates TX and assigns properly all box identifiers.
 -- It does not create the proofs.
-newTx :: GTx Proof PreBox -> Tx
+newTx :: PreTx -> Tx
 newTx tx = tx { tx'outputs = makeOutputs txId $ tx'outputs tx
               }
   where
@@ -305,29 +411,29 @@ makeOutputs txId outputs = V.imap toBox outputs
                 , boxOrigin'txId        = txId
                 }
 
-makeInputs
-  :: ProofEnv
-  -> TxId
-  -> Vector (BoxInputRef (Sigma PublicKey))
-  -> IO (Vector (BoxInputRef Proof))
-makeInputs proofEnv message
-  = traverse toInput
-  where
-    toInput BoxInputRef{..} = do
-      mProof <- mapM (\sigma -> newProof proofEnv sigma message) boxInputRef'proof
-      return BoxInputRef{ boxInputRef'proof = either (const Nothing) Just =<< mProof
-                        , ..
-                        }
+makeInput
+  :: GTx (Sigma PublicKey) PreBox
+  -> ProofEnv
+  -> BoxInputRef (Sigma PublicKey)
+  -> IO (BoxInputRef Proof)
+makeInput tx proofEnv BoxInputRef{..} = do
+  let message = getSigMessagePreTx boxInputRef'sigMask tx
+  mProof <- mapM (\sigma -> newProof proofEnv sigma message) boxInputRef'proof
+  return BoxInputRef{ boxInputRef'proof = either (const Nothing) Just =<< mProof
+                    , ..
+                    }
 
-makeInputsOrFail
-  :: ProofEnv
-  -> TxId
-  -> Vector (BoxInputRef (Sigma PublicKey))
-  -> IO (Either Text (Vector (BoxInputRef Proof)))
-makeInputsOrFail proofEnv message
-  = runExceptT . (traverse . traverse) toInput
+makeInputOrFail
+  :: GTx (Sigma PublicKey) PreBox
+  -> ProofEnv
+  -> BoxInputRef (Sigma PublicKey)
+  -> ExceptT Text IO (BoxInputRef Proof)
+makeInputOrFail tx proofEnv ref@BoxInputRef{..}
+  = traverse toInput ref
   where
     toInput sigma = ExceptT $ newProof proofEnv sigma message
+
+    message = getSigMessagePreTx boxInputRef'sigMask tx
 
 
 -- | Expectation of the result of the box. We use it when we know to
@@ -345,7 +451,7 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
 newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) PreBox -> io Tx
 newProofTx proofEnv tx = liftIO $ do
-  inputs <- makeInputs proofEnv txId $ tx'inputs tx
+  inputs <- traverse (makeInput tx proofEnv) $ tx'inputs tx
   return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = makeOutputs txId $ tx'outputs tx
@@ -361,7 +467,7 @@ newProofTx proofEnv tx = liftIO $ do
 -- over API.
 newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) PreBox -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
-  eInputs <- makeInputsOrFail proofEnv txId $ tx'inputs tx
+  eInputs <- runExceptT $ traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
     , tx'outputs = makeOutputs txId $ tx'outputs tx
@@ -398,9 +504,10 @@ singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
 
 singleOwnerInput :: BoxId -> PublicKey -> Vector ExpectedBox
 singleOwnerInput boxId pubKey = return $ BoxInputRef
-  { boxInputRef'id    = boxId
-  , boxInputRef'args  = mempty
-  , boxInputRef'proof = Just $ singleOwnerSigma pubKey
+  { boxInputRef'id      = boxId
+  , boxInputRef'args    = mempty
+  , boxInputRef'proof   = Just $ singleOwnerSigma pubKey
+  , boxInputRef'sigMask = mempty
   }
 
 
@@ -413,6 +520,7 @@ $(deriveJSON dropPrefixOptions ''Env)
 $(deriveJSON dropPrefixOptions ''BoxInput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
 $(deriveJSON dropPrefixOptions ''Box)
+$(deriveJSON dropPrefixOptions ''SigMask)
 
 instance CryptoHashable Tx where
   hashStep = genericHashStep hashDomain
@@ -424,6 +532,9 @@ instance CryptoHashable a => CryptoHashable (BoxInputRef a) where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Script where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable SigMask where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Box where
