@@ -19,10 +19,8 @@ import Data.Text       (Text)
 import Data.Typeable
 import Data.Fix
 import Data.Either.Extra
-import qualified Data.Vector     as V
-import qualified Data.Text       as T
-import qualified Data.Map.Strict as Map
-import qualified Data.Map.Lazy   as MapL
+import qualified Data.Vector          as V
+import qualified Data.Text            as T
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LB
 
@@ -72,13 +70,10 @@ data EvalErr
   | EvalErr String  -- ^ Some other error
   deriving (Show, Eq)
 
--- | Local evaluation environment. Map from variable bindings to values
-type LEnv = Map.Map Name Val
-
 -- | Evaluate program
-evalProg :: InputEnv -> ExprCore -> EvalResult
+evalProg :: Context b v => InputEnv -> Core b v -> EvalResult
 evalProg env prog =
-  case evalExpr env mempty prog of
+  case evalExpr env emptyContext prog of
     ValP p      -> EvalPrim p
     ValBottom e -> EvalFail e
     ValF{}      -> EvalFail $ EvalErr "Returning function"
@@ -91,12 +86,19 @@ evalProg env prog =
     con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
     con2list _ _                    = Nothing
 
-evalExpr :: InputEnv -> LEnv -> ExprCore -> Val
+evalExpr :: Context b v => InputEnv -> Ctx b v Val -> Core b v -> Val
 evalExpr inpEnv = recur
   where
     evalVar lenv x
-      | Just v <- x `Map.lookup` lenv = v
-      | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
+      | Just v <- lookupVar lenv x = v
+      | otherwise = ValBottom $ EvalErr "Unknown variable"
+    evalScope1 lenv val (Scope b expr) =
+      recur (bindOne b val lenv) expr
+    evalScopeN lenv vals (Scope b expr) =
+      case bindMany b vals lenv of
+        Left  _     -> ValBottom TypeMismatch
+        Right lenv' -> recur lenv' expr
+    --
     recur lenv = \case
       EVar     x   -> evalVar lenv x
       EPrim p      -> ValP p
@@ -104,26 +106,19 @@ evalExpr inpEnv = recur
       EAp f x -> inj $ do
         valF <- match $ recur lenv f
         return (valF $ recur lenv x :: Val)
-      ELam nm _ body -> ValF $ \x -> recur (Map.insert nm x lenv) body
+      ELam _ body -> ValF $ \x -> evalScope1 lenv x body
       EIf e a b -> case recur lenv e of
         ValP (PrimBool f) -> recur lenv $ if f then a else b
         ValBottom err     -> ValBottom err
         _                 -> ValBottom TypeMismatch
-      ELet nm bind body ->
-        let lenv' = MapL.insert nm (recur lenv bind) lenv
-        in recur lenv' body
-      --
+      ELet expr body -> evalScope1 lenv (recur lenv expr) body
       ECase e alts -> case recur lenv e of
         ValCon tag fields -> matchCase alts
           where
             matchCase (CaseAlt{..} : cs)
-              | tag == caseAlt'tag = recur (bindParams fields caseAlt'args lenv) caseAlt'rhs
+              | tag == caseAlt'tag = evalScopeN lenv fields caseAlt'rhs
               | otherwise          = matchCase cs
             matchCase [] = ValBottom $ EvalErr "No match in case"
-            --
-            bindParams []     []     = id
-            bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
-            bindParams _      _      = error "Type error in case"
         ValBottom err -> ValBottom err
         _             -> ValBottom TypeMismatch
       EConstr (TupleT ts) 0 -> constr 0 (length ts)
@@ -132,6 +127,7 @@ evalExpr inpEnv = recur
       EConstr _           _ -> ValBottom $ EvalErr "Invalid constructor"
       --
       EBottom{} -> ValBottom $ EvalErr "Bottom encountered"
+
 
 -- Generate constructor
 constr :: Int -> Int -> Val
@@ -372,6 +368,7 @@ instance MatchPrim (Val -> Val) where
     Val2F     f -> Right $ ValF . f
     Val3F     f -> Right $ Val2F . f
     v           -> Left $ EvalErr $ "Expecting function, got " ++ conName v
+
 
 instance (Typeable a, MatchPrim a) => MatchPrim [a] where
   matchVal (ValCon 0 [])     = Right []

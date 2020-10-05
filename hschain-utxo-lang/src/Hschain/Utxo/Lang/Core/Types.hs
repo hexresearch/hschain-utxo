@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Core.Types (
   , argsTuple
   , Typed(..)
   , Prim(..)
+  , TypeCoreError(..)
     -- * Lens
   , typed'typeL
   , typed'valueL
@@ -22,6 +23,21 @@ import GHC.Generics (Generic)
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
 
+
+-- | Errors for core language type-checker.
+data TypeCoreError
+  = ExpressionIsBottom                  -- ^ Expression as whole always evaluates to bottom
+  | VarIsNotDefined Text                -- ^ Variable is used but not defined
+  | ArrowTypeExpected TypeCore          -- ^ Function type expected, but got
+  | TypeCoreMismatch  TypeCore TypeCore -- ^ Got type a while expected b
+  | EmptyCaseExpression                 -- ^ Case has no alternatives
+  | PolymorphicLet                      -- ^ Let is used to bind variable that always evaluate to bottom
+  | BadEquality TypeCore                -- ^ Equality used on types that don't support it
+  | BadShow     TypeCore                -- ^ Show is used on types that don't support it
+  | BadCase
+  | BadConstructor
+  deriving stock    (Show,Eq,Generic)
+  deriving anyclass (NFData)
 
 -- | Type tags for values
 data Typed ty a = Typed

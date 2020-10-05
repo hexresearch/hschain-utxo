@@ -9,7 +9,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Core.Types (TypeCore)
+import Hschain.Utxo.Lang.Core.Types (TypeCore,TypeCoreError(..))
 
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Parser as H
@@ -64,21 +64,6 @@ data MonoError
 data CoreScriptError
   = ResultIsNotSigma
   | TypeCoreError TypeCoreError
-  deriving stock    (Show,Eq,Generic)
-  deriving anyclass (NFData)
-
--- | Errors for core language type-checker.
-data TypeCoreError
-  = ExpressionIsBottom                  -- ^ Expression as whole always evaluates to bottom
-  | VarIsNotDefined Text                -- ^ Variable is used but not defined
-  | ArrowTypeExpected TypeCore          -- ^ Function type expected, but got
-  | TypeCoreMismatch  TypeCore TypeCore -- ^ Got type a while expected b
-  | EmptyCaseExpression                 -- ^ Case has no alternatives
-  | PolymorphicLet                      -- ^ Let is used to bind variable that always evaluate to bottom
-  | BadEquality TypeCore                -- ^ Equality used on types that don't support it
-  | BadShow     TypeCore                -- ^ Show is used on types that don't support it
-  | BadCase
-  | BadConstructor
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 

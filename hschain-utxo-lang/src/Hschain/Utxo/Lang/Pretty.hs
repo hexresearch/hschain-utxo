@@ -22,7 +22,7 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
-
+import Hschain.Utxo.Lang.Core.Types        (TypeCoreError(..))
 import qualified Data.Vector as V
 
 import HSChain.Crypto.Classes (encodeBase58)
@@ -53,9 +53,9 @@ instance Pretty BoxId where
   pretty (BoxId txt) = pretty $ encodeBase58 txt
 
 instance Pretty Script where
-  pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
-    Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    Right e -> fromString $ show (e :: ExprCore)
+  -- pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
+  --   Left  _ -> "Left: " <> pretty (encodeBase58 bs)
+  --   Right e -> fromString $ show (e :: ExprCore)
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
