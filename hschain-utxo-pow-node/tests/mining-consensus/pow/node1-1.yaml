@@ -7,3 +7,4 @@ log:
     verbosity : "V2"
 db:   "db/db1"
 priv: "FPY3TBv4c4gKkTsWH68wUAUrXvaLnJnWsDEwhHqotE4T"
+web_api: 8080

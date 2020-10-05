@@ -156,11 +156,15 @@ runApp = do
                          print $ POW.retarget bh
           utxoEnv <- lift ask
           let endpointUTXOEnv = utxoEnv { ueMempool = POW.mempoolAPI pow }
+          liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
           forM_ cfgWebAPI $ \port -> do
             let api = Proxy :: Proxy UtxoAPI
                 run :: ServerM a -> Servant.Handler a
                 run (UTXOT x) = liftIO $ runReaderT x endpointUTXOEnv
-            HControl.cforkLinkedIO $ Warp.run port $ Servant.serve api $ Servant.hoistServer api undefined undefined
+            liftIO $ hPutStrLn stderr $ "starting server at "++show port
+            HControl.cforkLinkedIO $ do
+              hPutStrLn stderr $ "server started at "++show port
+              Warp.run port $ Servant.serve api $ Servant.hoistServer api undefined undefined
           case runnode'nodeSecret of
             Just privk -> do
               HControl.cforkLinked $ POW.genericMiningLoop pow
@@ -242,14 +246,17 @@ readBoxChain =
 --------------------------------------------------
 ------ bchain store operations
 
-writeTx :: Monad m => Tx -> m (Maybe TxHash)
+writeTx :: Tx -> UTXOT IO (Maybe TxHash)
 writeTx tx = do
+  POW.MempoolAPI {..} <- fmap ueMempool ask
+  liftIO $ hPutStrLn stderr $ "posting transaction "++show  tx
+  HControl.sinkIO postTransaction tx
   --Bchain{..} <- askBchain
   --liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
   --  ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
   pure Nothing
 
-readBlock :: Monad m => Int -> m (Maybe [Tx])
+readBlock :: Int -> UTXOT IO (Maybe [Tx])
 readBlock height = do
   --Bchain{..} <- askBchain
   --liftIO $ do
@@ -257,7 +264,7 @@ readBlock height = do
   --  pure $ unBData . merkleValue . blockData <$> mb
   pure Nothing
 
-blockchainSize :: Monad m => m Int
+blockchainSize :: UTXOT IO Int
 blockchainSize = do
   --Bchain{..} <- askBchain
   --liftIO $ do
@@ -265,27 +272,29 @@ blockchainSize = do
   --  pure $! fromIntegral h
   return 0
 
-readBoxChainState :: (Monad m) => m BoxChain
+readBoxChainState :: UTXOT IO BoxChain
 readBoxChainState = do
   --Bchain{..} <- askBchain
   --liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
   return undefined
 
-waitForTx :: (Monad m) => m (TxHash -> m Bool)
+waitForTx :: UTXOT IO (TxHash -> UTXOT IO Bool)
 waitForTx = do
   --Bchain{..} <- askBchain
   --fmap liftIO <$> liftIO bchain'waitForTx
   return (const $ return False)
 
-postTxWait :: (Monad m) => Tx -> m (Maybe TxHash)
+postTxWait :: Tx -> UTXOT IO (Maybe TxHash)
 postTxWait tx = do
   -- We start listening before sending transaction to mempool to avoid
   -- race when tx is commited before we start listening
   listener <- waitForTx
-  runMaybeT $ do
+  r <- runMaybeT $ do
     h <- MaybeT $ writeTx tx
     guard =<< lift (listener h)
     -- lift $ incMetricSurelyPostedTx tx
     return h
+  liftIO $ hPutStrLn stderr $ "posted tx "++show tx++", hash "++show r
+  return r
 
 
