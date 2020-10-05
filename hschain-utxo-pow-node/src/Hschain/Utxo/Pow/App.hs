@@ -66,8 +66,8 @@ import Data.Yaml.Config (loadYamlSettings, requireEnv)
 
 import GHC.Generics
 
-import Servant.API
-import Servant.Server
+import qualified Servant.API              as Servant
+import qualified Servant.Server           as Servant
 import qualified Network.Wai.Handler.Warp as Warp
 
 import qualified System.Environment as SE
@@ -123,71 +123,6 @@ import Hschain.Utxo.Pow.App.Types
 
 -------------------------------------------------------------------------------
 -- Executable part.
-{-
--- |Run the PoW node.
-runNode :: Options -> IO ()
-runNode (Options cfgConfigPath pathToGenesis mbNodeSecret dbPath) = do
-  genesisBlock <- readGenesis pathToGenesis
-  db <- POW.inMemoryDB genesisBlock --POWNode.blockDatabase genesisBlock
-  POW.runNode [cfgConfigPath] optMine undefined db
-  where
-    readGenesis :: FilePath -> IO (POWTypes.Block UTXOBlock)
-    readGenesis = fmap (fromMaybe err) . readJson
-      where
-        err = error "Error: failed to read genesis"
-    getHashBytes :: Hash a -> BS.ByteString
-    getHashBytes (Hash bytes) = bytes
-    getBlockToMine bh st@(UTXONodeState{..}) = (POWTypes.GBlock
-      { blockHeight = blockHeight
-      , blockTime   = POWTypes.Time 0
-      , prevBlock   = Just $! POWTypes.bhBID bh
-      , blockData   = UTXOBlock {
-                           ubNonce = BS.empty
-                         , ubProper = UTXOBlockProper
-                              { ubpPrevious   = Just $! POWTypes.bhBID bh
-                              , ubpData       = merkled $ miningTx : []
-                              , ubpTarget     = POWTypes.retarget bh
-                              , ubpTime       = POWTypes.Time 0
-                              }
-                      }
-      }, st)
-      where
-        blockHeight = succ $ POWTypes.bhHeight bh
-        withSecret secret = do
-          Right proof <- newProof env (Fix $ SigmaPk publicKey) $ getTxBytes tx
-          return $ [tx]
-          where
-            publicKey = getPublicKey secret
-            env = proofEnvFromKeys [getKeyPair secret]
-
-            box = Box
-                  { box'id     = BoxId $ BS8.pack $ "reward:height:"++show blockHeight
-                  , box'value  = 1
-                  , box'script = mainScriptUnsafe $ pk' publicKey
-                  , box'args   = mempty
-                  }
-
-            tx = Tx
-                       { tx'inputs  = V.empty
-                       , tx'outputs = V.fromList [box]
-                       }
-
-        currentSecret = getHashBytes (hash (unsUTXORandomness, blockHeight) :: Hash SHA256) -- ^ currentSecret depends on height and randomness and can be computed knowing both. Height is open to wide world, randomness is not.
-        currentSecretHash = getHashBytes (hash currentSecret :: Hash SHA256) -- ^This is what will be put into open world.
-        rewardBox = error "is not done"
-        miningTx = Tx
-                   { tx'inputs  = V.empty   -- ^ List of identifiers of input boxes in blockchain 
-                   , tx'outputs = V.fromList []    -- ^ List of outputs 
-                   }
-         
-
-    optNodeName = error "optnodename"
-    utxoViewStep :: POWTypes.Block UTXOBlock -> UTXONodeState -> Maybe UTXONodeState
-    utxoViewStep b m
-      | otherwise                               = error "utxo view step is not done"
-      where
-        txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
--}
 
 runApp :: IO ()
 runApp = do
@@ -218,13 +153,14 @@ runApp = do
             forever $ do (bh,_) <- HControl.awaitIO ch
                          print (POW.bhHeight bh, POW.bhBID bh)
                          print $ POW.retarget bh
+          let appEnv = AppEnv (POW.mempoolAPI pow)
           forM_ cfgWebAPI $ \port -> do
-            dict <- lift $ UTXOT ask
-            let run :: UTXOT IO a -> Handler a
-                run (UTXOT m) = liftIO $ runReaderT m dict
-            HControl.cforkLinkedIO $ Warp.run port $ genericServeT run $ coinServer (POW.mempoolAPI pow)
+            let api = Proxy :: Proxy UtxoAPI
+                run :: ServerM a -> Servant.Handler a
+                run (UTXOT x) = liftIO $ runReaderT x appEnv
+            HControl.cforkLinkedIO $ Warp.run port $ Servant.serve api $ Servant.hoistServer api undefined undefined
           case runnode'nodeSecret of
-            Just pk -> do
+            Just privk -> do
               HControl.cforkLinked $ POW.genericMiningLoop pow
             Nothing -> return ()
           -- Wait forever
@@ -236,18 +172,18 @@ readGenesis = fmap (fromMaybe err) . readJson
     err = error "Error: failed to read genesis"
 
 -- | Server implementation for 'UtxoAPI'
-utxoServer :: ServerT UtxoAPI ServerM
+utxoServer :: Servant.ServerT UtxoAPI (UTXOT IO)
 utxoServer =
-       postTxEndpoint                -- posts transaction
-  :<|> getBoxEndpoint                -- gets box by id
-  :<|> getBoxBalanceEndpoint         -- reads balance for a box
-  :<|> getTxSigmaEndpoint            -- executes script to sigma-expression without commiting
-  :<|> getEnvEndpoint                -- reads blockchain environment
-  :<|> getStateEndpoint              -- reads whole state (for debug only)
-  :<|> getUtxosEndpoint              -- reads list of all available UTXOs
-  :<|> hasUtxoEndpoint               -- is UTXO exists (available to spend)
-  :<|> readBlockEndpoint             -- reads block at the given height
-  :<|> readBlockchainHeightEndpoint  -- reads current height of the blockchain
+               postTxEndpoint                -- posts transaction
+  Servant.:<|> getBoxEndpoint                -- gets box by id
+  Servant.:<|> getBoxBalanceEndpoint         -- reads balance for a box
+  Servant.:<|> getTxSigmaEndpoint            -- executes script to sigma-expression without commiting
+  Servant.:<|> getEnvEndpoint                -- reads blockchain environment
+  Servant.:<|> getStateEndpoint              -- reads whole state (for debug only)
+  Servant.:<|> getUtxosEndpoint              -- reads list of all available UTXOs
+  Servant.:<|> hasUtxoEndpoint               -- is UTXO exists (available to spend)
+  Servant.:<|> readBlockEndpoint             -- reads block at the given height
+  Servant.:<|> readBlockchainHeightEndpoint  -- reads current height of the blockchain
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
 postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
@@ -289,27 +225,10 @@ getBoxEndpoint :: BoxId -> ServerM (Maybe Box)
 getBoxEndpoint boxId = return Nothing
 
 -- |Application environment.
-data AppEnv = AppEnv
-            { appEnvMempool           :: POW.MempoolAPI ServerM UTXOBlock }
+data AppEnv m = AppEnv
+            { appEnvMempool           :: POW.MempoolAPI (UTXOT m) UTXOBlock }
 
--- | Server monad that holds internal environment
-newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }
-  deriving ( Functor, Applicative, Monad, MonadIO, MonadBase IO, MonadReader AppEnv
-           , MonadThrow, MonadCatch)
-
-newtype StMServerM a = StMServerM { unStMServerM :: StM (ReaderT AppEnv Handler) a }
-
--- | Execution of 'ServerM'
-runServerM :: AppEnv -> ServerM a -> Handler a
-runServerM e = flip runReaderT e . unServerM
-
--- | Execution of 'ServerM' in IO monad
-runServerMIO :: AppEnv -> ServerM a -> IO a
-runServerMIO env m = do
-  ea <- runHandler $ runServerM env m
-  case ea of
-    Left e -> fail $ "runServerMIO: " <> show e
-    Right a -> return a
+type ServerM a = UTXOT IO a
 
 -- | Reads current state of the block chain
 readBoxChain :: ServerM BoxChain
