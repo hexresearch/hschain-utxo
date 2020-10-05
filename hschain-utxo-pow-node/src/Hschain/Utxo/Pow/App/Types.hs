@@ -650,7 +650,7 @@ getOverlayBoxId (ActiveOverlay l0 o0) boxid
 getDatabaseBox
   :: ()
   => POW.BlockIndexPath (ID (POW.Block UTXOBlock))
-  -> BoxInputRef
+  -> BoxInputRef Proof
   -> ExceptT (POW.BlockException UTXOBlock) (Query rw) Unspent
 -- Check whether output was created in the block
 getDatabaseBox (POW.ApplyBlock i path) boxInputRef@BoxInputRef{..} = do

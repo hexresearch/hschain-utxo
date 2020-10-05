@@ -68,6 +68,7 @@ import GHC.Generics
 
 import Servant.API
 import Servant.Server
+import qualified Network.Wai.Handler.Warp as Warp
 
 import qualified System.Environment as SE
 import System.IO
@@ -217,9 +218,11 @@ runApp = do
             forever $ do (bh,_) <- HControl.awaitIO ch
                          print (POW.bhHeight bh, POW.bhBID bh)
                          print $ POW.retarget bh
-      -- Mining and TX generation
---      when optGenerate $ do
---        cforkLinked $ txGeneratorLoop pow (cfgPriv : take 100 (makePrivKeyStream 1433))
+          forM_ cfgWebAPI $ \port -> do
+            dict <- lift $ UTXOT ask
+            let run :: UTXOT IO a -> Handler a
+                run (UTXOT m) = liftIO $ runReaderT m dict
+            HControl.cforkLinkedIO $ Warp.run port $ genericServeT run $ coinServer (POW.mempoolAPI pow)
           case runnode'nodeSecret of
             Just pk -> do
               HControl.cforkLinked $ POW.genericMiningLoop pow
@@ -287,7 +290,7 @@ getBoxEndpoint boxId = return Nothing
 
 -- |Application environment.
 data AppEnv = AppEnv
-            { appEnvMempool           :: Mempool }
+            { appEnvMempool           :: POW.MempoolAPI ServerM UTXOBlock }
 
 -- | Server monad that holds internal environment
 newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }
