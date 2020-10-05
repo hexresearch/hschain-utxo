@@ -29,7 +29,9 @@ import HSChain.Crypto.Classes.Hash
 class ( ByteRepr (ECPoint   a)
       , ByteRepr (ECScalar  a)
       , ByteRepr (Challenge a)
-      , Eq (ECPoint a)
+      , Eq (ECScalar a)
+      , Eq (Challenge a)
+      , Ord (ECPoint a)
       ) => EC a where
   data ECPoint   a
   data ECScalar  a

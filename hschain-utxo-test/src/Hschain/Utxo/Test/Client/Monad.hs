@@ -203,9 +203,9 @@ initGenesis secret = ([tx], masterBoxId)
   where
     masterBoxId = box'id $ V.head $ tx'outputs tx
 
-    tx = newTx $ PreTx
-      { preTx'inputs  = []
-      , preTx'outputs = [box]
+    tx = newTx $ Tx
+      { tx'inputs  = []
+      , tx'outputs = [box]
       }
 
     publicKey = getPublicKey secret

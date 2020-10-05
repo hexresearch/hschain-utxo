@@ -11,8 +11,6 @@ import HSChain.Crypto.Classes (ByteRepr)
 import HSChain.Crypto.Classes.Hash
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 
-
-
 -- | Private key.
 newtype Secret a = Secret { unSecret :: ECScalar a }
   deriving stock (Generic)

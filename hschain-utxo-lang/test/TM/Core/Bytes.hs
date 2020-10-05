@@ -11,8 +11,7 @@ import Test.Tasty.HUnit
 
 import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Utils.ByteString
-import Hschain.Utxo.Lang.Expr  (Box(..),BoxId(..),Script(..))
-import Hschain.Utxo.Lang.Types (InputEnv(..))
+import Hschain.Utxo.Lang.Types (InputEnv(..),Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
@@ -47,49 +46,31 @@ appendBytesV a b = ap name [a, b]
   where
     name = EVar $ Const.appendBytes
 
-progHash :: ByteString -> CoreProg
-progHash bs = mainProg $
-  Typed
-    (equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs))
-    BoolT
+progHash :: ByteString -> ExprCore
+progHash bs = equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs)
 
-progHashAppend :: ByteString -> Int64 -> CoreProg
-progHashAppend bs n = mainProg $
-  Typed
-    (equals BytesT
-        (sha256V $ appendBytesV (bytes bs) (serialiseIntV $ int n))
-        (bytes $ getSha256 $ bs <> serialiseInt n))
-    BoolT
+progHashAppend :: ByteString -> Int64 -> ExprCore
+progHashAppend bs n
+  = equals BytesT
+    (sha256V $ appendBytesV (bytes bs) (serialiseIntV $ int n))
+    (bytes $ getSha256 $ bs <> serialiseInt n)
 
+progConvertIdInt :: Int64 -> ExprCore
+progConvertIdInt n
+  = equals IntT (deserialiseIntV $ serialiseIntV $ int n) (int n)
 
-progConvertIdInt :: Int64 -> CoreProg
-progConvertIdInt n = mainProg $
-  Typed
-    (equals IntT (deserialiseIntV $ serialiseIntV $ int n) (int n))
-    BoolT
-
-progConvertIdText :: Text -> CoreProg
-progConvertIdText n = mainProg $
-  Typed
-    (equals TextT (deserialiseIntV $ serialiseIntV $ text n) (text n))
-    BoolT
+progConvertIdText :: Text -> ExprCore
+progConvertIdText n
+  = equals TextT (deserialiseIntV $ serialiseIntV $ text n) (text n)
 
 ---------------------------------------
 -- utils
 
-mainProg :: Typed TypeCore ExprCore -> CoreProg
-mainProg expr = CoreProg [mkMain expr]
-
-testTypeCheckCase :: [Char] -> CoreProg -> TestTree
-testTypeCheckCase testName prog =
-  testCase testName $ do
-    let tc = typeCheck prog
-    mapM_ (T.putStrLn . renderText) tc
-    Nothing @=? tc
-
-testProgram :: String -> CoreProg -> Prim -> TestTree
+testProgram :: String -> ExprCore -> Prim -> TestTree
 testProgram name prog res = testGroup name
-  [ testTypeCheckCase "typecheck" prog
+  [ testCase "typecheck" $ case typeCheck prog of
+      Left  e -> assertFailure $ show e
+      Right _ -> pure ()
   , testCase          "simple"    $ EvalPrim res @=? evalProg env prog
   ]
 

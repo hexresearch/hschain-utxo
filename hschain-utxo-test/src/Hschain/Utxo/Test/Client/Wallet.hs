@@ -125,15 +125,15 @@ toSendTx :: Wallet -> Send -> SendBack -> App (Either Text (Tx, Maybe BoxId, Box
 toSendTx wallet Send{..} SendBack{..} =
   fmap (fmap appendSenderReceiverIds) $ newProofTxOrFail (getProofEnv wallet) preTx
   where
-    preTx = PreTx
-      { preTx'inputs  = V.fromList [ExpectedBox (Just $ singleOwnerSigmaExpr wallet) inputBox]
-      , preTx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+    preTx = Tx
+      { tx'inputs  = V.fromList [inputBox]
+      , tx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
       }
 
     inputBox = BoxInputRef
       { boxInputRef'id    = send'from
       , boxInputRef'args  = mempty
-      , boxInputRef'proof = Nothing
+      , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
       }
 
     senderUtxo

@@ -62,7 +62,7 @@ import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
-
+import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 
 -- | Creates module  out of single main expression and ignores the errors of compilation.

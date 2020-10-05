@@ -12,8 +12,9 @@
 {-# OPTIONS  -Wno-orphans               #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE UndecidableInstances       #-}
-{-# LANGUAGE DataKinds, ScopedTypeVariables, TypeApplications           #-}
+{-# LANGUAGE DataKinds, ScopedTypeVariables, TypeApplications #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RecordWildCards, StandaloneDeriving #-}
 
 module Hschain.Utxo.Pow.App(
   runApp
@@ -233,12 +234,17 @@ readGenesis = fmap (fromMaybe err) . readJson
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: ServerT UtxoAPI ServerM
-utxoServer = error "Not implemented"
-  --      postTxEndpoint
-  -- :<|> getBoxBalanceEndpoint
-  -- :<|> getTxSigmaEndpoint
-  -- :<|> getEnvEndpoint
-  -- :<|> getStateEndpoint
+utxoServer =
+       postTxEndpoint                -- posts transaction
+  :<|> getBoxEndpoint                -- gets box by id
+  :<|> getBoxBalanceEndpoint         -- reads balance for a box
+  :<|> getTxSigmaEndpoint            -- executes script to sigma-expression without commiting
+  :<|> getEnvEndpoint                -- reads blockchain environment
+  :<|> getStateEndpoint              -- reads whole state (for debug only)
+  :<|> getUtxosEndpoint              -- reads list of all available UTXOs
+  :<|> hasUtxoEndpoint               -- is UTXO exists (available to spend)
+  :<|> readBlockEndpoint             -- reads block at the given height
+  :<|> readBlockchainHeightEndpoint  -- reads current height of the blockchain
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
 postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
@@ -264,8 +270,24 @@ getStateEndpoint =
   --readBoxChain
   return undefined
 
+getUtxosEndpoint :: ServerM [BoxId]
+getUtxosEndpoint = return []
+
+hasUtxoEndpoint :: BoxId -> ServerM Bool
+hasUtxoEndpoint boxId = return False
+
+readBlockEndpoint :: Int -> ServerM (Maybe [Tx])
+readBlockEndpoint height = return Nothing
+
+readBlockchainHeightEndpoint :: ServerM Int
+readBlockchainHeightEndpoint = return 0
+
+getBoxEndpoint :: BoxId -> ServerM (Maybe Box)
+getBoxEndpoint boxId = return Nothing
+
 -- |Application environment.
-data AppEnv
+data AppEnv = AppEnv
+            { appEnvMempool           :: Mempool }
 
 -- | Server monad that holds internal environment
 newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }
@@ -292,10 +314,6 @@ readBoxChain =
   --readBoxChainState
   return undefined
 
-
--- | Connection to hschain internals.
--- Low level API to post transactions.
-data Bchain (m :: * -> *)
 
 --------------------------------------------------
 ------ bchain store operations

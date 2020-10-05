@@ -8,7 +8,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import HSChain.Crypto (Hash(..))
-import Hschain.Utxo.Lang.Expr (Box(..), intArgs, textArgs, boolArgs, Script(..), BoxId(..))
+import Hschain.Utxo.Lang.Expr (intArgs, textArgs, boolArgs)
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
@@ -64,44 +64,36 @@ tests = testGroup "core-boxes"
     , testProg "get input text arg" (PrimText "neil") progGetInputLastTextArg
     ]
 
-testTypeCheckCase :: [Char] -> CoreProg -> TestTree
-testTypeCheckCase testName prog =
-  testCase testName $ do
-    let tc = typeCheck prog
-    mapM_ (T.putStrLn . renderText) tc
-    Nothing @=? tc
-
-testProg :: String -> Prim -> CoreProg -> TestTree
+testProg :: String -> Prim -> ExprCore -> TestTree
 testProg name res prog = testGroup name
-  [ testTypeCheckCase "typecheck" prog
+  [ testCase "typecheck" $ case typeCheck prog of
+      Left  e -> assertFailure $ show e
+      Right _ -> pure ()
   , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
   ]
 
-progGetHeight :: CoreProg
-progGetHeight = mainProg $ Typed getHeight IntT
+progGetHeight :: ExprCore
+progGetHeight = getHeight
 
-progGetSelfId :: CoreProg
-progGetSelfId = mainProg $ Typed (getBoxId getSelf) BytesT
+progGetSelfId :: ExprCore
+progGetSelfId = getBoxId getSelf
 
-progGetSelfScript :: CoreProg
-progGetSelfScript = mainProg $ Typed (getBoxScript getSelf) BytesT
+progGetSelfScript :: ExprCore
+progGetSelfScript = getBoxScript getSelf
 
-progGetTxArg :: CoreProg
-progGetTxArg = mainProg $ Typed (listAt IntT getIntArgs (int 1)) IntT
+progGetTxArg :: ExprCore
+progGetTxArg = listAt IntT getIntArgs (int 1)
 
-progGetInputId :: CoreProg
-progGetInputId = mainProg $ Typed (getBoxId $ listAt BoxT getInputs (int 0)) BytesT
+progGetInputId :: ExprCore
+progGetInputId = getBoxId $ listAt BoxT getInputs (int 0)
 
-progGetOutputId :: CoreProg
-progGetOutputId = mainProg $ Typed (getBoxId $ listAt BoxT getOutputs (int 0)) BytesT
+progGetOutputId :: ExprCore
+progGetOutputId = getBoxId $ listAt BoxT getOutputs (int 0)
 
-progGetOutputLastIntArg :: CoreProg
-progGetOutputLastIntArg = mainProg $
-  Typed (listAt IntT (getBoxIntArgs $ listAt BoxT getOutputs (int 0)) (int 1)) IntT
+progGetOutputLastIntArg :: ExprCore
+progGetOutputLastIntArg
+  = listAt IntT (getBoxIntArgs $ listAt BoxT getOutputs (int 0)) (int 1)
 
-progGetInputLastTextArg :: CoreProg
-progGetInputLastTextArg = mainProg $
-  Typed (listAt TextT (getBoxTextArgs $ listAt BoxT getInputs (int 1)) (int 1)) TextT
-
-mainProg :: Typed TypeCore ExprCore -> CoreProg
-mainProg expr = CoreProg [mkMain expr]
+progGetInputLastTextArg :: ExprCore
+progGetInputLastTextArg
+  = listAt TextT (getBoxTextArgs $ listAt BoxT getInputs (int 1)) (int 1)

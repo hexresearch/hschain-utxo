@@ -20,13 +20,13 @@ import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
+import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
 
 import qualified Data.Vector as V
 
 import HSChain.Crypto.Classes (encodeBase58)
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg)
 
 import qualified Language.HM as H
 import qualified Language.HM.Pretty as H
@@ -54,7 +54,7 @@ instance Pretty BoxId where
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    Right e -> fromString $ show (e :: CoreProg)
+    Right e -> fromString $ show (e :: ExprCore)
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
@@ -99,7 +99,7 @@ instance Pretty BoxInput where
     , ("proof", pretty boxInput'proof)
     ]
 
-instance Pretty BoxInputRef where
+instance Pretty a => Pretty (BoxInputRef a) where
   pretty BoxInputRef{..} = prettyRecord "BoxInputRef"
     [ ("id",    pretty boxInputRef'id)
     , ("args",  prettyArgs boxInputRef'args)
@@ -221,6 +221,7 @@ instance Pretty ExecError where
 
 instance Pretty PatError where
   pretty = \case
+    MissingMain       -> "No main function"
     NoCasesLeft       -> "No cases letft in the pattern"
     NoVarFound        -> "Var not found in the pattern"
     NoSameArgsNumber  -> "Patterns do not have the same number of arguments for a function"
@@ -243,7 +244,6 @@ instance Pretty TypeError where
 
 instance Pretty CoreScriptError where
   pretty = \case
-    NoMainFunction                 -> "Error: No main function is defined"
     ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
     TypeCoreError err              -> pretty err
     NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
@@ -251,7 +251,7 @@ instance Pretty CoreScriptError where
 
 instance Pretty TypeCoreError where
   pretty = \case
-    NotMonomorphicType v t   -> hsep ["Error: variable", pretty v, "is not monomorphic. Got type", pretty t]
+    NotMonomorphicType v     -> hsep ["Error: variable", pretty v, "is not monomorphic" ]
     VarIsNotDefined v        -> hsep ["Error: variable", pretty v, "is not defined"]
     ArrowTypeExpected t      -> hsep ["Error: arrow type expected, but got", pretty t]
     TypeCoreMismatch ta tb   -> hsep ["Error: type mismatch. Got", pretty ta, "expected", pretty tb]

@@ -10,6 +10,14 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , ProvenTree(..)
   , OrChild(..)
   , completeProvenTree
+  , ProofVar(..)
+  , ProofTag(..)
+  , Prove(..)
+  , runProve
+  , getRootChallengeBy
+  , orChallenge
+  , toProof
+  , markTree
 ) where
 
 import Control.Applicative
@@ -31,14 +39,13 @@ import Data.Foldable
 import Data.Maybe
 import Data.Monoid (All(..))
 import Data.Sequence (Seq)
+import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
-import qualified Data.Sequence as Seq
 import qualified Data.ByteString.Lazy as LB
-
--- import Debug.Trace
--- import Text.Show.Pretty
+import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
 
 -----------------------------------------------------
 
@@ -64,6 +71,7 @@ data ProofTag a = ProofTag
   , proofTag'challenge :: Maybe (Challenge a)
   }
 
+deriving stock   instance Eq   (Challenge a) => Eq   (ProofTag a)
 deriving stock   instance Show (Challenge a) => Show (ProofTag a)
 
 -- Partial proof of possession of discrete logarithm
@@ -104,7 +112,7 @@ deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Cha
 -- | Expression to prove.
 data ProvenTree a
   = ProvenLeaf
-      { provenLeaf'responceZ :: ECScalar a
+      { provenLeaf'responseZ :: ECScalar a
       , provenLeaf'publicK   :: PublicKey a
       }
   | ProvenOr
@@ -157,8 +165,10 @@ deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Cha
 newProof :: (EC a)
   => Env a -> SigmaE () (PublicKey a) -> ByteString -> IO (Either Text (Proof a))
 newProof env expr message = runProve $ do
-  commitments <- generateCommitments (markTree env expr)
+  commitments <- generateCommitments (markTree knownKeys expr)
   toProof =<< generateProofs env commitments message
+  where
+    knownKeys = Set.fromList $ publicKey <$> unEnv env
 
 -- Syntactic step that performs a type conversion only
 toProof :: SigmaE (ProofTag a) (ProofDL a) -> Prove (Proof a)
@@ -187,12 +197,12 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 
 
 -- Mark all nodes according to whether we can produce proof for them
-markTree :: (EC a) => Env a -> SigmaE () (PublicKey a) -> SigmaE ProofVar (PublicKey a)
-markTree (Env env) = clean . check
+markTree :: (EC a) => Set (PublicKey a) -> SigmaE () (PublicKey a) -> SigmaE ProofVar (PublicKey a)
+markTree knownPKs = clean . check
   where
     -- Prover Step 1: Mark as real everything the prover can prove
     check = \case
-      Leaf () k  -> Leaf (if k `elem` knownPK then Real else Simulated) k
+      Leaf () k  -> Leaf (if k `Set.member` knownPKs then Real else Simulated) k
       AND  () es -> AND k es'
         where
           es'  = map check es
@@ -203,7 +213,6 @@ markTree (Env env) = clean . check
           es'  = map check es
           k | any ((==Real) . sexprAnn) es' = Real
             | otherwise                     = Simulated
-    knownPK = publicKey <$> env
     -- Prover Step 3: Change some "real" nodes to "simulated" to make sure each node
     -- has the right number of simulated children.
     clean expr = case expr of
@@ -262,7 +271,6 @@ generateCommitments tree = case sexprAnn tree of
                                   OR (ProofTag Simulated $ Just ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
       _ -> throwError "Real node"
 
-
 initRootChallenge
   :: forall k a. (EC a, CBOR.Serialise (ECPoint a))
   => SigmaE k (FiatShamirLeaf a)
@@ -276,8 +284,7 @@ getProofRootChallenge ::
   => SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
   -> ByteString
   -> Challenge a
-getProofRootChallenge expr message =
-  initRootChallenge (fmap extractCommitment expr) message
+getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr message
   where
     extractCommitment :: Either (PartialProof a) (ProofDL a) -> FiatShamirLeaf a
     extractCommitment =
@@ -290,10 +297,18 @@ getVerifyRootChallenge ::
   => SigmaE k (ProofDL a)
   -> ByteString
   -> Challenge a
-getVerifyRootChallenge expr message =
-  initRootChallenge (fmap extractFiatShamirLeaf expr) message
+getVerifyRootChallenge expr message = getRootChallengeBy extractFiatShamirLeaf expr message
   where
     extractFiatShamirLeaf ProofDL{..} = FiatShamirLeaf publicK commitmentA
+
+getRootChallengeBy ::
+     EC a
+  => (leaf -> FiatShamirLeaf a)
+  -> SigmaE k leaf
+  -> ByteString
+  -> Challenge a
+getRootChallengeBy extract expr message =
+  initRootChallenge (fmap extract expr) message
 
 generateProofs
   :: forall a. (EC a)
