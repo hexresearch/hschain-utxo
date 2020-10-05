@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Compile(
   , toCoreScript
 ) where
 
-import Control.Lens hiding (op)
 import Control.Monad
 
 import Data.Fix
@@ -14,18 +13,15 @@ import qualified Data.Functor.Foldable as RS
 
 import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
-import Hschain.Utxo.Lang.Compile.LambdaLifting
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
-import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name, typed'valueL)
-import Hschain.Utxo.Lang.Core.Compile.Expr (CoreProg(..), ExprCore, scomb'bodyL, coreProgToScript)
+import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
+import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
-
-import qualified Data.Vector as V
 
 import qualified Language.HM       as H
 import qualified Language.HM.Subst as H
@@ -36,20 +32,19 @@ toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
 -- | Compilation to Core-lang program from the script-language.
-compile :: MonadLang m => Module -> m CoreProg
+compile :: MonadLang m => Module -> m ExprCore
 compile
   =  return . substPrimOp
  <=< toCoreProg
 -- <=< makeMonomorphic
  <=< specifyCompareOps
  <=< annotateTypes
-  .  lambdaLifting
  <=< toExtendedLC
 
 -- | Perform sunbstiturion of primops
-substPrimOp :: CoreProg -> CoreProg
+substPrimOp :: ExprCore -> ExprCore
 substPrimOp
-  = _Wrapped' . each . scomb'bodyL . typed'valueL %~ go
+  = go
   where
     go = RS.cata $ \case
       Core.EVarF v
@@ -59,54 +54,50 @@ substPrimOp
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
-toCoreProg :: forall m . MonadLang m => TypedLamProg -> m CoreProg
-toCoreProg = fmap CoreProg . mapM toScomb . unAnnLamProg
+toCoreProg :: MonadLang m => TypedLamProg -> m ExprCore
+toCoreProg = fromDefs . unAnnLamProg
+
+fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m ExprCore
+fromDefs [] = throwError $ PatError MissingMain
+fromDefs (Def{..}:rest)
+  | def'name == "main" = body
+  | otherwise          = Core.ELet (varName'name def'name) <$> body <*> fromDefs rest
   where
-    toScomb :: TypedDef -> m Core.Scomb
-    toScomb Def{..} = do
-      args <- traverse convertTyped def'args
-      expr <- toCoreExpr def'body
-      return $ Core.Scomb
-          { Core.scomb'name   = varName'name def'name
-          , Core.scomb'args   = V.fromList args
-          , Core.scomb'body   = expr
-          }
-
-    convertTyped (Typed a ty) = do
-      ty' <- toCoreType ty
-      return $ Typed a ty'
-
-    toCoreExpr :: TypedExprLam -> m (Typed TypeCore ExprCore)
-    toCoreExpr expr@(Fix (Ann expressionTy _)) = do
-      e  <- cataM convert expr
-      ty <- toCoreType expressionTy
-      return $ Typed e ty
+    body = go def'args
       where
-        convert (Ann exprTy val) = case val of
-          EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
-          EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
-          EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
-          EAp _  f a           -> pure $ Core.EAp f a
-          -- FIXME: We don't take recurion between let bindings into account
-          ELet _ binds body    -> pure $
-            let addLet (nm, e) = Core.ELet (typed'value nm) e
-            in foldr addLet body binds
-          ELam _ _ _           -> eliminateLamError
-          EIf _ c t e          -> pure $ Core.EIf c t e
-          ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
-          EConstr _ consTy m _ -> do ty <- toCoreType consTy
-                                     pure $ Core.EConstr (resultType ty) m
-          EAssertType _ e _    -> pure e
-          EBottom _            -> pure $ Core.EBottom
+        go []                   = toCoreExpr def'body
+        go (Typed nm ty : args) = Core.ELam nm <$> toCoreType ty <*> go args
 
-        convertAlt CaseAlt{..} =
-          return Core.CaseAlt { caseAlt'args = typed'value <$> caseAlt'args
-                              , ..
-                              }
-
-        eliminateLamError = failedToEliminate "Lambda-expressions for core language. Do lambda-lifting to eliminate."
-
-        typeCtx = mempty
+toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
+toCoreExpr = cataM convert
+  where
+    convert (Ann exprTy val) = case val of
+      EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
+      EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
+      EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
+      EAp _  f a           -> pure $ Core.EAp f a
+      -- FIXME: We don't take recurion between let bindings into account
+      ELet _ binds body    -> pure $
+        let addLet (nm, e) = Core.ELet (typed'value nm) e
+        in foldr addLet body binds
+      ELam _ xs body       -> toLambda xs body
+      EIf _ c t e          -> pure $ Core.EIf c t e
+      ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
+      EConstr _ consTy m _ -> do ty <- toCoreType consTy
+                                 pure $ Core.EConstr (resultType ty) m
+      EAssertType _ e _    -> pure e
+      EBottom _            -> pure $ Core.EBottom
+    
+    convertAlt CaseAlt{..} = return Core.CaseAlt
+      { caseAlt'args = typed'value <$> caseAlt'args
+      , ..
+      }
+    toLambda []                  body = pure body
+    toLambda (Typed x ty : vars) body = do
+      e   <- toLambda vars body
+      ty' <- toCoreType ty
+      pure $ Core.ELam x ty' e
+    typeCtx = mempty
 
 resultType :: TypeCore -> TypeCore
 resultType (_ :-> b) = resultType b

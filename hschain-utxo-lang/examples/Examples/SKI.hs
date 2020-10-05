@@ -18,39 +18,31 @@ import Hschain.Utxo.Lang.Core.Types
 --
 -- > I :: a -> a
 -- > I x = x
-skiI :: Name -> TypeCore -> Scomb
-skiI name ty = Scomb
-  { scomb'name   = "skiI." <> name
-  , scomb'args   = [Typed "x" ty]
-  , scomb'body   = Typed "x" ty
-  }
+skiI :: TypeCore -> ExprCore
+skiI ty
+  = ELam "x" ty
+  $ EVar "x"
 
 -- | K combinator. We should use monomorphic types as arguments.
 --
 -- > K :: a -> b -> a
 -- > K x y = x
-skiK :: Text -> TypeCore -> TypeCore -> Scomb
-skiK name tyX tyY = Scomb
-  { scomb'name   = "skiK." <> name
-  , scomb'args   = [Typed "x" tyX, Typed "y" tyY]
-  , scomb'body   = Typed "x" tyX
-  }
+skiK :: TypeCore -> TypeCore -> ExprCore
+skiK tyX tyY
+  = ELam "x" tyX
+  $ ELam "y" tyY
+  $ EVar "x"
 
 -- | S combinator. We should use monomorphic types as arguments
 --
 -- > S :: (a -> b -> c) -> (a -> b) -> a -> c
 -- > S x y z = x z (y z)
-skiS :: Text -> TypeCore -> TypeCore -> TypeCore -> Scomb
-skiS name tyA tyB tyC = Scomb
-  { scomb'name   = "skiS." <> name
-  , scomb'args   = [ Typed "x" tyX
-                   , Typed "y" tyY
-                   , Typed "z" tyZ
-                   ]
-  , scomb'body   = Typed
-                   ((EAp "x" "z") `EAp` (EAp "y" "z"))
-                   tyC
-  }
+skiS :: TypeCore -> TypeCore -> TypeCore -> ExprCore
+skiS tyA tyB tyC
+  = ELam "x" tyX
+  $ ELam "y" tyY
+  $ ELam "z" tyZ
+  $ (EAp "x" "z") `EAp` (EAp "y" "z")
   where
     tyX = tyA :-> tyB :-> tyC
     tyY = tyA :-> tyB
@@ -64,23 +56,9 @@ skiS name tyA tyB tyC = Scomb
 -- | Example of program
 --
 -- > S K K 3
-exampleSKK3 :: CoreProg
-exampleSKK3 = CoreProg
-  [ skiK "intT" IntT IntT
-  , skiK "funT" IntT (IntT :-> IntT)
-  , skiS ""     IntT (IntT :-> IntT) IntT
-  , mkMain $ Typed
-    ((("skiS." `EAp` "skiK.funT") `EAp` "skiK.intT") `EAp` EPrim (PrimInt 3))
-    IntT
-  ]
-
-----------------------------------------------------------------
--- Helpers
-----------------------------------------------------------------
-
-mkMain :: Typed TypeCore ExprCore -> Scomb
-mkMain s = Scomb
-  { scomb'name   = "main"
-  , scomb'args   = []
-  , scomb'body   = s
-  }
+exampleSKK3 :: ExprCore
+exampleSKK3
+  = ELet "K_intT" (skiK IntT IntT)
+  $ ELet "K_funT" (skiK IntT (IntT :-> IntT))
+  $ ELet "S"      (skiS IntT (IntT :-> IntT) IntT)
+  $ ((("S" `EAp` "K_funT") `EAp` "K_intT") `EAp` EPrim (PrimInt 3))

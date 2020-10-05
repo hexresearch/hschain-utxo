@@ -13,6 +13,7 @@ module Hschain.Utxo.Lang.Sigma(
   , Proof
   , SigMessage(..)
   , Sigma
+  , sigmaPk
   , SigmaF(..)
   , newProof
   , verifyProof
@@ -27,18 +28,32 @@ module Hschain.Utxo.Lang.Sigma(
   , equalSigmaExpr
   , equalSigmaProof
   , eliminateSigmaBool
+  -- * Multi-signatures
+  , Prove
+  , runProve
+  , initMultiSigProof
+  , queryCommitments
+  , appendCommitments
+  , getChallenges
+  , queryResponses
+  , appendResponsesToProof
+  , checkChallenges
   ) where
 
 import Hex.Common.Serialise
 
+import Control.Monad.Except
 import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
+import Data.Boolean
+import Data.Bifunctor
 import Data.Either
 import Data.Fix
 import Data.Functor.Classes (Eq1(..))
+import Data.Set (Set)
 import Data.Text (Text)
 
 import GHC.Generics
@@ -50,8 +65,10 @@ import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.SHA          (SHA256)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.MultiSig              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
+import Hschain.Utxo.Lang.Sigma.Interpreter (Prove, runProve)
 
 
 -- | Cryptographic algorithm that we use.
@@ -118,11 +135,9 @@ instance Serialise a => FromJSON (Sigma a) where
 -- For the message use getTxBytes from TX that has no proof.
 newProof :: ProofEnv -> Sigma PublicKey -> SigMessage -> IO (Either Text Proof)
 newProof env expr message =
-  case toSigmaExpr expr of
+  case toSigmaExprOrFail expr of
     Right sigma -> Sigma.newProof env sigma $ encodeToBS message
-    Left  _     -> return catchBoolean
-  where
-    catchBoolean = Left "Expression is constant boolean. It is not  a sigma-expression"
+    Left  err   -> return $ Left err
 
 -- | Verify the proof.
 --
@@ -133,6 +148,17 @@ verifyProof :: Proof -> SigMessage -> Bool
 verifyProof proof = Sigma.verifyProof proof . encodeToBS
 
 type Sigma k = Fix (SigmaF k)
+
+instance Boolean (Sigma k) where
+  true  = Fix $ SigmaBool True
+  false = Fix $ SigmaBool False
+
+  notB  = error "Not is not defined for Sigma-expressions"
+  (&&*) a b = Fix $ SigmaAnd [a, b]
+  (||*) a b = Fix $ SigmaOr [a, b]
+
+sigmaPk :: k -> Sigma k
+sigmaPk k = Fix $ SigmaPk k
 
 deriving anyclass instance NFData k => NFData (Sigma k)
 
@@ -189,6 +215,11 @@ eliminateSigmaBool = cata $ \case
 toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
 toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
 
+toSigmaExprOrFail :: Sigma a -> Either Text (Sigma.SigmaE () a)
+toSigmaExprOrFail a = bimap catchBoolean id $ toSigmaExpr a
+  where
+    catchBoolean = const "Expression is constant boolean. It is not  a sigma-expression"
+
 toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
 toPrimSigmaExpr = cata $ \case
   SigmaPk k    -> Just $ Sigma.Leaf () k
@@ -219,5 +250,133 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
   _                                -> False
   where
     equalList = liftEq equalSigmaExpr
+
+----------------------------------------------------------------------------
+-- Multi signatures
+--
+-- Tools to create cooperative signature with multiple partners.
+--
+-- It takes several steps to complete the proof. We should assign main prover.
+-- Main prover carries the main steps of the proof and asks participants for missing info.
+-- As in case of any sigma-protocol there are three key elements: commitments, challenges, responses.
+--
+-- In summary algorithm flows along these steps:
+--  * main prover creates simulated proofs and asks for commitments for real proofs
+--  * participants share commitments and keep corresponfing secret private
+--  * based on commitments main prover calculates challenges and asks for responces
+--  * participants provide responses derived from their private keys and secrets generated on the commitment-stage
+--  * main prover completes the proof when he gets all responses.
+--
+-- For example we have three participants Alice, Bob and John.
+-- They want to sign the TX with sigma-expression:
+--
+-- > pkAlice && pkBob && pkJohn
+--
+-- At first stage we have to choose a main prover. Main prover carries algorithm and
+-- creates the proof and querries other participants along the way.
+-- Let's set Alice as a main prover.
+--
+-- Alice calls the function @initMultiSigProof@ to start the proof creation.
+-- Everything happens in the Prove monad which is instance of MonadIO and we can query participants through IO-actions.
+--
+-- > participantKeys = Set.fromList [alicePubKey, bobPubKey, johnPubKey]
+-- >
+-- > queryCommitmentsExpr <- initMultiSigProof participantKeys expr
+--
+-- We get expression @queryCommitmentsExpr@ that comtains simulated proofs for fake nodes and
+-- holes to fill by participants for real commitments. Commitment is derived from random secret that
+-- every participant should keep  private and pass commitment to main prover.
+--
+-- We create commitments and secrets with the function @queryCommitments@
+--
+-- > (aliceCommitments, aliceSecrets) <- queryCommitments [alicePubKey] queryCommitmentsExpr
+-- > (bobCommitments, bobSecrets)     <- queryCommitments [bobPubKey]   queryCommitmentsExpr
+-- > (johnCommitments, johnSecrets)   <- queryCommitments [johnPubKey]  queryCommitmentsExpr
+--
+-- Every participant generates commitment and secret and gaves commitment to main prover (Alice).
+-- Alice gets all commitments and appends them together to create challenges with given message to sign:
+--
+-- > commitments <- appendCommitments [([alicePubKey], aliceCommitments), ([bobPubKey], bobCommitments), ([johnPubKey], johnCommitments) ] message
+-- > challenges <- getChallenges commitments message
+--
+-- Next main prover asks all participants for responces. Prover gives expression of challenges
+-- and each participant uses his own private keys and commitment secrets to calculate responces:
+--
+-- > aliceResponses <- queryResponses alicePrivateKeys aliceSecrets challenges
+-- > bobResponses   <- queryResponses bobPrivateKeys   bobSecrets   challenges
+-- > johnResponses  <- queryResponses johnPrivateKeys  johnSecrets  challenges
+--
+-- Participants give responses to main prover and she creates the proof with function @appendResponsesToProof@:
+--
+-- > proof <- appendResponsesToProof [([alicePubKey], aliceResponses), ([bobKeys], bobResponses), ([johnKeys], johnResponses)]
+--
+-- Everything happens in the Prove monad now we can get the result with @runProve@.
+-- We can carry dialog with participants over IO, since prove has instance of class @MonadIO@.
+-- The routine of main prover can look like this:
+--
+-- > proof <- runProve $ do
+-- >   queryCommitmentsExpr <- initMultiSigProof allKeys
+-- >   let partners = [aliceKeys, bobKeys, johnKeys]
+-- >   commitments <- mapM askForCommitments partners
+-- >   challenges  <- appendCommitments $ zip partners commitments
+-- >   responses   <- mapM askForResponses partners
+-- >   appendResponsesToProof responses
+--
+-- Other participants carry on the dialog. They are asked for commitments. They create commitments and secrets
+-- and second time they are asked for responses and they use their own private keys and secrets from the first
+-- round of the dialog to construct the responses.
+--
+-- Also participants can check the challenges to be sure that main prover signs correct message that they expect
+-- and not resuses their commitments and responses to sign malicious transactions.
+-- We can do it with checkChallenges function:
+--
+-- > checkChallenges commitments challenges message
+--
+-- It expects the complete list of commitments from all participants (result of the function @appendCommitments@),
+-- challenges and the message to be signed and returns boolean.
+
+type QueryCommitments  = Sigma.CommitmentQueryExpr  CryptoAlg
+type CommitmentSecrets = Sigma.CommitmentSecretExpr CryptoAlg
+type Commitments       = Sigma.CommitmentExpr       CryptoAlg
+type Challenges        = Sigma.ChallengeExpr        CryptoAlg
+type QueryResponses    = Sigma.ResponseQueryExpr    CryptoAlg
+
+-- | Inits multi-sig proof. Marks tree nodes as simulated and real proofs based
+-- on set of known public keys of the group of partners who sign the message.
+-- It creates value to query commitments.
+initMultiSigProof :: Set PublicKey -> Sigma PublicKey -> Prove QueryCommitments
+initMultiSigProof knownKeys expr =
+  case toSigmaExprOrFail expr of
+    Right sigma -> Sigma.initMultiSigProof knownKeys sigma
+    Left err    -> throwError err
+
+-- | Every partner creates a commitment of random secret based on his public keys.
+-- The result of the function is a pair of public commitmnets that are handed to the main prover
+-- and private secrets that nobody should know. We should use secrets on the latted stages of the algorithm.
+queryCommitments :: Set PublicKey -> QueryCommitments -> Prove (QueryCommitments, CommitmentSecrets)
+queryCommitments = Sigma.queryCommitments
+
+-- | Appends commitments queried from allpartners.
+appendCommitments :: [(Set PublicKey, QueryCommitments)] -> Prove Commitments
+appendCommitments = Sigma.appendCommitments
+
+-- | Creates challenges for the given set of commitments.
+getChallenges :: (ByteRepr bs) => Commitments -> bs -> Prove Challenges
+getChallenges commitments (encodeToBS -> message) = liftEither $ Sigma.getChallenges commitments message
+
+-- | Query responses. Notice that here we need to supply private keys and commitment secrets
+-- that we keep private from the stage of @queryCommitments@.
+queryResponses :: ProofEnv -> CommitmentSecrets -> Challenges -> Prove QueryResponses
+queryResponses = Sigma.queryResponses
+
+-- | Completes the proof by appending responses from all participants.
+appendResponsesToProof :: [(Set PublicKey, QueryResponses)] -> Prove Proof
+appendResponsesToProof = Sigma.appendResponsesToProof
+
+-- | Participants of the multisignature can check that the main prover signs correct message.
+-- First argument is the result of @appendCommitments@.
+checkChallenges :: ByteRepr bs => Commitments -> Challenges -> bs -> Bool
+checkChallenges commitments challenges (encodeToBS -> message) =
+  Sigma.checkChallenges commitments challenges message
 
 $(deriveShow1 ''SigmaF)

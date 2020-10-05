@@ -57,7 +57,7 @@ type AnnExprLam ann bind = Fix (Ann ann (ExprLamF bind))
 type ExprLam bind = Fix (ExprLamF bind)
 
 -- | Annotated programm.
-newtype AnnLamProg  ann bind = AnnLamProg { unAnnLamProg :: [AnnComb ann bind] }
+newtype AnnLamProg ann bind = AnnLamProg { unAnnLamProg :: [AnnComb ann bind] }
   deriving (Show)
 
 -- | Extended lambda calculus programm
