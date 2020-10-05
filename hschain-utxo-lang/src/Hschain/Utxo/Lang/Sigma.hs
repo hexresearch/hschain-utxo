@@ -1,4 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
 -- | It defines types and functions for Sigma-expressions.
 -- Sigma-expressions are used to sign scripts without providing
 -- the information on who signed the script.
@@ -361,8 +360,9 @@ appendCommitments :: [(Set PublicKey, QueryCommitments)] -> Prove Commitments
 appendCommitments = Sigma.appendCommitments
 
 -- | Creates challenges for the given set of commitments.
-getChallenges :: (ByteRepr bs) => Commitments -> bs -> Prove Challenges
-getChallenges commitments (encodeToBS -> message) = liftEither $ Sigma.getChallenges commitments message
+getChallenges :: Commitments -> SigMessage -> Prove Challenges
+getChallenges commitments message =
+  liftEither $ Sigma.getChallenges commitments (encodeToBS message)
 
 -- | Query responses. Notice that here we need to supply private keys and commitment secrets
 -- that we keep private from the stage of @queryCommitments@.
@@ -375,8 +375,8 @@ appendResponsesToProof = Sigma.appendResponsesToProof
 
 -- | Participants of the multisignature can check that the main prover signs correct message.
 -- First argument is the result of @appendCommitments@.
-checkChallenges :: ByteRepr bs => Commitments -> Challenges -> bs -> Bool
-checkChallenges commitments challenges (encodeToBS -> message) =
-  Sigma.checkChallenges commitments challenges message
+checkChallenges :: Commitments -> Challenges -> SigMessage -> Bool
+checkChallenges commitments challenges message =
+  Sigma.checkChallenges commitments challenges (encodeToBS message)
 
 $(deriveShow1 ''SigmaF)

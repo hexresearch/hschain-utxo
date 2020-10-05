@@ -62,7 +62,7 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
     appendCommonBoxId tx = (tx, box'id $ tx'outputs tx V.! 0)
 
     preTx = getPreTx Nothing Nothing
-    txId  = computePreTxId preTx
+    txId  = getSigMessagePreTx mempty preTx
 
     getPreTx aliceProof bobProof = Tx
       { tx'inputs   = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
@@ -70,9 +70,10 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       }
 
     inputBox boxId proof = BoxInputRef
-      { boxInputRef'id    = boxId
-      , boxInputRef'args  = mempty
-      , boxInputRef'proof = proof
+      { boxInputRef'id      = boxId
+      , boxInputRef'args    = mempty
+      , boxInputRef'proof   = proof
+      , boxInputRef'sigMask = mempty
       }
 
     commonBox = PreBox
@@ -95,7 +96,7 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
     (aliceCommitments, aliceSecret) <- queryCommitments aliceKeys comQueryExpr
     (bobCommitments,   bobSecret)   <- queryCommitments bobKeys   comQueryExpr
     commitments <- appendCommitments [(aliceKeys, aliceCommitments), (bobKeys, bobCommitments)]
-    challenges <- getChallenges commitments txId
+    challenges <- getChallenges commitments message
     aliceResponses <- queryResponses aliceEnv aliceSecret challenges
     bobResponses   <- queryResponses bobEnv   bobSecret   challenges
     proof <- appendResponsesToProof [(aliceKeys, aliceResponses), (bobKeys, bobResponses)]
@@ -113,12 +114,13 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
 
     preTx = getPreTx Nothing
 
-    txId  = computePreTxId preTx
+    message = getSigMessagePreTx mempty preTx
 
     commonInput proof = BoxInputRef
-      { boxInputRef'id    = commonBoxId
-      , boxInputRef'args  = mempty
-      , boxInputRef'proof = proof
+      { boxInputRef'id      = commonBoxId
+      , boxInputRef'args    = mempty
+      , boxInputRef'proof   = proof
+      , boxInputRef'sigMask = mempty
       }
 
     commonScript = sigmaPk alicePk &&* sigmaPk bobPk
@@ -157,6 +159,7 @@ simpleSpendToTx wallet fromId toPubKey value =
       { boxInputRef'id    = fromId
       , boxInputRef'args  = mempty
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
+      , boxInputRef'sigMask = mempty
       }
 
 postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
