@@ -145,3 +145,24 @@ data CaseAlt a = CaseAlt
   deriving anyclass (Serialise)
 
 makeBaseFunctor ''Core
+
+
+data Arity
+  = One
+  | Many
+
+data BindName arity a where
+  BindName1 :: a   -> BindName 'One  a
+  BindNameN :: [a] -> BindName 'Many a
+
+data BindDB arity a where
+  BindDB1 ::        BindDB 'One  a
+  BindDBN :: Int -> BindDB 'Many a
+
+deriving instance Functor     (BindName arity)
+deriving instance Foldable    (BindName arity)
+deriving instance Traversable (BindName arity)
+
+deriving instance Functor     (BindDB arity)
+deriving instance Foldable    (BindDB arity)
+deriving instance Traversable (BindDB arity)
