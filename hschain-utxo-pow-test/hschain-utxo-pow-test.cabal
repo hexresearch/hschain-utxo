@@ -1,0 +1,101 @@
+cabal-version:       >=1.10
+name:                hschain-utxo-pow-test
+version:             0.1.0.0
+synopsis:            tests for hschain-utxo using PoW consensus
+description:         Package defines several scenarios with exchange of funds over smartcontracts.
+                     We should run tests in the directory hschain-utxo-test.
+
+-- bug-reports:
+-- license:
+license-file:        LICENSE
+author:              anton-k
+maintainer:          anton.kholomiov@gmail.com
+-- copyright:
+-- category:
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+library
+  Ghc-options:         -Wall
+  exposed-modules:     Hschain.Utxo.Test.Client.Monad
+                       Hschain.Utxo.Test.Client.Chan
+                       Hschain.Utxo.Test.Client.Proc
+                       Hschain.Utxo.Test.Client.Scripts.AtomicSwap
+                       Hschain.Utxo.Test.Client.Scripts.MultiSig
+                       Hschain.Utxo.Test.Client.Scripts.PayForCofee
+                       Hschain.Utxo.Test.Client.Scripts.ReversibleAddress
+                       Hschain.Utxo.Test.Client.Scripts.SimpleExchange
+                       Hschain.Utxo.Test.Client.Scripts.XorGame
+                       Hschain.Utxo.Test.Client.Scripts.Utils
+                       Hschain.Utxo.Test.Client.Wallet
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , async
+                     , bytestring
+                     , hex-common
+                     , hschain-PoW
+                     , hschain-crypto
+                     , hschain-logger
+                     , hschain-utxo-api-client
+                     , hschain-utxo-api-rest
+                     , hschain-utxo-pow-node
+                     , hschain-utxo-lang
+                     , hschain-utxo-service
+                     , hschain-utxo-state
+                     , Boolean
+                     , containers
+                     , cryptonite
+                     , data-fix
+                     , directory
+                     , extra
+                     , filepath
+                     , hspec
+                     , immortal
+                     , serialise
+                     , servant
+                     , servant-client
+                     , lifted-base
+                     , lifted-async
+                     , monad-control
+                     , mtl
+                     , random
+                     , pretty-show
+                     , stm
+                     , temporary
+                     , text
+                     , time
+                     , timeout
+                     , transformers-base
+                     , uuid
+                     , vector
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  default-extensions:
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    TypeFamilies
+    OverloadedLists
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    TemplateHaskell
+
+
+test-suite hschain-utxo-test
+  Ghc-options:         -Wall
+  Type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  hs-source-dirs:      app
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , hschain-utxo-lang
+                     , hschain-utxo-service
+                     , hschain-utxo-test
+                     , hspec
+                     , hex-common
+  -- hs-source-dirs:
+  default-language:    Haskell2010
+
