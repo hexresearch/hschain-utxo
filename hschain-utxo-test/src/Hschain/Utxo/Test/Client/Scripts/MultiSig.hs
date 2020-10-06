@@ -54,15 +54,15 @@ multiSigExchange = do
 
 getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId)
 getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = liftIO $ do
-  aliceProof <- fmap eitherToMaybe $ newProof aliceEnv (singleOwnerSigmaExpr alice) txId
-  bobProof   <- fmap eitherToMaybe $ newProof bobEnv   (singleOwnerSigmaExpr bob)   txId
+  aliceProof <- fmap eitherToMaybe $ newProof aliceEnv (singleOwnerSigmaExpr alice) message
+  bobProof   <- fmap eitherToMaybe $ newProof bobEnv   (singleOwnerSigmaExpr bob)   message
   let preTx' = getPreTx aliceProof bobProof
   return $ appendCommonBoxId $ newTx preTx'
   where
     appendCommonBoxId tx = (tx, box'id $ tx'outputs tx V.! 0)
 
     preTx = getPreTx Nothing Nothing
-    txId  = getSigMessagePreTx mempty preTx
+    message = getSigMessagePreTx SigAll preTx
 
     getPreTx aliceProof bobProof = Tx
       { tx'inputs   = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
@@ -73,7 +73,7 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       { boxInputRef'id      = boxId
       , boxInputRef'args    = mempty
       , boxInputRef'proof   = proof
-      , boxInputRef'sigMask = mempty
+      , boxInputRef'sigMask = SigAll
       }
 
     commonBox = PreBox
@@ -114,13 +114,13 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
 
     preTx = getPreTx Nothing
 
-    message = getSigMessagePreTx mempty preTx
+    message = getSigMessagePreTx SigAll preTx
 
     commonInput proof = BoxInputRef
       { boxInputRef'id      = commonBoxId
       , boxInputRef'args    = mempty
       , boxInputRef'proof   = proof
-      , boxInputRef'sigMask = mempty
+      , boxInputRef'sigMask = SigAll
       }
 
     commonScript = sigmaPk alicePk &&* sigmaPk bobPk
@@ -159,7 +159,7 @@ simpleSpendToTx wallet fromId toPubKey value =
       { boxInputRef'id    = fromId
       , boxInputRef'args  = mempty
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
-      , boxInputRef'sigMask = mempty
+      , boxInputRef'sigMask = SigAll
       }
 
 postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)

@@ -149,7 +149,7 @@ toSendTxDelayed wallet SendDelayed{..} = do
       { boxInputRef'id    = sendDelayed'from
       , boxInputRef'args  = mempty
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
-      , boxInputRef'sigMask = mempty
+      , boxInputRef'sigMask = SigAll
       }
 
     height = sendDelayed'height

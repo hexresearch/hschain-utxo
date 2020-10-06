@@ -109,6 +109,7 @@ instance Pretty a => Pretty (BoxInputRef a) where
     ]
 
 instance Pretty SigMask where
+  pretty SigAll = "SigAll"
   pretty SigMask{..} = prettyRecord "SigMask"
     [ ("inputs",  prettyBits sigMask'inputs)
     , ("outputs", prettyBits sigMask'outputs)

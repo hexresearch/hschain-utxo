@@ -8,7 +8,6 @@ module Hschain.Utxo.Lang.Types
   , BoxInput(..)
   , BoxInputRef(..)
   , SigMask(..)
-  , nullSigMask
   , signAll
   , ExpectedBox
   , Env(..)
@@ -206,16 +205,16 @@ instance Semigroup (GTx ins outs) where
     , tx'outputs = tx'outputs a <> tx'outputs b
     }
     where
-      appendInputs aIns bIns = aIns <> fmap shiftRefMask bIns
+      appendInputs aIns bIns = aIns <> fmap (shiftRefMask bSizes) bIns
 
       aSizes = getTxSizes a
       bSizes = getTxSizes b
 
-      shiftRefMask ref@BoxInputRef{..} = ref
-        { boxInputRef'sigMask = shiftMask $ boxInputRef'sigMask
+      shiftRefMask sizes ref@BoxInputRef{..} = ref
+        { boxInputRef'sigMask = shiftMask sizes $ boxInputRef'sigMask
         }
 
-      shiftMask x = prefix <> fillEmptyMask bSizes x
+      shiftMask sizes x = appendSigMask (aSizes, prefix) (sizes, x)
         where
           prefix = SigMask
             { sigMask'inputs  = V.replicate (txSizes'inputs  aSizes) False
@@ -253,25 +252,18 @@ data BoxInputRef a = BoxInputRef
 data SigMask = SigMask
   { sigMask'inputs   :: Vector Bool
   , sigMask'outputs  :: Vector Bool
-  }
+  } -- ^ Specify what inputs and outputs to sign
+  | SigAll
+  -- ^ Signs whole transaction (all inputs and outputs)
   deriving stock (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
-instance Semigroup SigMask where
-  (<>) a b = SigMask
-    { sigMask'inputs  = sigMask'inputs a <> sigMask'inputs b
-    , sigMask'outputs = sigMask'outputs a <> sigMask'outputs b
-    }
-
-instance Monoid SigMask where
-  mempty = SigMask
-            { sigMask'inputs  = mempty
-            , sigMask'outputs = mempty
-            }
-
-nullSigMask :: SigMask -> Bool
-nullSigMask SigMask{..} =
-  null sigMask'inputs && null sigMask'outputs
+appendSigMask :: (TxSizes, SigMask) -> (TxSizes, SigMask) -> SigMask
+appendSigMask (aSizes, a) (bSizes , b) = case (a, b) of
+  (SigAll, SigAll)      -> SigAll
+  (SigAll, SigMask{..}) -> appendSigMask (aSizes, signAll aSizes) (bSizes, b)
+  (SigMask{..}, SigAll) -> appendSigMask (aSizes, a) (bSizes, signAll bSizes)
+  (SigMask aIns aOuts, SigMask bIns bOuts) -> SigMask (aIns <> bIns) (aOuts <> bOuts)
 
 signAll :: TxSizes -> SigMask
 signAll TxSizes{..} =
@@ -308,23 +300,20 @@ getSigMessageTx :: SigMask -> Tx -> SigMessage
 getSigMessageTx mask = getSigMessagePreTx mask . getPreTx
 
 getSigMessagePreTx :: SigMask -> GTx a PreBox -> SigMessage
-getSigMessagePreTx mask tx@Tx{..}
-  = SigMessage . hashBuilder
-  $ hashStep (UserType hashDomain "Tx")
- <> hashStepFoldableWith stepIn  (filterMask (sigMask'inputs  completeMask) tx'inputs)
- <> hashStepFoldableWith stepOut (filterMask (sigMask'outputs completeMask) tx'outputs)
+getSigMessagePreTx mask Tx{..}
+    = SigMessage . hashBuilder
+    $ hashStep (UserType hashDomain "Tx")
+  <> hashStepFoldableWith stepIn  (filterIns  tx'inputs)
+  <> hashStepFoldableWith stepOut (filterOuts tx'outputs)
   where
+    (filterIns, filterOuts) = case mask of
+      SigMask{..} -> (filterMask sigMask'inputs, filterMask sigMask'outputs)
+      SigAll      -> (id, id)
+
     stepIn BoxInputRef{..}  = hashStep boxInputRef'id
                            <> hashStep boxInputRef'args
                            <> hashStep boxInputRef'sigMask
     stepOut = hashStep
-
-    completeMask = fillEmptyMask (getTxSizes tx) mask
-
-fillEmptyMask :: TxSizes -> SigMask -> SigMask
-fillEmptyMask sizes x
-  | nullSigMask x = signAll sizes
-  | otherwise     = x
 
 filterMask :: Vector Bool -> Vector a -> Vector a
 filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
@@ -507,7 +496,7 @@ singleOwnerInput boxId pubKey = return $ BoxInputRef
   { boxInputRef'id      = boxId
   , boxInputRef'args    = mempty
   , boxInputRef'proof   = Just $ singleOwnerSigma pubKey
-  , boxInputRef'sigMask = mempty
+  , boxInputRef'sigMask = SigAll
   }
 
 
