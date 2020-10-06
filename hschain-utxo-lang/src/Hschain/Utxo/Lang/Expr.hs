@@ -745,11 +745,6 @@ instance H.HasLoc (Bind a) where
   type Loc (Bind a) = Loc
   getLoc = H.getLoc . bind'name
 
-instance H.HasLoc (BindGroup Lang) where
-  type Loc (BindGroup Lang) = Loc
-  getLoc = \case
-    []  -> noLoc
-    a:_ -> H.getLoc a
 
 -------------------------------------------------------------------
 -- unique instances for Eq and Ord (ingnores source location)
