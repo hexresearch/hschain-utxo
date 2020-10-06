@@ -356,7 +356,7 @@ initialUTXONodeState = UTXONodeState
 -- Blockchain state management
 ----------------------------------------------------------------
 
--- | In-memory overlay for UTXO state. It contain changes to UTXO set
+-- | In-memory overlay for UTXO state. It contains changes to UTXO set
 --   that are not commited to the database.
 --
 --   Note that it only contains blocks that are added to blockchain but
@@ -474,7 +474,7 @@ makeStateView bIdx0 overlay = sview where
 
             activeOverlay = addOverlayLayer overlay
 
-        commissionsTxs <- Debug.trace "selecting transactions" $ selectTX txlist activeOverlay
+        commissionsTxs <- Debug.trace ("selecting transactions from "++show txlist) $ selectTX txlist activeOverlay
         -- Create and process coinbase transaction
         let (commissions, txs) = unzip commissionsTxs
             commission = sum commissions
@@ -680,7 +680,7 @@ getDatabaseBox POW.NoChange boxInputRef@BoxInputRef{..} = do
     \  JOIN utxo_state ON live_utxo = utxo_id \
     \ WHERE box_id = ?"
     boxid
-  case r of
+  Debug.trace ("fetched "++show r) $ case r of
     Just u  -> return u
     Nothing -> throwError $ InternalErr "No such UTXO"
 
@@ -732,6 +732,15 @@ retrieveUTXOIO utxo = do
   case r of
     Just (Only i) -> return i
     Nothing       -> error "retrieveUTXOIO"
+
+retrieveUTXOByBoxId :: (MonadReadDB m, MonadIO m) => BoxId -> m (Maybe Box)
+retrieveUTXOByBoxId boxid = do
+  r <- queryRO $ basicQuery1
+    "SELECT box FROM utxo_set WHERE box_id = ?"
+    boxid
+  case r of
+    Just (Only box) -> return $ Just box
+    Nothing       -> return Nothing
 
 
 

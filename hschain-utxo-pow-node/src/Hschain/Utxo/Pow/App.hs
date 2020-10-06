@@ -226,11 +226,10 @@ readBlockchainHeightEndpoint :: ServerM Int
 readBlockchainHeightEndpoint = return 0
 
 getBoxEndpoint :: BoxId -> ServerM (Maybe Box)
-getBoxEndpoint boxId = return Nothing
-
--- |Application environment.
-data AppEnv m = AppEnv
-            { appEnvMempool           :: POW.MempoolAPI (UTXOT m) UTXOBlock }
+getBoxEndpoint boxId = do
+  r <- retrieveUTXOByBoxId boxId
+  liftIO $ hPutStrLn stderr $ "getBoxEndpoint: boxid "++show boxId++", box "++show r
+  return r
 
 type ServerM a = UTXOT IO a
 
@@ -251,7 +250,9 @@ writeTx tx = do
   --Bchain{..} <- askBchain
   --liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
   --  ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
-  pure Nothing
+  return $ Just $ TxHash h
+  where
+    Hash h = hash tx :: Hash SHA256
 
 readBlock :: Int -> UTXOT IO (Maybe [Tx])
 readBlock height = do
@@ -275,23 +276,12 @@ readBoxChainState = do
   --liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
   return $ BoxChain Map.empty 0
 
-waitForTx :: UTXOT IO (TxHash -> UTXOT IO Bool)
-waitForTx = do
-  --Bchain{..} <- askBchain
-  --fmap liftIO <$> liftIO bchain'waitForTx
-  return (const $ return False)
-
 postTxWait :: Tx -> UTXOT IO (Maybe TxHash)
 postTxWait tx = do
   -- We start listening before sending transaction to mempool to avoid
   -- race when tx is commited before we start listening
-  listener <- waitForTx
-  r <- runMaybeT $ do
-    h <- MaybeT $ writeTx tx
-    guard =<< lift (listener h)
-    -- lift $ incMetricSurelyPostedTx tx
-    return h
-  liftIO $ hPutStrLn stderr $ "posted tx "++show tx++", hash "++show r
-  return r
+  h <- writeTx tx
+  liftIO $ hPutStrLn stderr $ "posted tx "++show tx++", hash "++show h
+  return h
 
 

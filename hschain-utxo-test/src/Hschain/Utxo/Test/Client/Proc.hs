@@ -38,8 +38,8 @@ defaultTestSpec = TestSpec
 app :: Options -> Genesis -> IO [ThreadId]
 app opt genesisTx = do
   _nodeCfg  <- readYaml $ configWebnodePath opt :: IO Config
-  --webThread <- forkIO $ runWebNode nodeCfg genesisTx
-  return [] --[webThread]
+  webThread <- forkIO $ runWebNode nodeCfg genesisTx
+  return [webThread]
 
 
 runTestProc :: App () -> IO Spec
