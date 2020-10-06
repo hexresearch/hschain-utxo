@@ -77,15 +77,14 @@ data CoreScriptError
 
 -- | Errors for core language type-checker.
 data TypeCoreError
-  = NotMonomorphicType Text
-  | VarIsNotDefined Text
-  | ArrowTypeExpected TypeCore
-  | TypeCoreMismatch TypeCore TypeCore
-  | SubtypeError TypeCore TypeCore
-  | EmptyCaseExpression
-  | PolymorphicLet
-  | BadEquality TypeCore
-  | BadShow     TypeCore
+  = ExpressionIsBottom                  -- ^ Expression as whole always evaluates to bottom
+  | VarIsNotDefined Text                -- ^ Variable is used but not defined
+  | ArrowTypeExpected TypeCore          -- ^ Function type expected, but got
+  | TypeCoreMismatch  TypeCore TypeCore -- ^ Got type a while expected b
+  | EmptyCaseExpression                 -- ^ Case has no alternatives
+  | PolymorphicLet                      -- ^ Let is used to bind variable that always evaluate to bottom
+  | BadEquality TypeCore                -- ^ Equality used on types that don't support it
+  | BadShow     TypeCore                -- ^ Show is used on types that don't support it
   | BadCase
   | BadConstructor
   deriving stock    (Show,Eq,Generic)
@@ -94,8 +93,6 @@ data TypeCoreError
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
 typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb
 
-subtypeError :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
-subtypeError ta tb = throwError $ SubtypeError ta tb
 
 
 -- pretty message
