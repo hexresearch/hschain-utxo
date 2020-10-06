@@ -246,8 +246,6 @@ instance Pretty CoreScriptError where
   pretty = \case
     ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
     TypeCoreError err              -> pretty err
-    NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
-    RecursiveScript                -> "Error: Recursive script is not allowed"
 
 instance Pretty TypeCoreError where
   pretty = \case

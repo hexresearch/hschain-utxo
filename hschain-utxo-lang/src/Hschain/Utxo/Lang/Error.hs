@@ -72,8 +72,6 @@ data MonoError
 data CoreScriptError
   = ResultIsNotSigma
   | TypeCoreError TypeCoreError
-  | RecursiveScript
-  | NotMonomorphicTypes
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 
