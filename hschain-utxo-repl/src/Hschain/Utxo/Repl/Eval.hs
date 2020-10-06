@@ -50,7 +50,7 @@ evalExpr lang = do
     tx    <- fmap replEnv'tx get
     ctx   <- getExecContext
     types <- getUserTypes
-    let env = fromMaybe defaultInputEnv $ fmap snd $ splitInputs tx V.!? 0
+    let env = fromMaybe defaultInputEnv $ fmap (\(_, _, e) -> e) $ splitInputs tx V.!? 0
     let res = runExec ctx env $ execLang =<< desugar types expr
     liftIO $ case res of
       Right (e, debugTxt) -> do
@@ -85,7 +85,7 @@ evalBind var lang = do
       tx  <- fmap replEnv'tx get
       ctx <- getExecContext
       types <- getUserTypes
-      let env = fromMaybe defaultInputEnv $ fmap snd $ splitInputs tx V.!? 0
+      let env = fromMaybe defaultInputEnv $ fmap (\(_,_,e) -> e) $ splitInputs tx V.!? 0
       let res = runExec ctx env $ execLang =<< desugar types expr
       case res of
         Right (e, _) -> do

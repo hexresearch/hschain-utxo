@@ -21,10 +21,6 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
-import Examples.SKI
-
-import Hschain.Utxo.Lang.Pretty
-import qualified Data.Text.IO as T
 
 tests :: TestTree
 tests = testGroup "core-lists"

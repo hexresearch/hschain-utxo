@@ -70,7 +70,5 @@ verifyBrokenTx = do
 
 -- | External TX verifier.
 verifyTx :: Tx -> Bool
-verifyTx tx = all (maybe False (\proof -> verifyProof proof tid) . boxInputRef'proof) $ tx'inputs tx
-  where
-    tid = computeTxId tx
+verifyTx tx = all (\BoxInputRef{..} -> maybe False (\proof -> verifyProof proof (getSigMessageTx boxInputRef'sigMask tx)) boxInputRef'proof) $ tx'inputs tx
 

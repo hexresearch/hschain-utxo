@@ -9,6 +9,7 @@ module Hschain.Utxo.Lang.Pretty(
 import Codec.Serialise (deserialiseOrFail)
 import Hex.Common.Serialise
 
+import Data.Bool
 import Data.String
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -104,7 +105,20 @@ instance Pretty a => Pretty (BoxInputRef a) where
     [ ("id",    pretty boxInputRef'id)
     , ("args",  prettyArgs boxInputRef'args)
     , ("proof", pretty boxInputRef'proof)
+    , ("sigMask", pretty boxInputRef'sigMask)
     ]
+
+instance Pretty SigMask where
+  pretty SigAll = "SigAll"
+  pretty SigMask{..} = prettyRecord "SigMask"
+    [ ("inputs",  prettyBits sigMask'inputs)
+    , ("outputs", prettyBits sigMask'outputs)
+    ]
+    where
+      prettyBits bits = hcat $ fmap (bool "0" "1") $ V.toList bits
+
+instance Pretty SigMessage where
+  pretty = pretty . encodeBase58
 
 instance Pretty Env where
   pretty Env{..} = prettyRecord "Env" [("height", pretty env'height)]
