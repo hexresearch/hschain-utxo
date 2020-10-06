@@ -95,25 +95,9 @@ typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb
 
 
 
--- pretty message
--- "There is no main expression defined in the module"
-
-wrapBoolError :: a -> Bool -> Maybe a
-wrapBoolError err b = case b of
-  True  -> Nothing
-  False -> Just err
-
 -- | Lift type-errors
 eitherTypeError :: Either TypeError a -> Either Error a
 eitherTypeError = either (Left . TypeError) Right
-
--- | Lift pattern-errors
-eitherPatternError :: Either TypeError a -> Either Error a
-eitherPatternError = either (Left . TypeError) Right
-
--- | Lift execution-errors
-eitherExecError :: Either ExecError a -> Either Error a
-eitherExecError = either (Left . ExecError) Right
 
 -- | Convert parser errors to our type.
 fromParseError :: H.ParseResult a -> Either Error a
