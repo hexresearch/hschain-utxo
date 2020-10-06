@@ -246,16 +246,13 @@ instance Pretty CoreScriptError where
   pretty = \case
     ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
     TypeCoreError err              -> pretty err
-    NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
-    RecursiveScript                -> "Error: Recursive script is not allowed"
 
 instance Pretty TypeCoreError where
   pretty = \case
-    NotMonomorphicType v     -> hsep ["Error: variable", pretty v, "is not monomorphic" ]
+    ExpressionIsBottom       -> hsep ["Error: expression always evaluates to bottom"]
     VarIsNotDefined v        -> hsep ["Error: variable", pretty v, "is not defined"]
-    ArrowTypeExpected t      -> hsep ["Error: arrow type expected, but got", pretty t]
+    ArrowTypeExpected t      -> hsep ["Error: function type expected, but got", pretty t]
     TypeCoreMismatch ta tb   -> hsep ["Error: type mismatch. Got", pretty ta, "expected", pretty tb]
-    SubtypeError ta tb       -> hsep ["Error: subtype error.", pretty ta, "is not a subtype of", pretty tb]
     EmptyCaseExpression      -> "Error: empty case alternatives"
     PolymorphicLet           -> "polymorphic type in the let binding"
     BadEquality ty           -> hsep ["Error: non comparable type:", pretty ty]

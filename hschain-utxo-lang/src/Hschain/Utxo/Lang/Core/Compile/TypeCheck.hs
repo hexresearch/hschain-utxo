@@ -45,7 +45,7 @@ typeCheck :: ExprCore -> Either TypeCoreError TypeCore
 typeCheck prog
   = runCheck mempty
   $ inferExpr prog >>= \case
-      AnyType    -> throwError $ NotMonomorphicType "Top level is bottom"
+      AnyType    -> throwError ExpressionIsBottom
       MonoType t -> return t
 
 
