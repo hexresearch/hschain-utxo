@@ -4,7 +4,9 @@
 --
 -- and then spend it.
 module Hschain.Utxo.Test.Client.Scripts.MultiSig(
-  multiSigExchange
+    multiSigExchange
+  , getSharedBoxTx
+  , postTxDebug
 ) where
 
 import Hex.Common.Delay
