@@ -21,6 +21,7 @@ import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Repl.Monad
 import Hschain.Utxo.Lang.Exec    (execLang, runExec)
+import Hschain.Utxo.Lang.Error   (Error)
 
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -54,12 +55,16 @@ evalExpr lang = do
     ctx   <- getExecContext
     types <- getUserTypes
     let env = fromMaybe defaultInputEnv $ fmap (\(_, _, e) -> e) $ splitInputs tx V.!? 0
-    let res = runExec ctx env $ execLang =<< desugar types expr
-    liftIO $ case res of
+    liftIO $ case evaluate ctx env types expr of
       Right (e, debugTxt) -> do
         T.putStrLn $ renderText e
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
       Left err   -> T.putStrLn $ renderText err
+
+evaluate :: ExecCtx -> InputEnv -> UserTypeCtx -> Lang -> Either Error (Lang, T.Text)
+evaluate ctx env types expr
+  = runExec ctx env $ execLang =<< desugar types expr
+
 
 defaultInputEnv :: InputEnv
 defaultInputEnv = InputEnv
@@ -89,8 +94,7 @@ evalBind var lang = do
       ctx <- getExecContext
       types <- getUserTypes
       let env = fromMaybe defaultInputEnv $ fmap (\(_,_,e) -> e) $ splitInputs tx V.!? 0
-      let res = runExec ctx env $ execLang =<< desugar types expr
-      case res of
+      case evaluate ctx env types expr of
         Right (e, _) -> do
           modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var e next)
                               , replEnv'words   = varName'name var : replEnv'words st }
