@@ -19,9 +19,11 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Desugar
+import Hschain.Utxo.Lang.Compile (compile)
 import Hschain.Utxo.Repl.Monad
-import Hschain.Utxo.Lang.Exec    (execLang, runExec)
+import Hschain.Utxo.Lang.Exec    (runExec)
 import Hschain.Utxo.Lang.Error   (Error)
+import Hschain.Utxo.Lang.Core.RefEval
 
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -56,15 +58,34 @@ evalExpr lang = do
     types <- getUserTypes
     let env = fromMaybe defaultInputEnv $ fmap (\(_, _, e) -> e) $ splitInputs tx V.!? 0
     liftIO $ case evaluate ctx env types expr of
-      Right (e, debugTxt) -> do
-        T.putStrLn $ renderText e
+      Right (res, debugTxt) -> do
+        case res of
+          EvalPrim p -> print p
+          EvalList p -> print p
+          EvalFail e -> print e
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
       Left err   -> T.putStrLn $ renderText err
 
-evaluate :: ExecCtx -> InputEnv -> UserTypeCtx -> Lang -> Either Error (Lang, T.Text)
-evaluate ctx env types expr
-  = runExec ctx env $ execLang =<< desugar types expr
-
+evaluate :: ExecCtx -> InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
+evaluate ctx env types expr = runExec ctx env $ do
+  core <- compile main
+  return $ evalProg env core
+  where
+    main = Module
+      { module'loc       = noLoc
+      , module'userTypes = types
+      , module'binds     =
+          [ Bind { bind'name = "main"
+                 , bind'type = Nothing
+                 , bind'alts =
+                     [ Alt { alt'pats  = []
+                           , alt'expr  = UnguardedRhs expr
+                           , alt'where = Nothing
+                           }
+                     ]
+                 }
+          ]
+      }
 
 defaultInputEnv :: InputEnv
 defaultInputEnv = InputEnv
@@ -88,18 +109,10 @@ defaultInputEnv = InputEnv
 evalBind :: VarName -> Lang -> Repl ()
 evalBind var lang = do
   closure <- fmap replEnv'closure get
-  let closedExpr = closure lang
-  withTypeCheck closedExpr $ \expr -> do
-      tx  <- fmap replEnv'tx get
-      ctx <- getExecContext
-      types <- getUserTypes
-      let env = fromMaybe defaultInputEnv $ fmap (\(_,_,e) -> e) $ splitInputs tx V.!? 0
-      case evaluate ctx env types expr of
-        Right (e, _) -> do
-          modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var e next)
-                              , replEnv'words   = varName'name var : replEnv'words st }
-          return ()
-        Left err   -> liftIO $ T.putStrLn $ renderText err
+  withTypeCheck (closure lang) $ \expr -> do
+    modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var expr next)
+                        , replEnv'words   = varName'name var : replEnv'words st
+                        }
 
 parseExpr :: String -> Either String ParseRes
 parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp (Just "<repl>") input
