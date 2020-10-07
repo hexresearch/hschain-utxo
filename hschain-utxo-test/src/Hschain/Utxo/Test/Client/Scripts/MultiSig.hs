@@ -7,6 +7,9 @@ module Hschain.Utxo.Test.Client.Scripts.MultiSig(
     multiSigExchange
   , getSharedBoxTx
   , postTxDebug
+  , changeBox
+  , spendCommonBoxTx
+  , simpleSpendTo
 ) where
 
 import Hex.Common.Delay
@@ -39,7 +42,7 @@ multiSigExchange = do
       john      = user'wallet scene'john
       Just aliceBox1 = user'box scene'alice
       Just bobBox1   = user'box scene'bob
-  (tx, commonBoxId) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
+  (tx, commonBoxId, _) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
   void $ postTxDebug True "Alice and Bob post joint multisig TX" tx
   (multiSigTx, aliceBox2, bobBox2) <- spendCommonBoxTx alice bob commonBoxId (aliceShareValue, bobShareValue)
   void $ postTxDebug True "Alice and bob create shared multi-sig proof and spend common box with it" multiSigTx
@@ -54,14 +57,14 @@ multiSigExchange = do
     bobShareValue   = 6
 
 
-getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId)
+getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId, Sigma PublicKey)
 getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = liftIO $ do
   aliceProof <- fmap eitherToMaybe $ newProof aliceEnv (singleOwnerSigmaExpr alice) message
   bobProof   <- fmap eitherToMaybe $ newProof bobEnv   (singleOwnerSigmaExpr bob)   message
   let preTx' = getPreTx aliceProof bobProof
   return $ appendCommonBoxId $ newTx preTx'
   where
-    appendCommonBoxId tx = (tx, box'id $ tx'outputs tx V.! 0)
+    appendCommonBoxId tx = (tx, box'id $ tx'outputs tx V.! 0, commonScript)
 
     preTx = getPreTx Nothing Nothing
     message = getSigMessagePreTx SigAll preTx
@@ -83,6 +86,8 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       , preBox'script = mainScriptUnsafe $ pk' alicePk &&* pk' bobPk
       , preBox'args   = mempty
       }
+
+    commonScript = sigmaPk alicePk &&* sigmaPk bobPk
 
     alicePk = getWalletPublicKey alice
     bobPk   = getWalletPublicKey bob
