@@ -41,7 +41,6 @@ library
                      , hschain-utxo-api-rest
                      , hschain-utxo-pow-node
                      , hschain-utxo-lang
-                     , hschain-utxo-service
                      , hschain-utxo-state
                      , Boolean
                      , containers

@@ -17,7 +17,9 @@
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RecordWildCards, StandaloneDeriving #-}
 
 module Hschain.Utxo.Pow.App(
-  runApp
+    runApp
+  , runNode
+  , Genesis
 ) where
 
 import Hex.Common.Aeson
@@ -136,7 +138,44 @@ runApp = do
     RunNode {..} -> do
       --secret <- maybe (return Nothing) (fmap (Just . read) . SE.getEnv) options'nodeSecret
       genesis <- readGenesis runnode'genesis
-      POW.Cfg{..} <- loadYamlSettings runnode'config [] requireEnv
+      config <- loadYamlSettings runnode'config [] requireEnv
+      runNode genesis config runnode'nodeSecret
+
+readGenesis :: FilePath -> IO (POW.Block UTXOBlock)
+readGenesis = fmap (fromMaybe err) . readJson
+  where
+    err = error "Error: failed to read genesis"
+
+-- |Create a genesis block with single transaction
+createGenesis :: [(Money, a)] -> IO Genesis
+createGenesis outputs = do
+  time <- POW.getCurrentTime
+  return $ POWTypes.GBlock
+           { POWTypes.blockHeight = POWTypes.Height 0
+           , POWTypes.blockTime   = time
+           , POWTypes.prevBlock   = Nothing
+           , POWTypes.blockData   = UTXOBlock
+               { ubNonce = ""
+               , ubProper = UTXOBlockProper
+                   { ubpPrevious  = Nothing
+                   , ubpData      = merkled [tx]
+                   , ubpTime      = time
+                   , ubpTarget    = POWTypes.Target $ 2^256 - 1
+                   }
+               }
+           }
+  where
+    tx = Tx
+         { tx'inputs = V.empty
+         , tx'outputs = V.fromList [ | (amount, pubKey) <- outputs ]
+         }
+
+
+-------------------------------------------------------------------------------
+-- Node.
+
+runNode :: POW.Block UTXOBlock -> POW.Cfg -> Maybe c -> IO ()
+runNode genesis config@POW.Cfg{..} maybePrivK = do
       -- Acquire resources
       let net    = newNetworkTcp cfgPort
           netcfg = POW.NetCfg { POW.nKnownPeers     = 3
@@ -165,17 +204,14 @@ runApp = do
             HControl.cforkLinkedIO $ do
               hPutStrLn stderr $ "server started at "++show port
               Warp.run port $ Servant.serve api $ Servant.hoistServer api run utxoServer
-          case runnode'nodeSecret of
+          case maybePrivK of
             Just privk -> do
               HControl.cforkLinked $ POW.genericMiningLoop pow
             Nothing -> return ()
           -- Wait forever
           liftIO $ forever $ threadDelay maxBound
 
-readGenesis :: FilePath -> IO (POW.Block UTXOBlock)
-readGenesis = fmap (fromMaybe err) . readJson
-  where
-    err = error "Error: failed to read genesis"
+type Genesis = POW.Block UTXOBlock
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: Servant.ServerT UtxoAPI (UTXOT IO)

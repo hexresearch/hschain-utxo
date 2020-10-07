@@ -49,8 +49,9 @@ import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build (pk', mainScriptUnsafe)
 import Hschain.Utxo.State.Types
-import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Test.Client.Chan (BlockChan, getBlockTChan, findTx)
+
+import Hschain.Utxo.Pow.App (runNode, Genesis)
 
 import qualified Hschain.Utxo.API.Client as C
 
