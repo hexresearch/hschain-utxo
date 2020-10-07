@@ -16,6 +16,7 @@ module Hschain.Utxo.Lang.Types
     -- * Blockchain state manipulation
   , InputEnv(..)
   , TxArg(..)
+  , buildTxArg
   , BoxInput(..)
   , SigMask(..)
   , signAll
@@ -330,6 +331,28 @@ data BoxInput = BoxInput
   , boxInput'sigMask :: !SigMask
   }
   deriving (Show, Eq, Generic)
+
+-- | Substitute box references in transaction by boxes
+buildTxArg
+  :: Monad m
+  => (BoxId -> m Box)           -- ^ Function to look up box by its IDs
+  -> Env                        -- ^ Environment
+  -> Tx
+  -> m TxArg
+buildTxArg lookupBox env tx@Tx{..} = do
+  inputs <- forM tx'inputs $ \BoxInputRef{..} -> do
+    box <- lookupBox boxInputRef'id
+    pure ( BoxInput { boxInput'box     = box
+                    , boxInput'args    = boxInputRef'args
+                    , boxInput'proof   = boxInputRef'proof
+                    , boxInput'sigMask = boxInputRef'sigMask
+                    }
+         , getSigMessageTx boxInputRef'sigMask tx
+         )
+  pure TxArg { txArg'inputs   = inputs
+             , txArg'outputs  = tx'outputs
+             , txArg'env      = env
+             }
 
 -- | Blockchain environment variables.
 data Env = Env

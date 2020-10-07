@@ -44,29 +44,11 @@ instance CryptoHashable BoxChain where
 --
 -- The value of type @TxArg@ is self-contained for execution.
 toTxArg :: BoxChain -> Tx -> Either Text TxArg
-toTxArg bch@BoxChain{..} tx@Tx{..} = fmap (\inputs ->
-  TxArg
-    { txArg'outputs = tx'outputs
-    , txArg'inputs  = fmap addSig inputs
-    , txArg'env     = getEnv bch
-    }
-  ) mInputs
+toTxArg bch@BoxChain{..} = buildTxArg lookupInput (getEnv bch) 
   where
-    mInputs = mapM lookupInput tx'inputs
-    noInputFor boxId = Left $ mconcat ["Error: no box input with id: ", renderText boxId]
-
-    lookupInput BoxInputRef{..} =
-        maybe (noInputFor boxInputRef'id) (Right . toBoxInput) $
-          M.lookup boxInputRef'id boxChain'boxes
-      where
-        toBoxInput box = BoxInput
-          { boxInput'box     = box
-          , boxInput'args    = boxInputRef'args
-          , boxInput'proof   = boxInputRef'proof
-          , boxInput'sigMask = boxInputRef'sigMask
-          }
-
-    addSig inp@BoxInput{..} = (inp, getSigMessageTx boxInput'sigMask tx)
+    lookupInput boxId = case M.lookup boxId boxChain'boxes of
+      Nothing -> Left $ mconcat ["Error: no box input with id: ", renderText boxId]
+      Just b  -> Right b
 
 hasBoxId :: BoxChain -> BoxId -> Bool
 hasBoxId BoxChain{..} boxId = M.member boxId boxChain'boxes
