@@ -1,28 +1,30 @@
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types
-  ( Tx
-  , PreTx
+  ( -- * Transaction types
+    Tx
   , GTx(..)
-  , TxHash(..)
+  , TxId(..)
+  , Box(..)
+  , BoxId(..)
+  , BoxInputRef(..)
+  , Args(..)
+  , ArgType(..)
+  , Script(..)
+  , Money
+  , computeBoxId
+  , argTypes
+    -- * Blockchain state manipulation
+  , InputEnv(..)
   , TxArg(..)
   , BoxInput(..)
-  , BoxInputRef(..)
   , SigMask(..)
   , signAll
   , ExpectedBox
   , Env(..)
-  , Money
-  , InputEnv(..)
-  , TxId(..)
-  , Script(..)
-  , Args(..)
-  , ArgType(..)
-  , Box(..)
-  , BoxId(..)
+  , PreTx
+  , TxHash(..)
   , PreBox(..)
   , BoxOrigin(..)
-  , computeBoxId
-  , argTypes
     -- * Functions
   , newTx
   , newProofTx
