@@ -188,14 +188,12 @@ type Tx    = GTx Proof Box
 type PreTx = GTx Proof PreBox
 
 data TxSizes = TxSizes
-  { txSizes'inputs   :: !Int
+  { txSizes'inputs  :: !Int
   , txSizes'outputs :: !Int
   } deriving (Show, Eq)
 
 instance Bifunctor GTx where
-  first f Tx{..} = Tx { tx'inputs = (fmap . fmap) f tx'inputs
-                      , ..
-                      }
+  first f tx = tx { tx'inputs = (fmap . fmap) f (tx'inputs tx) }
   second = fmap
 
 
