@@ -25,7 +25,6 @@ module Hschain.Utxo.Lang.Types
   , PreTx
   , TxHash(..)
   , PreBox(..)
-  , BoxOrigin(..)
     -- * Functions
   , newTx
   , newProofTx
@@ -149,19 +148,11 @@ data PreBox = PreBox
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
-computeBoxId :: BoxOrigin -> BoxId
-computeBoxId BoxOrigin{..}
+computeBoxId :: TxId -> Int64 -> BoxId
+computeBoxId txId i
   = BoxId . hashBuilder
-  $ hashStep boxOrigin'txId
- <> hashStep boxOrigin'outputIndex
-
--- | Data encodes the source of the Box when it was produced.
-data BoxOrigin = BoxOrigin
-  { boxOrigin'txId        :: !TxId   -- ^ identifier of TX that produced the Box
-  , boxOrigin'outputIndex :: !Int64  -- ^ index in the vector of outputs for the box
-  }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
-
+  $ hashStep txId
+ <> hashStep i
 
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
@@ -413,10 +404,7 @@ makeOutputs txId outputs = V.imap toBox outputs
       , box'args   = preBox'args
       }
       where
-        boxId = computeBoxId BoxOrigin
-                { boxOrigin'outputIndex = fromIntegral outputIndex
-                , boxOrigin'txId        = txId
-                }
+        boxId = computeBoxId txId (fromIntegral outputIndex)
 
 makeInput
   :: GTx (Sigma PublicKey) PreBox
@@ -493,10 +481,7 @@ validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
 
     checkBoxId n Box{..} = box'id == getId n
 
-    getId n = computeBoxId BoxOrigin
-              { boxOrigin'outputIndex = fromIntegral n
-              , boxOrigin'txId        = txId
-              }
+    getId n = computeBoxId txId (fromIntegral n)
 
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString
