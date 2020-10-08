@@ -29,17 +29,9 @@ data Error
 -- | Execution errors
 -- TODO source locations
 data ExecError
-  = AppliedNonFunction Lang
-  | UnboundVariables [VarName]
+  = UnboundVariables [VarName]
   | UndefinedRecordCons Loc ConsName
   | UndefinedReocrdField Loc ConsName Text
-  | Undefined Loc
-  | ThisShouldNotHappen Lang
-  | IllegalRecursion Lang
-  | OutOfBound Lang
-  | NoField VarName
-  | NonExaustiveCase Loc Lang
-  | NoSigmaScript
   | FailedToDecodeScript
   deriving stock    (Show,Eq,Generic)
 
