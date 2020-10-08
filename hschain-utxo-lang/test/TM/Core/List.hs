@@ -14,13 +14,12 @@ import Data.Int
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (InputEnv(..),Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
+import TM.Core.Common
 
 tests :: TestTree
 tests = testGroup "core-lists"
@@ -126,18 +125,3 @@ progSigmaAllList :: ExprCore
 progSigmaAllList
   = listConsts
   $ ap (EPrimOp (OpSigListAll BoolT)) [EPrimOp OpSigBool, "bs"]
-
-
-env :: InputEnv
-env = InputEnv
-  { inputEnv'height   = 123
-  , inputEnv'self     = Box
-    { box'id     = BoxId $ hashBlob ""
-    , box'value  = 100
-    , box'script = Script ""
-    , box'args   = mempty
-    }
-  , inputEnv'inputs   = mempty
-  , inputEnv'outputs  = mempty
-  , inputEnv'args     = mempty
-  }

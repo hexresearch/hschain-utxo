@@ -9,15 +9,14 @@ import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Utils.ByteString
-import Hschain.Utxo.Lang.Types (InputEnv(..),Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
-
 import qualified Hschain.Utxo.Lang.Const as Const
+import TM.Core.Common
+
 
 tests :: TestTree
 tests = testGroup "core-bytes"
@@ -70,17 +69,3 @@ testProgram name prog res = testGroup name
       Right _ -> pure ()
   , testCase          "simple"    $ EvalPrim res @=? evalProg env prog
   ]
-
-env :: InputEnv
-env = InputEnv
-  { inputEnv'height   = 123
-  , inputEnv'self     = Box
-    { box'id     = BoxId $ hashBlob ""
-    , box'value  = 100
-    , box'script = Script ""
-    , box'args   = mempty
-    }
-  , inputEnv'inputs   = mempty
-  , inputEnv'outputs  = mempty
-  , inputEnv'args     = mempty
-  }
