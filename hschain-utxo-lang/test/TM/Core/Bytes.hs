@@ -7,13 +7,11 @@ import Data.Int
 import Data.Text (Text)
 
 import Test.Tasty
-import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Utils.ByteString
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Core.RefEval
 import qualified Hschain.Utxo.Lang.Const as Const
 import TM.Core.Common
 
@@ -58,14 +56,3 @@ progConvertIdInt n
 progConvertIdText :: Text -> ExprCore
 progConvertIdText n
   = equals TextT (deserialiseIntV $ serialiseIntV $ text n) (text n)
-
----------------------------------------
--- utils
-
-testProgram :: String -> ExprCore -> Prim -> TestTree
-testProgram name prog res = testGroup name
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase          "simple"    $ EvalPrim res @=? evalProg env prog
-  ]

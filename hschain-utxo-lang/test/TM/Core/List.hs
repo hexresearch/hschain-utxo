@@ -19,7 +19,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
-import TM.Core.Common
+import TM.Core.Common (env)
 
 tests :: TestTree
 tests = testGroup "core-lists"

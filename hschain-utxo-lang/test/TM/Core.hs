@@ -8,7 +8,6 @@ import Test.Tasty.HUnit
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
 import Examples.Simple
 import TM.Core.Common
@@ -47,15 +46,6 @@ shouldFail :: String -> ExprCore -> TestTree
 shouldFail nm prog = testCase nm $ case typeCheck prog of
   Right _ -> assertFailure "Type checking should fail"
   Left  _ -> return ()
-
-
-testProgram :: String -> ExprCore -> Prim -> TestTree
-testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
-  ]
 
 
 -- Trivial
