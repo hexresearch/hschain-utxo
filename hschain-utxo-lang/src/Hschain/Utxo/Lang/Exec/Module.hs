@@ -2,7 +2,6 @@
 module Hschain.Utxo.Lang.Exec.Module(
     evalModule
   , checkMainModule
-  , moduleToMainExpr
 ) where
 
 import Hex.Common.Text

@@ -296,8 +296,8 @@ getSigMessageTx mask = getSigMessagePreTx mask . getPreTx
 
 getSigMessagePreTx :: SigMask -> GTx a PreBox -> SigMessage
 getSigMessagePreTx mask Tx{..}
-    = SigMessage . hashBuilder
-    $ hashStep (UserType hashDomain "Tx")
+   = SigMessage . hashBuilder
+   $ hashStep (UserType hashDomain "Tx")
   <> hashStepFoldableWith stepIn  (filterIns  tx'inputs)
   <> hashStepFoldableWith stepOut (filterOuts tx'outputs)
   where

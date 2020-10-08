@@ -11,7 +11,6 @@ module Hschain.Utxo.Lang.Exec(
   , runExec
   ) where
 
-import Control.Applicative
 import Control.Arrow
 import Control.Monad.State.Strict
 
@@ -20,7 +19,6 @@ import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
-import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Exec.Module
 
@@ -35,18 +33,9 @@ data Ctx = Ctx
 newtype Exec a = Exec (StateT Ctx (Either Error) a)
   deriving newtype (MonadState Ctx, Monad, Functor, Applicative, MonadError Error)
 
-instance Alternative Exec where
-  empty = throwError $ ExecError $ Undefined noLoc
-  Exec stA <|> Exec stB =
-    Exec $ StateT $ \s ->
-      let eRes = runStateT stA s
-      in  case eRes of
-            Right res -> return res
-            Left _    -> runStateT stB s
-
 instance MonadFreshVar Exec where
   getFreshVarName = do
-    idx <- fmap ctx'freshVarId get
+    idx <- gets ctx'freshVarId
     modify' $ \st -> st { ctx'freshVarId = ctx'freshVarId st + 1 }
     return $ toName idx
     where
