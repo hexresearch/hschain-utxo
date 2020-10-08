@@ -11,7 +11,6 @@ module Hschain.Utxo.Repl.Monad(
   , getImportFiles
   , getTxFile
   , getTypeContext
-  , getExecContext
   , getUserTypes
   , checkType
   , hasType
@@ -27,8 +26,10 @@ import Data.Text (Text)
 import System.Console.Repline
 import System.Console.Haskeline.MonadException
 
-import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Repl.Imports
 
 -- | Parse user input in the repl
@@ -89,11 +90,6 @@ getUserTypes = fmap inferCtx'types getInferCtx
 getTypeContext :: Repl TypeContext
 getTypeContext =
   fmap (inferCtx'binds . moduleCtx'types . imports'current . replEnv'imports) get
-
--- | Get execution context
-getExecContext :: Repl ExecCtx
-getExecContext =
-  fmap (moduleCtx'exprs . imports'current . replEnv'imports) get
 
 -- | Get list of files that are loaded in the REPL session
 getImportFiles :: Repl [FilePath]

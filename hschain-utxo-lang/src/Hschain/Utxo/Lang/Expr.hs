@@ -260,9 +260,9 @@ instance IsString Pat where
 
 -- | The type represents modules.
 data Module = Module
-  { module'loc       :: !Loc              -- ^ source code location
-  , module'userTypes :: !UserTypeCtx      -- ^ user-defined types
-  , module'binds     :: !(BindGroup Lang) -- ^ values (functions)
+  { module'loc       :: !Loc          -- ^ source code location
+  , module'userTypes :: !UserTypeCtx  -- ^ user-defined types
+  , module'binds     :: ![Bind Lang]  -- ^ values (functions)
   } deriving (Show)
 
 -- | Type context for inference algorithm
@@ -299,7 +299,7 @@ getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
 data Alt a = Alt
   { alt'pats  :: [Pat]      -- ^ arguments of the function
   , alt'expr  :: Rhs a      -- ^ right-hand side of the declaration
-  , alt'where :: Maybe (BindGroup a)  -- ^ 'where'-declarations (definitions local to the function)
+  , alt'where :: Maybe [Bind a]  -- ^ 'where'-declarations (definitions local to the function)
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 -- | Right-hand side of the function definition.
@@ -313,9 +313,6 @@ data Guard a = Guard
   { guard'predicate :: a  -- ^ guard predicate expression
   , guard'rhs       :: a  -- ^ right-hand side expression
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
-
--- | List of binds or value definitions.
-type BindGroup a = [Bind a]
 
 -- | Value definition
 data Bind a = Bind
@@ -341,7 +338,7 @@ data E a
   -- ^ lambda-abstraction (@\pat -> expr@)
   | LamList Loc [Pat] a
   -- ^ lambda abstraction with list of arguments (@\pat1 pat2 pat3 -> expr@)
-  | Let Loc (BindGroup a) a
+  | Let Loc [Bind a] a
   -- ^ local bindings or let-expression: (@let v = a in expr@)
   | PrimLet Loc [(VarName, a)] a
   -- ^ Simplified Let-expression. All binding right hand sides are rendered to a single expression
@@ -745,11 +742,6 @@ instance H.HasLoc (Bind a) where
   type Loc (Bind a) = Loc
   getLoc = H.getLoc . bind'name
 
-instance H.HasLoc (BindGroup Lang) where
-  type Loc (BindGroup Lang) = Loc
-  getLoc = \case
-    []  -> noLoc
-    a:_ -> H.getLoc a
 
 -------------------------------------------------------------------
 -- unique instances for Eq and Ord (ingnores source location)
@@ -799,7 +791,7 @@ freeVars = cata $ \case
   AltE _ a b       -> mappend a b
   FailCase _       -> Set.empty
   where
-    getBgNames :: BindGroup a -> Set VarName
+    getBgNames :: [Bind a] -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
 
     getPrimBgNames :: [(VarName, a)] -> Set VarName
@@ -839,7 +831,7 @@ freeVarsAlt Alt{..} =
 
 -- | Reorders binds by dependencies. First go binds with no deps then those
 -- that are dependent on them and so forth.
-sortBindGroups :: BindGroup Lang -> BindGroup Lang
+sortBindGroups :: [Bind Lang] -> [Bind Lang]
 sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
    where
      toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)

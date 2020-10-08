@@ -210,7 +210,7 @@ toLiteral loc = \case
 toHaskModule :: Module -> H.Module Loc
 toHaskModule (Module loc _ bs) = H.Module loc Nothing [] [] (toDecl bs)
 
-toDecl :: BindGroup Lang -> [H.Decl Loc]
+toDecl :: [Bind Lang] -> [H.Decl Loc]
 toDecl bs = toBind =<< bs
   where
     toBind Bind{..} = case bind'type of

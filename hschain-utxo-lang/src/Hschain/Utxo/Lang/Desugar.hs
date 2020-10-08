@@ -59,7 +59,7 @@ singleLet loc v body expr = Fix $ Let loc [simpleBind v body] expr
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
 
-bindGroupToLet :: BindGroup Lang -> Lang -> Lang
+bindGroupToLet :: [Bind Lang] -> Lang -> Lang
 bindGroupToLet bgs expr = Fix $ Let noLoc bgs expr
 
 
