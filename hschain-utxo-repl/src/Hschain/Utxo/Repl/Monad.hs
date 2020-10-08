@@ -11,7 +11,6 @@ module Hschain.Utxo.Repl.Monad(
   , getImportFiles
   , getTxFile
   , getTypeContext
-  , getExecContext
   , getUserTypes
   , checkType
   , hasType
@@ -91,11 +90,6 @@ getUserTypes = fmap inferCtx'types getInferCtx
 getTypeContext :: Repl TypeContext
 getTypeContext =
   fmap (inferCtx'binds . moduleCtx'types . imports'current . replEnv'imports) get
-
--- | Get execution context
-getExecContext :: Repl ExecCtx
-getExecContext =
-  fmap (moduleCtx'exprs . imports'current . replEnv'imports) get
 
 -- | Get list of files that are loaded in the REPL session
 getImportFiles :: Repl [FilePath]

@@ -54,10 +54,9 @@ evalExpr lang = do
   closedExpr <- getClosureExpr lang
   withTypeCheck closedExpr $ \expr -> do
     tx    <- fmap replEnv'tx get
-    ctx   <- getExecContext
     types <- getUserTypes
     let env = fromMaybe defaultInputEnv $ fmap (\(_, _, e) -> e) $ splitInputs tx V.!? 0
-    liftIO $ case evaluate ctx env types expr of
+    liftIO $ case evaluate env types expr of
       Right (res, debugTxt) -> do
         case res of
           EvalPrim p -> print p
@@ -66,8 +65,8 @@ evalExpr lang = do
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
       Left err   -> T.putStrLn $ renderText err
 
-evaluate :: ExecCtx -> InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
-evaluate ctx env types expr = runExec ctx env $ do
+evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
+evaluate env types expr = runExec $ do
   core <- compile main
   return $ evalProg env core
   where
