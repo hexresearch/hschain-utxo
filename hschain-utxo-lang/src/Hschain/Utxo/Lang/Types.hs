@@ -359,7 +359,7 @@ data Env = Env
 data InputEnv = InputEnv
   { inputEnv'height  :: !Int64
   , inputEnv'self    :: !Box
-  , inputEnv'inputs  :: !(Vector Box)
+  , inputEnv'inputs  :: !(Vector BoxInput)
   , inputEnv'outputs :: !(Vector Box)
   , inputEnv'args    :: !Args
   }
@@ -369,7 +369,7 @@ getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
   { inputEnv'self    = boxInput'box input
   , inputEnv'height  = env'height txArg'env
-  , inputEnv'inputs  = boxInput'box <$> txArg'inputs
+  , inputEnv'inputs  = txArg'inputs
   , inputEnv'outputs = txArg'outputs
   , inputEnv'args    = boxInput'args input
   }

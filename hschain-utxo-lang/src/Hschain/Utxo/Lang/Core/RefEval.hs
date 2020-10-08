@@ -29,7 +29,7 @@ import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (Box(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
 
 -- | Value hanled by evaluator
 data Val
@@ -228,9 +228,9 @@ evalPrimOp env = \case
       BytesArg -> bytes
     p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
   --
-  OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
-  OpEnvGetSelf   -> inj $ inputEnv'self env
-  OpEnvGetInputs  -> inj $ inputEnv'inputs  env
+  OpEnvGetHeight  -> ValP $ PrimInt $ inputEnv'height env
+  OpEnvGetSelf    -> inj $ inputEnv'self env
+  OpEnvGetInputs  -> inj $ boxInput'box <$> inputEnv'inputs  env
   OpEnvGetOutputs -> inj $ inputEnv'outputs env
   --
   OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
