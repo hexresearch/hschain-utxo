@@ -1,28 +1,30 @@
 -- | Defines basic types for blockchain.
 module Hschain.Utxo.Lang.Types
-  ( Tx
-  , PreTx
+  ( -- * Transaction types
+    Tx
   , GTx(..)
-  , TxHash(..)
+  , TxId(..)
+  , Box(..)
+  , BoxId(..)
+  , BoxInputRef(..)
+  , Args(..)
+  , ArgType(..)
+  , Script(..)
+  , Money
+  , computeBoxId
+  , argTypes
+    -- * Blockchain state manipulation
+  , InputEnv(..)
   , TxArg(..)
   , BoxInput(..)
-  , BoxInputRef(..)
   , SigMask(..)
   , signAll
   , ExpectedBox
   , Env(..)
-  , Money
-  , InputEnv(..)
-  , TxId(..)
-  , Script(..)
-  , Args(..)
-  , ArgType(..)
-  , Box(..)
-  , BoxId(..)
+  , PreTx
+  , TxHash(..)
   , PreBox(..)
   , BoxOrigin(..)
-  , computeBoxId
-  , argTypes
     -- * Functions
   , newTx
   , newProofTx
@@ -117,7 +119,7 @@ instance FromText BoxId where
 
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
-  deriving newtype  (Show, Eq, Ord, NFData)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
@@ -182,20 +184,19 @@ data GTx i o = Tx
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
+  deriving Monoid via GenericSemigroupMonoid (GTx i o)
 
 -- | Transaction which is part of block and which are exchanged between clients
 type Tx    = GTx Proof Box
 type PreTx = GTx Proof PreBox
 
 data TxSizes = TxSizes
-  { txSizes'inputs   :: !Int
+  { txSizes'inputs  :: !Int
   , txSizes'outputs :: !Int
   } deriving (Show, Eq)
 
 instance Bifunctor GTx where
-  first f Tx{..} = Tx { tx'inputs = (fmap . fmap) f tx'inputs
-                      , ..
-                      }
+  first f tx = tx { tx'inputs = (fmap . fmap) f (tx'inputs tx) }
   second = fmap
 
 
@@ -226,12 +227,6 @@ getTxSizes Tx{..} = TxSizes
   { txSizes'inputs  = V.length tx'inputs
   , txSizes'outputs = V.length tx'outputs
   }
-
-instance Monoid (GTx ins outs) where
-  mempty = Tx
-    { tx'inputs  = mempty
-    , tx'outputs = mempty
-    }
 
 -- | Input is an unspent Box that exists in blockchain.
 -- To spend the input we need to provide right arguments and proof
