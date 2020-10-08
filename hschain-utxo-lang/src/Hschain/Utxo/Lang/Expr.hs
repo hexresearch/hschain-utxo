@@ -888,7 +888,6 @@ monoPrimopName = \case
   OpGetBoxScript -> Just Const.getBoxScript
   OpGetBoxValue  -> Just Const.getBoxValue
   OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
-  OpMakeBox      -> Just "Box"
   --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"
@@ -924,7 +923,7 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
-  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpMakeBox
+  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue
   , OpListSum
   , OpListAnd
   , OpListOr

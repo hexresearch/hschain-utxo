@@ -227,7 +227,6 @@ evalPrimOp env = \case
       BoolArg  -> bools
       BytesArg -> bytes
     p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
-  OpMakeBox -> Val2F $ \a b -> Val2F $ \c d -> ValCon 0 [a,b,c,d]
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpEnvGetSelf   -> inj $ inputEnv'self env
