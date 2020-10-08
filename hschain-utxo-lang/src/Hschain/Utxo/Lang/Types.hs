@@ -182,6 +182,7 @@ data GTx i o = Tx
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
+  deriving Monoid via GenericSemigroupMonoid (GTx i o)
 
 -- | Transaction which is part of block and which are exchanged between clients
 type Tx    = GTx Proof Box
@@ -224,12 +225,6 @@ getTxSizes Tx{..} = TxSizes
   { txSizes'inputs  = V.length tx'inputs
   , txSizes'outputs = V.length tx'outputs
   }
-
-instance Monoid (GTx ins outs) where
-  mempty = Tx
-    { tx'inputs  = mempty
-    , tx'outputs = mempty
-    }
 
 -- | Input is an unspent Box that exists in blockchain.
 -- To spend the input we need to provide right arguments and proof
