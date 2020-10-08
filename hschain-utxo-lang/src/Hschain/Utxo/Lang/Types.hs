@@ -312,6 +312,7 @@ data TxArg = TxArg
   { txArg'inputs       :: !(Vector BoxInput)
   , txArg'outputs      :: !(Vector Box)
   , txArg'env          :: !Env
+  , txArg'id           :: !TxId
   }
   deriving (Show, Eq)
 
@@ -343,7 +344,10 @@ buildTxArg lookupBox env tx@Tx{..} = do
   pure TxArg { txArg'inputs   = inputs
              , txArg'outputs  = tx'outputs
              , txArg'env      = env
+             , txArg'id       = txId
              }
+  where
+    txId = computeTxId tx
 
 -- | Blockchain environment variables.
 data Env = Env
