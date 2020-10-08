@@ -48,7 +48,7 @@ evalToSigma tx = mapM (evalInput . getInputEnv tx) $ txArg'inputs tx
 
 evalInput :: InputEnv -> Either Error BoolExprResult
 evalInput env =
-  case coreProgFromScript $ box'script $ inputEnv'self env of
+  case coreProgFromScript $ box'script $ boxInput'box $ inputEnv'self env of
     Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
     Nothing   -> Left $ ExecError FailedToDecodeScript
 

@@ -29,10 +29,8 @@ react tx bch = do
   txArg <- toTxArg bch tx
   -- Inputs are valid
   evalProveTx txArg
-  -- BoxId in output are valid
-  unless (validateOutputBoxIds tx) $ Left "Invalid box ID"
   -- Spend scripts in outputs are decodable
-  forM_ (txArg'outputs txArg) $ \Box{..} -> do
+  forM_ (txArg'outputs txArg) $ \(IBox _ Box{..}) -> do
     case coreProgFromScript box'script of
       Nothing -> Left "Undecodable script"
       Just prog -> case typeCheck prog of
@@ -41,16 +39,16 @@ react tx bch = do
         Right _      -> Left "Invalid type in output script"
         Left  err    -> Left $ renderText err
   -- We're done
-  return $ updateBoxChain tx bch
+  return $ updateBoxChain txArg bch
 
-updateBoxChain :: Tx -> BoxChain -> BoxChain
-updateBoxChain Tx{..}
+updateBoxChain :: TxArg -> BoxChain -> BoxChain
+updateBoxChain TxArg{..}
   = (boxChain'heightL %~ succ)
   . insertOutputs
   . removeInputs
   where
-    removeInputs  = boxChain'boxesL %~ foldEndo (M.delete . boxInputRef'id) tx'inputs
-    insertOutputs = boxChain'boxesL %~ foldEndo (\box -> M.insert (box'id box) box) tx'outputs
+    removeInputs  = boxChain'boxesL %~ foldEndo (M.delete . boxInput'id) txArg'inputs
+    insertOutputs = boxChain'boxesL %~ foldEndo (\(IBox i b) -> M.insert i b) txArg'outputs
     foldEndo f = appEndo . foldMap (Endo . f)
 
 

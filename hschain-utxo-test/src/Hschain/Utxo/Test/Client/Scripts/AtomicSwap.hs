@@ -9,6 +9,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 
 import Data.ByteString (ByteString)
+import Data.Vector     ((!?),(!))
 import Data.Int
 import Data.Maybe
 import Data.Text (Text)
@@ -147,10 +148,10 @@ aliceInitSwapTx aliceKeys inputId spec = do
 
     changeBox totalValue = getChangeBox (totalValue - fromIntegral bobValue) alicePubKey
 
-    swapBox = PreBox
-      { preBox'value  = fromIntegral bobValue
-      , preBox'script = aliceInitSwapScript spec
-      , preBox'args   = byteArgs [ swapHash ]
+    swapBox = Box
+      { box'value  = fromIntegral bobValue
+      , box'script = aliceInitSwapScript spec
+      , box'args   = byteArgs [ swapHash ]
       }
 
 -- | Alice grabs the Bob's funds and reveals the secret.
@@ -218,10 +219,10 @@ bobInitSwapTx bobKeys swapHash inputId spec = do
 
     changeBox totalValue = getChangeBox (totalValue - fromIntegral aliceValue) bobPubKey
 
-    swapBox = PreBox
-      { preBox'value  = fromIntegral aliceValue
-      , preBox'script = bobInitSwapScript swapHash spec
-      , preBox'args   = mempty
+    swapBox = Box
+      { box'value  = fromIntegral aliceValue
+      , box'script = bobInitSwapScript swapHash spec
+      , box'args   = mempty
       }
 
 bobGrabTx :: ProofEnv -> SwapSecret -> BoxId -> SwapSpec -> App Tx
@@ -257,7 +258,7 @@ startAliceProc spec user = do
       testCase noSwapForAliceMsg False
       return False
   where
-    getAliceSendId tx = box'id $ tx'outputs tx V.! 0
+    getAliceSendId tx = computeBoxId (computeTxId tx) 0
 
     noSwapForAliceMsg = "Bob has not posted swap for alice"
 
@@ -288,9 +289,11 @@ aliceWaitForBobSwapValue spec = do
   bch <- newBlockChan 0.25 Nothing
   liftIO $ fmap (getSwapValue =<<) $ findTx bch isBobInitScript 20
   where
-    getSwapValue Tx{..} = do
-      box <- V.find isBobInitBox tx'outputs
-      return $ (box'value box, box'id box)
+    getSwapValue tx@Tx{..} = do
+      i <- V.findIndex isBobInitBox tx'outputs
+      return ( box'value (tx'outputs ! i)
+             , computeBoxId (computeTxId tx) (fromIntegral i)
+             )
 
     isBobInitScript = V.any isBobInitBox . tx'outputs
     isBobInitBox = (bobInitScript == ) . box'script
@@ -322,7 +325,7 @@ startBobProc spec user = do
     proceedWithHash (swapHash, bobSpendBoxId) = do
       let Just bobBox = user'box user
       tx <- bobInitSwapTx bobKeys swapHash bobBox spec
-      let aliceSpendBoxId = box'id $ tx'outputs tx V.! 0
+      let aliceSpendBoxId = computeBoxId (computeTxId tx) 0
       postTxSuccess "Bob sends init swap tx" tx
       mAliceSecret <- bobWaitForSecret aliceSpendBoxId
       checkSecret mAliceSecret
@@ -342,10 +345,11 @@ bobWaitForHash spec = do
   bch <- newBlockChan 0.25 (Just 2)
   liftIO $ fmap (getTxSwapHash =<<) $ findTx bch isAliceInitScript 20
   where
-    getTxSwapHash Tx{..} = do
-      box <- V.find isAliceInitBox tx'outputs
-      hash <- (args'bytes $ box'args box) V.!? 0
-      return (hash, box'id box)
+    getTxSwapHash tx@Tx{..} = do
+      i    <- V.findIndex isAliceInitBox tx'outputs
+      let box = tx'outputs ! 0
+      hash <- args'bytes (box'args box) !? 0
+      return (hash, computeBoxId (computeTxId tx) (fromIntegral i))
 
     isAliceInitScript = V.any isAliceInitBox . tx'outputs
     isAliceInitBox = (aliceInitScript == ) . box'script
@@ -412,10 +416,10 @@ checkTxResponce isOk msg resp = do
 singleOwnerScript :: PublicKey -> Script
 singleOwnerScript pubKey = mainScriptUnsafe $ pk' pubKey
 
-getChangeBox :: Int64 -> PublicKey -> PreBox
-getChangeBox value pubKey = PreBox
-  { preBox'value  = value
-  , preBox'script = singleOwnerScript pubKey
-  , preBox'args   = mempty
+getChangeBox :: Int64 -> PublicKey -> Box
+getChangeBox value pubKey = Box
+  { box'value  = value
+  , box'script = singleOwnerScript pubKey
+  , box'args   = mempty
   }
 
