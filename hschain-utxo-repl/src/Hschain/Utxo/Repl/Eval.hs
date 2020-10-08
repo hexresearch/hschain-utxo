@@ -55,7 +55,7 @@ evalExpr lang = do
   withTypeCheck closedExpr $ \expr -> do
     tx    <- fmap replEnv'tx get
     types <- getUserTypes
-    let env = fromMaybe defaultInputEnv $ fmap (\(_, _, e) -> e) $ splitInputs tx V.!? 0
+    let env = fromMaybe defaultInputEnv $ getInputEnv tx <$> txArg'inputs tx V.!? 0
     liftIO $ case evaluate env types expr of
       Right (res, debugTxt) -> do
         case res of

@@ -30,7 +30,7 @@ module Hschain.Utxo.Lang.Types
   , newProofTx
   , newProofTxOrFail
   , hashScript
-  , splitInputs
+  , getInputEnv
   , txPreservesValue
   , computeTxId
   , computePreTxId
@@ -360,13 +360,6 @@ data InputEnv = InputEnv
   , inputEnv'args    :: !Args
   }
   deriving (Show, Eq)
-
-splitInputs :: TxArg -> Vector (Maybe Proof, SigMessage, InputEnv)
-splitInputs tx
-  = fmap (\i@BoxInput{..} -> ( boxInput'proof
-                             , boxInput'sigMsg
-                             , getInputEnv tx i))
-  $ txArg'inputs tx
 
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
