@@ -309,7 +309,7 @@ filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
 --  This type is the same as Tx only it contains Boxes for inputs instead
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
-  { txArg'inputs       :: !(Vector (BoxInput, SigMessage))
+  { txArg'inputs       :: !(Vector BoxInput)
   , txArg'outputs      :: !(Vector Box)
   , txArg'env          :: !Env
   }
@@ -320,6 +320,7 @@ data BoxInput = BoxInput
   , boxInput'args    :: !Args
   , boxInput'proof   :: !(Maybe Proof)
   , boxInput'sigMask :: !SigMask
+  , boxInput'sigMsg  :: !SigMessage
   }
   deriving (Show, Eq, Generic)
 
@@ -333,13 +334,12 @@ buildTxArg
 buildTxArg lookupBox env tx@Tx{..} = do
   inputs <- forM tx'inputs $ \BoxInputRef{..} -> do
     box <- lookupBox boxInputRef'id
-    pure ( BoxInput { boxInput'box     = box
-                    , boxInput'args    = boxInputRef'args
-                    , boxInput'proof   = boxInputRef'proof
-                    , boxInput'sigMask = boxInputRef'sigMask
-                    }
-         , getSigMessageTx boxInputRef'sigMask tx
-         )
+    pure BoxInput { boxInput'box     = box
+                  , boxInput'args    = boxInputRef'args
+                  , boxInput'proof   = boxInputRef'proof
+                  , boxInput'sigMask = boxInputRef'sigMask
+                  , boxInput'sigMsg  = getSigMessageTx boxInputRef'sigMask tx
+                  }
   pure TxArg { txArg'inputs   = inputs
              , txArg'outputs  = tx'outputs
              , txArg'env      = env
@@ -362,13 +362,17 @@ data InputEnv = InputEnv
   deriving (Show, Eq)
 
 splitInputs :: TxArg -> Vector (Maybe Proof, SigMessage, InputEnv)
-splitInputs tx = fmap (\(input, msg) -> (boxInput'proof input,msg,  getInputEnv tx input)) $ txArg'inputs tx
+splitInputs tx
+  = fmap (\i@BoxInput{..} -> ( boxInput'proof
+                             , boxInput'sigMsg
+                             , getInputEnv tx i))
+  $ txArg'inputs tx
 
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
   { inputEnv'self    = boxInput'box input
   , inputEnv'height  = env'height txArg'env
-  , inputEnv'inputs  = fmap (boxInput'box . fst) txArg'inputs
+  , inputEnv'inputs  = boxInput'box <$> txArg'inputs
   , inputEnv'outputs = txArg'outputs
   , inputEnv'args    = boxInput'args input
   }
@@ -376,7 +380,7 @@ getInputEnv TxArg{..} input = InputEnv
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True
-  | otherwise       = toSum (fmap (boxInput'box . fst) txArg'inputs) == toSum txArg'outputs
+  | otherwise       = toSum (boxInput'box <$> txArg'inputs) == toSum txArg'outputs
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
