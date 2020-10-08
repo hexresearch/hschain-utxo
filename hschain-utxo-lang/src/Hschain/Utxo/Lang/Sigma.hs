@@ -1,4 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
 -- | It defines types and functions for Sigma-expressions.
 -- Sigma-expressions are used to sign scripts without providing
 -- the information on who signed the script.
@@ -11,6 +10,7 @@ module Hschain.Utxo.Lang.Sigma(
   , Secret
   , ProofEnv
   , Proof
+  , SigMessage(..)
   , Sigma
   , sigmaPk
   , SigmaF(..)
@@ -46,6 +46,7 @@ import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
+import Data.ByteString (ByteString)
 import Data.Boolean
 import Data.Bifunctor
 import Data.Either
@@ -58,8 +59,9 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes      (ByteRepr(..))
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
+import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr(..))
+import HSChain.Crypto.Classes.Hash
+import HSChain.Crypto.SHA          (SHA256)
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.MultiSig              as Sigma
@@ -87,6 +89,13 @@ type ProofEnv   = Sigma.Env        CryptoAlg
 -- | Proof of the ownership.
 type Proof      = Sigma.Proof      CryptoAlg
 type ProofDL    = Sigma.ProofDL    CryptoAlg
+
+-- | Message for signature it is computed based on Tx.
+newtype SigMessage = SigMessage (Hash SHA256)
+  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr, CryptoHashable)
+  deriving stock    (Generic)
+  deriving anyclass (Serialise)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "SigMessage" ByteString)
 
 -- | Generate new private key.
 newSecret :: IO Secret
@@ -123,10 +132,10 @@ instance Serialise a => FromJSON (Sigma a) where
 -- It's message to be signed.
 --
 -- For the message use getTxBytes from TX that has no proof.
-newProof :: ByteRepr bs => ProofEnv -> Sigma PublicKey -> bs -> IO (Either Text Proof)
-newProof env expr (encodeToBS -> message) =
+newProof :: ProofEnv -> Sigma PublicKey -> SigMessage -> IO (Either Text Proof)
+newProof env expr message =
   case toSigmaExprOrFail expr of
-    Right sigma -> Sigma.newProof env sigma message
+    Right sigma -> Sigma.newProof env sigma $ encodeToBS message
     Left  err   -> return $ Left err
 
 -- | Verify the proof.
@@ -134,7 +143,7 @@ newProof env expr (encodeToBS -> message) =
 -- > verifyProof proof message
 --
 -- For the message use getTxBytes from TX.
-verifyProof :: ByteRepr bs => Proof -> bs -> Bool
+verifyProof :: Proof -> SigMessage -> Bool
 verifyProof proof = Sigma.verifyProof proof . encodeToBS
 
 type Sigma k = Fix (SigmaF k)
@@ -351,8 +360,9 @@ appendCommitments :: [(Set PublicKey, QueryCommitments)] -> Prove Commitments
 appendCommitments = Sigma.appendCommitments
 
 -- | Creates challenges for the given set of commitments.
-getChallenges :: (ByteRepr bs) => Commitments -> bs -> Prove Challenges
-getChallenges commitments (encodeToBS -> message) = liftEither $ Sigma.getChallenges commitments message
+getChallenges :: Commitments -> SigMessage -> Prove Challenges
+getChallenges commitments message =
+  liftEither $ Sigma.getChallenges commitments (encodeToBS message)
 
 -- | Query responses. Notice that here we need to supply private keys and commitment secrets
 -- that we keep private from the stage of @queryCommitments@.
@@ -365,8 +375,8 @@ appendResponsesToProof = Sigma.appendResponsesToProof
 
 -- | Participants of the multisignature can check that the main prover signs correct message.
 -- First argument is the result of @appendCommitments@.
-checkChallenges :: ByteRepr bs => Commitments -> Challenges -> bs -> Bool
-checkChallenges commitments challenges (encodeToBS -> message) =
-  Sigma.checkChallenges commitments challenges message
+checkChallenges :: Commitments -> Challenges -> SigMessage -> Bool
+checkChallenges commitments challenges message =
+  Sigma.checkChallenges commitments challenges (encodeToBS message)
 
 $(deriveShow1 ''SigmaF)

@@ -17,7 +17,7 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 
 evalToSigma :: TxArg -> Either Error (Vector BoolExprResult)
-evalToSigma tx = mapM (evalInput . snd) $ splitInputs tx
+evalToSigma tx = mapM (\(_, _, inp) -> evalInput inp) $ splitInputs tx
 
 evalInput :: InputEnv -> Either Error BoolExprResult
 evalInput env =
@@ -25,7 +25,7 @@ evalInput env =
     Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
     Nothing   -> Left $ ExecError FailedToDecodeScript
 
-verifyInput :: TxId -> Maybe Proof -> InputEnv -> Either Error Bool
+verifyInput :: SigMessage -> Maybe Proof -> InputEnv -> Either Error Bool
 verifyInput txid mProof env = fmap verifyResult $ evalInput env
   where
     verifyResult = \case
@@ -39,12 +39,11 @@ verifyInput txid mProof env = fmap verifyResult $ evalInput env
 evalProveTx :: TxArg -> (Bool, Text)
 evalProveTx tx
   | txPreservesValue tx =
-      case mapM (uncurry $ verifyInput message) $ splitInputs tx of
+      case mapM (\(proof, msg, ins) -> (verifyInput msg proof ins)) (splitInputs tx) of
         Right bs  -> (and bs, debug)
         Left err  -> (False, renderText err)
   | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
   where
-    message = txArg'txBytes tx
     -- todo: implement debug for core
     debug   = ""
 

@@ -72,22 +72,19 @@ data MonoError
 data CoreScriptError
   = ResultIsNotSigma
   | TypeCoreError TypeCoreError
-  | RecursiveScript
-  | NotMonomorphicTypes
   deriving stock    (Show,Eq,Generic)
   deriving anyclass (NFData)
 
 -- | Errors for core language type-checker.
 data TypeCoreError
-  = NotMonomorphicType Text
-  | VarIsNotDefined Text
-  | ArrowTypeExpected TypeCore
-  | TypeCoreMismatch TypeCore TypeCore
-  | SubtypeError TypeCore TypeCore
-  | EmptyCaseExpression
-  | PolymorphicLet
-  | BadEquality TypeCore
-  | BadShow     TypeCore
+  = ExpressionIsBottom                  -- ^ Expression as whole always evaluates to bottom
+  | VarIsNotDefined Text                -- ^ Variable is used but not defined
+  | ArrowTypeExpected TypeCore          -- ^ Function type expected, but got
+  | TypeCoreMismatch  TypeCore TypeCore -- ^ Got type a while expected b
+  | EmptyCaseExpression                 -- ^ Case has no alternatives
+  | PolymorphicLet                      -- ^ Let is used to bind variable that always evaluate to bottom
+  | BadEquality TypeCore                -- ^ Equality used on types that don't support it
+  | BadShow     TypeCore                -- ^ Show is used on types that don't support it
   | BadCase
   | BadConstructor
   deriving stock    (Show,Eq,Generic)
@@ -96,29 +93,11 @@ data TypeCoreError
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
 typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb
 
-subtypeError :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
-subtypeError ta tb = throwError $ SubtypeError ta tb
 
-
--- pretty message
--- "There is no main expression defined in the module"
-
-wrapBoolError :: a -> Bool -> Maybe a
-wrapBoolError err b = case b of
-  True  -> Nothing
-  False -> Just err
 
 -- | Lift type-errors
 eitherTypeError :: Either TypeError a -> Either Error a
 eitherTypeError = either (Left . TypeError) Right
-
--- | Lift pattern-errors
-eitherPatternError :: Either TypeError a -> Either Error a
-eitherPatternError = either (Left . TypeError) Right
-
--- | Lift execution-errors
-eitherExecError :: Either ExecError a -> Either Error a
-eitherExecError = either (Left . ExecError) Right
 
 -- | Convert parser errors to our type.
 fromParseError :: H.ParseResult a -> Either Error a

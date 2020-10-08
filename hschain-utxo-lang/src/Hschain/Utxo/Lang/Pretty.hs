@@ -9,6 +9,7 @@ module Hschain.Utxo.Lang.Pretty(
 import Codec.Serialise (deserialiseOrFail)
 import Hex.Common.Serialise
 
+import Data.Bool
 import Data.String
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -104,7 +105,20 @@ instance Pretty a => Pretty (BoxInputRef a) where
     [ ("id",    pretty boxInputRef'id)
     , ("args",  prettyArgs boxInputRef'args)
     , ("proof", pretty boxInputRef'proof)
+    , ("sigMask", pretty boxInputRef'sigMask)
     ]
+
+instance Pretty SigMask where
+  pretty SigAll = "SigAll"
+  pretty SigMask{..} = prettyRecord "SigMask"
+    [ ("inputs",  prettyBits sigMask'inputs)
+    , ("outputs", prettyBits sigMask'outputs)
+    ]
+    where
+      prettyBits bits = hcat $ fmap (bool "0" "1") $ V.toList bits
+
+instance Pretty SigMessage where
+  pretty = pretty . encodeBase58
 
 instance Pretty Env where
   pretty Env{..} = prettyRecord "Env" [("height", pretty env'height)]
@@ -246,16 +260,13 @@ instance Pretty CoreScriptError where
   pretty = \case
     ResultIsNotSigma               -> "Error: Result of execution is not a sigma expression"
     TypeCoreError err              -> pretty err
-    NotMonomorphicTypes            -> "Error: Polymorphic type is encountered"
-    RecursiveScript                -> "Error: Recursive script is not allowed"
 
 instance Pretty TypeCoreError where
   pretty = \case
-    NotMonomorphicType v     -> hsep ["Error: variable", pretty v, "is not monomorphic" ]
+    ExpressionIsBottom       -> hsep ["Error: expression always evaluates to bottom"]
     VarIsNotDefined v        -> hsep ["Error: variable", pretty v, "is not defined"]
-    ArrowTypeExpected t      -> hsep ["Error: arrow type expected, but got", pretty t]
+    ArrowTypeExpected t      -> hsep ["Error: function type expected, but got", pretty t]
     TypeCoreMismatch ta tb   -> hsep ["Error: type mismatch. Got", pretty ta, "expected", pretty tb]
-    SubtypeError ta tb       -> hsep ["Error: subtype error.", pretty ta, "is not a subtype of", pretty tb]
     EmptyCaseExpression      -> "Error: empty case alternatives"
     PolymorphicLet           -> "polymorphic type in the let binding"
     BadEquality ty           -> hsep ["Error: non comparable type:", pretty ty]
