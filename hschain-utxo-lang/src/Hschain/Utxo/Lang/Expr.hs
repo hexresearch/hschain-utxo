@@ -31,7 +31,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes      (ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
-import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), Box(..), argTypes )
+import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes )
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -429,12 +429,11 @@ data CaseExpr a
 
 -- | Expressions that operate on boxes.
 data BoxExpr a
-  = PrimBox Loc Box          -- ^ Primitive constant box
-  | BoxAt Loc a (BoxField a) -- ^ Box field getter
+  = BoxAt Loc a BoxField -- ^ Box field getter
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | It defines which values we can get from the box
-data BoxField a
+data BoxField
   = BoxFieldId
   -- ^ Get box identifier
   | BoxFieldValue
@@ -444,7 +443,7 @@ data BoxField a
   | BoxFieldArgList ArgType
   -- ^ Get box argument. It should be primitive value stored in the vector.
   -- We get the vector of primitive values stored by primitive-value tag.
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq)
 
 argTagToType :: ArgType -> Type
 argTagToType = \case
@@ -949,7 +948,6 @@ $(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
-$(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''BytesExpr)
 $(deriveShow1 ''SigmaExpr)

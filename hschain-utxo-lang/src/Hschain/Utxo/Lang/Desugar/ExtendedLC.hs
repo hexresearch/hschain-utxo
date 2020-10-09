@@ -10,13 +10,10 @@ import Hex.Common.Text (showt)
 
 import Control.Arrow (first)
 
-import Data.Coerce
 import Data.Fix
 import Data.Text (Text)
 
-import HSChain.Crypto (Hash(..))
 import Hschain.Utxo.Lang.Expr hiding (Expr)
-import Hschain.Utxo.Lang.Types (Box(..),Script(..),BoxId(..))
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
@@ -236,7 +233,6 @@ exprToExtendedLC typeCtx = cataM $ \case
           Sha256       -> "sha256"
 
     fromBoxExpr _ expr = pure $ case expr of
-      PrimBox loc box     -> fromPrimBox loc box
       BoxAt loc a field   -> fromBoxField loc a field
       where
         fromBoxField loc a field = (\f -> ap1 loc f a) $ case field of
@@ -244,20 +240,6 @@ exprToExtendedLC typeCtx = cataM $ \case
           BoxFieldValue      -> var loc Const.getBoxValue
           BoxFieldScript     -> var loc Const.getBoxScript
           BoxFieldArgList ty -> var loc $ Const.getBoxArgs $ argTypeName ty
-
-        fromPrimBox loc Box{..} = fun loc boxCons [id', value, script, args]
-          where
-            boxCons = Fix $ EConstr loc boxConsTy 0 4
-
-            -- todo: args are not just integers
-            -- consider other primitive types
-            boxConsTy = foldr arrowT boxT [textT, intT, textT, listT intT]
-
-            id'    = prim loc $ P.PrimBytes $ coerce box'id
-            value  = prim loc $ P.PrimInt   $ box'value
-            script = prim loc $ P.PrimBytes $ unScript box'script
-            args   = Fix $ EConstr loc (listT intT) 0 0 -- todo put smth meaningful here, for now it's empty list
-
 
     fromTrace loc a b = pure $ ap2 loc (var loc "trace") a b
 
@@ -274,7 +256,8 @@ desugarModule =
       liftToModule simplifyLet
   <=< desugarCase
   <=< liftToModuleWithCtx desugarSyntaxExpr
-  <=< altGroupToTupleModule <=< substWildcards
+  <=< altGroupToTupleModule
+  <=< substWildcards
 
 desugarSyntaxExpr :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugarSyntaxExpr ctx = removeRecords ctx <=< desugarLambdaCalculus

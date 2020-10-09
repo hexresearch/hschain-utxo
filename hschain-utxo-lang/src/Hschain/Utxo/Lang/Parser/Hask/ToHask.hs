@@ -15,7 +15,6 @@ import Hschain.Utxo.Lang.Sigma
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import Hschain.Utxo.Lang.Types
 import HSChain.Crypto.Classes (encodeBase58)
 import qualified Language.Haskell.Exts.Syntax as H
 
@@ -147,27 +146,7 @@ toHaskExp (Fix expr) = case expr of
         Sha256     -> ap (VarName loc "sha256") a
 
     fromBox _ = \case
-      PrimBox loc box     -> fromPrimBox loc box
       BoxAt loc a field   -> fromBoxField loc a field
-
-    fromPrimBox loc Box{..} = H.RecConstr loc (qname "Box")
-      [ field "box'id"     $ prim $ PrimString $ encodeBase58 $ unBoxId box'id
-      , field "box'value"  $ prim $ PrimInt  $ box'value
-      , field "box'script" $ prim $ PrimString $ encodeBase58 $ unScript box'script
-      , field "box'args"   $ args
-      ]
-      where
-        qname a = toQName $ VarName loc a
-        field name a = H.FieldUpdate loc (qname name) (rec a)
-        prim = Fix . PrimE loc
-        args = Fix $ Tuple loc $ V.fromList
-          [ toArgField PrimInt    $ args'ints  box'args
-          , toArgField PrimString $ args'texts box'args
-          , toArgField PrimBool   $ args'bools box'args
-          ]
-
-        toArgField :: (a -> Prim) -> V.Vector a -> Lang
-        toArgField primCons as = Fix $ VecE loc $ NewVec loc $ fmap (prim . primCons) as
 
     fromBoxField loc a = \case
       BoxFieldId          -> get "getBoxId"
