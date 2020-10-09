@@ -14,6 +14,8 @@ import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgFromScript)
+import Hschain.Utxo.Lang.Core.Types
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (typeCheck)
 import Hschain.Utxo.State.Types
 
 import qualified Data.Map.Strict as M
@@ -33,8 +35,11 @@ react tx bch = do
   forM_ (txArg'outputs txArg) $ \Box{..} -> do
     case coreProgFromScript box'script of
       Nothing -> Left "Undecodable script"
-      -- FIXME: We should type check it
-      Just _prog -> pure ()
+      Just prog -> case typeCheck prog of
+        Right SigmaT -> pure ()
+        Right BoolT  -> pure ()
+        Right _      -> Left "Invalid type in output script"
+        Left  err    -> Left $ renderText err
   -- We're done
   return $ updateBoxChain tx bch
 
