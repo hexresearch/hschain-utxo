@@ -49,9 +49,9 @@ updateBoxChain Tx{..}
   . insertOutputs
   . removeInputs
   where
-    removeInputs  = boxChain'boxesL %~ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
-    insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
-
+    removeInputs  = boxChain'boxesL %~ foldEndo (M.delete . boxInputRef'id) tx'inputs
+    insertOutputs = boxChain'boxesL %~ foldEndo (\box -> M.insert (box'id box) box) tx'outputs
+    foldEndo f = appEndo . foldMap (Endo . f)
 
 
 -- | Run transaction in the current state of blockchain
