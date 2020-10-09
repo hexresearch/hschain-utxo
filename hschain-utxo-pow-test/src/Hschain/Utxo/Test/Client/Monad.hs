@@ -199,8 +199,9 @@ toHspec Test{..} =
       it (T.unpack testCase'name) $ testCase'value `shouldBe` True
 
 -- | returns genesis and the identifier of the master root box.
-initGenesis :: Secret -> (Genesis, BoxId)
-initGenesis secret = ([tx], masterBoxId)
+initGenesis :: Secret -> IO (Genesis, BoxId)
+initGenesis secret = do
+  return ([tx], masterBoxId)
   where
     masterBoxId = box'id $ V.head $ tx'outputs tx
 

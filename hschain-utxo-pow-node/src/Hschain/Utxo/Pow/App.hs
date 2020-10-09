@@ -147,28 +147,35 @@ readGenesis = fmap (fromMaybe err) . readJson
     err = error "Error: failed to read genesis"
 
 -- |Create a genesis block with single transaction
-createGenesis :: [(Money, a)] -> IO Genesis
-createGenesis outputs = do
+createGenesis :: Money -> PublicKey -> IO Genesis
+createGenesis amount owner = do
   time <- POW.getCurrentTime
-  return $ POWTypes.GBlock
-           { POWTypes.blockHeight = POWTypes.Height 0
-           , POWTypes.blockTime   = time
-           , POWTypes.prevBlock   = Nothing
-           , POWTypes.blockData   = UTXOBlock
+  let tx = Tx
+           { tx'inputs = V.empty
+           , tx'outputs = V.fromList
+                            [ Box
+                                { box'id     = BoxId $ hash $ BS.pack $ map (fromIntegral . fromEnum) $ "genesis:"++show time
+                                , box'value  = amount
+                                , box'script = mainScriptUnsafe $ pk' owner
+                                , box'args   = mempty
+                                }
+                            ]
+           }
+  return $ POW.GBlock
+           { POW.blockHeight = POW.Height 0
+           , POW.blockTime   = time
+           , POW.prevBlock   = Nothing
+           , POW.blockData   = UTXOBlock
                { ubNonce = ""
                , ubProper = UTXOBlockProper
                    { ubpPrevious  = Nothing
                    , ubpData      = merkled [tx]
                    , ubpTime      = time
-                   , ubpTarget    = POWTypes.Target $ 2^256 - 1
+                   , ubpTarget    = POW.Target $ 2^256 - 1
                    }
                }
            }
   where
-    tx = Tx
-         { tx'inputs = V.empty
-         , tx'outputs = V.fromList [ | (amount, pubKey) <- outputs ]
-         }
 
 
 -------------------------------------------------------------------------------
