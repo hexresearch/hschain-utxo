@@ -156,6 +156,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Box
                        TM.Core.Bytes
                        TM.Core.Cost
+                       TM.Core.Common
                        TM.Core.List
                        TM.Tx.Sigma
                        Examples.SKI
