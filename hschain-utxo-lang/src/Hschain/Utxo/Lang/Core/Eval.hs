@@ -4,8 +4,10 @@ module Hschain.Utxo.Lang.Core.Eval(
   , evalProveTx
 ) where
 
+import Control.Monad
 import Data.Fix
 import Data.Text
+import Data.Bifunctor
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -25,29 +27,33 @@ evalInput env =
     Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
     Nothing   -> Left $ ExecError FailedToDecodeScript
 
-verifyInput :: TxArg -> BoxInput -> Either Error Bool
-verifyInput txArg input@BoxInput{..} = fmap verifyResult $ evalInput $ getInputEnv txArg input
+verifyInput :: TxArg -> BoxInput -> Either Text ()
+verifyInput txArg input@BoxInput{..} = do
+  r <- first renderText
+     $ evalInput
+     $ getInputEnv txArg input
+  case r of
+    -- Script evaluated to literal Bool
+    ConstBool True  -> pure ()
+    ConstBool False -> false
+    SigmaResult sigma -> case sigma of
+      Fix (SigmaBool True)  -> pure ()
+      Fix (SigmaBool False) -> false
+      -- Attempt to prove sigma expression
+      _ | Just proof <- boxInput'proof
+        , equalSigmaProof sigma proof
+        , verifyProof proof boxInput'sigMsg
+          -> pure ()
+      -- Otherwise failure
+      _ -> Left "Sigma expression proof is not valid"
   where
-    verifyResult = \case
-      ConstBool b       -> b
-      SigmaResult sigma -> case sigma of
-        Fix (SigmaBool b) -> b
-        _ | Just proof <- boxInput'proof
-          , equalSigmaProof sigma proof
-          , verifyProof proof boxInput'sigMsg
-            -> True
-        _   -> False
+    false = Left "Script evaluated to False"
 
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
-evalProveTx :: TxArg -> (Bool, Text)
-evalProveTx tx
-  | txPreservesValue tx =
-      case mapM (verifyInput tx) $ txArg'inputs tx of
-        Right bs  -> (and bs, debug)
-        Left err  -> (False, renderText err)
-  | otherwise = (False, "Sum of inputs does not equal to sum of outputs")
-  where
-    -- todo: implement debug for core
-    debug   = ""
+evalProveTx :: TxArg -> Either Text ()
+evalProveTx tx = do
+  unless (txPreservesValue tx) $
+    Left "Sum of inputs does not equal to sum of outputs"
+  mapM_ (verifyInput tx) (txArg'inputs tx)
 

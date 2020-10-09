@@ -26,9 +26,7 @@ react :: Tx -> BoxChain -> Either Text BoxChain
 react tx bch = do
   txArg <- toTxArg bch tx
   -- Inputs are valid
-  case Core.evalProveTx txArg of
-    (False, _) -> Left "Inputs are not valid"
-    (True,  _) -> pure ()
+  evalProveTx txArg
   -- BoxId in output are valid
   unless (validateOutputBoxIds tx) $ Left "Invalid box ID"
   -- Spend scripts in outputs are decodable
