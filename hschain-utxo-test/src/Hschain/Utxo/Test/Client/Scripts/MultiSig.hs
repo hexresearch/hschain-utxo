@@ -47,9 +47,9 @@ multiSigExchange = do
   (multiSigTx, aliceBox2, bobBox2) <- spendCommonBoxTx alice bob commonBoxId (aliceShareValue, bobShareValue)
   void $ postTxDebug True "Alice and bob create shared multi-sig proof and spend common box with it" multiSigTx
   let johnPubKey = getWalletPublicKey john
-  simpleSpendTo "Alice is able to spends everything to John from her part of shared box"
+  simpleSpendTo True "Alice is able to spends everything to John from her part of shared box"
       alice aliceBox2 johnPubKey aliceShareValue
-  simpleSpendTo "Bob is able to spends everything to John from her part of shared box"
+  simpleSpendTo True "Bob is able to spends everything to John from her part of shared box"
       bob bobBox2 johnPubKey bobShareValue
   return ()
   where
@@ -146,11 +146,11 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
     bobEnv    = getProofEnv bob
 
 
-simpleSpendTo :: Text -> Wallet -> BoxId -> PublicKey -> Int64 -> App ()
-simpleSpendTo message wallet fromId toPubKey value = do
+simpleSpendTo :: Bool -> Text -> Wallet -> BoxId -> PublicKey -> Int64 -> App ()
+simpleSpendTo isSuccess message wallet fromId toPubKey value = do
   eTx <- simpleSpendToTx wallet fromId toPubKey value
   case eTx of
-    Right tx -> void $ postTxDebug True message tx
+    Right tx -> void $ postTxDebug isSuccess message tx
     Left err -> testCase ("Failed to construct tx: " <> err) False
 
 simpleSpendToTx :: Wallet -> BoxId -> PublicKey -> Int64 -> App (Either Text Tx)

@@ -3,12 +3,16 @@
 -- The script is realised as it's described in the book "Mastering Bitcoin"
 -- see pp 292, section "Asymmetric Revocable Commitments".
 --
---
+-- Is summary we use secret keys to revoce previous off-chain transaction.
+-- Posting such TXs is disadvantageous to poster because other party can grab everything in this case.
+-- See the book for details.
 module Hschain.Utxo.Test.Client.Scripts.Channel(
-  channelExchange
+    channelExchange
+  , channelExchangeUnfair
 ) where
 
 import Hex.Common.Text
+import Hex.Common.Delay
 
 import Control.Concurrent.Async.Lifted
 import Control.Concurrent.STM
@@ -21,10 +25,9 @@ import Data.ByteString (ByteString)
 import Data.Either.Extra
 import Data.List.Extra (firstJust)
 import Data.Int
+import Data.Maybe
 import Data.Map.Strict (Map)
 import Data.Tuple (swap)
-
-import HSChain.Crypto.Classes (encodeBase58)
 
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Chan (BlockChan)
@@ -36,7 +39,6 @@ import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Utils.ByteString
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.State.React (react)
-import Hschain.Utxo.Lang.Core.Compile.Expr
 
 import System.Random
 
@@ -46,9 +48,9 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Test.Client.Chan as C
 
-type RevokeSecret = ByteString
+type RevoceSecret = ByteString
 
-initSecret :: Int -> IO RevokeSecret
+initSecret :: Int -> IO RevoceSecret
 initSecret size = fmap B.pack $ mapM (const randomIO) [1 .. size]
 
 -- | Info that should not be available but
@@ -88,7 +90,7 @@ data PlayerEnv = PlayerEnv
   -- ^ shared boxId with initial balance
   , playerEnv'commonScript  :: !(Sigma PublicKey)
   -- ^ common sigma expression that guards shared balance box
-  , playerEnv'revokeProc    :: !RevokeProc
+  , playerEnv'revoceProc    :: !RevoceProc
   }
 
 readPlayerEnv :: Player -> App PlayerEnv
@@ -101,52 +103,56 @@ setPlayerBalance (Player tv) balance = liftIO $ atomically $
 stopPlayer :: Player -> App ()
 stopPlayer (Player tv) = do
   env <- liftIO $ readTVarIO tv
-  stopRevokeProc $ playerEnv'revokeProc env
+  stopRevoceProc $ playerEnv'revoceProc env
 
-data RevokeProc = RevokeProc
-  { revokeProc'boxes  :: !RevokeBoxes
-  , revokeProc'chan   :: !BlockChan
-  , revokeProc'proc   :: !(Async (StMAppM ()))
+data RevoceProc = RevoceProc
+  { revoceProc'boxes  :: !RevoceBoxes           -- ^ Watch list of revocable boxes
+  , revoceProc'chan   :: !BlockChan             -- ^ Open channel to listen for new TXs
+  , revoceProc'proc   :: !(Async (StMAppM ()))  -- ^ Process that listen blockchain for unfair behavior
+  , revoceProc'boxId  :: TVar (Maybe BoxId)     -- ^ where to catch fraud output
   }
 
-newRevokeProc :: Wallet -> App RevokeProc
-newRevokeProc wallet = do
-  boxes <- liftIO newRevokeBoxes
+newRevoceProc :: Wallet -> App RevoceProc
+newRevoceProc wallet = do
+  boxes <- liftIO newRevoceBoxes
   chan <- newBlockChan 0.25 Nothing
+  revoceBoxIdRef <- liftIO $ newTVarIO Nothing
   proc <- async $ do
-    mTx <- liftIO $ C.findTxM chan (isRevokeTx boxes) maxBound
+    mTx <- liftIO $ C.findTxM chan (isRevoceTx boxes) maxBound
     forM_ mTx $ \tx -> do
-      whenJustM  (liftIO $ getRevokeBoxForTx boxes tx) $ \revokeBox -> do
-        (revokeTx, _boxId) <- getRevokeTx wallet revokeBox
-        void $ postTxDebug True "Revoke box post" revokeTx
-  return $ RevokeProc
-    { revokeProc'boxes = boxes
-    , revokeProc'chan  = chan
-    , revokeProc'proc  = proc
+      whenJustM  (liftIO $ getRevoceBoxForTx boxes tx) $ \revoceBox -> do
+        (revoceTx, boxId) <- getRevoceTx wallet revoceBox
+        void $ postTxDebug True "Revoce box post" revoceTx
+        liftIO $ atomically $ writeTVar revoceBoxIdRef $ Just boxId
+  return $ RevoceProc
+    { revoceProc'boxes = boxes
+    , revoceProc'chan  = chan
+    , revoceProc'proc  = proc
+    , revoceProc'boxId = revoceBoxIdRef
     }
 
-stopRevokeProc :: RevokeProc -> App ()
-stopRevokeProc RevokeProc{..} = do
-  liftIO $ C.stopBlockChan revokeProc'chan
-  cancel revokeProc'proc
+stopRevoceProc :: RevoceProc -> App ()
+stopRevoceProc RevoceProc{..} = do
+  liftIO $ C.stopBlockChan revoceProc'chan
+  cancel revoceProc'proc
 
-newtype RevokeBoxes = RevokeBoxes (TVar (Map BoxId RevokeBox))
+newtype RevoceBoxes = RevoceBoxes (TVar (Map BoxId RevoceBox))
 
-newRevokeBoxes :: IO RevokeBoxes
-newRevokeBoxes = fmap RevokeBoxes $ newTVarIO mempty
+newRevoceBoxes :: IO RevoceBoxes
+newRevoceBoxes = fmap RevoceBoxes $ newTVarIO mempty
 
-insertRevokeBox :: RevokeBoxes -> BoxId -> RevokeBox -> STM ()
-insertRevokeBox (RevokeBoxes tv) key val = modifyTVar' tv $ M.insert key val
+insertRevoceBox :: RevoceBoxes -> BoxId -> RevoceBox -> STM ()
+insertRevoceBox (RevoceBoxes tv) key val = modifyTVar' tv $ M.insert key val
 
-isRevokeTx :: RevokeBoxes -> Tx -> IO Bool
-isRevokeTx (RevokeBoxes tv) tx = fmap containsRevokeBox $ readTVarIO tv
+isRevoceTx :: RevoceBoxes -> Tx -> IO Bool
+isRevoceTx (RevoceBoxes tv) tx = fmap containsRevoceBox $ readTVarIO tv
   where
-    containsRevokeBox m = any (\boxId -> M.member boxId m) boxIds
+    containsRevoceBox m = any (\boxId -> M.member boxId m) boxIds
 
     boxIds = fmap box'id $ tx'outputs tx
 
-getRevokeBoxForTx :: RevokeBoxes -> Tx -> IO (Maybe RevokeBox)
-getRevokeBoxForTx (RevokeBoxes tv) tx = do
+getRevoceBoxForTx :: RevoceBoxes -> Tx -> IO (Maybe RevoceBox)
+getRevoceBoxForTx (RevoceBoxes tv) tx = do
   m <- readTVarIO tv
   return $ firstJust (\boxId -> M.lookup boxId m) boxIds
   where
@@ -155,14 +161,14 @@ getRevokeBoxForTx (RevokeBoxes tv) tx = do
 
 
 -- | Data that we can use to punish other party for unfair behavior (postage of previous signed TXs).
--- We listen to blockchain for any revoke box id being posted. If it's posted it means
--- that our partner has spent shared balance in unfair manner. We can use our revoke key to punish partner
+-- We listen to blockchain for any revoce box id being posted. If it's posted it means
+-- that our partner has spent shared balance in unfair manner. We can use our revoce key to punish partner
 -- and get all the money on shared account.
-data RevokeBox = RevokeBox
-  { revokeBox'id     :: !BoxId
-  , revokeBox'secret :: !ByteString
-  , revokeBox'value  :: !Int64
-  , revokeBox'tx     :: !(Hidden Tx) -- ^ TX that should trigger the reply with revoke TX
+data RevoceBox = RevoceBox
+  { revoceBox'id     :: !BoxId
+  , revoceBox'secret :: !ByteString
+  , revoceBox'value  :: !Int64
+  , revoceBox'tx     :: !(Hidden Tx) -- ^ TX that should trigger the reply with revoce TX
                                      -- in the script it's only for debug purposes
                                      -- one should not reveal this TX
   }
@@ -178,7 +184,7 @@ type Balance = (Int64, Int64)
 
 data OffChain = OffChain
   { offChain'tx        :: !PreTx
-  , offChain'revokeKey :: !ByteString
+  , offChain'revoceKey :: !ByteString
   } deriving (Show, Eq)
 
 -- | Alice and Bob create bidirectional channel and make series of safe exchanges off-chain.
@@ -200,21 +206,58 @@ channelExchange = do
   (tx, commonBoxId, commonScript) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
   void $ postTxDebug True "Alice and Bob post joint multisig TX" tx
   game <- newGame commonBoxId commonScript initBalance alice bob
-  mapM_ (signDeal game) $ scanl (flip move) initBalance moves
+  mapM_ (void . signDeal game) $ scanl (flip move) initBalance moves
   (finalTx, aliceBox2, bobBox2) <- getCooperativeTx game
   finalBalance@(aliceShareValue, bobShareValue) <- readGameBalance game
   void $ postTxDebug True "Alice and bob spend final multi-sig proof and spend common box with it" finalTx
   stopGame game
   let johnPubKey = getWalletPublicKey john
-  simpleSpendTo "Alice is able to spends everything to John from her part of shared box"
+  simpleSpendTo True "Alice is able to spends everything to John from her part of shared box"
       alice aliceBox2 johnPubKey aliceShareValue
-  simpleSpendTo "Bob is able to spends everything to John from her part of shared box"
+  simpleSpendTo True "Bob is able to spends everything to John from her part of shared box"
       bob bobBox2 johnPubKey bobShareValue
   testCase "Final balance is right" (finalBalance == expectedFinalBalance)
   where
     expectedFinalBalance = foldr move initBalance moves
 
     moves = [1,1,-2,-1]
+
+-- | Alice tries to cheat but Bob takes everything with revoce key.
+channelExchangeUnfair :: App ()
+channelExchangeUnfair = do
+  testTitle "Bidirectional channel based on revokation key."
+  Scene{..} <- initUsers
+  let alice     = user'wallet scene'alice
+      bob       = user'wallet scene'bob
+      john     = user'wallet scene'john
+      Just aliceBox1 = user'box scene'alice
+      Just bobBox1   = user'box scene'bob
+  (tx, commonBoxId, commonScript) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
+  void $ postTxDebug True "Alice and Bob post joint multisig TX" tx
+  game <- newGame commonBoxId commonScript initBalance alice bob
+  (txAlice, _) <- signDeal game (6, 4)
+  _ <- signDeal game (7, 3)
+  void $ postTxDebug True "Alice posts unfair TX" txAlice
+  sleep 1
+  let outputs = tx'outputs txAlice
+      boxId1 = box'id $ outputs V.! 0
+      boxId2 = box'id $ outputs V.! 1
+      johnPubKey = getWalletPublicKey john
+  logTest $ renderText txAlice
+  simpleSpendTo False "alice can not spend output 1"
+      alice boxId1 johnPubKey 6
+  simpleSpendTo False "alice can not spend output 2"
+      alice boxId2 johnPubKey 4
+  simpleSpendTo False "Bob has already spent this output"
+     bob boxId1 johnPubKey 6
+  simpleSpendTo True "Bob can spend output 2"
+    bob boxId2 johnPubKey 4
+  testCase "Bob has caught frad output" =<< fraudCatchDetected (game'bob game)
+
+fraudCatchDetected :: Player -> App Bool
+fraudCatchDetected player = do
+  boxIdRef <- fmap (revoceProc'boxId . playerEnv'revoceProc) $ readPlayerEnv player
+  fmap isJust $ liftIO $ readTVarIO boxIdRef
 
 initBalance :: Balance
 initBalance = (5, 5)
@@ -225,7 +268,7 @@ postDelay = 1000
 move :: Move -> Balance -> Balance
 move n (a, b) = (a + n, b - n)
 
-signDeal :: Game -> Balance -> App ()
+signDeal :: Game -> Balance -> App (Tx, Tx)
 signDeal (Game alice bob) balance = do
   logTest $ "Balance on round: " <> showt balance
   -- Alice & Bob create tx to sign and prepare secret from previous step.
@@ -242,10 +285,11 @@ signDeal (Game alice bob) balance = do
   setPlayerBalance bob   (swap balance)
   saveTx alice txAlice
   saveTx bob   txBob
-  saveRevokeSecret alice prevSecretBob
-  saveRevokeSecret bob   prevSecretAlice
+  saveRevoceSecret alice prevSecretBob
+  saveRevoceSecret bob   prevSecretAlice
   saveSignedTx bob txAlice
   saveSignedTx alice txBob
+  return (txAlice, txBob)
 
 saveSignedTx :: Player -> Tx -> App ()
 saveSignedTx (Player tv) tx = liftIO $ atomically $ modifyTVar' tv $ \env ->
@@ -278,47 +322,47 @@ signOffChainTx (Player me) (Player other) preTx = liftIO $ do
   where
     appendProof proof tx@Tx{..} = tx { tx'inputs = fmap (\ref -> ref { boxInputRef'proof = proof }) tx'inputs }
 
-makeNewOffChainTx :: Player -> Balance -> App (PreTx, RevokeSecret)
+makeNewOffChainTx :: Player -> Balance -> App (PreTx, RevoceSecret)
 makeNewOffChainTx (Player tv) balance = liftIO $ do
-  revokeSecret <- generateRevokeSecret
+  revoceSecret <- generateRevoceSecret
   atomically $ do
     env <- readTVar tv
     let myPk = getWalletPublicKey $ playerEnv'wallet env
         partnerPk = playerEnv'partnerPubKey env
-        offChain = offChainPreTx revokeSecret (playerEnv'commonBoxId env) balance myPk partnerPk
-        prevRevokeKey = offChain'revokeKey $ playerEnv'pending env
+        offChain = offChainPreTx revoceSecret (playerEnv'commonBoxId env) balance myPk partnerPk
+        prevRevoceKey = offChain'revoceKey $ playerEnv'pending env
     writeTVar tv $ env
           { playerEnv'pending = offChain
           , playerEnv'balance = balance
           }
-    return (offChain'tx offChain, prevRevokeKey)
+    return (offChain'tx offChain, prevRevoceKey)
 
 saveTx :: Player -> Tx -> App ()
 saveTx (Player p) signedTx = liftIO $ atomically $ modifyTVar' p $ \st ->
   st { playerEnv'deals =  signedTx : playerEnv'deals st }
 
-saveRevokeSecret :: Player -> RevokeSecret -> App ()
-saveRevokeSecret p secret = mapM_ (saveRevoke p) =<< extractRevokeBox p secret
+saveRevoceSecret :: Player -> RevoceSecret -> App ()
+saveRevoceSecret p secret = mapM_ (saveRevoce p) =<< extractRevoceBox p secret
 
-saveRevoke :: Player -> RevokeBox -> App ()
-saveRevoke p@(Player tv) revoke = do
+saveRevoce :: Player -> RevoceBox -> App ()
+saveRevoce p@(Player tv) revoce = do
   liftIO $ atomically $ do
     env <- readTVar tv
-    insertRevokeBox (revokeProc'boxes $ playerEnv'revokeProc env) (revokeBox'id revoke) revoke
-  testCase "Revoke key is valid" =<< flip revokeKeyIsValid revoke . playerEnv'wallet =<< readPlayerEnv p
+    insertRevoceBox (revoceProc'boxes $ playerEnv'revoceProc env) (revoceBox'id revoce) revoce
+  testCase "Revoce key is valid" =<< flip revoceKeyIsValid revoce . playerEnv'wallet =<< readPlayerEnv p
 
-extractRevokeBox :: Player -> RevokeSecret -> App (Maybe RevokeBox)
-extractRevokeBox p secret = do
+extractRevoceBox :: Player -> RevoceSecret -> App (Maybe RevoceBox)
+extractRevoceBox p secret = do
   env <- readPlayerEnv p
   return $ extract env
   where
-    extract PlayerEnv{..} = fmap txAndSecretToRevokeBox $ playerEnv'prevSignedTx
+    extract PlayerEnv{..} = fmap txAndSecretToRevoceBox $ playerEnv'prevSignedTx
       where
-        txAndSecretToRevokeBox tx@Tx{..} = RevokeBox
-          { revokeBox'id     = box'id box
-          , revokeBox'value  = box'value box
-          , revokeBox'secret = secret
-          , revokeBox'tx     = Hidden tx
+        txAndSecretToRevoceBox tx@Tx{..} = RevoceBox
+          { revoceBox'id     = box'id box
+          , revoceBox'value  = box'value box
+          , revoceBox'secret = secret
+          , revoceBox'tx     = Hidden tx
           }
           where
             box = tx'outputs V.! 0
@@ -336,10 +380,10 @@ newGame commonBoxId commonScript balance alice bob = do
 
 newPlayer :: BoxId -> Sigma PublicKey -> Balance -> Wallet -> PublicKey -> App Player
 newPlayer commonBoxId commonScript balance wallet partnerPubKey = do
-  proc <- newRevokeProc wallet
+  proc <- newRevoceProc wallet
   player <- liftIO $ do
-    revokeSecret <- generateRevokeSecret
-    let offChain = offChainPreTx revokeSecret commonBoxId balance (getWalletPublicKey wallet) partnerPubKey
+    revoceSecret <- generateRevoceSecret
+    let offChain = offChainPreTx revoceSecret commonBoxId balance (getWalletPublicKey wallet) partnerPubKey
     fmap Player $ newTVarIO $ PlayerEnv
       { playerEnv'balance       = balance
       , playerEnv'prevSignedTx  = Nothing
@@ -349,19 +393,19 @@ newPlayer commonBoxId commonScript balance wallet partnerPubKey = do
       , playerEnv'partnerPubKey = partnerPubKey
       , playerEnv'commonBoxId   = commonBoxId
       , playerEnv'commonScript  = commonScript
-      , playerEnv'revokeProc    = proc
+      , playerEnv'revoceProc    = proc
       }
   return player
 
 
-generateRevokeSecret :: IO ByteString
-generateRevokeSecret = initSecret 128
+generateRevoceSecret :: IO ByteString
+generateRevoceSecret = initSecret 128
 
 offChainPreTx ::  ByteString -> BoxId -> Balance -> PublicKey -> PublicKey -> OffChain
-offChainPreTx revokeSecret commonBoxId (myValue, partnerValue) myPk partnerPk = do
+offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = do
   OffChain
     { offChain'tx = preTx
-    , offChain'revokeKey = revokeSecret
+    , offChain'revoceKey = revoceSecret
     }
   where
     preTx = Tx
@@ -376,18 +420,18 @@ offChainPreTx revokeSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
       , boxInputRef'sigMask = SigAll
       }
 
-    -- | Pays to me delayed by postDelay and partner with revoke key can claim it
+    -- | Pays to me delayed by postDelay and partner with revoce key can claim it
     myBox = PreBox
       { preBox'value  = myValue
-      , preBox'script = mainScriptUnsafe revokeScript
-      , preBox'args   = byteArgs [revokeSecret, getSha256 revokeSecret]
+      , preBox'script = mainScriptUnsafe revoceScript
+      , preBox'args   = mempty
       }
 
-    revokeScript =
+    revoceScript =
           (pk' myPk &&* (toSigma $ getHeight >* int postDelay))
-      ||* (pk' partnerPk &&* (toSigma $ sha256 readKey ==* bytes revokeHash))
+      ||* (pk' partnerPk &&* (toSigma $ sha256 readKey ==* bytes revoceHash))
       where
-        revokeHash = getSha256 revokeSecret
+        revoceHash = getSha256 revoceSecret
 
     readKey = listAt getBytesVars 0
 
@@ -398,20 +442,20 @@ offChainPreTx revokeSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
       , preBox'args   = mempty
       }
 
-getRevokeTx :: Wallet -> RevokeBox -> App (Tx, BoxId)
-getRevokeTx wallet RevokeBox{..} =
+getRevoceTx :: Wallet -> RevoceBox -> App (Tx, BoxId)
+getRevoceTx wallet RevoceBox{..} =
   fmap appendBoxId $ newProofTx (getProofEnv wallet) preTx
   where
     appendBoxId tx@Tx{..} = (tx, box'id $ tx'outputs V.! 0)
 
     preTx = Tx
       { tx'inputs  = [inputRef]
-      , tx'outputs = [changeBox revokeBox'value pubKey ]
+      , tx'outputs = [changeBox revoceBox'value pubKey ]
       }
 
     inputRef = BoxInputRef
-      { boxInputRef'id = revokeBox'id
-      , boxInputRef'args = byteArgs [revokeBox'secret]
+      { boxInputRef'id = revoceBox'id
+      , boxInputRef'args = byteArgs [revoceBox'secret]
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
       , boxInputRef'sigMask = SigAll
       }
@@ -425,30 +469,21 @@ getCooperativeTx Game{..} = do
   let balance = playerEnv'balance alice
   spendCommonBoxTx (playerEnv'wallet alice) (playerEnv'wallet bob) (playerEnv'commonBoxId alice) balance
 
--- | To check that revoke TX is valid we transition BCh to the next state
+-- | To check that revoce TX is valid we transition BCh to the next state
 -- with malicious TX that corresponds to revokation key. Then we try to
--- post TX that revokes the funds and punishies the unfair behavior.
-revokeKeyIsValid :: Wallet -> RevokeBox -> App Bool
-revokeKeyIsValid wallet revoke = do
-  logTest "REVOKE:"
-  printTest (revokeBox'id revoke)
-  printTest (revokeBox'value revoke)
-  printTest (reveal $ revokeBox'tx revoke)
-  printTest (coreProgFromScript $ box'script $ tx'outputs (reveal $ revokeBox'tx revoke) V.! 0)
-  logTest (renderText $ tx'outputs (reveal $ revokeBox'tx revoke) V.! 0)
-
-  logTest (encodeBase58 $ revokeBox'secret revoke)
-  logTest (encodeBase58 $ getSha256 $ revokeBox'secret revoke)
+-- post TX that revoces the funds and punishies the unfair behavior.
+revoceKeyIsValid :: Wallet -> RevoceBox -> App Bool
+revoceKeyIsValid wallet revoce = do
   bch <- getState
-  let eFraudSt = react (reveal $ revokeBox'tx revoke) bch
+  let eFraudSt = react (reveal $ revoceBox'tx revoce) bch
   case eFraudSt of
     Left _        -> return False
     Right fraudSt -> do
-      revokeTx <- fmap fst $ getRevokeTx wallet revoke
-      case react revokeTx fraudSt of
+      revoceTx <- fmap fst $ getRevoceTx wallet revoce
+      case react revoceTx fraudSt of
         Right _  -> return True
         Left err -> do
-          logTest $ "REVOKE ERROR: " <> err
+          logTest $ "revoce ERROR: " <> err
           return False
   where
     reveal (Hidden a) = a

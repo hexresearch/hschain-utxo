@@ -11,21 +11,21 @@ import Hschain.Utxo.Test.Client.Scripts.Channel
 
 main :: IO ()
 main = do
-{-
   exchangeTest   <- runTestProc simpleExchange
   xorTest        <- runTestProc xorGame
   payTest1       <- runTestProc payForCofeeAlice
   payTest2       <- runTestProc payForCofeeBob
   atomicSwapTest <- runTestProc atomicSwap
   multiSigTest   <- runTestProc multiSigExchange
--}
-  channelTest <- runTestProc channelExchange
+  channelTest1   <- runTestProc channelExchange
+  channelTest2   <- runTestProc channelExchangeUnfair
   hspec $ do
-{-    exchangeTest
+    exchangeTest
     payTest1
     payTest2
     xorTest
     atomicSwapTest
     multiSigTest
--}
-    channelTest
+    channelTest1
+    channelTest2
+
