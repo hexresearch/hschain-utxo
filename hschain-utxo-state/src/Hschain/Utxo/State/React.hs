@@ -6,6 +6,7 @@ module Hschain.Utxo.State.React(
 ) where
 
 import Control.Monad
+import Control.Lens
 
 import Data.Maybe
 import Data.Monoid
@@ -51,15 +52,15 @@ react tx bch
         outputsAreValid = isNothing mInvalidOutput && validateOutputBoxIds tx
 
 updateBoxChain :: Tx -> BoxChain -> BoxChain
-updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
+updateBoxChain Tx{..}
+  = (boxChain'heightL %~ succ)
+  . insertOutputs
+  . removeInputs
   where
-    removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
+    removeInputs  = boxChain'boxesL %~ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
+    insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
 
-    insertOutputs = updateBoxes $ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
 
-    updateBoxes f bch@BoxChain{..} = bch { boxChain'boxes = f boxChain'boxes }
-
-    incrementHeight bch@BoxChain{..} = bch { boxChain'height = 1 + boxChain'height }
 
 
 -- | Run transaction in the current state of blockchain

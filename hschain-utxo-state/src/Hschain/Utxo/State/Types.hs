@@ -2,6 +2,7 @@
 module Hschain.Utxo.State.Types where
 
 import Hex.Common.Aeson
+import Hex.Common.Lens (makeLensesWithL)
 
 import Codec.Serialise (Serialise)
 
@@ -24,6 +25,8 @@ data BoxChain = BoxChain
   { boxChain'boxes  :: !(Map BoxId Box)  -- ^ collection of boxes
   , boxChain'height :: !Int64            -- ^ height of blockchain
   } deriving (Show, Eq, Generic, Serialise)
+
+$(makeLensesWithL ''BoxChain)
 
 -- | Empty initial blockchain state.
 emptyBoxChain :: BoxChain
@@ -54,7 +57,7 @@ hasBoxId :: BoxChain -> BoxId -> Bool
 hasBoxId BoxChain{..} boxId = M.member boxId boxChain'boxes
 
 getBoxIds :: BoxChain -> [BoxId]
-getBoxIds BoxChain{..} = M.keys boxChain'boxes
+getBoxIds = M.keys . boxChain'boxes
 
 -- | Read blockchain environment.
 getEnv :: BoxChain -> Env
