@@ -5,11 +5,13 @@ module Hschain.Utxo.Test.Client.Chan(
   , stopBlockChan
   , getBlockTChan
   , findTx
+  , findTxM
 ) where
 
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Monad
+import Control.Monad.Extra (findM)
 
 import Data.Either
 import Data.Maybe
@@ -19,8 +21,6 @@ import Hex.Common.Control
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.API.Client
-
-import qualified Data.List as L (find)
 
 -- | Spawns eternal process that reads new blocks in sequence from current height.
 data BlockChan = BlockChan
@@ -72,7 +72,10 @@ stopBlockChan :: BlockChan -> IO ()
 stopBlockChan BlockChan{..} = cancel blockChan'proc
 
 findTx :: BlockChan -> (Tx -> Bool) -> Int -> IO (Maybe Tx)
-findTx bch condition maxTries = go (getBlockTChan bch) 0
+findTx bch condition maxTries = findTxM bch (pure . condition) maxTries
+
+findTxM :: BlockChan -> (Tx -> IO Bool) -> Int -> IO (Maybe Tx)
+findTxM bch condition maxTries = go (getBlockTChan bch) 0
   where
     go tchan count
       | count == maxTries = do
@@ -80,7 +83,8 @@ findTx bch condition maxTries = go (getBlockTChan bch) 0
           return Nothing
       | otherwise         = do
           txs <- atomically $ readTChan tchan
-          case L.find condition txs of
+          mTx <- findM condition txs
+          case mTx of
             Nothing -> go tchan (count + 1)
             Just tx -> do
               stopBlockChan bch
