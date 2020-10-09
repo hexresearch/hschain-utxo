@@ -16,6 +16,7 @@ module Hschain.Utxo.Lang.Types
     -- * Blockchain state manipulation
   , InputEnv(..)
   , TxArg(..)
+  , buildTxArg
   , BoxInput(..)
   , SigMask(..)
   , signAll
@@ -24,13 +25,12 @@ module Hschain.Utxo.Lang.Types
   , PreTx
   , TxHash(..)
   , PreBox(..)
-  , BoxOrigin(..)
     -- * Functions
   , newTx
   , newProofTx
   , newProofTxOrFail
   , hashScript
-  , splitInputs
+  , getInputEnv
   , txPreservesValue
   , computeTxId
   , computePreTxId
@@ -148,19 +148,11 @@ data PreBox = PreBox
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
-computeBoxId :: BoxOrigin -> BoxId
-computeBoxId BoxOrigin{..}
+computeBoxId :: TxId -> Int64 -> BoxId
+computeBoxId txId i
   = BoxId . hashBuilder
-  $ hashStep boxOrigin'txId
- <> hashStep boxOrigin'outputIndex
-
--- | Data encodes the source of the Box when it was produced.
-data BoxOrigin = BoxOrigin
-  { boxOrigin'txId        :: !TxId   -- ^ identifier of TX that produced the Box
-  , boxOrigin'outputIndex :: !Int64  -- ^ index in the vector of outputs for the box
-  }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
-
+  $ hashStep txId
+ <> hashStep i
 
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
@@ -317,7 +309,7 @@ filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
 --  This type is the same as Tx only it contains Boxes for inputs instead
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
-  { txArg'inputs       :: !(Vector (BoxInput, SigMessage))
+  { txArg'inputs       :: !(Vector BoxInput)
   , txArg'outputs      :: !(Vector Box)
   , txArg'env          :: !Env
   }
@@ -328,8 +320,30 @@ data BoxInput = BoxInput
   , boxInput'args    :: !Args
   , boxInput'proof   :: !(Maybe Proof)
   , boxInput'sigMask :: !SigMask
+  , boxInput'sigMsg  :: !SigMessage
   }
   deriving (Show, Eq, Generic)
+
+-- | Substitute box references in transaction by boxes
+buildTxArg
+  :: Monad m
+  => (BoxId -> m Box)           -- ^ Function to look up box by its IDs
+  -> Env                        -- ^ Environment
+  -> Tx
+  -> m TxArg
+buildTxArg lookupBox env tx@Tx{..} = do
+  inputs <- forM tx'inputs $ \BoxInputRef{..} -> do
+    box <- lookupBox boxInputRef'id
+    pure BoxInput { boxInput'box     = box
+                  , boxInput'args    = boxInputRef'args
+                  , boxInput'proof   = boxInputRef'proof
+                  , boxInput'sigMask = boxInputRef'sigMask
+                  , boxInput'sigMsg  = getSigMessageTx boxInputRef'sigMask tx
+                  }
+  pure TxArg { txArg'inputs   = inputs
+             , txArg'outputs  = tx'outputs
+             , txArg'env      = env
+             }
 
 -- | Blockchain environment variables.
 data Env = Env
@@ -347,14 +361,11 @@ data InputEnv = InputEnv
   }
   deriving (Show, Eq)
 
-splitInputs :: TxArg -> Vector (Maybe Proof, SigMessage, InputEnv)
-splitInputs tx = fmap (\(input, msg) -> (boxInput'proof input,msg,  getInputEnv tx input)) $ txArg'inputs tx
-
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
   { inputEnv'self    = boxInput'box input
   , inputEnv'height  = env'height txArg'env
-  , inputEnv'inputs  = fmap (boxInput'box . fst) txArg'inputs
+  , inputEnv'inputs  = boxInput'box <$> txArg'inputs
   , inputEnv'outputs = txArg'outputs
   , inputEnv'args    = boxInput'args input
   }
@@ -362,7 +373,7 @@ getInputEnv TxArg{..} input = InputEnv
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True
-  | otherwise       = toSum (fmap (boxInput'box . fst) txArg'inputs) == toSum txArg'outputs
+  | otherwise       = toSum (boxInput'box <$> txArg'inputs) == toSum txArg'outputs
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
@@ -390,10 +401,7 @@ makeOutputs txId outputs = V.imap toBox outputs
       , box'args   = preBox'args
       }
       where
-        boxId = computeBoxId BoxOrigin
-                { boxOrigin'outputIndex = fromIntegral outputIndex
-                , boxOrigin'txId        = txId
-                }
+        boxId = computeBoxId txId (fromIntegral outputIndex)
 
 makeInput
   :: GTx (Sigma PublicKey) PreBox
@@ -470,10 +478,7 @@ validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
 
     checkBoxId n Box{..} = box'id == getId n
 
-    getId n = computeBoxId BoxOrigin
-              { boxOrigin'outputIndex = fromIntegral n
-              , boxOrigin'txId        = txId
-              }
+    getId n = computeBoxId txId (fromIntegral n)
 
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString

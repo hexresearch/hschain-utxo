@@ -42,7 +42,7 @@ getBoxBalanceEndpoint boxId =
 
 getTxSigmaEndpoint :: Tx -> ServerM SigmaTxResponse
 getTxSigmaEndpoint tx =
-  fmap (\bch -> uncurry SigmaTxResponse $ execInBoxChain tx bch) readBoxChain
+  fmap (\bch -> SigmaTxResponse (execInBoxChain tx bch) "") readBoxChain
 
 getEnvEndpoint :: ServerM GetEnvResponse
 getEnvEndpoint = do
