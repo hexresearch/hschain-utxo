@@ -215,7 +215,6 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       BytesHash loc hashAlgo a       -> app1 loc (bytesHashVar hashAlgo) a
 
     fromBox _ = \case
-      PrimBox loc _     -> varE loc boxVar
       BoxAt loc a field -> fromBoxField loc a field
 
     fromBoxField loc a field = case field of
@@ -372,14 +371,13 @@ bytesE loc = varE loc bytesVar
 boolE loc = varE loc boolVar
 sigmaE loc = varE loc sigmaVar
 
-intVar, textVar, bytesVar, boolVar, sigmaVar, notVar, negateVar, boxVar :: Text
+intVar, textVar, bytesVar, boolVar, sigmaVar, notVar, negateVar :: Text
 
 intVar = secretVar "Int"
 textVar = secretVar "Text"
 bytesVar = secretVar "Bytes"
 boolVar = secretVar "Bool"
 sigmaVar = secretVar "Sigma"
-boxVar = secretVar "Box"
 notVar = secretVar "not"
 negateVar = secretVar "negate"
 
