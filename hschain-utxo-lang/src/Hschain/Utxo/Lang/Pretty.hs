@@ -194,14 +194,11 @@ prettyId = \case
 prettyVec :: Doc ann -> Doc ann -> Doc ann
 prettyVec name n = hcat [name, brackets n]
 
-instance Pretty a => Pretty (BoxField a) where
-  pretty = prettyBoxField . fmap pretty
-
-prettyBoxField :: BoxField (Doc ann) -> Doc ann
-prettyBoxField = \case
-    BoxFieldId      -> "id"
-    BoxFieldValue   -> "value"
-    BoxFieldScript  -> "script"
+instance Pretty BoxField where
+  pretty = \case
+    BoxFieldId          -> "id"
+    BoxFieldValue       -> "value"
+    BoxFieldScript      -> "script"
     BoxFieldArgList tag -> pretty $ getBoxArgVar tag
 
 instance Pretty Error where
