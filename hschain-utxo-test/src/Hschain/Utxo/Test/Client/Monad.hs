@@ -25,6 +25,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , newBlockChan
   , getBlockTChan
   , findTx
+  , txIsValid
 ) where
 
 import Hex.Common.Text
@@ -38,6 +39,7 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 
 import Data.Int
+import Data.Either
 import Data.Time
 import Data.Sequence (Seq)
 import Data.Text (Text)
@@ -49,6 +51,7 @@ import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build (pk', mainScriptUnsafe)
 import Hschain.Utxo.State.Types
+import Hschain.Utxo.State.React (react)
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Test.Client.Chan (BlockChan, getBlockTChan, findTx)
 
@@ -217,4 +220,8 @@ initGenesis secret = ([tx], masterBoxId)
       }
 
     initMoney = 1000000
+
+-- | Checks that TX is valid on current blockchain state without commiting it.
+txIsValid :: Tx -> App Bool
+txIsValid tx = fmap (isRight . react tx) getState
 

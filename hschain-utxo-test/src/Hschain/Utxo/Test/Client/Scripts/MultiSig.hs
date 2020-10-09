@@ -4,7 +4,12 @@
 --
 -- and then spend it.
 module Hschain.Utxo.Test.Client.Scripts.MultiSig(
-  multiSigExchange
+    multiSigExchange
+  , getSharedBoxTx
+  , postTxDebug
+  , changeBox
+  , spendCommonBoxTx
+  , simpleSpendTo
 ) where
 
 import Hex.Common.Delay
@@ -37,14 +42,14 @@ multiSigExchange = do
       john      = user'wallet scene'john
       Just aliceBox1 = user'box scene'alice
       Just bobBox1   = user'box scene'bob
-  (tx, commonBoxId) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
+  (tx, commonBoxId, _) <- getSharedBoxTx alice bob (5, 5) (5, 5) aliceBox1 bobBox1
   void $ postTxDebug True "Alice and Bob post joint multisig TX" tx
   (multiSigTx, aliceBox2, bobBox2) <- spendCommonBoxTx alice bob commonBoxId (aliceShareValue, bobShareValue)
   void $ postTxDebug True "Alice and bob create shared multi-sig proof and spend common box with it" multiSigTx
   let johnPubKey = getWalletPublicKey john
-  simpleSpendTo "Alice is able to spends everything to John from her part of shared box"
+  simpleSpendTo True "Alice is able to spends everything to John from her part of shared box"
       alice aliceBox2 johnPubKey aliceShareValue
-  simpleSpendTo "Bob is able to spends everything to John from her part of shared box"
+  simpleSpendTo True "Bob is able to spends everything to John from her part of shared box"
       bob bobBox2 johnPubKey bobShareValue
   return ()
   where
@@ -52,14 +57,14 @@ multiSigExchange = do
     bobShareValue   = 6
 
 
-getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId)
+getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId, Sigma PublicKey)
 getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = liftIO $ do
   aliceProof <- fmap eitherToMaybe $ newProof aliceEnv (singleOwnerSigmaExpr alice) message
   bobProof   <- fmap eitherToMaybe $ newProof bobEnv   (singleOwnerSigmaExpr bob)   message
   let preTx' = getPreTx aliceProof bobProof
   return $ appendCommonBoxId $ newTx preTx'
   where
-    appendCommonBoxId tx = (tx, box'id $ tx'outputs tx V.! 0)
+    appendCommonBoxId tx = (tx, box'id $ tx'outputs tx V.! 0, commonScript)
 
     preTx = getPreTx Nothing Nothing
     message = getSigMessagePreTx SigAll preTx
@@ -81,6 +86,8 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       , preBox'script = mainScriptUnsafe $ pk' alicePk &&* pk' bobPk
       , preBox'args   = mempty
       }
+
+    commonScript = sigmaPk alicePk &&* sigmaPk bobPk
 
     alicePk = getWalletPublicKey alice
     bobPk   = getWalletPublicKey bob
@@ -139,11 +146,11 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
     bobEnv    = getProofEnv bob
 
 
-simpleSpendTo :: Text -> Wallet -> BoxId -> PublicKey -> Int64 -> App ()
-simpleSpendTo message wallet fromId toPubKey value = do
+simpleSpendTo :: Bool -> Text -> Wallet -> BoxId -> PublicKey -> Int64 -> App ()
+simpleSpendTo isSuccess message wallet fromId toPubKey value = do
   eTx <- simpleSpendToTx wallet fromId toPubKey value
   case eTx of
-    Right tx -> void $ postTxDebug True message tx
+    Right tx -> void $ postTxDebug isSuccess message tx
     Left err -> testCase ("Failed to construct tx: " <> err) False
 
 simpleSpendToTx :: Wallet -> BoxId -> PublicKey -> Int64 -> App (Either Text Tx)

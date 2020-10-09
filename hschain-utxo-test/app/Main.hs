@@ -7,6 +7,7 @@ import Hschain.Utxo.Test.Client.Scripts.SimpleExchange
 import Hschain.Utxo.Test.Client.Scripts.XorGame
 import Hschain.Utxo.Test.Client.Scripts.AtomicSwap
 import Hschain.Utxo.Test.Client.Scripts.MultiSig
+import Hschain.Utxo.Test.Client.Scripts.Channel
 
 main :: IO ()
 main = do
@@ -16,6 +17,8 @@ main = do
   payTest2       <- runTestProc payForCofeeBob
   atomicSwapTest <- runTestProc atomicSwap
   multiSigTest   <- runTestProc multiSigExchange
+  channelTest1   <- runTestProc channelExchange
+  channelTest2   <- runTestProc channelExchangeUnfair
   hspec $ do
     exchangeTest
     payTest1
@@ -23,3 +26,6 @@ main = do
     xorTest
     atomicSwapTest
     multiSigTest
+    channelTest1
+    channelTest2
+
