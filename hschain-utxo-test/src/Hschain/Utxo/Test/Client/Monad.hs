@@ -223,5 +223,5 @@ initGenesis secret = ([tx], masterBoxId)
 
 -- | Checks that TX is valid on current blockchain state without commiting it.
 txIsValid :: Tx -> App Bool
-txIsValid tx = fmap (isRight . fst . react tx) getState
+txIsValid tx = fmap (isRight . react tx) getState
 
