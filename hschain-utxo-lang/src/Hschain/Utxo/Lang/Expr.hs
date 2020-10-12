@@ -887,6 +887,7 @@ monoPrimopName = \case
   OpGetBoxScript -> Just Const.getBoxScript
   OpGetBoxValue  -> Just Const.getBoxValue
   OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
+  OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
   --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"

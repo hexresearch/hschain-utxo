@@ -29,7 +29,7 @@ import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (Box(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..),PostBox(..))
 
 -- | Value hanled by evaluator
 data Val
@@ -212,21 +212,24 @@ evalPrimOp env = \case
     where
       Args{..} = inputEnv'args env
   OpGetBoxId -> lift1 $ \case
-    ValCon 0 [b,_,_,_] -> b
-    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+    ValCon 0 [b,_,_,_,_] -> b
+    x                    -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
   OpGetBoxScript -> lift1 $ \case
-    ValCon 0 [_,b,_,_] -> b
-    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+    ValCon 0 [_,b,_,_,_] -> b
+    x                    -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
   OpGetBoxValue -> lift1 $ \case
-    ValCon 0 [_,_,i,_] -> i
-    x                  -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
+    ValCon 0 [_,_,i,_,_] -> i
+    x                    -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
   OpGetBoxArgs t -> ValF $ \case
-    ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools, bytes]] -> case t of
+    ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools, bytes],_] -> case t of
       IntArg   -> ints
       TextArg  -> txts
       BoolArg  -> bools
       BytesArg -> bytes
     p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
+  OpGetBoxPostHeight -> lift1 $ \case
+    ValCon 0 [_,_,_,_,b] -> b
+    x                    -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
   --
   OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
   OpEnvGetSelf   -> inj $ inputEnv'self env
@@ -377,6 +380,16 @@ instance InjPrim Box where
     , inj $ unScript box'script
     , inj box'value
     , inj box'args
+    , inj (0 :: Int64)
+    ]
+
+instance InjPrim PostBox where
+  inj PostBox{..} = ValCon 0
+    [ inj $ unBoxId $ box'id postBox'content
+    , inj $ unScript $ box'script postBox'content
+    , inj $ box'value postBox'content
+    , inj $ box'args postBox'content
+    , inj postBox'height
     ]
 
 instance InjPrim Args where
@@ -386,7 +399,6 @@ instance InjPrim Args where
     , inj args'bools
     , inj args'bytes
     ]
-
 
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
 lift1 f = ValF go
@@ -398,7 +410,6 @@ lift2 f = Val2F go
   where
     go a b = inj $ f <$> match a <*> match b
 
-
 conName :: Val -> String
 conName = \case
   ValP p      -> "Primitive: " ++ show p
@@ -406,3 +417,4 @@ conName = \case
   ValF{}      -> "ValF"
   Val2F{}     -> "Val2F"
   ValCon{}    -> "ValCon"
+

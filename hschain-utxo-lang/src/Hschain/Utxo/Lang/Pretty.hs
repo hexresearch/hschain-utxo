@@ -100,6 +100,12 @@ instance Pretty BoxInput where
     , ("proof", pretty boxInput'proof)
     ]
 
+instance Pretty PostBox where
+  pretty PostBox{..} = prettyRecord "PostBox"
+    [ ("content", pretty postBox'content)
+    , ("height",  pretty postBox'height)
+    ]
+
 instance Pretty a => Pretty (BoxInputRef a) where
   pretty BoxInputRef{..} = prettyRecord "BoxInputRef"
     [ ("id",    pretty boxInputRef'id)

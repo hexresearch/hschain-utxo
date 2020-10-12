@@ -78,6 +78,7 @@ data PrimOp a
   | OpGetBoxScript
   | OpGetBoxValue
   | OpGetBoxArgs !ArgType -- ^ Get arguments from box
+  | OpGetBoxPostHeight    -- ^ Get time at which box was accepted to blockchain
 
   | OpListMap    !a !a    -- ^ Map over list
   | OpListAt     !a       -- ^ Index list

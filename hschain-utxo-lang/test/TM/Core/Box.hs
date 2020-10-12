@@ -27,14 +27,16 @@ txEnv = InputEnv
   , inputEnv'args    = intArgs [1,2,3] <> textArgs ["alice", "bob"] <> boolArgs [True, False]
   }
   where
-    in1 = Box
+    post box = PostBox box 1
+
+    in1 = post $ Box
       { box'id     = BoxId $ Hash "box-1"
       , box'value  = 1
       , box'script = Script "in1"
       , box'args   = intArgs [4,5]
       }
 
-    in2 = Box
+    in2 = post $ Box
       { box'id     = BoxId $ Hash "box-2"
       , box'value  = 2
       , box'script = Script "in2"

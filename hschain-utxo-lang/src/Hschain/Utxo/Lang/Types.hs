@@ -25,6 +25,7 @@ module Hschain.Utxo.Lang.Types
   , PreTx
   , TxHash(..)
   , PreBox(..)
+  , PostBox(..)
     -- * Functions
   , newTx
   , newProofTx
@@ -147,6 +148,13 @@ data PreBox = PreBox
   , preBox'args   :: !Args     -- ^ arguments for the script
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+
+-- | Box and relevant information that is aquired at post time.
+data PostBox = PostBox
+  { postBox'content :: Box
+  , postBox'height  :: Int64
+  -- ^ time at which box was posted
+  } deriving (Show, Eq, Generic, Serialise)
 
 computeBoxId :: TxId -> Int64 -> BoxId
 computeBoxId txId i
@@ -315,8 +323,9 @@ data TxArg = TxArg
   }
   deriving (Show, Eq)
 
+-- | Information relevant to proof of the spend script
 data BoxInput = BoxInput
-  { boxInput'box     :: !Box
+  { boxInput'box     :: !PostBox
   , boxInput'args    :: !Args
   , boxInput'proof   :: !(Maybe Proof)
   , boxInput'sigMask :: !SigMask
@@ -327,7 +336,7 @@ data BoxInput = BoxInput
 -- | Substitute box references in transaction by boxes
 buildTxArg
   :: Monad m
-  => (BoxId -> m Box)           -- ^ Function to look up box by its IDs
+  => (BoxId -> m PostBox)      -- ^ Function to look up box by its IDs
   -> Env                        -- ^ Environment
   -> Tx
   -> m TxArg
@@ -354,8 +363,8 @@ data Env = Env
 -- during execution of the script.
 data InputEnv = InputEnv
   { inputEnv'height  :: !Int64
-  , inputEnv'self    :: !Box
-  , inputEnv'inputs  :: !(Vector Box)
+  , inputEnv'self    :: !PostBox
+  , inputEnv'inputs  :: !(Vector PostBox)
   , inputEnv'outputs :: !(Vector Box)
   , inputEnv'args    :: !Args
   }
@@ -373,7 +382,7 @@ getInputEnv TxArg{..} input = InputEnv
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True
-  | otherwise       = toSum (boxInput'box <$> txArg'inputs) == toSum txArg'outputs
+  | otherwise       = toSum (postBox'content . boxInput'box <$> txArg'inputs) == toSum txArg'outputs
   where
     toSum xs = getSum $ foldMap (Sum . box'value) xs
 
@@ -506,12 +515,16 @@ singleOwnerInput boxId pubKey = return $ BoxInputRef
 $(deriveJSON dropPrefixOptions ''GTx)
 $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
+$(deriveJSON dropPrefixOptions ''PostBox)
 $(deriveJSON dropPrefixOptions ''BoxInput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
 $(deriveJSON dropPrefixOptions ''Box)
 $(deriveJSON dropPrefixOptions ''SigMask)
 
 instance CryptoHashable Tx where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable PostBox where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable BoxInput where
