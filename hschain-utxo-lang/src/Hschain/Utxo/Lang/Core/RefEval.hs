@@ -374,15 +374,6 @@ instance InjPrim a => InjPrim [a] where
 instance InjPrim a => InjPrim (V.Vector a) where
   inj = inj . V.toList
 
-instance InjPrim Box where
-  inj Box{..} = ValCon 0
-    [ inj $ unBoxId box'id
-    , inj $ unScript box'script
-    , inj box'value
-    , inj box'args
-    , inj (0 :: Int64)
-    ]
-
 instance InjPrim PostBox where
   inj PostBox{..} = ValCon 0
     [ inj $ unBoxId $ box'id postBox'content

@@ -365,7 +365,7 @@ data InputEnv = InputEnv
   { inputEnv'height  :: !Int64
   , inputEnv'self    :: !PostBox
   , inputEnv'inputs  :: !(Vector PostBox)
-  , inputEnv'outputs :: !(Vector Box)
+  , inputEnv'outputs :: !(Vector PostBox)
   , inputEnv'args    :: !Args
   }
   deriving (Show, Eq)
@@ -373,11 +373,13 @@ data InputEnv = InputEnv
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
   { inputEnv'self    = boxInput'box input
-  , inputEnv'height  = env'height txArg'env
+  , inputEnv'height  = height
   , inputEnv'inputs  = boxInput'box <$> txArg'inputs
-  , inputEnv'outputs = txArg'outputs
+  , inputEnv'outputs = (\box -> PostBox box height) <$> txArg'outputs
   , inputEnv'args    = boxInput'args input
   }
+  where
+    height = env'height txArg'env
 
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
