@@ -206,6 +206,7 @@ instance Pretty BoxField where
     BoxFieldValue       -> "value"
     BoxFieldScript      -> "script"
     BoxFieldArgList tag -> pretty $ getBoxArgVar tag
+    BoxFieldPostHeight  -> "postHeight"
 
 instance Pretty Error where
   pretty = \case

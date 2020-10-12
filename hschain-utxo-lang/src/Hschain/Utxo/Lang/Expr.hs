@@ -443,6 +443,8 @@ data BoxField
   | BoxFieldArgList ArgType
   -- ^ Get box argument. It should be primitive value stored in the vector.
   -- We get the vector of primitive values stored by primitive-value tag.
+  | BoxFieldPostHeight
+  -- ^ Get time at which box was posted. It's useful to create relative time bounds
   deriving (Show, Eq)
 
 argTagToType :: ArgType -> Type

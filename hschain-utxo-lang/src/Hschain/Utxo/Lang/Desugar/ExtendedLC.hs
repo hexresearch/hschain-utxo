@@ -240,6 +240,7 @@ exprToExtendedLC typeCtx = cataM $ \case
           BoxFieldValue      -> var loc Const.getBoxValue
           BoxFieldScript     -> var loc Const.getBoxScript
           BoxFieldArgList ty -> var loc $ Const.getBoxArgs $ argTypeName ty
+          BoxFieldPostHeight -> var loc Const.getBoxPostHeight
 
     fromTrace loc a b = pure $ ap2 loc (var loc "trace") a b
 

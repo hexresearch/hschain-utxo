@@ -222,6 +222,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       BoxFieldValue      -> app1 loc getBoxValueVar a
       BoxFieldScript     -> app1 loc getBoxScriptVar a
       BoxFieldArgList ty -> app1 loc (getBoxArgVar' ty) a
+      BoxFieldPostHeight -> app1 loc getBoxPostHeightVar a
 
     fromTrace loc msg a = app2 loc traceVar msg a
 
@@ -292,6 +293,7 @@ defaultContext = H.Context $ M.fromList $
   , (orSigmaVecVar, monoT $ listT sigmaT `arr` sigmaT)
   , (getBoxIdVar, monoT $ boxT `arr` textT)
   , (getBoxValueVar, monoT $ boxT `arr` intT)
+  , (getBoxPostHeightVar, monoT $ boxT `arr` intT)
   , (getBoxScriptVar, monoT $ boxT `arr` scriptT)
   , (undefVar, forA $ monoT a)
   , (traceVar, forA $ monoT $ textT `arr` (a `arr` a))
@@ -445,11 +447,12 @@ bytesHashVar :: HashAlgo -> Text
 bytesHashVar hashAlgo = secretVar $ mappend "bytesHash" (showt hashAlgo)
 
 
-getBoxIdVar, getBoxValueVar, getBoxScriptVar :: Text
+getBoxIdVar, getBoxValueVar, getBoxScriptVar, getBoxPostHeightVar :: Text
 
-getBoxIdVar = secretVar "getBoxId"
-getBoxValueVar = secretVar "getBoxValue"
-getBoxScriptVar = secretVar "getBoxScript"
+getBoxIdVar = secretVar Const.getBoxId
+getBoxValueVar = secretVar Const.getBoxValue
+getBoxScriptVar = secretVar Const.getBoxScript
+getBoxPostHeightVar = secretVar Const.getBoxPostHeight
 
 undefVar :: Text
 undefVar = secretVar "undefined"
