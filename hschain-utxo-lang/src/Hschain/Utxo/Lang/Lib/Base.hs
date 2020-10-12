@@ -73,6 +73,7 @@ baseFuns =
   , getBoxId
   , getBoxValue
   , getBoxScript
+  , getBoxPostHeight
   , sha256
   , trace
   , lengthVec
@@ -141,6 +142,7 @@ baseNames =
   , "getBoxId"
   , "getBoxValue"
   , "getBoxScript"
+  , "getBoxPostHeight"
   , "getBoxArg"
   , "sha256"
   , "blake2b256"
@@ -221,6 +223,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "getInputs" (monoT $ listT boxT)
   , assumpType "getBoxId" (monoT $ boxT ~> textT)
   , assumpType "getBoxValue" (monoT $ boxT ~> intT)
+  , assumpType "getBoxPostHeight" (monoT $ boxT ~> intT)
   , assumpType "getBoxScript" (monoT $ boxT ~> scriptT)
   , assumpType "sha256" (monoT $ bytesT ~> bytesT)
   , assumpType "getVar" (forA $ textT ~> aT)
@@ -365,6 +368,9 @@ getBoxValue = bind "getBoxValue" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt
 
 getBoxScript :: Bind Lang
 getBoxScript = bind "getBoxScript" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldScript)
+
+getBoxPostHeight :: Bind Lang
+getBoxPostHeight = bind "getBoxPostHeight" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldPostHeight)
 
 getBoxArgList :: ArgType -> Bind Lang
 getBoxArgList ty = bind (getBoxArgVar ty) (Fix $ Lam noLoc "box" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "box") (BoxFieldArgList ty))

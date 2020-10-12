@@ -52,7 +52,7 @@ updateBoxChain Tx{..} bch@BoxChain{..}
     removeInputs  = boxChain'boxesL %~ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
     insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) (PostBox box height)) tx'outputs)
 
-    height = succ boxChain'height
+    height = boxChain'height
 
 
 
