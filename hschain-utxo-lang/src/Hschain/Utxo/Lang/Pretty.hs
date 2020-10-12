@@ -57,10 +57,17 @@ instance Pretty Script where
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
     Right e -> fromString $ show (e :: ExprCore)
 
+instance Pretty IBox where
+  pretty (IBox boxId Box{..}) = prettyRecord "Box"
+    [ ("id"    , pretty boxId)
+    , ("value" , pretty box'value)
+    , ("script", pretty box'script)
+    , ("args"  , prettyArgs box'args)
+    ]
+
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
-      [ ("id"    , pretty box'id)
-      , ("value" , pretty box'value)
+      [ ("value" , pretty box'value)
       , ("script", pretty box'script)
       , ("args"  , prettyArgs box'args) ]
 

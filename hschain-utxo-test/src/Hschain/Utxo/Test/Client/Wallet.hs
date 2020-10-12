@@ -138,17 +138,17 @@ toSendTx wallet Send{..} SendBack{..} =
       }
 
     senderUtxo
-      | sendBack'totalAmount > send'amount = Just $ PreBox
-                { preBox'value  = sendBack'totalAmount - send'amount
-                , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
-                , preBox'args   = mempty
+      | sendBack'totalAmount > send'amount = Just $ Box
+                { box'value  = sendBack'totalAmount - send'amount
+                , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+                , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
-    receiverUtxo = PreBox
-      { preBox'value  = send'amount
-      , preBox'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
-      , preBox'args   = mempty
+    receiverUtxo = Box
+      { box'value  = send'amount
+      , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
+      , box'args   = mempty
       }
 
 appendSenderReceiverIds :: Tx -> (Tx, Maybe BoxId, BoxId)
@@ -157,8 +157,11 @@ appendSenderReceiverIds tx = (tx, sender, receiver)
     (sender, receiver) = extractSenderReceiverIds tx
 
 extractSenderReceiverIds :: Tx -> (Maybe BoxId, BoxId)
-extractSenderReceiverIds tx = case tx'outputs tx of
-  [receiver]         -> (Nothing, box'id receiver)
-  [sender, receiver] -> (Just $ box'id sender, box'id receiver)
-  _                  -> error "Not enough outputs fot TX"
-
+extractSenderReceiverIds tx =
+  case tx'outputs tx of
+    [_]    -> (Nothing, toBoxId 0)
+    [_, _] -> (Just $ toBoxId 0, toBoxId 1)
+    _      -> error "Not enough outputs fot TX"
+  where
+    txId    = computeTxId tx
+    toBoxId = computeBoxId txId

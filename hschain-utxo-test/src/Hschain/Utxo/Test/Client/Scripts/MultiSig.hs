@@ -30,7 +30,6 @@ import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-import qualified Data.Vector as V
 
 -- | Alice and Bob create joint box that is guarded by multisig and then spend it.
 multiSigExchange :: App ()
@@ -62,12 +61,12 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
   aliceProof <- fmap eitherToMaybe $ newProof aliceEnv (singleOwnerSigmaExpr alice) message
   bobProof   <- fmap eitherToMaybe $ newProof bobEnv   (singleOwnerSigmaExpr bob)   message
   let preTx' = getPreTx aliceProof bobProof
-  return $ appendCommonBoxId $ newTx preTx'
+  return $ appendCommonBoxId preTx'
   where
-    appendCommonBoxId tx = (tx, box'id $ tx'outputs tx V.! 0, commonScript)
+    appendCommonBoxId tx = (tx, computeBoxId (computeTxId tx) 0, commonScript)
 
     preTx = getPreTx Nothing Nothing
-    message = getSigMessagePreTx SigAll preTx
+    message = getSigMessageTx SigAll preTx
 
     getPreTx aliceProof bobProof = Tx
       { tx'inputs   = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
@@ -81,10 +80,10 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       , boxInputRef'sigMask = SigAll
       }
 
-    commonBox = PreBox
-      { preBox'value  = aliceValue + bobValue
-      , preBox'script = mainScriptUnsafe $ pk' alicePk &&* pk' bobPk
-      , preBox'args   = mempty
+    commonBox = Box
+      { box'value  = aliceValue + bobValue
+      , box'script = mainScriptUnsafe $ pk' alicePk &&* pk' bobPk
+      , box'args   = mempty
       }
 
     commonScript = sigmaPk alicePk &&* sigmaPk bobPk
@@ -108,11 +107,11 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
     bobResponses   <- queryResponses bobEnv   bobSecret   challenges
     proof <- appendResponsesToProof [(aliceKeys, aliceResponses), (bobKeys, bobResponses)]
     return proof
-  return $ appendOutputs $ newTx $ getPreTx proof
+  return $ appendOutputs $ getPreTx proof
   where
     appendOutputs tx = (tx, boxId 0, boxId 1)
       where
-        boxId n = box'id $ tx'outputs tx V.! n
+        boxId n = computeBoxId (computeTxId tx) n
 
     getPreTx proof = Tx
       { tx'inputs  = [commonInput proof]
@@ -121,7 +120,7 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
 
     preTx = getPreTx Nothing
 
-    message = getSigMessagePreTx SigAll preTx
+    message = getSigMessageTx SigAll preTx
 
     commonInput proof = BoxInputRef
       { boxInputRef'id      = commonBoxId
@@ -184,9 +183,9 @@ postTxDebug isSuccess msg tx = do
   where
     wait = sleep 0.1
 
-changeBox :: Int64 -> PublicKey -> PreBox
-changeBox value pubKey = PreBox
-  { preBox'value  = value
-  , preBox'script = mainScriptUnsafe $ pk' pubKey
-  , preBox'args   = mempty
+changeBox :: Int64 -> PublicKey -> Box
+changeBox value pubKey = Box
+  { box'value  = value
+  , box'script = mainScriptUnsafe $ pk' pubKey
+  , box'args   = mempty
   }

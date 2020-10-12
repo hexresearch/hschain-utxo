@@ -142,18 +142,18 @@ xorGameRound Scene{..} game@Game{..} = do
 
       let gameBox = if (amount > total)
             then Nothing
-            else Just $ PreBox
-              { preBox'value  = amount
-              , preBox'script = mainScriptUnsafe script
-              , preBox'args   = mempty
+            else Just Box
+              { box'value  = amount
+              , box'script = mainScriptUnsafe script
+              , box'args   = mempty
               }
 
       let restBox
             | total <= amount = Nothing
-            | otherwise       = Just $ PreBox
-                { preBox'value  = total - amount
-                , preBox'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
-                , preBox'args   = mempty
+            | otherwise       = Just Box
+                { box'value  = total - amount
+                , box'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
+                , box'args   = mempty
                 }
 
           inputBox = BoxInputRef
@@ -197,27 +197,29 @@ xorGameRound Scene{..} game@Game{..} = do
           where
             gameBox total height
               | total < game'amount = Nothing
-              | otherwise           = Just $ PreBox
-                  { preBox'value   = 2 * game'amount
-                  , preBox'script  = mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (text alicePubKey)
-                  , preBox'args    = makeArgs height
+              | otherwise           = Just Box
+                  { box'value   = 2 * game'amount
+                  , box'script  = mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (text alicePubKey)
+                  , box'args    = makeArgs height
                   }
 
             restBox total
               | total <= game'amount = Nothing
-              | otherwise            = Just $ PreBox
-                  { preBox'value  = total - game'amount
-                  , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
-                  , preBox'args   = mempty
+              | otherwise            = Just Box
+                  { box'value  = total - game'amount
+                  , box'script = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
+                  , box'args   = mempty
                   }
 
             makeArgs height = intArgs [guess, height + 35] <> textArgs [publicKeyToText $ getWalletPublicKey wallet]
 
             extractOutputs tx = case tx'outputs tx of
-              [receiver]         -> (box'id receiver, Nothing)
-              [receiver, sender] -> (box'id receiver, Just $ box'id sender)
-              _              -> error "Not enough outputs for TX"
-
+              [_receiver]          -> (toBoxId 0, Nothing)
+              [_receiver, _sender] -> (toBoxId 0, Just $ toBoxId 1)
+              _                    -> error "Not enough outputs for TX"
+              where
+                txId = computeTxId tx
+                toBoxId = computeBoxId txId
 
     triesToWin isSuccess name wallet gameBox aliceSecret aliceGuess = do
       (tx, _) <- winTx gameBox wallet aliceSecret aliceGuess
@@ -238,13 +240,13 @@ xorGameRound Scene{..} game@Game{..} = do
 
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
 
-        outBox = PreBox
-          { preBox'value   = 2 * game'amount
-          , preBox'script  = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
-          , preBox'args    = mempty
+        outBox = Box
+          { box'value   = 2 * game'amount
+          , box'script  = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
+          , box'args    = mempty
           }
 
-        extractWinAddr tx = box'id $ V.head $ tx'outputs tx
+        extractWinAddr tx = computeBoxId (computeTxId tx) 0
 
 makeAliceSecret :: MonadIO m => Int64 -> m (ByteString, ByteString)
 makeAliceSecret guess = liftIO $ do
