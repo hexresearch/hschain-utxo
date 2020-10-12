@@ -43,7 +43,7 @@ txEnv = InputEnv
       , box'args   = intArgs [6,7] <> textArgs ["john", "neil"]
       }
 
-    out1 = Box
+    out1 = post $ Box
       { box'id     = BoxId $ Hash "box-3"
       , box'value  = 3
       , box'script = Script "out1"

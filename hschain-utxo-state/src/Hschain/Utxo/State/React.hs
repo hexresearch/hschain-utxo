@@ -44,13 +44,15 @@ react tx bch = do
   return $ updateBoxChain tx bch
 
 updateBoxChain :: Tx -> BoxChain -> BoxChain
-updateBoxChain Tx{..}
+updateBoxChain Tx{..} bch@BoxChain{..}
   = (boxChain'heightL %~ succ)
-  . insertOutputs
-  . removeInputs
+  $ insertOutputs
+  $ removeInputs bch
   where
     removeInputs  = boxChain'boxesL %~ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
-    insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
+    insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) (PostBox box height)) tx'outputs)
+
+    height = succ boxChain'height
 
 
 

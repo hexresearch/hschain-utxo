@@ -149,10 +149,10 @@ data PreBox = PreBox
   }
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)
 
--- | Box and relevant information that is aquired at post time.
+-- | Box and relevant information that is aquired at TX-post time.
 data PostBox = PostBox
-  { postBox'content :: Box
-  , postBox'height  :: Int64
+  { postBox'content :: Box    -- ^ approved box
+  , postBox'height  :: Int64  -- ^ time at which box was commited to blockchain
   -- ^ time at which box was posted
   } deriving (Show, Eq, Generic, Serialise)
 
