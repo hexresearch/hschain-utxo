@@ -230,26 +230,22 @@ eliminateSigmaBool :: Sigma a -> Either Bool (Sigma a)
 eliminateSigmaBool = foldFix $ \case
   SigmaBool b -> Left b
   SigmaPk pk  -> Right $ Fix $ SigmaPk pk
-  SigmaAnd as ->
-    let (bools, sigmas) = partitionEithers as
-        boolRes = and bools
-    in  if boolRes
-          then
-              case sigmas of
-                []      -> Left True
-                [sigma] -> Right sigma
-                _       -> Right $ Fix $ SigmaAnd sigmas
-          else Left False
-  SigmaOr as ->
-    let (bools, sigmas) = partitionEithers as
-        boolRes = or bools
-    in  if boolRes
-          then Left True
-          else
-               case sigmas of
-                 []      -> Left False
-                 [sigma] -> Right sigma
-                 _       -> Right $ Fix $ SigmaOr sigmas
+  SigmaAnd as
+    | and bools -> case sigmas of
+       []       -> Left True
+       [sigma]  -> Right sigma
+       _        -> Right $ Fix $ SigmaAnd sigmas
+    | otherwise -> Left False
+    where
+      (bools, sigmas) = partitionEithers as
+  SigmaOr as
+    | or bools  -> Left True
+    | otherwise -> case sigmas of
+        []      -> Left False
+        [sigma] -> Right sigma
+        _       -> Right $ Fix $ SigmaOr sigmas
+    where
+      (bools, sigmas) = partitionEithers as
 
 toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
 toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
