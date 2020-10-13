@@ -25,7 +25,6 @@ readCommandOptions = execParser $ info (helper <*> opts) fullDesc
 data Command
   = RunNode
       { runnode'config         :: [FilePath]
-      , runnode'genesis        :: FilePath
       , runnode'nodeSecret     :: Maybe String
       , runnode'dbPath         :: FilePath
       }
@@ -62,11 +61,6 @@ runNodeOptions = RunNode
               <> long "config"
               <> short 'c'
               <> help "path to config"))
-          <*> strOption
-              (  metavar "GENESIS_FILE_PATH"
-              <> long "genesis"
-              <> short 'g'
-              <> help "path to genesis")
           <*> (Just <$> strOption
                         (  metavar "NODE_SECRET_ENV_VAR"
                         <> long "secret-env-var"

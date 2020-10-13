@@ -136,15 +136,24 @@ runApp = do
     GenerateKey {..} -> do
       error "gen key is not done!"
     RunNode {..} -> do
-      --secret <- maybe (return Nothing) (fmap (Just . read) . SE.getEnv) options'nodeSecret
-      genesis <- readGenesis runnode'genesis
       config <- loadYamlSettings runnode'config [] requireEnv
       runNode genesis config runnode'nodeSecret
 
-readGenesis :: FilePath -> IO (POW.Block UTXOBlock)
-readGenesis = fmap (fromMaybe err) . readJson
-  where
-    err = error "Error: failed to read genesis"
+genesis :: POW.Block UTXOBlock
+genesis = POW.GBlock
+  { blockHeight = POW.Height 0
+  , blockTime   = POW.Time   0
+  , prevBlock   = Nothing
+  , blockData   = UTXOBlock
+    { ubNonce = ""
+    , ubProper = UTXOBlockProper
+      { ubpPrevious = Nothing
+      , ubpData     = merkled []
+      , ubpTarget   = POW.Target $ 2^255
+      , ubpTime     = POW.Time 0
+      }
+    }
+  }
 
 -- |Create a genesis block with single transaction
 createGenesis :: Money -> PublicKey -> IO Genesis
