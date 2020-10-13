@@ -5,14 +5,12 @@ import Data.Fix
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (InputEnv(..),Box(..),BoxId(..),Script(..))
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Core.RefEval
 import Examples.SKI
 import Examples.Simple
+import TM.Core.Common
 
 
 tests :: TestTree
@@ -50,15 +48,6 @@ shouldFail nm prog = testCase nm $ case typeCheck prog of
   Left  _ -> return ()
 
 
-testProgram :: String -> ExprCore -> Prim -> TestTree
-testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
-  ]
-
-
 -- Trivial
 progLiteral :: Prim -> ExprCore
 progLiteral = EPrim
@@ -94,20 +83,3 @@ badListCase = ECase nil
   where
     zero = EPrim   (PrimInt 0)
     nil  = EConstr (ListT IntT) 0
-
-
-----------------------------------------------------------------
-
-env :: InputEnv
-env = InputEnv
-  { inputEnv'height   = 123
-  , inputEnv'self     = Box
-    { box'id     = BoxId $ hashBlob ""
-    , box'value  = 100
-    , box'script = Script ""
-    , box'args   = mempty
-    }
-  , inputEnv'inputs   = mempty
-  , inputEnv'outputs  = mempty
-  , inputEnv'args     = mempty
-  }

@@ -47,10 +47,10 @@ groupAdjacentFunDecl ds = onFunDecl (fmap joinGroup . L.groupBy sameFunDecl) =<<
       []    -> []
 
 -- | Sorts declarations and converts them to the list of bindings.
-toBindGroup :: [Decl] -> ParseResult (BindGroup Lang)
+toBindGroup :: [Decl] -> ParseResult [Bind Lang]
 toBindGroup = fmap sortBindGroups . parseBinds . groupAdjacentFunDecl
 
-parseBinds :: [Decl] -> ParseResult (BindGroup Lang)
+parseBinds :: [Decl] -> ParseResult [Bind Lang]
 parseBinds ds = do
   typeMap <- getTypeMap ds
   funMap  <- getFunMap ds
@@ -79,7 +79,7 @@ getFunMap = fmap Map.fromList . mapM toSingleName . catMaybes . fmap getFunDecl
       []         -> parseFailed loc "No cases are defined"
       (v, _):_   -> parseFailed (varName'loc v) $ mconcat ["Too many functional cases are defined for: ", Text.unpack $ varName'name v]
 
-renderToBinds :: FunMap -> TypeMap -> ParseResult (BindGroup Lang)
+renderToBinds :: FunMap -> TypeMap -> ParseResult [Bind Lang]
 renderToBinds funs tys = mapM toGroup names
   where
     names = L.nub $ mappend (Map.keys funs) (Map.keys tys)

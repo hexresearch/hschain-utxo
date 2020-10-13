@@ -143,19 +143,19 @@ data PatCase = PatCase
   , patCase'rhs :: Lang
   }
 
-toCaseLam :: forall m . MonadLang m => BindGroup Lang -> Pattern -> m Lang
+toCaseLam :: forall m . MonadLang m => [Bind Lang] -> Pattern -> m Lang
 toCaseLam whereExprs p = case args of
   [] -> fmap (addWhere whereExprs) $ toCaseBody p
   _  -> fmap ((\body -> Fix $ LamList noLoc args body) . addWhere whereExprs) $ toCaseBody p
   where
     args = fmap (\x -> PVar (getLoc x) x) $ V.toList $ pattern'args p
 
-addWhere ::  BindGroup Lang -> Lang -> Lang
+addWhere :: [Bind Lang] -> Lang -> Lang
 addWhere whereExprs = case whereExprs of
   [] -> id
   _  -> Fix . Let noLoc whereExprs
 
-addSingleWhere :: Maybe (BindGroup Lang) -> Lang -> Lang
+addSingleWhere :: Maybe [Bind Lang] -> Lang -> Lang
 addSingleWhere mWhere = maybe id (\x -> Fix . Let noLoc x) mWhere
 
 

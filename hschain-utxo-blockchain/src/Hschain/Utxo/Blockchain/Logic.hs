@@ -99,4 +99,4 @@ inMemoryView valSet0 = do
 
 
 processTransaction :: Tx -> BoxChain -> Either UtxoError BoxChain
-processTransaction tx st = either (Left . UtxoError) Right $ fst $ react tx st
+processTransaction tx st = either (Left . UtxoError) Right $ react tx st

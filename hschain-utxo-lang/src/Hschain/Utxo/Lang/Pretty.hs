@@ -57,10 +57,17 @@ instance Pretty Script where
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
     Right e -> fromString $ show (e :: ExprCore)
 
+instance Pretty IBox where
+  pretty (IBox boxId Box{..}) = prettyRecord "Box"
+    [ ("id"    , pretty boxId)
+    , ("value" , pretty box'value)
+    , ("script", pretty box'script)
+    , ("args"  , prettyArgs box'args)
+    ]
+
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
-      [ ("id"    , pretty box'id)
-      , ("value" , pretty box'value)
+      [ ("value" , pretty box'value)
       , ("script", pretty box'script)
       , ("args"  , prettyArgs box'args) ]
 
@@ -194,14 +201,11 @@ prettyId = \case
 prettyVec :: Doc ann -> Doc ann -> Doc ann
 prettyVec name n = hcat [name, brackets n]
 
-instance Pretty a => Pretty (BoxField a) where
-  pretty = prettyBoxField . fmap pretty
-
-prettyBoxField :: BoxField (Doc ann) -> Doc ann
-prettyBoxField = \case
-    BoxFieldId      -> "id"
-    BoxFieldValue   -> "value"
-    BoxFieldScript  -> "script"
+instance Pretty BoxField where
+  pretty = \case
+    BoxFieldId          -> "id"
+    BoxFieldValue       -> "value"
+    BoxFieldScript      -> "script"
     BoxFieldArgList tag -> pretty $ getBoxArgVar tag
 
 instance Pretty Error where
@@ -216,21 +220,12 @@ instance Pretty Error where
 
 instance Pretty ExecError where
   pretty = \case
-    AppliedNonFunction lang        -> err "Applied non-function" lang
     UnboundVariables vars          -> vcat $ fmap unboundedVar vars
     UndefinedRecordCons loc cons   -> hcat [pretty loc, ": undefined record constructor ", pretty cons]
     UndefinedReocrdField loc cons field
                                    -> hcat [pretty loc, ": undefined record field ", pretty field, " for constructor ", pretty cons]
-    ThisShouldNotHappen lang       -> err "This should not happen" lang
-    IllegalRecursion lang          -> err "Illegal recursion" lang
-    OutOfBound lang                -> err "Out of bound" lang
-    NoField txt                    -> err "No field" txt
-    Undefined loc                  -> hcat [pretty loc, ": undefined"]
-    NonExaustiveCase loc lang      -> hsep [hcat [pretty loc, ":"], err "Non-exaustive case-pattern" lang]
-    NoSigmaScript                  -> "Error: Script does not contain main function or does not terminate"
     FailedToDecodeScript           -> "Error: Failed to decode script"
     where
-      err msg val = hsep [mconcat [msg, ":"], pretty val]
       unboundedVar VarName{..} = hsep [hcat [pretty varName'loc, ":"], "Unbound variable:", pretty varName'name]
 
 instance Pretty PatError where

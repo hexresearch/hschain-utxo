@@ -78,7 +78,6 @@ data PrimOp a
   | OpGetBoxScript
   | OpGetBoxValue
   | OpGetBoxArgs !ArgType -- ^ Get arguments from box
-  | OpMakeBox
 
   | OpListMap    !a !a    -- ^ Map over list
   | OpListAt     !a       -- ^ Index list

@@ -29,7 +29,7 @@ import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (Box(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),IBox(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
 
 -- | Value hanled by evaluator
 data Val
@@ -227,10 +227,9 @@ evalPrimOp env = \case
       BoolArg  -> bools
       BytesArg -> bytes
     p -> ValBottom $ EvalErr $ "Not a box. Got " ++ show p
-  OpMakeBox -> Val2F $ \a b -> Val2F $ \c d -> ValCon 0 [a,b,c,d]
   --
-  OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
-  OpEnvGetSelf   -> inj $ inputEnv'self env
+  OpEnvGetHeight  -> ValP $ PrimInt $ inputEnv'height env
+  OpEnvGetSelf    -> inj $ inputEnv'self env
   OpEnvGetInputs  -> inj $ inputEnv'inputs  env
   OpEnvGetOutputs -> inj $ inputEnv'outputs env
   --
@@ -372,13 +371,17 @@ instance InjPrim a => InjPrim [a] where
 instance InjPrim a => InjPrim (V.Vector a) where
   inj = inj . V.toList
 
-instance InjPrim Box where
-  inj Box{..} = ValCon 0
-    [ inj $ unBoxId box'id
+instance InjPrim IBox where
+  inj (IBox boxId Box{..}) = ValCon 0
+    [ inj $ unBoxId boxId
     , inj $ unScript box'script
     , inj box'value
     , inj box'args
     ]
+
+-- | As a convenience we treat BoxInput as simply box
+instance InjPrim BoxInput where
+  inj BoxInput{..} = inj $ IBox boxInput'id boxInput'box
 
 instance InjPrim Args where
   inj Args{..} = ValCon 0

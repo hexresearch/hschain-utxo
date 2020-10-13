@@ -2,7 +2,6 @@
 module Hschain.Utxo.Lang.Exec.Module(
     evalModule
   , checkMainModule
-  , moduleToMainExpr
 ) where
 
 import Hex.Common.Text
@@ -36,7 +35,7 @@ evalModule' typeCtx Module{..} = runInferM $ do
   where
     userTypeCtx = userTypesToTypeContext module'userTypes
 
-    toModuleCtx :: BindGroup Lang -> InferM ModuleCtx
+    toModuleCtx :: [Bind Lang] -> InferM ModuleCtx
     toModuleCtx bs = fmap (\es -> ModuleCtx
       { moduleCtx'types = InferCtx ((H.Context $ M.fromList $ catMaybes types) <> userTypeCtx) module'userTypes
       , moduleCtx'exprs = ExecCtx (M.fromList es)

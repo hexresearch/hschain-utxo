@@ -25,6 +25,7 @@ library
                      , hschain-crypto
                      , hschain-utxo-lang
                      , data-fix
+                     , lens
                      , bytestring
                      , containers
                      , cryptonite

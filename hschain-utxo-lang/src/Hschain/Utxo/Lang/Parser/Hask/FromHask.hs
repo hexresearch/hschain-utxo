@@ -110,7 +110,7 @@ fromHaskModule = \case
   where
     err = ParseFailed (H.fromSrcInfo noLoc) "Failed to parse module"
 
-fromHaskDecl :: H.Decl Loc -> ParseResult (BindGroup Lang)
+fromHaskDecl :: H.Decl Loc -> ParseResult [Bind Lang]
 fromHaskDecl d = toBindGroup . return =<< toDecl d
 
 fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
@@ -238,10 +238,10 @@ fromPat topPat = case topPat of
       | null ps   = return x
       | otherwise = parseFailedBy (mconcat ["Constant pattern ", T.unpack consName'name, " should have no arguments"]) topPat
 
-fromBgs :: Lang -> BindGroup Lang -> Lang
+fromBgs :: Lang -> [Bind Lang] -> Lang
 fromBgs rhs bgs = Fix $ Let (HM.getLoc rhs) bgs rhs
 
-fromBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult (BindGroup Lang)
+fromBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult [Bind Lang]
 fromBinds topExp = \case
   H.BDecls _ decls -> toBindGroup =<< mapM toDecl decls
   _                -> parseFailedBy "Failed to parse binding group for expression" topExp

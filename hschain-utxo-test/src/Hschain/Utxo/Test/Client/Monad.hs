@@ -25,6 +25,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , newBlockChan
   , getBlockTChan
   , findTx
+  , txIsValid
 ) where
 
 import Hex.Common.Text
@@ -38,6 +39,7 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 
 import Data.Int
+import Data.Either
 import Data.Time
 import Data.Sequence (Seq)
 import Data.Text (Text)
@@ -49,6 +51,7 @@ import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build (pk', mainScriptUnsafe)
 import Hschain.Utxo.State.Types
+import Hschain.Utxo.State.React (react)
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Test.Client.Chan (BlockChan, getBlockTChan, findTx)
 
@@ -56,7 +59,6 @@ import qualified Hschain.Utxo.API.Client as C
 
 import qualified Hschain.Utxo.Test.Client.Chan as C
 
-import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -201,20 +203,24 @@ toHspec Test{..} =
 initGenesis :: Secret -> (Genesis, BoxId)
 initGenesis secret = ([tx], masterBoxId)
   where
-    masterBoxId = box'id $ V.head $ tx'outputs tx
-
-    tx = newTx $ Tx
+    masterBoxId = computeBoxId txId 0
+    txId        = computeTxId tx
+    tx = Tx
       { tx'inputs  = []
       , tx'outputs = [box]
       }
 
     publicKey = getPublicKey secret
 
-    box = PreBox
-      { preBox'value  = initMoney
-      , preBox'script = mainScriptUnsafe $ pk' publicKey
-      , preBox'args   = mempty
+    box = Box
+      { box'value  = initMoney
+      , box'script = mainScriptUnsafe $ pk' publicKey
+      , box'args   = mempty
       }
 
     initMoney = 1000000
+
+-- | Checks that TX is valid on current blockchain state without commiting it.
+txIsValid :: Tx -> App Bool
+txIsValid tx = fmap (isRight . react tx) getState
 

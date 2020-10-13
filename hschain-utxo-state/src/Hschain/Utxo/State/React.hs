@@ -6,80 +6,63 @@ module Hschain.Utxo.State.React(
 ) where
 
 import Control.Monad
+import Control.Lens
 
-import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgFromScript)
+import Hschain.Utxo.Lang.Core.Types
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck (typeCheck)
 import Hschain.Utxo.State.Types
 
-import qualified Data.List as L
 import qualified Data.Map.Strict as M
-import qualified Data.Vector as V
-
 import qualified Hschain.Utxo.Lang.Core.Eval as Core
 
 -- | React to single input transaction.
 -- It updates blockchain or reports error on commit of the transaction.
 -- Also it returns the text that contains debug-log for transaction execution.
-react :: Tx -> BoxChain -> (Either Text BoxChain, Text)
-react tx bch
-  | isValid   = (Right $ updateBoxChain tx bch, debugMsg)
-  | otherwise = (Left "Tx is invalid", debugMsg)
+react :: Tx -> BoxChain -> Either Text BoxChain
+react tx bch = do
+  txArg <- toTxArg bch tx
+  -- Inputs are valid
+  evalProveTx txArg
+  -- Spend scripts in outputs are decodable
+  forM_ (txArg'outputs txArg) $ \(IBox _ Box{..}) -> do
+    case coreProgFromScript box'script of
+      Nothing -> Left "Undecodable script"
+      Just prog -> case typeCheck prog of
+        Right SigmaT -> pure ()
+        Right BoolT  -> pure ()
+        Right _      -> Left "Invalid type in output script"
+        Left  err    -> Left $ renderText err
+  -- We're done
+  return $ updateBoxChain txArg bch
+
+updateBoxChain :: TxArg -> BoxChain -> BoxChain
+updateBoxChain TxArg{..}
+  = (boxChain'heightL %~ succ)
+  . insertOutputs
+  . removeInputs
   where
-    (isValid, debugMsg) = case toTxArg bch tx of
-        Right txArg -> checkTxArg txArg
-        Left err    -> (False, err)
-
-    checkTxArg txArg
-      | isValidTx           = (inputsAreValid, debugMsgInputs)
-      | not inputsAreValid  = (False, "Tx inputs are invalid")
-      | not outputsAreValid = (False, mconcat ["Tx output is invalid: ", maybe "" renderText mInvalidOutputId])
-      | otherwise           = (False, "TX is invalid")
-      where
-        isValidTx = inputsAreValid && outputsAreValid
-
-        (inputsAreValid, debugMsgInputs) = Core.evalProveTx txArg
-        -- todo: check here that script evaluates to boolean with type checker.
-        --       for now we check only that it parses
-        mInvalidOutput = L.find (isNothing . coreProgFromScript . box'script) $ checkOutputTxArg txArg
-        mInvalidOutputId = fmap box'id mInvalidOutput
-
-        outputsAreValid = isNothing mInvalidOutput && validateOutputBoxIds tx
-
-updateBoxChain :: Tx -> BoxChain -> BoxChain
-updateBoxChain Tx{..} = incrementHeight . insertOutputs . removeInputs
-  where
-    removeInputs = updateBoxes $ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
-
-    insertOutputs = updateBoxes $ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) box) tx'outputs)
-
-    updateBoxes f bch@BoxChain{..} = bch { boxChain'boxes = f boxChain'boxes }
-
-    incrementHeight bch@BoxChain{..} = bch { boxChain'height = 1 + boxChain'height }
+    removeInputs  = boxChain'boxesL %~ foldEndo (M.delete . boxInput'id) txArg'inputs
+    insertOutputs = boxChain'boxesL %~ foldEndo (\(IBox i b) -> M.insert i b) txArg'outputs
+    foldEndo f = appEndo . foldMap (Endo . f)
 
 
 -- | Run transaction in the current state of blockchain
 -- to get the sigma-expression of the evaluation of the transaction script.
 --
 -- Also it returns debug-log for transaction execution.
-execInBoxChain :: Tx -> BoxChain -> (Either Text (Vector BoolExprResult), Text)
-execInBoxChain tx bch = case toTxArg bch tx of
-  Right txArg ->  (either (Left . renderText) Right $ Core.evalToSigma txArg, fakeDebug)
-  Left err    -> (Left err, "No message")
-  where
-    -- | TODO: implement debug in core
-    fakeDebug = "no-debug"
+execInBoxChain :: Tx -> BoxChain -> Either Text (Vector BoolExprResult)
+execInBoxChain tx bch = do
+  txArg <- toTxArg bch tx
+  either (Left . renderText) Right $ Core.evalToSigma txArg
 
--- | We move outputs to inputs to check that expressions of outputs
--- are all valid and produce sigma expressions or booleans.
-checkOutputTxArg :: TxArg -> [Box]
-checkOutputTxArg TxArg{..} = V.toList txArg'outputs
 
 -- | Applies list of transactions to blockchain.
 applyTxs :: [Tx] -> BoxChain -> Either Text BoxChain
-applyTxs txs = foldl (>=>) pure $ fmap (fmap fst . react) txs
+applyTxs = foldl (>=>) pure . fmap react
 

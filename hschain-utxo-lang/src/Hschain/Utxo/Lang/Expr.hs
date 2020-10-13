@@ -31,7 +31,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes      (ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
-import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), Box(..), argTypes )
+import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes )
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -260,9 +260,9 @@ instance IsString Pat where
 
 -- | The type represents modules.
 data Module = Module
-  { module'loc       :: !Loc              -- ^ source code location
-  , module'userTypes :: !UserTypeCtx      -- ^ user-defined types
-  , module'binds     :: !(BindGroup Lang) -- ^ values (functions)
+  { module'loc       :: !Loc          -- ^ source code location
+  , module'userTypes :: !UserTypeCtx  -- ^ user-defined types
+  , module'binds     :: ![Bind Lang]  -- ^ values (functions)
   } deriving (Show)
 
 -- | Type context for inference algorithm
@@ -299,7 +299,7 @@ getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
 data Alt a = Alt
   { alt'pats  :: [Pat]      -- ^ arguments of the function
   , alt'expr  :: Rhs a      -- ^ right-hand side of the declaration
-  , alt'where :: Maybe (BindGroup a)  -- ^ 'where'-declarations (definitions local to the function)
+  , alt'where :: Maybe [Bind a]  -- ^ 'where'-declarations (definitions local to the function)
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
 
 -- | Right-hand side of the function definition.
@@ -313,9 +313,6 @@ data Guard a = Guard
   { guard'predicate :: a  -- ^ guard predicate expression
   , guard'rhs       :: a  -- ^ right-hand side expression
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
-
--- | List of binds or value definitions.
-type BindGroup a = [Bind a]
 
 -- | Value definition
 data Bind a = Bind
@@ -341,7 +338,7 @@ data E a
   -- ^ lambda-abstraction (@\pat -> expr@)
   | LamList Loc [Pat] a
   -- ^ lambda abstraction with list of arguments (@\pat1 pat2 pat3 -> expr@)
-  | Let Loc (BindGroup a) a
+  | Let Loc [Bind a] a
   -- ^ local bindings or let-expression: (@let v = a in expr@)
   | PrimLet Loc [(VarName, a)] a
   -- ^ Simplified Let-expression. All binding right hand sides are rendered to a single expression
@@ -432,12 +429,11 @@ data CaseExpr a
 
 -- | Expressions that operate on boxes.
 data BoxExpr a
-  = PrimBox Loc Box          -- ^ Primitive constant box
-  | BoxAt Loc a (BoxField a) -- ^ Box field getter
+  = BoxAt Loc a BoxField -- ^ Box field getter
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | It defines which values we can get from the box
-data BoxField a
+data BoxField
   = BoxFieldId
   -- ^ Get box identifier
   | BoxFieldValue
@@ -447,7 +443,7 @@ data BoxField a
   | BoxFieldArgList ArgType
   -- ^ Get box argument. It should be primitive value stored in the vector.
   -- We get the vector of primitive values stored by primitive-value tag.
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq)
 
 argTagToType :: ArgType -> Type
 argTagToType = \case
@@ -745,11 +741,6 @@ instance H.HasLoc (Bind a) where
   type Loc (Bind a) = Loc
   getLoc = H.getLoc . bind'name
 
-instance H.HasLoc (BindGroup Lang) where
-  type Loc (BindGroup Lang) = Loc
-  getLoc = \case
-    []  -> noLoc
-    a:_ -> H.getLoc a
 
 -------------------------------------------------------------------
 -- unique instances for Eq and Ord (ingnores source location)
@@ -799,7 +790,7 @@ freeVars = cata $ \case
   AltE _ a b       -> mappend a b
   FailCase _       -> Set.empty
   where
-    getBgNames :: BindGroup a -> Set VarName
+    getBgNames :: [Bind a] -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
 
     getPrimBgNames :: [(VarName, a)] -> Set VarName
@@ -839,7 +830,7 @@ freeVarsAlt Alt{..} =
 
 -- | Reorders binds by dependencies. First go binds with no deps then those
 -- that are dependent on them and so forth.
-sortBindGroups :: BindGroup Lang -> BindGroup Lang
+sortBindGroups :: [Bind Lang] -> [Bind Lang]
 sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
    where
      toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)
@@ -896,7 +887,6 @@ monoPrimopName = \case
   OpGetBoxScript -> Just Const.getBoxScript
   OpGetBoxValue  -> Just Const.getBoxValue
   OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
-  OpMakeBox      -> Just "Box"
   --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"
@@ -932,7 +922,7 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
-  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpMakeBox
+  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue
   , OpListSum
   , OpListAnd
   , OpListOr
@@ -958,7 +948,6 @@ $(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
-$(deriveShow1 ''BoxField)
 $(deriveShow1 ''TextExpr)
 $(deriveShow1 ''BytesExpr)
 $(deriveShow1 ''SigmaExpr)
