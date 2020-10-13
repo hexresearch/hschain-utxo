@@ -22,6 +22,7 @@ library
                        Hschain.Utxo.Test.Client.Proc
                        Hschain.Utxo.Test.Client.Scripts.AtomicSwap
                        Hschain.Utxo.Test.Client.Scripts.Channel
+                       Hschain.Utxo.Test.Client.Scripts.Lightning
                        Hschain.Utxo.Test.Client.Scripts.MultiSig
                        Hschain.Utxo.Test.Client.Scripts.PayForCofee
                        Hschain.Utxo.Test.Client.Scripts.ReversibleAddress
