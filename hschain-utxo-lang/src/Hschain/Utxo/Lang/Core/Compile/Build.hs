@@ -14,6 +14,7 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , getBoxId
   , getBoxScript
   , getBoxValue
+  , getBoxPostHeight
   , getBoxIntArgs
   , getBoxTextArgs
   , getBoxByteArgs
@@ -80,6 +81,9 @@ getBoxId = EAp (EPrimOp OpGetBoxId)
 
 getBoxValue :: ExprCore -> ExprCore
 getBoxValue = EAp (EPrimOp OpGetBoxValue)
+
+getBoxPostHeight :: ExprCore -> ExprCore
+getBoxPostHeight = EAp (EPrimOp OpGetBoxPostHeight)
 
 getBoxScript :: ExprCore -> ExprCore
 getBoxScript = EAp (EPrimOp OpGetBoxScript)

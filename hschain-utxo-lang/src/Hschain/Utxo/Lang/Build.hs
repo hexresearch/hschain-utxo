@@ -18,7 +18,7 @@ module Hschain.Utxo.Lang.Build(
   , sigmaOr
   , getHeight
   , getSelf, getInput, getOutput
-  , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList
+  , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList, getBoxPostHeight
   , getInputs, getOutputs
   , getIntVars, getBoolVars, getTextVars, getBytesVars
   , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
@@ -201,6 +201,9 @@ getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
 
 getBoxScript :: Expr Box -> Expr ByteString
 getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScript
+
+getBoxPostHeight :: Expr Box -> Expr Int
+getBoxPostHeight (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldPostHeight
 
 getBoxBytesArgList :: Expr Box -> Expr (Vector ByteString)
 getBoxBytesArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList BytesArg)

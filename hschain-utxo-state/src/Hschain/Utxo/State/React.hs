@@ -30,7 +30,7 @@ react tx bch = do
   -- Inputs are valid
   evalProveTx txArg
   -- Spend scripts in outputs are decodable
-  forM_ (txArg'outputs txArg) $ \(IBox _ Box{..}) -> do
+  forM_ (fmap (postBox'content . boxOutput'box) $ txArg'outputs txArg) $ \Box{..} -> do
     case coreProgFromScript box'script of
       Nothing -> Left "Undecodable script"
       Just prog -> case typeCheck prog of
@@ -42,15 +42,13 @@ react tx bch = do
   return $ updateBoxChain txArg bch
 
 updateBoxChain :: TxArg -> BoxChain -> BoxChain
-updateBoxChain TxArg{..}
+updateBoxChain TxArg{..} bch@BoxChain{..}
   = (boxChain'heightL %~ succ)
-  . insertOutputs
-  . removeInputs
+  $ insertOutputs
+  $ removeInputs bch
   where
-    removeInputs  = boxChain'boxesL %~ foldEndo (M.delete . boxInput'id) txArg'inputs
-    insertOutputs = boxChain'boxesL %~ foldEndo (\(IBox i b) -> M.insert i b) txArg'outputs
-    foldEndo f = appEndo . foldMap (Endo . f)
-
+    removeInputs  = boxChain'boxesL %~ appEndo (foldMap (Endo . M.delete . boxInput'id) txArg'inputs)
+    insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\BoxOutput{..} -> Endo $ M.insert boxOutput'id boxOutput'box) txArg'outputs)
 
 -- | Run transaction in the current state of blockchain
 -- to get the sigma-expression of the evaluation of the transaction script.

@@ -12,10 +12,10 @@ import qualified Data.Map.Strict as M
 -- | Get box by its identifier.
 getBox :: BoxChain -> BoxId -> Maybe Box
 getBox BoxChain{..} boxId =
-  M.lookup boxId boxChain'boxes
+  fmap postBox'content $ M.lookup boxId boxChain'boxes
 
 -- | Get value contained in the box by its identifier.
 getBoxBalance :: BoxChain -> BoxId -> Maybe Money
 getBoxBalance BoxChain{..} boxId =
-  fmap box'value $ M.lookup boxId boxChain'boxes
+  fmap (box'value . postBox'content) $ M.lookup boxId boxChain'boxes
 
