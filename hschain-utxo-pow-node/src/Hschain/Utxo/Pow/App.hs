@@ -147,10 +147,8 @@ genesis = POW.GBlock
   , blockData   = UTXOBlock
     { ubNonce = ""
     , ubProper = UTXOBlockProper
-      { ubpPrevious = Nothing
-      , ubpData     = merkled []
+      { ubpData     = merkled []
       , ubpTarget   = POW.Target $ 2^255
-      , ubpTime     = POW.Time 0
       }
     }
   }
@@ -176,10 +174,8 @@ createGenesis amount owner = do
            , POW.blockData   = UTXOBlock
                { ubNonce = ""
                , ubProper = UTXOBlockProper
-                   { ubpPrevious  = Nothing
-                   , ubpData      = merkled [tx]
-                   , ubpTime      = time
-                   , ubpTarget    = POW.Target $ 2^256 - 1
+                   { ubpData   = merkled [tx]
+                   , ubpTarget = POW.Target $ 2^256 - 1
                    }
                }
            }

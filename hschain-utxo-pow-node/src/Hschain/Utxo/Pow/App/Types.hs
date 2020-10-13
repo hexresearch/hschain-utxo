@@ -3,13 +3,6 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-
--- Please keep switched off -Wno-orphans.
--- We need an instance of CryptoHashable of elliptic curve
--- scalar (Ed.Scalarbelow ) provided by very much external package.
--- We cannot fork that package and add an instance there.
-
---{-# OPTIONS  -Wno-orphans                                    #-}
 {-# LANGUAGE DataKinds                                       #-}
 {-# LANGUAGE DeriveAnyClass, DerivingVia, DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts                                #-}
@@ -166,15 +159,11 @@ type Alg = Ed25519 :& SHA256
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
 data UTXOBlockProper f = UTXOBlockProper
-  { ubpPrevious   :: !(Maybe (POW.BlockID UTXOBlock))
-  -- ^Previous block.
-  , ubpData       :: !(MerkleNode f SHA256 [Tx])
+  { ubpData       :: !(MerkleNode f SHA256 [Tx])
   -- ^ List of key-value pairs
   , ubpTarget     :: !POW.Target
   -- ^ Current difficulty of mining. It means a complicated thing
   -- right now.
-  , ubpTime       :: !POW.Time
-  -- ^ Block creation time.
   }
   deriving stock (Generic)
 deriving stock instance (Show1 f)    => Show (UTXOBlockProper f)
@@ -182,17 +171,13 @@ deriving stock instance (IsMerkle f) => Eq   (UTXOBlockProper f)
 instance IsMerkle f => JSON.FromJSON (UTXOBlockProper f) where
   parseJSON = JSON.withObject "utxoblockproper" $ \bp ->
     UTXOBlockProper
-      <$> (bp JSON..: "previous")
-      <*> (bp JSON..: "data")
+      <$> (bp JSON..: "data")
       <*> (POW.Target <$> bp JSON..: "target")
-      <*> (bp JSON..: "time")
 instance IsMerkle f => JSON.ToJSON (UTXOBlockProper f) where
-  toJSON (UTXOBlockProper prev d (POW.Target t) time) =
+  toJSON (UTXOBlockProper d (POW.Target t)) =
     JSON.object
-      [ "previous" JSON..= prev
-      , "data" JSON..= d
+      [ "data"   JSON..= d
       , "target" JSON..= t
-      , "time" JSON..= time
       ]
 instance Serialise (UTXOBlockProper Identity)
 instance Serialise (UTXOBlockProper Proxy)
@@ -496,9 +481,7 @@ makeStateView bIdx0 overlay = sview where
           { ubNonce    = ""
           , ubProper   = UTXOBlockProper
                            { ubpData     = merkled blockTxs
-                           , ubpPrevious = Just $ POW.bhBID bh
                            , ubpTarget   = POW.retarget bh
-                           , ubpTime     = time
                            }
           }
     }
@@ -856,7 +839,7 @@ utxoBlockHeaderDecoder = do
   ubpData  <- fromHashed <$> fieldByteRepr
   ubpTarget <- fieldCBOR
   ubNonce   <- field
-  let ubProper = UTXOBlockProper prevBlock ubpData ubpTarget blockTime
+  let ubProper = UTXOBlockProper ubpData ubpTarget
   return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
 
 -- Initialize database for mock coin blockchain
