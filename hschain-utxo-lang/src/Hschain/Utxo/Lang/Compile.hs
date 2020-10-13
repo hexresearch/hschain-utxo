@@ -19,7 +19,7 @@ import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
+-- import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 
@@ -44,41 +44,48 @@ compile
 -- | Perform sunbstiturion of primops
 substPrimOp :: ExprCore -> ExprCore
 substPrimOp
-  = go
-  where
-    go = RS.cata $ \case
-      Core.EVarF v
-        | Just op <- Map.lookup v monoPrimopNameMap
-          -> Core.EPrimOp op
-      e -> RS.embed e
+  = undefined -- go
+  -- where
+  --   go = RS.cata $ \case
+  --     Core.EVarF v
+  --       | Just op <- Map.lookup v monoPrimopNameMap
+  --         -> Core.EPrimOp op
+  --     e -> RS.embed e
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
 toCoreProg :: MonadLang m => TypedLamProg -> m ExprCore
 toCoreProg = fromDefs . unAnnLamProg
 
+bind1 :: a -> Core.Core Core.BindName a -> Core.Scope Core.BindName 'Core.One a
+bind1 nm = Core.Scope (Core.BindName1 nm)
+
+bindN :: [a] -> Core.Core Core.BindName a -> Core.Scope Core.BindName 'Core.Many a
+bindN nm = Core.Scope (Core.BindNameN nm)
+
 fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m ExprCore
 fromDefs [] = throwError $ PatError MissingMain
 fromDefs (Def{..}:rest)
   | def'name == "main" = body
-  | otherwise          = Core.ELet (varName'name def'name) <$> body <*> fromDefs rest
+  | otherwise          = Core.ELet <$> body <*> (bind1 (varName'name def'name) <$> fromDefs rest)
   where
     body = go def'args
       where
         go []                   = toCoreExpr def'body
-        go (Typed nm ty : args) = Core.ELam nm <$> toCoreType ty <*> go args
+        go (Typed nm ty : args) = Core.ELam <$> toCoreType ty <*> (bind1 nm <$> go args)
 
 toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
 toCoreExpr = cataM convert
   where
-    convert (Ann exprTy val) = case val of
-      EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
+    convert (Ann _exprTy val) = case val of
+      -- FIXME: specialization of polymorphic variables is completely broken
+      EVar _ name          -> pure $ Core.EVar name
       EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
       EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
       EAp _  f a           -> pure $ Core.EAp f a
       -- FIXME: We don't take recurion between let bindings into account
       ELet _ binds body    -> pure $
-        let addLet (nm, e) = Core.ELet (typed'value nm) e
+        let addLet (nm, e) = Core.ELet e . bind1 (typed'value nm)
         in foldr addLet body binds
       ELam _ xs body       -> toLambda xs body
       EIf _ c t e          -> pure $ Core.EIf c t e
@@ -89,24 +96,27 @@ toCoreExpr = cataM convert
       EBottom _            -> pure $ Core.EBottom
     
     convertAlt CaseAlt{..} = return Core.CaseAlt
-      { caseAlt'args = typed'value <$> caseAlt'args
+      { caseAlt'rhs = bindN (typed'value <$> caseAlt'args) caseAlt'rhs
       , ..
       }
     toLambda []                  body = pure body
     toLambda (Typed x ty : vars) body = do
       e   <- toLambda vars body
       ty' <- toCoreType ty
-      pure $ Core.ELam x ty' e
-    typeCtx = mempty
+      pure $ Core.ELam ty' (bind1 x e)
+
 
 resultType :: TypeCore -> TypeCore
 resultType (_ :-> b) = resultType b
 resultType  a        = a
 
+{-
+-- FIXME: specialization of polymorphic variables is completely broken
+
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
 -- We need to think on more generic rule for substitution like this.
-specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m ExprCore
+specifyPolyFun :: MonadLang m => Loc -> Map.Map Name () -> H.Type () Name -> Name -> m ExprCore
 specifyPolyFun loc ctx ty name = do
   case lookupSignature name ctx of
     Just sig -> fromSignature $ H.monoT $ typeCoreToType sig
@@ -127,7 +137,7 @@ specifyPolyFun loc ctx ty name = do
       case mapM (H.applyToVar subst) argOrder of
         Just _  -> failedToFindMonoType loc name
         Nothing -> failedToFindMonoType loc name
-
+-}
 
 toCoreType :: MonadLang m => H.Type loc Name -> m TypeCore
 toCoreType (H.Type ty) = cataM go ty
