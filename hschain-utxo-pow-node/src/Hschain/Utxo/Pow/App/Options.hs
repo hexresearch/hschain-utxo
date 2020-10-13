@@ -7,10 +7,10 @@ import Data.Word
 import Options.Applicative
 
 readCommandOptions :: IO Command
-readCommandOptions = execParser $ info opts fullDesc
+readCommandOptions = execParser $ info (helper <*> opts) fullDesc
   where
     opts = subparser
-            (  command "node" runNode
+            (  command "node"   runNode
             <> command "genkey" genKey
             )
     runNode = info (runNodeOptions <**> helper)
