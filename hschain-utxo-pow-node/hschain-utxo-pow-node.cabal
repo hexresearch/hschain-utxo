@@ -85,24 +85,3 @@ executable hschain-utxo-pow-node-app
   hs-source-dirs:      app
   default-language:    Haskell2010
 
-executable hschain-utxo-pow-generate-genesis
-  main-is:             Genesis.hs
-  -- other-modules:
-  -- other-extensions:
-  build-depends:       base >=4.11 && <5
-                     , aeson
-                     , aeson-pretty
-                     , bytestring
-                     , containers
-                     , data-default
-                     , data-fix
-                     , hschain-utxo-lang
-                     , hschain-utxo-pow-node
-                     , hschain-PoW
-                     , hschain-merkle
-                     , vector
-  hs-source-dirs:      app
-  default-language:    Haskell2010
-  default-extensions:
-    OverloadedStrings
-
