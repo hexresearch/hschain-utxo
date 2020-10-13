@@ -3,13 +3,6 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-
--- Please keep switched off -Wno-orphans.
--- We need an instance of CryptoHashable of elliptic curve
--- scalar (Ed.Scalarbelow ) provided by very much external package.
--- We cannot fork that package and add an instance there.
-
-{-# OPTIONS  -Wno-orphans               #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE DataKinds, ScopedTypeVariables, TypeApplications #-}
