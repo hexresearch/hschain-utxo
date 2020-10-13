@@ -1,9 +1,9 @@
 -- | Estimates the cost of execution of core-script
 module Hschain.Utxo.Lang.Core.Cost(
-    Cost(..)
-  , getProgCost
+  --   Cost(..)
+  -- , getProgCost
 ) where
-
+{-
 import Control.Applicative
 
 import Data.Fix
@@ -151,3 +151,4 @@ primOpToCost op
       OpListFilter _   -> True
       _                -> False
 
+-}
