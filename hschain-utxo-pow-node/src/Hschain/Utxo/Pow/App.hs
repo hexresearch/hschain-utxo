@@ -153,34 +153,6 @@ genesis = POW.GBlock
     }
   }
 
--- |Create a genesis block with single transaction
-createGenesis :: Money -> PublicKey -> IO Genesis
-createGenesis amount owner = do
-  time <- POW.getCurrentTime
-  let tx = Tx
-           { tx'inputs = V.empty
-           , tx'outputs = V.fromList
-                            [ Box
-                                { box'value  = amount
-                                , box'script = mainScriptUnsafe $ pk' owner
-                                , box'args   = mempty
-                                }
-                            ]
-           }
-  return $ POW.GBlock
-           { POW.blockHeight = POW.Height 0
-           , POW.blockTime   = time
-           , POW.prevBlock   = Nothing
-           , POW.blockData   = UTXOBlock
-               { ubNonce = ""
-               , ubProper = UTXOBlockProper
-                   { ubpData   = merkled [tx]
-                   , ubpTarget = POW.Target $ 2^256 - 1
-                   }
-               }
-           }
-  where
-
 
 -------------------------------------------------------------------------------
 -- Node.
