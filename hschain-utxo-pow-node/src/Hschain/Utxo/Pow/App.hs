@@ -154,8 +154,7 @@ createGenesis amount owner = do
            { tx'inputs = V.empty
            , tx'outputs = V.fromList
                             [ Box
-                                { box'id     = BoxId $ hash $ BS.pack $ map (fromIntegral . fromEnum) $ "genesis:"++show time
-                                , box'value  = amount
+                                { box'value  = amount
                                 , box'script = mainScriptUnsafe $ pk' owner
                                 , box'args   = mempty
                                 }

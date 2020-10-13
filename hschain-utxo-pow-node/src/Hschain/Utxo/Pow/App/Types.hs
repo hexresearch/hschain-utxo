@@ -479,8 +479,7 @@ makeStateView bIdx0 overlay = sview where
         let (commissions, txs) = unzip commissionsTxs
             commission = sum commissions
             coinbaseBox = Box
-                          { box'id     = BoxId $ hash $ BS.pack $ map (fromIntegral . fromEnum) $ "reward:height:"++show (POW.bhHeight bh)
-                          , box'value  = miningRewardAmount + commission
+                          { box'value  = miningRewardAmount + commission
                           , box'script = mainScriptUnsafe true
                           , box'args   = mempty
                           }
@@ -580,9 +579,11 @@ processTX pathInDB overlay tx@Tx{..} = do
       outputsSum = sum $ fmap box'value tx'outputs
   -- Update overlay
   let overlay1 = foldl' (\o (boxid,u) -> spendBox boxid u o) overlay inputs
-      overlay2 = foldl' (\o (boxid,u) -> createUnspentBox boxid u o) overlay1 $
-                        V.map (\b -> (box'id b, b)) tx'outputs
+      overlay2 = foldl' (\o (boxid,u) -> createUnspentBox boxid u o) overlay1
+               $ V.imap (\i b -> (computeBoxId txId (fromIntegral i), b)) tx'outputs
   return (outputsSum - inputsSum, overlay2)
+  where
+    txId = computeTxId tx
 
 -- | We check transactions in block as a whole.
 --
