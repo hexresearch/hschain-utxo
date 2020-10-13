@@ -882,8 +882,8 @@ initUTXODB = mustQueryRW $ do
   basicExecute_
     "CREATE TABLE IF NOT EXISTS utxo_set \
     \  ( utxo_id INTEGER PRIMARY KEY \
-    \  , box_id BLOB NOT NULL \
-    \  , box BLOB NOT NULL \
+    \  , box_id BLOB NOT NULL UNIQUE \
+    \  , box    BLOB NOT NULL \
     \)"
   -- UTXO's created in given block. Due to blockchain reorganizations
   -- same UTXO may appear in several blocks
