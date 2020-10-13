@@ -59,7 +59,6 @@ import qualified Hschain.Utxo.API.Client as C
 
 import qualified Hschain.Utxo.Test.Client.Chan as C
 
-import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -204,19 +203,19 @@ toHspec Test{..} =
 initGenesis :: Secret -> (Genesis, BoxId)
 initGenesis secret = ([tx], masterBoxId)
   where
-    masterBoxId = box'id $ V.head $ tx'outputs tx
-
-    tx = newTx $ Tx
+    masterBoxId = computeBoxId txId 0
+    txId        = computeTxId tx
+    tx = Tx
       { tx'inputs  = []
       , tx'outputs = [box]
       }
 
     publicKey = getPublicKey secret
 
-    box = PreBox
-      { preBox'value  = initMoney
-      , preBox'script = mainScriptUnsafe $ pk' publicKey
-      , preBox'args   = mempty
+    box = Box
+      { box'value  = initMoney
+      , box'script = mainScriptUnsafe $ pk' publicKey
+      , box'args   = mempty
       }
 
     initMoney = 1000000

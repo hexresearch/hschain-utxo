@@ -14,6 +14,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
+import TM.Core.Common (mkBoxInput, mkBoxOutput)
 
 blockChainHeight :: Int64
 blockChainHeight = 10
@@ -27,25 +28,20 @@ txEnv = InputEnv
   , inputEnv'args    = intArgs [1,2,3] <> textArgs ["alice", "bob"] <> boolArgs [True, False]
   }
   where
-    post box = PostBox box 1
-
-    in1 = post $ Box
-      { box'id     = BoxId $ Hash "box-1"
-      , box'value  = 1
+    in1 = mkBoxInput (BoxId $ Hash "box-1") Box
+      { box'value  = 1
       , box'script = Script "in1"
       , box'args   = intArgs [4,5]
       }
 
-    in2 = post $ Box
-      { box'id     = BoxId $ Hash "box-2"
-      , box'value  = 2
+    in2 = mkBoxInput (BoxId $ Hash "box-2") Box
+      { box'value  = 2
       , box'script = Script "in2"
       , box'args   = intArgs [6,7] <> textArgs ["john", "neil"]
       }
 
-    out1 = post $ Box
-      { box'id     = BoxId $ Hash "box-3"
-      , box'value  = 3
+    out1 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-3") Box
+      { box'value  = 3
       , box'script = Script "out1"
       , box'args   = intArgs [8,9]
       }

@@ -29,7 +29,7 @@ import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (Box(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..),PostBox(..))
+import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
 
 -- | Value hanled by evaluator
 data Val
@@ -231,8 +231,8 @@ evalPrimOp env = \case
     ValCon 0 [_,_,_,_,b] -> b
     x                    -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
   --
-  OpEnvGetHeight -> ValP $ PrimInt $ inputEnv'height env
-  OpEnvGetSelf   -> inj $ inputEnv'self env
+  OpEnvGetHeight  -> ValP $ PrimInt $ inputEnv'height env
+  OpEnvGetSelf    -> inj $ inputEnv'self env
   OpEnvGetInputs  -> inj $ inputEnv'inputs  env
   OpEnvGetOutputs -> inj $ inputEnv'outputs env
   --
@@ -374,14 +374,25 @@ instance InjPrim a => InjPrim [a] where
 instance InjPrim a => InjPrim (V.Vector a) where
   inj = inj . V.toList
 
-instance InjPrim PostBox where
-  inj PostBox{..} = ValCon 0
-    [ inj $ unBoxId $ box'id postBox'content
+instance InjPrim BoxId where
+  inj (BoxId a) = inj a
+
+instance InjPrim (BoxId, PostBox) where
+  inj (boxId, PostBox{..}) = ValCon 0
+    [ inj boxId
     , inj $ unScript $ box'script postBox'content
     , inj $ box'value postBox'content
     , inj $ box'args postBox'content
     , inj postBox'height
     ]
+
+-- | As a convenience we treat BoxInput as simply box
+instance InjPrim BoxInput where
+  inj BoxInput{..} = inj (boxInput'id, boxInput'box)
+
+-- | As a convenience we treat BoxInput as simply box
+instance InjPrim BoxOutput where
+  inj BoxOutput{..} = inj (boxOutput'id, boxOutput'box)
 
 instance InjPrim Args where
   inj Args{..} = ValCon 0

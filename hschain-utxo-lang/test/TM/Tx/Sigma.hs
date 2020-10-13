@@ -13,18 +13,12 @@ import Hschain.Utxo.Lang.Types
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
-  [ testCase "verify correct box identifiers"                $ ( @=? True)  =<< verifyValidBoxIds
-  , testCase "verify correct single owner script"            $ ( @=? True)  =<< verifyAliceTx
+  [ testCase "verify correct single owner script"            $ ( @=? True)  =<< verifyAliceTx
   , testCase "verify broken tx"                              $ ( @=? False) =<< verifyBrokenTx
   ]
 
-verifyValidBoxIds :: IO Bool
-verifyValidBoxIds = do
-  tx <- fmap fst initTx
-  return $ validateOutputBoxIds tx
-
 -- | Inits transaction that is owned by alice and has correct proof.
-initTx :: IO (Tx, GTx (Sigma PublicKey) PreBox)
+initTx :: IO (Tx, GTx (Sigma PublicKey) Box)
 initTx = do
   aliceSecret <- newSecret
   let alicePubKey = getPublicKey aliceSecret
@@ -34,10 +28,10 @@ initTx = do
   where
     tx pubKey = Tx
       { tx'inputs  = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
-      , tx'outputs = return $ PreBox
-          { preBox'value  = 1
-          , preBox'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
-          , preBox'args   = mempty
+      , tx'outputs = return $ Box
+          { box'value  = 1
+          , box'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
+          , box'args   = mempty
           }
       }
 

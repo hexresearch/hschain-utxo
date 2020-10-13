@@ -88,19 +88,27 @@ evaluate env types expr = runExec $ do
 
 defaultInputEnv :: InputEnv
 defaultInputEnv = InputEnv
-  { inputEnv'height  = defHeight
-  , inputEnv'self    = post self
-  , inputEnv'inputs  = V.fromList [post self]
-  , inputEnv'outputs = V.fromList [post self]
+  { inputEnv'height  = 0
+  , inputEnv'self    = BoxInput
+    { boxInput'id      = bid
+    , boxInput'box     = post self
+    , boxInput'args    = mempty
+    , boxInput'proof   = Nothing
+    , boxInput'sigMask = SigAll
+    , boxInput'sigMsg  = SigMessage $ hashBlob "SIGNME"
+    }
+  , inputEnv'inputs  = V.fromList []
+  , inputEnv'outputs = V.fromList []
   , inputEnv'args    = mempty
   }
   where
     defHeight = 0
     post box = PostBox box defHeight
 
+    bid  = BoxId $ hashBlob "default-input-box"
+
     self = Box
-      { box'id     = BoxId $ hashBlob "default-input-box"
-      , box'value  = 1
+      { box'value  = 1
       , box'script = Script BS.empty
       , box'args   = mempty
       }

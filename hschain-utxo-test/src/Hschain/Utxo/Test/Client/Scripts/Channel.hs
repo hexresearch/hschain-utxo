@@ -148,15 +148,19 @@ isRevoceTx :: RevoceBoxes -> Tx -> IO Bool
 isRevoceTx (RevoceBoxes tv) tx = fmap containsRevoceBox $ readTVarIO tv
   where
     containsRevoceBox m = any (\boxId -> M.member boxId m) boxIds
-
-    boxIds = fmap box'id $ tx'outputs tx
+    txId   = computeTxId tx
+    boxIds = V.imap (\i _ -> computeBoxId txId (fromIntegral i)) $ tx'outputs tx
 
 getRevoceBoxForTx :: RevoceBoxes -> Tx -> IO (Maybe RevoceBox)
 getRevoceBoxForTx (RevoceBoxes tv) tx = do
   m <- readTVarIO tv
-  return $ firstJust (\boxId -> M.lookup boxId m) boxIds
+  return $ firstJust (\boxId -> M.lookup boxId m)
+         $ V.toList
+         $ V.imap (\i _ -> computeBoxId txId (fromIntegral i))
+         $ tx'outputs tx
   where
-    boxIds = V.toList $ fmap box'id $ tx'outputs tx
+    txId = computeTxId tx
+
 
 
 
@@ -183,7 +187,7 @@ type Move = Int64
 type Balance = (Int64, Int64)
 
 data OffChain = OffChain
-  { offChain'tx        :: !PreTx
+  { offChain'tx        :: !Tx
   , offChain'revoceKey :: !ByteString
   } deriving (Show, Eq)
 
@@ -239,9 +243,9 @@ channelExchangeUnfair = do
   _ <- signDeal game (7, 3)
   void $ postTxDebug True "Alice posts unfair TX" txAlice
   sleep 1
-  let outputs = tx'outputs txAlice
-      boxId1 = box'id $ outputs V.! 0
-      boxId2 = box'id $ outputs V.! 1
+  let txAliceId = computeTxId txAlice
+      boxId1 = computeBoxId txAliceId 0
+      boxId2 = computeBoxId txAliceId 1
       johnPubKey = getWalletPublicKey john
   logTest $ renderText txAlice
   simpleSpendTo False "alice can not spend output 1"
@@ -295,7 +299,7 @@ saveSignedTx :: Player -> Tx -> App ()
 saveSignedTx (Player tv) tx = liftIO $ atomically $ modifyTVar' tv $ \env ->
   env { playerEnv'prevSignedTx = Just tx }
 
-signOffChainTx :: Player -> Player -> PreTx -> App Tx
+signOffChainTx :: Player -> Player -> Tx -> App Tx
 signOffChainTx (Player me) (Player other) preTx = liftIO $ do
   myEnv <- readTVarIO me
   otherEnv <- readTVarIO other
@@ -305,7 +309,7 @@ signOffChainTx (Player me) (Player other) preTx = liftIO $ do
       myKeys = [myPk]
       otherKeys = [otherPk]
       commonScript = playerEnv'commonScript myEnv
-      message = getSigMessagePreTx SigAll preTx
+      message = getSigMessageTx SigAll preTx
       myProofEnv = getProofEnv $ playerEnv'wallet myEnv
       otherProofEnv = getProofEnv $ playerEnv'wallet otherEnv
   proof <- fmap eitherToMaybe $ runProve $ do
@@ -318,11 +322,11 @@ signOffChainTx (Player me) (Player other) preTx = liftIO $ do
     otherResponses <- queryResponses otherProofEnv otherSecret   challenges
     proof <- appendResponsesToProof [(myKeys, myResponses), (otherKeys, otherResponses)]
     return proof
-  return $ newTx $ appendProof proof preTx
+  return $ appendProof proof preTx
   where
     appendProof proof tx@Tx{..} = tx { tx'inputs = fmap (\ref -> ref { boxInputRef'proof = proof }) tx'inputs }
 
-makeNewOffChainTx :: Player -> Balance -> App (PreTx, RevoceSecret)
+makeNewOffChainTx :: Player -> Balance -> App (Tx, RevoceSecret)
 makeNewOffChainTx (Player tv) balance = liftIO $ do
   revoceSecret <- generateRevoceSecret
   atomically $ do
@@ -359,7 +363,7 @@ extractRevoceBox p secret = do
     extract PlayerEnv{..} = fmap txAndSecretToRevoceBox $ playerEnv'prevSignedTx
       where
         txAndSecretToRevoceBox tx@Tx{..} = RevoceBox
-          { revoceBox'id     = box'id box
+          { revoceBox'id     = computeBoxId (computeTxId tx) 0
           , revoceBox'value  = box'value box
           , revoceBox'secret = secret
           , revoceBox'tx     = Hidden tx
@@ -421,10 +425,10 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
       }
 
     -- | Pays to me delayed by postDelay and partner with revoce key can claim it
-    myBox = PreBox
-      { preBox'value  = myValue
-      , preBox'script = mainScriptUnsafe revoceScript
-      , preBox'args   = mempty
+    myBox = Box
+      { box'value  = myValue
+      , box'script = mainScriptUnsafe revoceScript
+      , box'args   = mempty
       }
 
     revoceScript =
@@ -436,17 +440,17 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
     readKey = listAt getBytesVars 0
 
     -- | Pays to partner right away
-    partnerBox = PreBox
-      { preBox'value  = partnerValue
-      , preBox'script = mainScriptUnsafe $ pk' partnerPk
-      , preBox'args   = mempty
+    partnerBox = Box
+      { box'value  = partnerValue
+      , box'script = mainScriptUnsafe $ pk' partnerPk
+      , box'args   = mempty
       }
 
 getRevoceTx :: Wallet -> RevoceBox -> App (Tx, BoxId)
 getRevoceTx wallet RevoceBox{..} =
   fmap appendBoxId $ newProofTx (getProofEnv wallet) preTx
   where
-    appendBoxId tx@Tx{..} = (tx, box'id $ tx'outputs V.! 0)
+    appendBoxId tx@Tx{..} = (tx, computeBoxId (computeTxId tx) 0)
 
     preTx = Tx
       { tx'inputs  = [inputRef]

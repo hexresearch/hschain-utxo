@@ -15,30 +15,26 @@ module Hschain.Utxo.Lang.Types
   , argTypes
     -- * Blockchain state manipulation
   , InputEnv(..)
+  , IBox(..)
   , TxArg(..)
   , buildTxArg
   , BoxInput(..)
+  , BoxOutput(..)
   , SigMask(..)
   , signAll
   , ExpectedBox
   , Env(..)
-  , PreTx
   , TxHash(..)
-  , PreBox(..)
   , PostBox(..)
     -- * Functions
-  , newTx
   , newProofTx
   , newProofTxOrFail
   , hashScript
   , getInputEnv
   , txPreservesValue
   , computeTxId
-  , computePreTxId
   , SigMessage(..)
   , getSigMessageTx
-  , getSigMessagePreTx
-  , validateOutputBoxIds
     -- * Helperes
   , singleOwnerInput
   ) where
@@ -55,7 +51,6 @@ import Data.Bifunctor
 import Data.Coerce
 import Data.Fix
 import Data.Int
-import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
@@ -68,6 +63,7 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
+import qualified Data.List as L
 import qualified Data.Vector as V
 
 -- | Type synonym for money values
@@ -129,25 +125,17 @@ newtype Script = Script { unScript :: ByteString }
 -- We use boxes as inputs for transaction and create new output boxes
 -- when script is correct.
 data Box = Box
-  { box'id     :: !BoxId    -- ^ box identifier
-  , box'value  :: !Money    -- ^ Value of the box
+  { box'value  :: !Money    -- ^ Value of the box
   , box'script :: !Script   -- ^ Protecting script
   , box'args   :: !Args     -- ^ arguments for the script
   }
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
 
-
--- | PreBox holds all meaningfull data of the Box.
--- we use it to get Hashes for transaction and Box itself.
--- Comparing to Box it omits identifier that is generated from PreBox
--- and origin that can be derived from TX identifier (hash of @getTxBytes tx@).
-data PreBox = PreBox
-  { preBox'value  :: !Money    -- ^ Value of the box
-  , preBox'script :: !Script   -- ^ Protecting script
-  , preBox'args   :: !Args     -- ^ arguments for the script
-  }
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+-- | Box with box ID. We use this data type instead of a type chiefly
+--   in order to facilitate type-class based dispatch in evaluator.
+data IBox = IBox BoxId Box
+  deriving stock (Show, Eq, Ord, Generic)
 
 -- | Box and relevant information that is aquired at TX-post time.
 data PostBox = PostBox
@@ -188,7 +176,6 @@ data GTx i o = Tx
 
 -- | Transaction which is part of block and which are exchanged between clients
 type Tx    = GTx Proof Box
-type PreTx = GTx Proof PreBox
 
 data TxSizes = TxSizes
   { txSizes'inputs  :: !Int
@@ -267,21 +254,8 @@ signAll TxSizes{..} =
     , sigMask'outputs = V.replicate txSizes'outputs True
     }
 
-getPreTx :: Tx -> PreTx
-getPreTx = fmap toPreBox
-
-toPreBox :: Box -> PreBox
-toPreBox Box{..} = PreBox
-  { preBox'value  = box'value
-  , preBox'script = box'script
-  , preBox'args   = box'args
-  }
-
-computeTxId :: Tx -> TxId
-computeTxId = computePreTxId . getPreTx
-
-computePreTxId :: GTx a PreBox -> TxId
-computePreTxId Tx{..}
+computeTxId :: GTx a Box -> TxId
+computeTxId Tx{..}
   = TxId . hashBuilder
   $ hashStep (UserType hashDomain "Tx")
  <> hashStepFoldableWith stepIn  tx'inputs
@@ -291,11 +265,8 @@ computePreTxId Tx{..}
                            <> hashStep boxInputRef'args
     stepOut = hashStep
 
-getSigMessageTx :: SigMask -> Tx -> SigMessage
-getSigMessageTx mask = getSigMessagePreTx mask . getPreTx
-
-getSigMessagePreTx :: SigMask -> GTx a PreBox -> SigMessage
-getSigMessagePreTx mask Tx{..}
+getSigMessageTx :: SigMask -> GTx a Box -> SigMessage
+getSigMessageTx mask Tx{..}
    = SigMessage . hashBuilder
    $ hashStep (UserType hashDomain "Tx")
   <> hashStepFoldableWith stepIn  (filterIns  tx'inputs)
@@ -318,18 +289,27 @@ filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
   { txArg'inputs       :: !(Vector BoxInput)
-  , txArg'outputs      :: !(Vector Box)
+  , txArg'outputs      :: !(Vector BoxOutput)
   , txArg'env          :: !Env
+  , txArg'id           :: !TxId
   }
   deriving (Show, Eq)
 
 -- | Information relevant to proof of the spend script
 data BoxInput = BoxInput
   { boxInput'box     :: !PostBox
+  , boxInput'id      :: !BoxId
   , boxInput'args    :: !Args
   , boxInput'proof   :: !(Maybe Proof)
   , boxInput'sigMask :: !SigMask
   , boxInput'sigMsg  :: !SigMessage
+  }
+  deriving (Show, Eq, Generic)
+
+-- | Information relevant to script for outputs
+data BoxOutput = BoxOutput
+  { boxOutput'box    :: !PostBox
+  , boxOutput'id     :: !BoxId
   }
   deriving (Show, Eq, Generic)
 
@@ -343,16 +323,23 @@ buildTxArg
 buildTxArg lookupBox env tx@Tx{..} = do
   inputs <- forM tx'inputs $ \BoxInputRef{..} -> do
     box <- lookupBox boxInputRef'id
-    pure BoxInput { boxInput'box     = box
+    pure BoxInput { boxInput'id      = boxInputRef'id
+                  , boxInput'box     = box
                   , boxInput'args    = boxInputRef'args
                   , boxInput'proof   = boxInputRef'proof
                   , boxInput'sigMask = boxInputRef'sigMask
                   , boxInput'sigMsg  = getSigMessageTx boxInputRef'sigMask tx
                   }
   pure TxArg { txArg'inputs   = inputs
-             , txArg'outputs  = tx'outputs
+             , txArg'outputs  = V.imap (\i b -> let boxId = computeBoxId txId (fromIntegral i)
+                                                in  BoxOutput (PostBox b height) boxId
+                                       ) tx'outputs
              , txArg'env      = env
+             , txArg'id       = txId
              }
+  where
+    txId = computeTxId tx
+    height = env'height env
 
 -- | Blockchain environment variables.
 data Env = Env
@@ -363,30 +350,28 @@ data Env = Env
 -- during execution of the script.
 data InputEnv = InputEnv
   { inputEnv'height  :: !Int64
-  , inputEnv'self    :: !PostBox
-  , inputEnv'inputs  :: !(Vector PostBox)
-  , inputEnv'outputs :: !(Vector PostBox)
+  , inputEnv'self    :: !BoxInput
+  , inputEnv'inputs  :: !(Vector BoxInput)
+  , inputEnv'outputs :: !(Vector BoxOutput)
   , inputEnv'args    :: !Args
   }
   deriving (Show, Eq)
 
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
-  { inputEnv'self    = boxInput'box input
-  , inputEnv'height  = height
-  , inputEnv'inputs  = boxInput'box <$> txArg'inputs
-  , inputEnv'outputs = (\box -> PostBox box height) <$> txArg'outputs
+  { inputEnv'self    = input
+  , inputEnv'height  = env'height txArg'env
+  , inputEnv'inputs  = txArg'inputs
+  , inputEnv'outputs = txArg'outputs
   , inputEnv'args    = boxInput'args input
   }
-  where
-    height = env'height txArg'env
 
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True
-  | otherwise       = toSum (postBox'content . boxInput'box <$> txArg'inputs) == toSum txArg'outputs
+  | otherwise       = sumWith (box'value . postBox'content . boxInput'box) txArg'inputs == sumWith (box'value . postBox'content . boxOutput'box) txArg'outputs
   where
-    toSum xs = getSum $ foldMap (Sum . box'value) xs
+    sumWith f = L.foldl' (\acc x -> acc + f x) 0
 
 isStartEpoch :: TxArg -> Bool
 isStartEpoch TxArg{..} = env'height txArg'env == 0
@@ -394,40 +379,20 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 ---------------------------------------------------------------------
 -- smartconstructors to create boxes and transactions
 
--- | Creates TX and assigns properly all box identifiers.
--- It does not create the proofs.
-newTx :: PreTx -> Tx
-newTx tx = tx { tx'outputs = makeOutputs txId $ tx'outputs tx
-              }
-  where
-    txId = computePreTxId tx
-
-makeOutputs :: TxId -> Vector PreBox -> Vector Box
-makeOutputs txId outputs = V.imap toBox outputs
-  where
-    toBox outputIndex PreBox{..} = Box
-      { box'id     = boxId
-      , box'value  = preBox'value
-      , box'script = preBox'script
-      , box'args   = preBox'args
-      }
-      where
-        boxId = computeBoxId txId (fromIntegral outputIndex)
-
 makeInput
-  :: GTx (Sigma PublicKey) PreBox
+  :: GTx (Sigma PublicKey) Box
   -> ProofEnv
   -> BoxInputRef (Sigma PublicKey)
   -> IO (BoxInputRef Proof)
 makeInput tx proofEnv BoxInputRef{..} = do
-  let message = getSigMessagePreTx boxInputRef'sigMask tx
+  let message = getSigMessageTx boxInputRef'sigMask tx
   mProof <- mapM (\sigma -> newProof proofEnv sigma message) boxInputRef'proof
   return BoxInputRef{ boxInputRef'proof = either (const Nothing) Just =<< mProof
                     , ..
                     }
 
 makeInputOrFail
-  :: GTx (Sigma PublicKey) PreBox
+  :: GTx (Sigma PublicKey) Box
   -> ProofEnv
   -> BoxInputRef (Sigma PublicKey)
   -> ExceptT Text IO (BoxInputRef Proof)
@@ -436,7 +401,7 @@ makeInputOrFail tx proofEnv ref@BoxInputRef{..}
   where
     toInput sigma = ExceptT $ newProof proofEnv sigma message
 
-    message = getSigMessagePreTx boxInputRef'sigMask tx
+    message = getSigMessageTx boxInputRef'sigMask tx
 
 
 -- | Expectation of the result of the box. We use it when we know to
@@ -452,15 +417,13 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 --
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) PreBox -> io Tx
+newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io Tx
 newProofTx proofEnv tx = liftIO $ do
   inputs <- traverse (makeInput tx proofEnv) $ tx'inputs tx
   return $ Tx
     { tx'inputs  = inputs
-    , tx'outputs = makeOutputs txId $ tx'outputs tx
+    , tx'outputs = tx'outputs tx
     }
-  where
-    txId  = computePreTxId tx
 
 -- | If we now the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -468,28 +431,16 @@ newProofTx proofEnv tx = liftIO $ do
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
-newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) PreBox -> io (Either Text Tx)
+newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx = liftIO $ do
   eInputs <- runExceptT $ traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
-    , tx'outputs = makeOutputs txId $ tx'outputs tx
+    , tx'outputs = tx'outputs tx
     }) eInputs
-  where
-    txId  = computePreTxId tx
 
 --------------------------------------------
 -- box ids validation
-
--- | Checks that all output boxes have correct identifiers that are based on hashes.
-validateOutputBoxIds :: Tx -> Bool
-validateOutputBoxIds tx = and $ V.imap checkBoxId $ tx'outputs tx
-  where
-    txId = computeTxId tx
-
-    checkBoxId n Box{..} = box'id == getId n
-
-    getId n = computeBoxId txId (fromIntegral n)
 
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString
@@ -519,8 +470,10 @@ $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
 $(deriveJSON dropPrefixOptions ''PostBox)
 $(deriveJSON dropPrefixOptions ''BoxInput)
+$(deriveJSON dropPrefixOptions ''BoxOutput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
 $(deriveJSON dropPrefixOptions ''Box)
+$(deriveJSON dropPrefixOptions ''IBox)
 $(deriveJSON dropPrefixOptions ''SigMask)
 
 instance CryptoHashable Tx where
@@ -530,6 +483,9 @@ instance CryptoHashable PostBox where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable BoxInput where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxOutput where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable a => CryptoHashable (BoxInputRef a) where
@@ -542,9 +498,6 @@ instance CryptoHashable SigMask where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Box where
-  hashStep = genericHashStep hashDomain
-
-instance CryptoHashable PreBox where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Args where

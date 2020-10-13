@@ -159,10 +159,10 @@ toSendTxDelayed wallet SendDelayed{..} = do
     senderPk = pk' $ getWalletPublicKey wallet
 
     senderUtxo
-      | sendDelayed'remain > 0 = Just $ PreBox
-                { preBox'value  = sendDelayed'remain
-                , preBox'script = mainScriptUnsafe backScript
-                , preBox'args   = mempty
+      | sendDelayed'remain > 0 = Just Box
+                { box'value  = sendDelayed'remain
+                , box'script = mainScriptUnsafe backScript
+                , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
@@ -170,10 +170,10 @@ toSendTxDelayed wallet SendDelayed{..} = do
     -- or just the rest of it if it's greater than the limit
     backScript = senderPk
 
-    receiverUtxo = PreBox
-      { preBox'value  = sendDelayed'amount
-      , preBox'script = mainScriptUnsafe $ receiverScript ||* refundScript
-      , preBox'args   = intArgs [height]
+    receiverUtxo = Box
+      { box'value  = sendDelayed'amount
+      , box'script = mainScriptUnsafe $ receiverScript ||* refundScript
+      , box'args   = intArgs [height]
       }
 
     getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)

@@ -29,10 +29,8 @@ react tx bch = do
   txArg <- toTxArg bch tx
   -- Inputs are valid
   evalProveTx txArg
-  -- BoxId in output are valid
-  unless (validateOutputBoxIds tx) $ Left "Invalid box ID"
   -- Spend scripts in outputs are decodable
-  forM_ (txArg'outputs txArg) $ \Box{..} -> do
+  forM_ (fmap (postBox'content . boxOutput'box) $ txArg'outputs txArg) $ \Box{..} -> do
     case coreProgFromScript box'script of
       Nothing -> Left "Undecodable script"
       Just prog -> case typeCheck prog of
@@ -41,20 +39,16 @@ react tx bch = do
         Right _      -> Left "Invalid type in output script"
         Left  err    -> Left $ renderText err
   -- We're done
-  return $ updateBoxChain tx bch
+  return $ updateBoxChain txArg bch
 
-updateBoxChain :: Tx -> BoxChain -> BoxChain
-updateBoxChain Tx{..} bch@BoxChain{..}
+updateBoxChain :: TxArg -> BoxChain -> BoxChain
+updateBoxChain TxArg{..} bch@BoxChain{..}
   = (boxChain'heightL %~ succ)
   $ insertOutputs
   $ removeInputs bch
   where
-    removeInputs  = boxChain'boxesL %~ appEndo (foldMap (Endo . M.delete . boxInputRef'id) tx'inputs)
-    insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\box -> Endo $ M.insert (box'id box) (PostBox box height)) tx'outputs)
-
-    height = boxChain'height
-
-
+    removeInputs  = boxChain'boxesL %~ appEndo (foldMap (Endo . M.delete . boxInput'id) txArg'inputs)
+    insertOutputs = boxChain'boxesL %~ appEndo (foldMap (\BoxOutput{..} -> Endo $ M.insert boxOutput'id boxOutput'box) txArg'outputs)
 
 -- | Run transaction in the current state of blockchain
 -- to get the sigma-expression of the evaluation of the transaction script.
