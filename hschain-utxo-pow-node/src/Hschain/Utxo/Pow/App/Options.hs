@@ -26,7 +26,6 @@ data Command
   = RunNode
       { runnode'config         :: [FilePath]
       , runnode'nodeSecret     :: Maybe String
-      , runnode'dbPath         :: FilePath
       }
   | GenerateKey
       { generatekey'nodeSecret :: String
@@ -67,8 +66,4 @@ runNodeOptions = RunNode
                         <> short 's'
                         <> help "name of environment variable with the node's secret - enables mining process")
               <|> pure Nothing)
-          <*> strOption
-              (  metavar "DB_PATH"
-              <> long "db"
-              <> help "path to database files")
 
