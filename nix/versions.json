@@ -1,8 +1,7 @@
 {
   "hschain": {
     "url": "https://github.com/hexresearch/hschain",
-    "rev": "a6cebf7a6ab18c279289e0c9ad9b047fb482c9f7",
+    "rev": "e731f5b7cb041616462111ff862534f44afb9d19",
     "ref": "master"
   }
 }
-
