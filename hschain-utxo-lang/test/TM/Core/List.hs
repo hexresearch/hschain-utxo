@@ -19,44 +19,26 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
-import TM.Core.Common (env)
+import TM.Core.Common
 import Examples.SKI   (let_)
 
 tests :: TestTree
 tests = testGroup "core-lists"
   [ testGroup "list-functions"
-    [ testProgram     "listAt 0"               (progListAt 0) [PrimInt 1]
-    , testProgram     "listAt 1"               (progListAt 1) [PrimInt 2]
+    [ testProgramL    "listAt 0"               (progListAt 0) [PrimInt 1]
+    , testProgramL    "listAt 1"               (progListAt 1) [PrimInt 2]
     , testProgramFail "listAt out of bound"    (progListAt 4)
-    , testProgram     "Typecheck concat lists" progConcatList (fmap PrimInt [1..6])
-    , testProgram     "Typecheck map lists"    progMapList (fmap PrimInt [10, 20, 30])
-    , testProgram     "Typecheck sum lists"    progSumList [PrimInt 21]
-    , testProgram     "Typecheck or lists"     (progOrList 2) [PrimBool True]
-    , testProgram     "Or lists is false"      (progOrList (-2)) [PrimBool False]
-    , testProgram     "Any list"               (progAnyList 2) [PrimBool True]
-    , testProgram     "All list"               (progAllList 2) [PrimBool False]
-    , testProgram     "All sigma list"         progSigmaAllList
+    , testProgramL    "Typecheck concat lists" progConcatList (fmap PrimInt [1..6])
+    , testProgramL    "Typecheck map lists"    progMapList (fmap PrimInt [10, 20, 30])
+    , testProgramL    "Typecheck sum lists"    progSumList [PrimInt 21]
+    , testProgramL    "Typecheck or lists"     (progOrList 2) [PrimBool True]
+    , testProgramL    "Or lists is false"      (progOrList (-2)) [PrimBool False]
+    , testProgramL    "Any list"               (progAnyList 2) [PrimBool True]
+    , testProgramL    "All list"               (progAllList 2) [PrimBool False]
+    , testProgramL    "All sigma list"         progSigmaAllList
       [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)]))]
     ]
   ]
-
-testProgram :: String -> ExprCore -> [Prim] -> TestTree
-testProgram nm prog res = testProgramBy nm prog (Right res)
-
-testProgramFail :: String -> ExprCore -> TestTree
-testProgramFail nm prog = testProgramBy nm prog (Left ())
-
-testProgramBy :: String -> ExprCore -> Either e [Prim] -> TestTree
-testProgramBy nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple" $ case res of
-      Left  _   -> return ()
-      Right [r] -> EvalPrim r @=? evalProg env prog
-      Right r   -> EvalList r @=? evalProg env prog
-  ]
-
 
 listToExpr :: TypeCore -> [ExprCore] -> ExprCore
 listToExpr ty = foldr cons nil

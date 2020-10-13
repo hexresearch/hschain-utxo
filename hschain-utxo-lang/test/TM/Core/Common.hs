@@ -2,6 +2,8 @@
 module TM.Core.Common
   ( env
   , testProgram
+  , testProgramL
+  , testProgramFail
   , mkBoxInput
   , mkBoxOutput
   ) where
@@ -57,9 +59,36 @@ mkBoxOutput height bid box = BoxOutput
   }
 
 testProgram :: String -> ExprCore -> Prim -> TestTree
-testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
-  ]
+testProgram nm prog r = testProgramBy nm prog (Right [r])
+
+testProgramL :: String -> ExprCore -> [Prim] -> TestTree
+testProgramL nm prog r = testProgramBy nm prog (Right r)
+
+testProgramFail :: String -> ExprCore -> TestTree
+testProgramFail nm prog = testProgramBy nm prog (Left ())
+
+testProgramBy :: String -> ExprCore -> Either e [Prim] -> TestTree
+testProgramBy nm prog res
+  = testGroup nm
+  $ testTypecheck
+ ++ testEval
+  where
+    testTypecheck =
+      [ testCase "typecheck" $ case typeCheck prog of
+          Left  e -> assertFailure $ show e
+          Right _ -> pure ()
+      , testCase "typeCheck dB" $ case toDeBrujin prog of
+          Left  e     -> assertFailure $ "Failed conversion: " ++ show e
+          Right prog' -> case typeCheck prog' of
+            Left  e -> assertFailure $ show e
+            Right _ -> pure ()
+      ]
+    --
+    testEval = case res of
+      Left  _   -> []
+      Right [r] -> [ testCase "simple"    $ EvalPrim r  @=? evalProg env prog
+                   , testCase "simple dB" $ Right (EvalPrim r) @=? (evalProg env <$> toDeBrujin prog)
+                   ]
+      Right r   -> [ testCase "simple"    $ EvalList r  @=? evalProg env prog
+                   , testCase "simple dB" $ Right (EvalList r) @=? (evalProg env <$> toDeBrujin prog)
+                   ]

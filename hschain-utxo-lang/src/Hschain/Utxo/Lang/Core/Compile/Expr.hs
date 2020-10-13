@@ -18,6 +18,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , Bound(..)
   , Context(..)
   , substVar
+  , toDeBrujin
   ) where
 
 import Codec.Serialise
@@ -255,7 +256,7 @@ substVar fun = go emptyContext
       p@EBottom   -> p
       p@EConstr{} -> p
       -- No binders
-      EAp a b -> EAp (go ctx a) (go ctx b)
+      EAp a b   -> EAp (go ctx a) (go ctx b)
       EIf c t f -> EIf (go ctx c) (go ctx t) (go ctx f)
       -- Constructors with binders
       ELet e  body -> ELet (go ctx e) (go1 ctx body)
@@ -267,6 +268,38 @@ substVar fun = go emptyContext
     --
     go1 ctx (Scope b e) = Scope b $ go (bindOne b () ctx) e
     goN ctx (Scope b e) = Scope b $ go (bindMany_ b ctx) e
+
+
+-- | Convert expression with named variables to de-Brujin form. It
+--   assumes that expression is closed and will return name of free
+--   variable if it encounters one.
+toDeBrujin :: Eq a => Core BindName a -> Either a (Core BindDB Int)
+toDeBrujin = go []
+  where
+    go ctx = \case
+      EVar a -> case find ((==a) . snd) $ zip [0..] ctx of
+        Nothing    -> Left a
+        Just (i,_) -> Right (EVar i)
+      --
+      EPrim   p    -> pure $ EPrim p
+      EPrimOp op   -> pure $ EPrimOp op
+      EBottom      -> pure   EBottom
+      EConstr ty i -> pure $ EConstr ty i
+      --
+      EAp a b   -> EAp <$> go ctx a <*> go ctx b
+      EIf c t f -> EIf <$> go ctx c <*> go ctx t <*> go ctx f
+      --
+      ELet e  body -> ELet <$> go ctx e <*> go1 ctx body
+      ELam ty body -> ELam ty <$> go1 ctx body
+      ECase e alts -> ECase <$> go ctx e <*>
+        traverse (goAlt ctx) alts
+    --
+    goAlt ctx (CaseAlt i (Scope (BindNameN xs) e)) = do
+      e' <- go (xs ++ ctx) e
+      pure $ CaseAlt i $ Scope (BindDBN (length xs)) e'
+    --
+    go1 ctx (Scope (BindName1 x) e) = Scope BindDB1 <$> go (x : ctx) e
+
 
 ----------------------------------------------------------------
 -- Instances Zoo
