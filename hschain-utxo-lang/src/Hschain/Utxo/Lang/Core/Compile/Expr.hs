@@ -17,6 +17,7 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , Scope(..)
   , Bound(..)
   , Context(..)
+  , substVar
   ) where
 
 import Codec.Serialise
@@ -173,6 +174,12 @@ class Bound bnd where
     -> [x]
     -> Ctx bnd a x
     -> m (Ctx bnd a x)
+  -- | Bind multiple values at once.
+  bindMany_
+    :: (Ord a)
+    => bnd 'Many a
+    -> Ctx bnd a ()
+    -> Ctx bnd a ()
 
 class (Ord a, Bound bnd) => Context bnd a where
   -- Check whether variable is bound
@@ -185,6 +192,7 @@ class (Ord a, Bound bnd) => Context bnd a where
 instance Bound BindName where
   newtype Ctx BindName a b = CtxName (Map a b)
   bindOne  (BindName1 a ) x  (CtxName m0) = CtxName $ Map.insert a x m0
+  --
   bindMany (BindNameN as) xs (CtxName m0) = do
     binders <- zipB as xs
     pure $ CtxName $ foldl' (\m (a,x) -> Map.insert a x m) m0 binders
@@ -192,6 +200,9 @@ instance Bound BindName where
       zipB []     []     = pure []
       zipB (b:bs) (v:vs) = ((b,v):) <$> zipB bs vs
       zipB  _      _     = throwError BadCase
+  --
+  bindMany_ (BindNameN as) (CtxName m0) =
+    CtxName $ foldl' (\m a -> Map.insert a () m) m0 as
 
 instance Ord a => Context BindName a where
   isBound   (CtxName m) a = Map.member a m
@@ -201,9 +212,12 @@ instance Ord a => Context BindName a where
 instance Bound BindDB where
   newtype Ctx BindDB a b = CtxDB [b]
   bindOne  _           x  (CtxDB bound) = CtxDB (x : bound)
+  --
   bindMany (BindDBN n) xs (CtxDB bound)
     | length xs /= n = throwError BadCase
     | otherwise      = pure $ CtxDB $ xs <> bound
+  --
+  bindMany_ (BindDBN b) (CtxDB bound) = CtxDB $ replicate b () <> bound
 
 -- FIXME: Deal with negative indices
 --
@@ -221,7 +235,38 @@ instance Context BindDB Int where
 -- Transformations
 ----------------------------------------------------------------
 
-
+-- | Substitute variables in expression. Note! This is not capture
+--   avoiding substitution. Take care when using.
+substVar
+  :: (Context b v)
+  => (v -> Maybe (Core b v))    -- ^ Substitution function
+  -> Core b v
+  -> Core b v
+substVar fun = go emptyContext
+  where
+    go ctx = \case
+      var@(EVar v)
+        | isBound ctx v   -> var
+        | Just e <- fun v -> e
+        | otherwise       -> var
+      -- Noops
+      p@EPrim{}   -> p
+      p@EPrimOp{} -> p
+      p@EBottom   -> p
+      p@EConstr{} -> p
+      -- No binders
+      EAp a b -> EAp (go ctx a) (go ctx b)
+      EIf c t f -> EIf (go ctx c) (go ctx t) (go ctx f)
+      -- Constructors with binders
+      ELet e  body -> ELet (go ctx e) (go1 ctx body)
+      ELam ty body -> ELam ty (go1 ctx body)
+      ECase e alts -> ECase (go ctx e)
+        [ CaseAlt tag (goN ctx alt)
+        | CaseAlt tag alt <- alts
+        ]
+    --
+    go1 ctx (Scope b e) = Scope b $ go (bindOne b () ctx) e
+    goN ctx (Scope b e) = Scope b $ go (bindMany_ b ctx) e
 
 ----------------------------------------------------------------
 -- Instances Zoo

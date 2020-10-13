@@ -9,7 +9,6 @@ import Control.Monad
 
 import Data.Fix
 import qualified Data.Map.Strict       as Map
-import qualified Data.Functor.Foldable as RS
 
 import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
@@ -24,7 +23,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 
 import qualified Language.HM       as H
-import qualified Language.HM.Subst as H
+-- import qualified Language.HM.Subst as H
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
@@ -43,14 +42,7 @@ compile
 
 -- | Perform sunbstiturion of primops
 substPrimOp :: ExprCore -> ExprCore
-substPrimOp
-  = undefined -- go
-  -- where
-  --   go = RS.cata $ \case
-  --     Core.EVarF v
-  --       | Just op <- Map.lookup v monoPrimopNameMap
-  --         -> Core.EPrimOp op
-  --     e -> RS.embed e
+substPrimOp = Core.substVar $ \v -> Core.EPrimOp <$> Map.lookup v monoPrimopNameMap
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
