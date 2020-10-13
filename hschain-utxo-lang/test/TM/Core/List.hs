@@ -20,6 +20,7 @@ import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
 import TM.Core.Common (env)
+import Examples.SKI   (let_)
 
 tests :: TestTree
 tests = testGroup "core-lists"
@@ -65,10 +66,10 @@ listToExpr ty = foldr cons nil
 
 listConsts :: ExprCore -> ExprCore
 listConsts
-  = ELet "xs" (nums xs)
-  . ELet "ys" (nums ys)
-  . ELet "zs" (nums zs)
-  . ELet "bs" (bools bs)
+  = let_ "xs" (nums xs)
+  . let_ "ys" (nums ys)
+  . let_ "zs" (nums zs)
+  . let_ "bs" (bools bs)
   where
     nums  values = listToExpr IntT  $ fmap (EPrim . PrimInt)  values
     bools values = listToExpr BoolT $ fmap (EPrim . PrimBool) values

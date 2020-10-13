@@ -71,14 +71,14 @@ progListCase
     cons = EConstr (ListT IntT) 1
     nil  = EConstr (ListT IntT) 0
     safeHead e = ECase e
-      [ CaseAlt 0 [] (EPrim (PrimInt 0))
-      , CaseAlt 1 ["x", "xs"] (EVar "x")
+      [ alt 0 []          (EPrim (PrimInt 0))
+      , alt 1 ["x", "xs"] (EVar "x")
       ]
 
 badListCase :: ExprCore
 badListCase = ECase nil
-  [ CaseAlt 0 ["x"]       zero
-  , CaseAlt 1 ["x", "xs"] zero
+  [ alt 0 ["x"]       zero
+  , alt 1 ["x", "xs"] zero
   ]
   where
     zero = EPrim   (PrimInt 0)
