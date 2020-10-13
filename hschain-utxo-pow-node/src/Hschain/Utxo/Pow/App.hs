@@ -152,40 +152,40 @@ genesis = POW.GBlock
 
 runNode :: POW.Block UTXOBlock -> POW.Cfg -> Maybe c -> IO ()
 runNode genesis config@POW.Cfg{..} maybePrivK = do
-      -- Acquire resources
-      let net    = newNetworkTcp cfgPort
-          netcfg = POW.NetCfg { POW.nKnownPeers     = 3
-                              , POW.nConnectedPeers = 3
-                              }
-      withConnection (fromMaybe "" cfgDB) $ \conn ->
-        let unassignedMempool = error "mempool is not assigned!"
-        in withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn unassignedMempool $ evalContT $ do
-          (db, bIdx, sView) <- lift $ utxoStateView genesis
-          c0  <- lift $ POW.createConsensus db sView bIdx
-          pow <- POW.startNode netcfg net cfgPeers db c0
+  -- Acquire resources
+  let net    = newNetworkTcp cfgPort
+      netcfg = POW.NetCfg { POW.nKnownPeers     = 3
+                          , POW.nConnectedPeers = 3
+                          }
+  withConnection (fromMaybe "" cfgDB) $ \conn ->
+    let unassignedMempool = error "mempool is not assigned!"
+    in withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn unassignedMempool $ evalContT $ do
+      (db, bIdx, sView) <- lift $ utxoStateView genesis
+      c0  <- lift $ POW.createConsensus db sView bIdx
+      pow <- POW.startNode netcfg net cfgPeers db c0
       -- report progress
-          void $ liftIO $ forkIO $ do
-            ch <- HControl.atomicallyIO (POW.chainUpdate pow)
-            forever $ do (bh,_) <- HControl.awaitIO ch
-                         print (POW.bhHeight bh, POW.bhBID bh)
-                         print $ POW.retarget bh
-          utxoEnv <- lift ask
-          let endpointUTXOEnv = utxoEnv { ueMempool = POW.mempoolAPI pow }
-          liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
-          forM_ cfgWebAPI $ \port -> do
-            let api = Proxy :: Proxy UtxoAPI
-                run :: ServerM a -> Servant.Handler a
-                run (UTXOT x) = liftIO $ runReaderT x endpointUTXOEnv
-            liftIO $ hPutStrLn stderr $ "starting server at "++show port
-            HControl.cforkLinkedIO $ do
-              hPutStrLn stderr $ "server started at "++show port
-              Warp.run port $ Servant.serve api $ Servant.hoistServer api run utxoServer
-          case maybePrivK of
-            Just privk -> do
-              HControl.cforkLinked $ POW.genericMiningLoop pow
-            Nothing -> return ()
-          -- Wait forever
-          liftIO $ forever $ threadDelay maxBound
+      void $ liftIO $ forkIO $ do
+        ch <- HControl.atomicallyIO (POW.chainUpdate pow)
+        forever $ do (bh,_) <- HControl.awaitIO ch
+                     print (POW.bhHeight bh, POW.bhBID bh)
+                     print $ POW.retarget bh
+      utxoEnv <- lift ask
+      let endpointUTXOEnv = utxoEnv { ueMempool = POW.mempoolAPI pow }
+      liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
+      forM_ cfgWebAPI $ \port -> do
+        let api = Proxy :: Proxy UtxoAPI
+            run :: ServerM a -> Servant.Handler a
+            run (UTXOT x) = liftIO $ runReaderT x endpointUTXOEnv
+        liftIO $ hPutStrLn stderr $ "starting server at "++show port
+        HControl.cforkLinkedIO $ do
+          hPutStrLn stderr $ "server started at "++show port
+          Warp.run port $ Servant.serve api $ Servant.hoistServer api run utxoServer
+      case maybePrivK of
+        Just privk -> do
+          HControl.cforkLinked $ POW.genericMiningLoop pow
+        Nothing -> return ()
+      -- Wait forever
+      liftIO $ forever $ threadDelay maxBound
 
 type Genesis = POW.Block UTXOBlock
 
