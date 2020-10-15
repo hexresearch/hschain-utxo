@@ -115,6 +115,9 @@ import qualified Debug.Trace as Debug
 -------------------------------------------------------------------------------
 -- Instances.
 
+deriving via (ByteRepred BoxId) instance SQL.FromField BoxId
+deriving via (ByteRepred BoxId) instance SQL.ToField   BoxId
+
 instance Crypto.CryptoHashable PublicKey where
   hashStep = genericHashStep "public key"
 
