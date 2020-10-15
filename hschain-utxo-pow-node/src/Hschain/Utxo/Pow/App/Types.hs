@@ -118,18 +118,6 @@ import qualified Debug.Trace as Debug
 deriving via (ByteRepred BoxId) instance SQL.FromField BoxId
 deriving via (ByteRepred BoxId) instance SQL.ToField   BoxId
 
-instance Crypto.CryptoHashable PublicKey where
-  hashStep = genericHashStep "public key"
-
-instance Crypto.CryptoHashable Ed.Point where
-  hashStep x = hashStep (Ed.pointEncode x :: ByteString)
-
-instance Crypto.CryptoHashable Ed.Scalar where
-  hashStep x = hashStep (Ed.scalarEncode x :: ByteString)
-
-instance Crypto.CryptoHashable Pico where
-  hashStep = hashStep . serialise
-
 instance SQL.ToRow BoxId where
   toRow b = [SQL.toField $ ByteRepred b]
 
