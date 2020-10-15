@@ -57,6 +57,7 @@ import qualified Data.Vector as V
 
 import Data.Word
 
+import Database.SQLite.Simple ((:.)(..))
 import qualified Database.SQLite.Simple           as SQL
 import qualified Database.SQLite.Simple.Ok        as SQL
 import qualified Database.SQLite.Simple.ToField   as SQL
@@ -68,8 +69,8 @@ import GHC.Generics
 
 import Katip (LogEnv, Namespace)
 
-import Servant.API
-import Servant.Server
+-- import Servant.API
+-- import Servant.Server
 
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
@@ -117,12 +118,8 @@ import qualified Debug.Trace as Debug
 
 deriving via (ByteRepred BoxId) instance SQL.FromField BoxId
 deriving via (ByteRepred BoxId) instance SQL.ToField   BoxId
-
-instance SQL.ToRow BoxId where
-  toRow b = [SQL.toField $ ByteRepred b]
-
-instance SQL.FromRow BoxId where
-  fromRow = BoxId <$> fieldByteRepr
+deriving via (CBORed Box)       instance SQL.FromField Box
+deriving via (CBORed Box)       instance SQL.ToField   Box
 
 instance SQL.ToRow Box where
   toRow box = [SQL.toField box]
@@ -130,16 +127,6 @@ instance SQL.ToRow Box where
 instance SQL.FromRow Box where
   fromRow = SQL.field
 
-instance ByteRepr Box where
-  encodeToBS box = LBS.toStrict $ serialise box
-  decodeFromBS bs = case deserialise $ LBS.fromStrict bs of
-                      Just r -> r
-                      Nothing -> error "error deserealising box"
-instance SQL.ToField Box where
-  toField = SQL.toField . encodeToBS
-
-instance SQL.FromField Box where
-  fromField field = fmap (maybe (error "decoding box") id) $ (decodeFromBS <$> SQL.fromField field)
 
 -------------------------------------------------------------------------------
 -- The Block.
@@ -655,7 +642,7 @@ getDatabaseBox POW.NoChange boxInputRef@BoxInputRef{..} = do
     \  FROM utxo_set \
     \  JOIN utxo_state ON live_utxo = utxo_id \
     \ WHERE box_id = ?"
-    boxid
+    (Only boxid)
   {-Debug.trace ("fetched "++show r) $ -}
   case r of
     Just u  -> return u
@@ -675,7 +662,7 @@ isSpentAtBlock i boxid = basicQuery1
   \  FROM utxo_set \
   \  JOIN utxo_spent ON utxo_id = utxo_ref \
   \ WHERE box_id = ? AND block_ref = ?"
-  (boxid SQL.:. SQL.Only i)
+  (boxid, i)
 
 isCreatedAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
 isCreatedAtBlock i boxid = basicQuery1
@@ -683,7 +670,7 @@ isCreatedAtBlock i boxid = basicQuery1
   \  FROM utxo_set \
   \  JOIN utxo_created ON utxo_id = utxo_ref \
   \ WHERE box_id = ? AND block_ref = ?"
-  (boxid SQL.:. SQL.Only i)
+  (boxid, i)
 
 retrieveCurrentStateBlock :: MonadQueryRO m => m (Maybe (POW.BlockID UTXOBlock))
 retrieveCurrentStateBlock = fmap fromOnly <$> basicQuery1
@@ -705,7 +692,7 @@ retrieveUTXOIO :: MonadQueryRO m => BoxId -> m Int
 retrieveUTXOIO utxo = do
   r <- basicQuery1
     "SELECT utxo_id FROM utxo_set WHERE box_id = ?"
-    utxo
+    (Only utxo)
   case r of
     Just (Only i) -> return i
     Nothing       -> error "retrieveUTXOIO"
@@ -714,7 +701,7 @@ retrieveUTXOByBoxId :: (MonadReadDB m, MonadIO m) => BoxId -> m (Maybe Box)
 retrieveUTXOByBoxId boxid
   =  queryRO
   $  fmap fromOnly
- <$> basicQuery1 "SELECT box FROM utxo_set WHERE box_id = ?" boxid
+ <$> basicQuery1 "SELECT box FROM utxo_set WHERE box_id = ?" (Only boxid)
 
 
 
@@ -764,7 +751,7 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
     {- Debug.trace ("inserting box "++show unspent++" with id "++show utxo) $ -}
     basicExecute
       "INSERT OR IGNORE INTO utxo_set VALUES (NULL,?,?)"
-      (utxo SQL.:. unspent)
+      (Only utxo :. unspent)
   -- Write down block delta
   bid <- retrieveUTXOBlockTableID (POW.bhBID bh)
   forM_ (Map.keys utxoCreated) $ \utxo -> do
