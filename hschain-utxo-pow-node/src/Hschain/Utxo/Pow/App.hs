@@ -61,6 +61,7 @@ import Data.Yaml.Config (loadYamlSettings, requireEnv)
 
 import GHC.Generics
 
+import           Servant.API               ((:<|>)(..))
 import qualified Servant.API              as Servant
 import qualified Servant.Server           as Servant
 import qualified Network.Wai.Handler.Warp as Warp
@@ -192,16 +193,16 @@ type Genesis = POW.Block UTXOBlock
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: Servant.ServerT UtxoAPI (UTXOT IO)
 utxoServer =
-               postTxEndpoint                -- posts transaction
-  Servant.:<|> getBoxEndpoint                -- gets box by id
-  Servant.:<|> getBoxBalanceEndpoint         -- reads balance for a box
-  Servant.:<|> getTxSigmaEndpoint            -- executes script to sigma-expression without commiting
-  Servant.:<|> getEnvEndpoint                -- reads blockchain environment
-  Servant.:<|> getStateEndpoint              -- reads whole state (for debug only)
-  Servant.:<|> getUtxosEndpoint              -- reads list of all available UTXOs
-  Servant.:<|> hasUtxoEndpoint               -- is UTXO exists (available to spend)
-  Servant.:<|> readBlockEndpoint             -- reads block at the given height
-  Servant.:<|> readBlockchainHeightEndpoint  -- reads current height of the blockchain
+       postTxEndpoint                -- posts transaction
+  :<|> getBoxEndpoint                -- gets box by id
+  :<|> getBoxBalanceEndpoint         -- reads balance for a box
+  :<|> getTxSigmaEndpoint            -- executes script to sigma-expression without commiting
+  :<|> getEnvEndpoint                -- reads blockchain environment
+  :<|> getStateEndpoint              -- reads whole state (for debug only)
+  :<|> getUtxosEndpoint              -- reads list of all available UTXOs
+  :<|> hasUtxoEndpoint               -- is UTXO exists (available to spend)
+  :<|> readBlockEndpoint             -- reads block at the given height
+  :<|> readBlockchainHeightEndpoint  -- reads current height of the blockchain
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
 postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
