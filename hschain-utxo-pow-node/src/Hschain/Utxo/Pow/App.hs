@@ -3,8 +3,9 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DataKinds, ScopedTypeVariables, TypeApplications #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RecordWildCards, StandaloneDeriving #-}
@@ -60,9 +61,12 @@ import Data.Yaml.Config (loadYamlSettings, requireEnv)
 
 import GHC.Generics
 
-import           Servant.API               ((:<|>)(..))
+import Servant.API ((:<|>)(..),(:>)(..),Capture,Summary,Get,JSON)
+import Servant.API.Generic ((:-)(..))
 import qualified Servant.API              as Servant
 import qualified Servant.Server           as Servant
+import qualified Servant.API.Generic      as Servant
+import qualified Servant.Server.Generic   as Servant
 import qualified Network.Wai.Handler.Warp as Warp
 
 import qualified System.Environment as SE
@@ -70,6 +74,7 @@ import System.IO
 
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
+import HSChain.Store.Query (queryRO,withConnection,basicQuery_)
 import qualified HSChain.Crypto.Classes.Hash as Crypto
 import HSChain.Types.Merkle.Types
 
@@ -93,7 +98,7 @@ import qualified HSChain.PoW.Node       as POW
 import qualified HSChain.PoW.Types      as POW
 
 import HSChain.Logger
-import HSChain.Store
+import HSChain.PoW.API
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.Lang.Build
@@ -115,6 +120,7 @@ import Hschain.Utxo.API.Rest
 
 import Hschain.Utxo.Pow.App.Options (Command(..), readCommandOptions)
 import Hschain.Utxo.Pow.App.Types
+
 
 -------------------------------------------------------------------------------
 -- Executable part.
@@ -174,12 +180,12 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
       liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
       forM_ cfgWebAPI $ \port -> do
         let api = Proxy :: Proxy UtxoAPI
-            run :: ServerM a -> Servant.Handler a
+            run :: UTXOT IO a -> Servant.Handler a
             run (UTXOT x) = liftIO $ runReaderT x endpointUTXOEnv
         liftIO $ hPutStrLn stderr $ "starting server at "++show port
         HControl.cforkLinkedIO $ do
           hPutStrLn stderr $ "server started at "++show port
-          Warp.run port $ Servant.serve api $ Servant.hoistServer api run utxoServer
+          Warp.run port $ Servant.genericServeT run $ utxoRestServer (POW.mempoolAPI pow)
       case maybePrivK of
         Just privk -> do
           HControl.cforkLinked $ POW.genericMiningLoop pow
@@ -188,6 +194,50 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
       liftIO $ forever $ threadDelay maxBound
 
 
+----------------------------------------------------------------
+-- REST API for PoW node
+----------------------------------------------------------------
+
+data UtxoRestAPI route = UtxoRestAPI
+  { utxoMempoolAPI :: route
+      :- Summary "Operations with Mempool"
+      :> "mempool" :> Servant.ToServantApi (MempoolRestAPI UTXOBlock)
+  , endpointGetBox :: route
+      :- Summary "Gets the box by identifier"
+      :> "box" :> "get" :> Capture "box-id" BoxId :> Get '[JSON] (Maybe Box)
+  , debugGetState :: route
+      :- Summary "Get full state of blockchain"
+      :> "debug" :> "state" :> "get" :> Get '[JSON] BoxChain
+  }
+  deriving (Generic)
+
+utxoRestServer :: POW.MempoolAPI (UTXOT IO) UTXOBlock -> UtxoRestAPI (Servant.AsServerT (UTXOT IO))
+utxoRestServer mempool = UtxoRestAPI
+  { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
+  , endpointGetBox = endpointGetBoxImpl
+  , debugGetState  = debugGetStateImpl
+  }
+
+endpointGetBoxImpl :: BoxId -> ServerM (Maybe Box)
+endpointGetBoxImpl boxId = do
+  r <- retrieveUTXOByBoxId boxId
+  liftIO $ hPutStrLn stderr $ "getBoxEndpoint: boxid "++show boxId++", box "++show r
+  return r
+
+debugGetStateImpl :: ServerM BoxChain
+debugGetStateImpl = do
+  live <- queryRO $ basicQuery_
+    "SELECT box_id, box \
+    \  FROM utxo_set \
+    \  JOIN utxo_state ON live_utxo = utxo_id"
+  return $ BoxChain (Map.fromList live) 0
+
+
+-----------------------------------------------------------------
+-- Legacy API
+----------------------------------------------------------------
+
+{-
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: Servant.ServerT UtxoAPI (UTXOT IO)
 utxoServer =
@@ -201,6 +251,7 @@ utxoServer =
   :<|> hasUtxoEndpoint               -- is UTXO exists (available to spend)
   :<|> readBlockEndpoint             -- reads block at the given height
   :<|> readBlockchainHeightEndpoint  -- reads current height of the blockchain
+-}
 
 postTxEndpoint :: Tx -> ServerM PostTxResponse
 postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
@@ -236,11 +287,6 @@ readBlockEndpoint height = return Nothing
 readBlockchainHeightEndpoint :: ServerM Int
 readBlockchainHeightEndpoint = return 0
 
-getBoxEndpoint :: BoxId -> ServerM (Maybe Box)
-getBoxEndpoint boxId = do
-  r <- retrieveUTXOByBoxId boxId
-  liftIO $ hPutStrLn stderr $ "getBoxEndpoint: boxid "++show boxId++", box "++show r
-  return r
 
 type ServerM a = UTXOT IO a
 
@@ -294,5 +340,3 @@ postTxWait tx = do
   h <- writeTx tx
   liftIO $ hPutStrLn stderr $ "posted tx "++show tx++", hash "++show h
   return h
-
-
