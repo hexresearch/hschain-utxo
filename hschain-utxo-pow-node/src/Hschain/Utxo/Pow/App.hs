@@ -12,7 +12,6 @@
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
-  , Genesis
 ) where
 
 import Hex.Common.Aeson
@@ -188,7 +187,6 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
       -- Wait forever
       liftIO $ forever $ threadDelay maxBound
 
-type Genesis = POW.Block UTXOBlock
 
 -- | Server implementation for 'UtxoAPI'
 utxoServer :: Servant.ServerT UtxoAPI (UTXOT IO)
