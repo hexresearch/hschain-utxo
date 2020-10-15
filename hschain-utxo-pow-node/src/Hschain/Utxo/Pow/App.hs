@@ -74,7 +74,7 @@ import System.IO
 
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
-import HSChain.Store.Query (queryRO,withConnection,basicQuery_)
+import HSChain.Store.Query (MonadReadDB,queryRO,withConnection,basicQuery_)
 import qualified HSChain.Crypto.Classes.Hash as Crypto
 import HSChain.Types.Merkle.Types
 
@@ -211,20 +211,20 @@ data UtxoRestAPI route = UtxoRestAPI
   }
   deriving (Generic)
 
-utxoRestServer :: POW.MempoolAPI (UTXOT IO) UTXOBlock -> UtxoRestAPI (Servant.AsServerT (UTXOT IO))
+utxoRestServer :: (MonadIO m, MonadReadDB m) => POW.MempoolAPI m UTXOBlock -> UtxoRestAPI (Servant.AsServerT m)
 utxoRestServer mempool = UtxoRestAPI
   { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
   , endpointGetBox = endpointGetBoxImpl
   , debugGetState  = debugGetStateImpl
   }
 
-endpointGetBoxImpl :: BoxId -> ServerM (Maybe Box)
+endpointGetBoxImpl :: (MonadIO m, MonadReadDB m) => BoxId -> m (Maybe Box)
 endpointGetBoxImpl boxId = do
   r <- retrieveUTXOByBoxId boxId
   liftIO $ hPutStrLn stderr $ "getBoxEndpoint: boxid "++show boxId++", box "++show r
   return r
 
-debugGetStateImpl :: ServerM BoxChain
+debugGetStateImpl :: (MonadIO m, MonadReadDB m) => m BoxChain
 debugGetStateImpl = do
   live <- queryRO $ basicQuery_
     "SELECT box_id, box \
