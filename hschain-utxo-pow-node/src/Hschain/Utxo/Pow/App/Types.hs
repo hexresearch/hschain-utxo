@@ -788,7 +788,6 @@ retrieveUTXOBlock bid = {- Debug.trace ("retrieve block by "++show bid) $ -} que
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
 storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
   let bid = POW.blockID b
-  {- Debug.trace ("storing block: "++ show b++" at "++show bid) $ -}
   basicExecute
     "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
     ( bid
@@ -818,9 +817,9 @@ utxoBlockHeaderDecoder = do
   blockHeight <- field
   blockTime   <- field
   prevBlock   <- field
-  ubpData  <- fromHashed <$> fieldByteRepr
-  ubpTarget <- fieldCBOR
-  ubNonce   <- field
+  ubpData     <- fromHashed <$> fieldByteRepr
+  ubpTarget   <- fieldCBOR
+  ubNonce     <- field
   let ubProper = UTXOBlockProper ubpData ubpTarget
   return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
 
