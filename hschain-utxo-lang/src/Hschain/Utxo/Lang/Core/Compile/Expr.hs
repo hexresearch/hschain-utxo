@@ -1,5 +1,6 @@
 {-# LANGUAGE PolyKinds       #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeOperators   #-}
 -- | Types for core language and its compiled form.
 module Hschain.Utxo.Lang.Core.Compile.Expr(
     PrimOp(..)
@@ -22,25 +23,27 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   ) where
 
 import Codec.Serialise
-import Control.DeepSeq
+import qualified Codec.Serialise.Encoding as CBOR
+import qualified Codec.Serialise.Decoding as CBOR
+-- import Control.DeepSeq
 import Control.Monad.Except
 import Data.String
 import Data.Foldable
 import Data.Map        (Map)
-import Data.Text       (Text)
+import Data.Proxy
 import qualified Data.Map.Strict as Map
 import GHC.Generics
 
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Types (Script(..),ArgType)
--- import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString.Lazy as LB
 
 
 coreProgToScript :: ExprCore -> Script
-coreProgToScript = undefined -- Script . LB.toStrict . serialise
+coreProgToScript = Script . LB.toStrict . serialise
 
 coreProgFromScript :: Script -> Maybe ExprCore
-coreProgFromScript = undefined -- either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
+coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
 
 data PrimOp a
   = OpAdd                 -- ^ Addition
@@ -135,6 +138,7 @@ data Core b a
   --   have that type as parameter. Second is constructor's tag.
   | EBottom
   -- ^ failed termination for the program
+  deriving (Generic)
 
 instance IsString a => IsString (Core b a) where
   fromString = EVar . fromString
@@ -299,6 +303,126 @@ toDeBrujin = go []
       pure $ CaseAlt i $ Scope (BindDBN (length xs)) e'
     --
     go1 ctx (Scope (BindName1 x) e) = Scope BindDB1 <$> go (x : ctx) e
+
+
+
+----------------------------------------------------------------
+-- Serialization of core
+----------------------------------------------------------------
+
+instance ( Serialise v
+         , Serialise (Scope b 'One  v)
+         , Serialise (Scope b 'Many v)
+         ) => Serialise (Core b v) where
+  encode expr = prefix <> case expr of
+    EVar v       -> encode v
+    EPrim p      -> encode p
+    EPrimOp op   -> encode op
+    ELam ty lam  -> encode ty <> encode lam
+    EAp   a b    -> encode a  <> encode b
+    ELet e body  -> encode e  <> encode body
+    EIf c t f    -> encode c  <> encode t <> encode f
+    ECase e alts -> encode e  <> encode alts
+    EConstr ty i -> encode ty <> encode i
+    EBottom      -> mempty
+    where
+      (conN,numFld) = constructorInfo expr
+      prefix        = CBOR.encodeListLen (fromIntegral $ numFld + 1)
+                   <> CBOR.encodeWord (fromIntegral conN)
+  --
+  decode = do
+    listLen <- CBOR.decodeListLen
+    when (listLen == 0) $ fail "Core: list of zero length"
+    tag <- CBOR.decodeWord
+    case (tag, listLen) of
+      (0,2) -> EVar    <$> decode
+      (1,2) -> EPrim   <$> decode
+      (2,2) -> EPrimOp <$> decode
+      (3,3) -> ELam    <$> decode <*> decode
+      (4,3) -> EAp     <$> decode <*> decode
+      (5,3) -> ELet    <$> decode <*> decode
+      (6,4) -> EIf     <$> decode <*> decode <*> decode
+      (7,3) -> ECase   <$> decode <*> decode
+      (8,3) -> EConstr <$> decode <*> decode
+      (9,1) -> pure EBottom
+      _     -> fail "Invalid encoding"
+
+instance (Serialise (Scope b 'Many v)) => Serialise (CaseAlt b v) where
+  encode (CaseAlt i e) = CBOR.encodeListLen 2
+                      <> encode i
+                      <> encode e
+  decode = do
+    2 <- CBOR.decodeListLen
+    CaseAlt <$> decode <*> decode
+
+
+
+instance (Serialise v) => Serialise (Scope BindName 'One v) where
+  encode (Scope (BindName1 v) e) = CBOR.encodeListLen 2
+                                <> encode v
+                                <> encode e
+  decode = do
+    2 <- CBOR.decodeListLen
+    Scope <$> (BindName1 <$> decode) <*> decode
+
+instance (Serialise v) => Serialise (Scope BindName 'Many v) where
+  encode (Scope (BindNameN v) e) = CBOR.encodeListLen 2
+                                <> encode v
+                                <> encode e
+  decode = do
+    2 <- CBOR.decodeListLen
+    Scope <$> (BindNameN <$> decode) <*> decode
+
+instance (Serialise v) => Serialise (Scope BindDB 'One v) where
+  encode (Scope BindDB1 e) = encode e
+  decode = Scope BindDB1 <$> decode
+
+instance (Serialise v) => Serialise (Scope BindDB 'Many v) where
+  encode (Scope (BindDBN i) e) = CBOR.encodeListLen 2
+                              <> encode i
+                              <> encode e
+  decode = do
+    2 <- CBOR.decodeListLen
+    Scope <$> (BindDBN <$> decode) <*> decode
+    
+
+
+
+constructorInfo :: (GConstrutorInfo (Rep a), Generic a) => a -> (Int,Int)
+constructorInfo = gConInfo . from
+
+-- | Obtain information about constructor number and number of fields
+--   using generics
+class GConstrutorInfo f where
+  gConInfo       :: f p -> (Int,Int)
+  gNConstructors :: Proxy f -> Int
+
+instance GConstrutorInfo f => GConstrutorInfo (M1 D c f) where
+  gConInfo (M1 f) = gConInfo f
+  gNConstructors _ = gNConstructors (Proxy @f)
+
+instance (GConstrutorInfo f, GConstrutorInfo g) => GConstrutorInfo (f :+: g) where
+  gConInfo (L1 f) = gConInfo f
+  gConInfo (R1 g) = let (conN, nFld) = gConInfo g
+                    in  ( conN + gNConstructors (Proxy @f)
+                        , nFld)
+  gNConstructors _ = gNConstructors (Proxy @f) + gNConstructors (Proxy @g)
+
+instance (GFieldInfo f) => GConstrutorInfo (M1 C i f) where
+  gConInfo (M1 f) = (0, nFields f)
+  gNConstructors _ = 1
+
+class GFieldInfo f where
+  nFields :: f p -> Int
+
+instance GFieldInfo U1 where
+  nFields _ = 0
+
+instance GFieldInfo (M1 S i f) where
+  nFields _ = 1
+
+instance (GFieldInfo f, GFieldInfo g) => GFieldInfo (f :*: g) where
+  nFields (f :*: g) = nFields f + nFields g
 
 
 ----------------------------------------------------------------
