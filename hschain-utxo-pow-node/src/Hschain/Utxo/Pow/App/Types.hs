@@ -248,7 +248,7 @@ instance POW.BlockData UTXOBlock where
   validateHeader bh (POW.Time now) header
     | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
     | otherwise = do
-      answerIsGood <- Debug.trace "no puzzle check right now" $ return True
+      answerIsGood <- {-Debug.trace "no puzzle check right now" $ -}return True
       return $ if
          | not answerIsGood -> Left WrongAnswer
          | ubpTarget (ubProper $ POW.blockData header) /= POW.retarget bh
@@ -462,7 +462,7 @@ makeStateView bIdx0 overlay = sview where
 
             activeOverlay = addOverlayLayer overlay
 
-        commissionsTxs <- Debug.trace ("selecting transactions from "++show txlist) $ selectTX txlist activeOverlay
+        commissionsTxs <- {-Debug.trace ("selecting transactions from "++show txlist) $ -}selectTX txlist activeOverlay
         -- Create and process coinbase transaction
         let (commissions, txs) = unzip commissionsTxs
             commission = sum commissions
@@ -476,7 +476,8 @@ makeStateView bIdx0 overlay = sview where
                        , tx'outputs = V.fromList [coinbaseBox]
                        }
             blockTxs = coinbase : txs
-        Debug.trace ("block transactions: "++show blockTxs) $ runExceptT (checkBlockTransactions (POW.bhBID bh0) POW.NoChange activeOverlay blockTxs) >>= \case
+        {-Debug.trace ("block transactions: "++show blockTxs) $ -}
+        runExceptT (checkBlockTransactions (POW.bhBID bh0) POW.NoChange activeOverlay blockTxs) >>= \case
           Left  e -> Debug.trace ("checking transactions error: "++show e) $ error $ "Invalid block: " ++ show e
           Right () -> return ()
         -- Create block!
@@ -513,7 +514,7 @@ initializeStateView
   -> q (POW.StateView m UTXOBlock)
 initializeStateView genesis bIdx = do
   retrieveCurrentStateBlock >>= \case
-    Just bid -> do let Just bh = Debug.trace ("looking up bid "++show bid) $ POW.lookupIdx bid bIdx
+    Just bid -> do let Just bh = {-Debug.trace ("looking up bid "++show bid) $ -}POW.lookupIdx bid bIdx
                    return $ makeStateView bIdx (emptyOverlay bh)
     -- We need to initialize state table
     Nothing  -> do
@@ -593,7 +594,7 @@ checkBlockTransactions prevBID pathInDB overlay txs = do
     when (inputsSum < outputsSum && not canCreateMoney) $ throwError $ BadTx "money creation not in coinbase"
     return $ outputsSum - inputsSum
   when (moneyCreated /= miningRewardAmount) $ throwError $
-                                                BadCoinbase $ "block reward is "++show moneyCreated++" instead of "++show miningRewardAmount
+    BadCoinbase $ "block reward is "++show moneyCreated++" instead of "++show miningRewardAmount
   return ()
 {-
   -- Check inputs
@@ -661,13 +662,14 @@ getDatabaseBox (POW.RevertBlock i path) boxInputRef@BoxInputRef{..} = do
     Nothing -> getDatabaseBox path boxInputRef
 getDatabaseBox POW.NoChange boxInputRef@BoxInputRef{..} = do
   let boxid = boxInputRef'id
-  r <- Debug.trace ("fetching box for id "++show boxid) $ basicQuery1
+  r <- {-Debug.trace ("fetching box for id "++show boxid) $ -}basicQuery1
     "SELECT box \
     \  FROM utxo_set \
     \  JOIN utxo_state ON live_utxo = utxo_id \
     \ WHERE box_id = ?"
     boxid
-  Debug.trace ("fetched "++show r) $ case r of
+  {-Debug.trace ("fetched "++show r) $ -}
+  case r of
     Just u  -> return u
     Nothing -> throwError $ InternalErr "No such UTXO"
 
@@ -721,13 +723,10 @@ retrieveUTXOIO utxo = do
     Nothing       -> error "retrieveUTXOIO"
 
 retrieveUTXOByBoxId :: (MonadReadDB m, MonadIO m) => BoxId -> m (Maybe Box)
-retrieveUTXOByBoxId boxid = do
-  r <- queryRO $ basicQuery1
-    "SELECT box FROM utxo_set WHERE box_id = ?"
-    boxid
-  case r of
-    Just (Only box) -> return $ Just box
-    Nothing       -> return Nothing
+retrieveUTXOByBoxId boxid
+  =  queryRO
+  $  fmap fromOnly
+ <$> basicQuery1 "SELECT box FROM utxo_set WHERE box_id = ?" boxid
 
 
 
@@ -774,7 +773,8 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
   dumpOverlay o
   -- Store create UTXO
   forM_ (Map.toList utxoCreated) $ \(utxo, unspent) -> do
-    Debug.trace ("inserting box "++show unspent++" with id "++show utxo) $ basicExecute
+    {- Debug.trace ("inserting box "++show unspent++" with id "++show utxo) $ -}
+    basicExecute
       "INSERT OR IGNORE INTO utxo_set VALUES (NULL,?,?)"
       (utxo SQL.:. unspent)
   -- Write down block delta
@@ -792,7 +792,9 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
 dumpOverlay OverlayBase{} = return ()
 
 retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header UTXOBlock]
-retrieveAllUTXOHeaders = fmap (\x -> Debug.trace ("retrieved headers: "++show (map (\x -> (POW.blockID x, x)) x)) $ x) $ queryRO $ basicQueryWith_
+retrieveAllUTXOHeaders =
+  -- fmap (\x -> Debug.trace ("retrieved headers: "++show (map (\x -> (POW.blockID x, x)) x)) $ x) $
+  queryRO $ basicQueryWith_
   utxoBlockHeaderDecoder
   "SELECT height, time, prev, dataHash, target, nonce FROM utxo_blocks ORDER BY height"
 
@@ -803,7 +805,7 @@ retrieveUTXOHeader bid = queryRO $ basicQueryWith1
   (Only bid)
 
 retrieveUTXOBlock :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Block UTXOBlock))
-retrieveUTXOBlock bid = Debug.trace ("retrieve block by "++show bid) $ queryRO $ basicQueryWith1
+retrieveUTXOBlock bid = {- Debug.trace ("retrieve block by "++show bid) $ -} queryRO $ basicQueryWith1
   utxoBlockDecoder
   "SELECT height, time, prev, blockData FROM utxo_blocks WHERE bid = ?"
   (Only bid)
@@ -811,7 +813,8 @@ retrieveUTXOBlock bid = Debug.trace ("retrieve block by "++show bid) $ queryRO $
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
 storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
   let bid = POW.blockID b
-  Debug.trace ("storing block: "++ show b++" at "++show bid) $ basicExecute
+  {- Debug.trace ("storing block: "++ show b++" at "++show bid) $ -}
+  basicExecute
     "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
     ( bid
     , blockHeight
@@ -832,7 +835,8 @@ utxoBlockDecoder = do
 --  _ubpTarget  <- fieldCBOR
 --  _ubNonce    <- field
   let r = POW.GBlock {..}
-  Debug.trace ("decoded block "++show r) $ return r
+  -- Debug.trace ("decoded block "++show r) $
+  return r
 
 utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header UTXOBlock)
 utxoBlockHeaderDecoder = do
