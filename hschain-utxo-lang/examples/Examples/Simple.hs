@@ -8,7 +8,7 @@ import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
 
 -- | Addition of two integers
-progAddition :: ExprCore
+progAddition :: Core BindName Name
 progAddition
   =     EPrimOp OpAdd
   `EAp` EPrim (PrimInt 1)

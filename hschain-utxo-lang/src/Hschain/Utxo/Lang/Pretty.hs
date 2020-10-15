@@ -21,7 +21,7 @@ import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
-import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
+-- import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
 import Hschain.Utxo.Lang.Core.Types        (TypeCoreError(..))
 import qualified Data.Vector as V
 

@@ -40,13 +40,13 @@ tests = testGroup "core-lists"
     ]
   ]
 
-listToExpr :: TypeCore -> [ExprCore] -> ExprCore
+listToExpr :: TypeCore -> [Core BindName Name] -> Core BindName Name
 listToExpr ty = foldr cons nil
   where
     nil      = EConstr (ListT ty) 0
     cons a b = ap (EConstr (ListT ty) 1) [a, b]
 
-listConsts :: ExprCore -> ExprCore
+listConsts :: Core BindName Name -> Core BindName Name
 listConsts
   = let_ "xs" (nums xs)
   . let_ "ys" (nums ys)
@@ -64,47 +64,47 @@ listConsts
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
 -- Out of bound should terminate with BottomTerm.
-progListAt :: Int64 -> ExprCore
+progListAt :: Int64 -> Core BindName Name
 progListAt n
   = listConsts
   $ listAt IntT "xs" (int n)
 
 -- | Concatenation of two lists.
-progConcatList :: ExprCore
+progConcatList :: Core BindName Name
 progConcatList
   = listConsts
   $ appendList IntT "xs" "ys"
 
 -- | Map over list
-progMapList :: ExprCore
+progMapList :: Core BindName Name
 progMapList
   = listConsts
   $ mapList IntT IntT (EAp (EPrimOp OpMul) (int 10)) "xs"
 
-progSumList :: ExprCore
+progSumList :: Core BindName Name
 progSumList
   = listConsts
   $ ap (EPrimOp OpListSum) ["zs"]
 
-progOrList :: Int64 -> ExprCore
+progOrList :: Int64 -> Core BindName Name
 progOrList n
   = listConsts
   $ ap (EPrimOp OpListOr) [mapList IntT BoolT (isIntV n) "zs"]
 
-isIntV :: Int64 -> ExprCore
+isIntV :: Int64 -> Core BindName Name
 isIntV n = EAp (EPrimOp (OpEQ IntT)) (int n)
 
-progAnyList :: Int64 -> ExprCore
+progAnyList :: Int64 -> Core BindName Name
 progAnyList n
   = listConsts
   $ ap (EPrimOp (OpListAny IntT)) [isIntV n, "xs"]
 
-progAllList :: Int64 -> ExprCore
+progAllList :: Int64 -> Core BindName Name
 progAllList n
   = listConsts
   $ ap (EPrimOp (OpListAll IntT)) [isIntV n, "xs"]
 
-progSigmaAllList :: ExprCore
+progSigmaAllList :: Core BindName Name
 progSigmaAllList
   = listConsts
   $ ap (EPrimOp (OpSigListAll BoolT)) [EPrimOp OpSigBool, "bs"]

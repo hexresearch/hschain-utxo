@@ -61,7 +61,7 @@ tests = testGroup "core-boxes"
     , testProg "get input text arg" (PrimText "neil") progGetInputLastTextArg
     ]
 
-testProg :: String -> Prim -> ExprCore -> TestTree
+testProg :: String -> Prim -> Core BindName Name -> TestTree
 testProg name res prog = testGroup name
   [ testCase "typecheck" $ case typeCheck prog of
       Left  e -> assertFailure $ show e
@@ -69,28 +69,28 @@ testProg name res prog = testGroup name
   , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
   ]
 
-progGetHeight :: ExprCore
+progGetHeight :: Core BindName Name
 progGetHeight = getHeight
 
-progGetSelfId :: ExprCore
+progGetSelfId :: Core BindName Name
 progGetSelfId = getBoxId getSelf
 
-progGetSelfScript :: ExprCore
+progGetSelfScript :: Core BindName Name
 progGetSelfScript = getBoxScript getSelf
 
-progGetTxArg :: ExprCore
+progGetTxArg :: Core BindName Name
 progGetTxArg = listAt IntT getIntArgs (int 1)
 
-progGetInputId :: ExprCore
+progGetInputId :: Core BindName Name
 progGetInputId = getBoxId $ listAt BoxT getInputs (int 0)
 
-progGetOutputId :: ExprCore
+progGetOutputId :: Core BindName Name
 progGetOutputId = getBoxId $ listAt BoxT getOutputs (int 0)
 
-progGetOutputLastIntArg :: ExprCore
+progGetOutputLastIntArg :: Core BindName Name
 progGetOutputLastIntArg
   = listAt IntT (getBoxIntArgs $ listAt BoxT getOutputs (int 0)) (int 1)
 
-progGetInputLastTextArg :: ExprCore
+progGetInputLastTextArg :: Core BindName Name
 progGetInputLastTextArg
   = listAt TextT (getBoxTextArgs $ listAt BoxT getInputs (int 1)) (int 1)

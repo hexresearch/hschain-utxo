@@ -17,7 +17,7 @@ tests = testGroup "test-cost"
   ]
 
 
-progEquality :: Prim -> ExprCore
+progEquality :: Prim -> Core BindName Name
 progEquality p = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
   where
     ty = primToType p

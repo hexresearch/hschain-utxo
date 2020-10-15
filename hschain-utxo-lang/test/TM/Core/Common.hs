@@ -58,16 +58,16 @@ mkBoxOutput height bid box = BoxOutput
                         }
   }
 
-testProgram :: String -> ExprCore -> Prim -> TestTree
+testProgram :: String -> Core BindName Name -> Prim -> TestTree
 testProgram nm prog r = testProgramBy nm prog (Right [r])
 
-testProgramL :: String -> ExprCore -> [Prim] -> TestTree
+testProgramL :: String -> Core BindName Name -> [Prim] -> TestTree
 testProgramL nm prog r = testProgramBy nm prog (Right r)
 
-testProgramFail :: String -> ExprCore -> TestTree
+testProgramFail :: String -> Core BindName Name -> TestTree
 testProgramFail nm prog = testProgramBy nm prog (Left ())
 
-testProgramBy :: String -> ExprCore -> Either e [Prim] -> TestTree
+testProgramBy :: String -> Core BindName Name -> Either e [Prim] -> TestTree
 testProgramBy nm prog res
   = testGroup nm
   $ testTypecheck

@@ -20,7 +20,7 @@ alt i names = CaseAlt i . Scope (BindNameN names)
 --
 -- > I :: a -> a
 -- > I x = x
-skiI :: TypeCore -> ExprCore
+skiI :: TypeCore -> Core BindName Name
 skiI ty
   = lam  "x" ty
   $ EVar "x"
@@ -29,7 +29,7 @@ skiI ty
 --
 -- > K :: a -> b -> a
 -- > K x y = x
-skiK :: TypeCore -> TypeCore -> ExprCore
+skiK :: TypeCore -> TypeCore -> Core BindName Name
 skiK tyX tyY
   = lam  "x" tyX
   $ lam  "y" tyY
@@ -39,7 +39,7 @@ skiK tyX tyY
 --
 -- > S :: (a -> b -> c) -> (a -> b) -> a -> c
 -- > S x y z = x z (y z)
-skiS :: TypeCore -> TypeCore -> TypeCore -> ExprCore
+skiS :: TypeCore -> TypeCore -> TypeCore -> Core BindName Name
 skiS tyA tyB tyC
   = lam  "x" tyX
   $ lam  "y" tyY
@@ -58,7 +58,7 @@ skiS tyA tyB tyC
 -- | Example of program
 --
 -- > S K K 3
-exampleSKK3 :: ExprCore
+exampleSKK3 :: Core BindName Name
 exampleSKK3
   = let_ "K_intT" (skiK IntT IntT)
   $ let_ "K_funT" (skiK IntT (IntT :-> IntT))

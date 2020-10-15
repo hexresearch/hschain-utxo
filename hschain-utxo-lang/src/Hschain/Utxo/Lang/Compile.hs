@@ -17,7 +17,7 @@ import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
-import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
+import Hschain.Utxo.Lang.Core.Compile.Expr (Core, BindDB, BindName, toDeBrujin, coreProgToScript)
 -- import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
@@ -31,9 +31,10 @@ toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
 -- | Compilation to Core-lang program from the script-language.
-compile :: MonadLang m => Module -> m ExprCore
+compile :: MonadLang m => Module -> m (Core BindDB Int) 
 compile
-  =  return . substPrimOp
+  =  (either (throwError . FreeVariable) pure . toDeBrujin)
+ <=< (pure . substPrimOp)
  <=< toCoreProg
 -- <=< makeMonomorphic
  <=< specifyCompareOps
@@ -41,12 +42,12 @@ compile
  <=< toExtendedLC
 
 -- | Perform sunbstiturion of primops
-substPrimOp :: ExprCore -> ExprCore
+substPrimOp :: Core BindName Name -> Core BindName Name
 substPrimOp = Core.substVar $ \v -> Core.EPrimOp <$> Map.lookup v monoPrimopNameMap
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
-toCoreProg :: MonadLang m => TypedLamProg -> m ExprCore
+toCoreProg :: MonadLang m => TypedLamProg -> m (Core BindName Name)
 toCoreProg = fromDefs . unAnnLamProg
 
 bind1 :: a -> Core.Core Core.BindName a -> Core.Scope Core.BindName 'Core.One a
@@ -55,7 +56,7 @@ bind1 nm = Core.Scope (Core.BindName1 nm)
 bindN :: [a] -> Core.Core Core.BindName a -> Core.Scope Core.BindName 'Core.Many a
 bindN nm = Core.Scope (Core.BindNameN nm)
 
-fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m ExprCore
+fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m (Core BindName Name)
 fromDefs [] = throwError $ PatError MissingMain
 fromDefs (Def{..}:rest)
   | def'name == "main" = body
@@ -66,7 +67,7 @@ fromDefs (Def{..}:rest)
         go []                   = toCoreExpr def'body
         go (Typed nm ty : args) = Core.ELam <$> toCoreType ty <*> (bind1 nm <$> go args)
 
-toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
+toCoreExpr :: MonadLang m => TypedExprLam -> m (Core BindName Name)
 toCoreExpr = cataM convert
   where
     convert (Ann _exprTy val) = case val of

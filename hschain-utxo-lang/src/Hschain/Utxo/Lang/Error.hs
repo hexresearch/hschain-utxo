@@ -24,6 +24,7 @@ data Error
   | InternalError InternalError     -- ^ errors of this type should not happen in production
   | MonoError MonoError             -- ^ errors during monomorphizing
   | CoreScriptError CoreScriptError -- ^ errors of core scripts
+  | FreeVariable Text
   deriving stock    (Show,Eq,Generic)
 
 -- | Execution errors

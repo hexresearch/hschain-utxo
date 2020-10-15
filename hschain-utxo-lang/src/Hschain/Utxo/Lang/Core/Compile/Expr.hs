@@ -7,7 +7,6 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , Typed(..)
   , TypeCore
   , Core(..)
-  , ExprCore
   , CaseAlt(..)
   , coreProgToScript
   , coreProgFromScript
@@ -39,10 +38,10 @@ import Hschain.Utxo.Lang.Types (Script(..),ArgType)
 import qualified Data.ByteString.Lazy as LB
 
 
-coreProgToScript :: ExprCore -> Script
+coreProgToScript :: Core BindDB Int -> Script
 coreProgToScript = Script . LB.toStrict . serialise
 
-coreProgFromScript :: Script -> Maybe ExprCore
+coreProgFromScript :: Script -> Maybe (Core BindDB Int)
 coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
 
 data PrimOp a
@@ -142,8 +141,6 @@ data Core b a
 
 instance IsString a => IsString (Core b a) where
   fromString = EVar . fromString
-
-type ExprCore = Core BindName Name
 
 -- | Case alternatives
 data CaseAlt b a = CaseAlt
