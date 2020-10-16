@@ -28,8 +28,9 @@ mineCoin txs mb = GBlock
   { blockHeight = maybe (Height 0) (succ . blockHeight) mb
   , blockTime   = Time 0
   , prevBlock   = blockID <$> mb
-  , blockData   = UTXOBlock "" UTXOBlockProper
-    { ubpData   = merkled txs
-    , ubpTarget = Target $ 2^(256::Int)-1
+  , blockData   = UTXOBlock
+    { ubData   = merkled txs
+    , ubTarget = Target $ 2^(256::Int)-1
+    , ubNonce  = ""
     }
   }

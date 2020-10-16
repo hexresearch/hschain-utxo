@@ -131,65 +131,47 @@ instance SQL.FromRow Box where
 -------------------------------------------------------------------------------
 -- The Block.
 
--- ^A block proper. It does not contain nonce to solve PoW puzzle
--- but it contains all information about block.
-data UTXOBlockProper f = UTXOBlockProper
-  { ubpData       :: !(MerkleNode f SHA256 [Tx])
-  -- ^ List of key-value pairs
-  , ubpTarget     :: !POW.Target
-  -- ^ Current difficulty of mining. It means a complicated thing
-  -- right now.
-  }
-  deriving stock (Generic)
-deriving stock instance (Show1 f)    => Show (UTXOBlockProper f)
-deriving stock instance (IsMerkle f) => Eq   (UTXOBlockProper f)
-instance IsMerkle f => JSON.FromJSON (UTXOBlockProper f) where
-  parseJSON = JSON.withObject "utxoblockproper" $ \bp ->
-    UTXOBlockProper
-      <$> (bp JSON..: "data")
-      <*> (POW.Target <$> bp JSON..: "target")
-instance IsMerkle f => JSON.ToJSON (UTXOBlockProper f) where
-  toJSON (UTXOBlockProper d (POW.Target t)) =
-    JSON.object
-      [ "data"   JSON..= d
-      , "target" JSON..= t
-      ]
-instance Serialise (UTXOBlockProper Identity)
-instance Serialise (UTXOBlockProper Proxy)
-
-instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlockProper f) where
-  hashStep = Crypto.genericHashStep "block proper"
-
--- ^The block. Nonce (puzzle answer) is prepended to the header
--- as it is more secure - prevents selfish pool mining utilization.
--- When nonce is before block and answer is computed as a hash of nonce
--- and header, then each (pool) miner sees what is previous block
--- and can detect selfish mining and mining pool utilization for
--- currencies it does not support.
+-- ^ The block. Nonce (puzzle answer) is prepended to the header as it
+--   is more secure - prevents selfish pool mining utilization.  When
+--   nonce is before block and answer is computed as a hash of nonce
+--   and header, then each (pool) miner sees what is previous block
+--   and can detect selfish mining and mining pool utilization for
+--   currencies it does not support.
+--
+--   A block proper. It does not contain nonce to solve PoW puzzle but
+--   it contains all information about block.
 data UTXOBlock f = UTXOBlock
-  { ubNonce       :: !ByteString
-  , ubProper      :: !(UTXOBlockProper f)
+  { ubData   :: !(MerkleNode f SHA256 [Tx])
+  , ubTarget :: !POW.Target
+  , ubNonce  :: !ByteString
   }
   deriving stock (Generic)
 deriving stock instance (Show1 f)    => Show (UTXOBlock f)
 deriving stock instance (IsMerkle f) => Eq   (UTXOBlock f)
+
 instance IsMerkle f => JSON.FromJSON (UTXOBlock f) where
-  parseJSON = JSON.withObject "utxoblock" $ \b ->
+  parseJSON = JSON.withObject "UtxoBlock" $ \bp ->
     UTXOBlock
-      <$> fmap (\(ViaBase58 s :: ViaBase58 "UTXOBlock" ByteString) -> s) (b JSON..: "nonce")
-      <*> (b JSON..: "proper")
+      <$> (bp JSON..: "data")
+      <*> (POW.Target <$> bp JSON..: "target")
+      <*> ((\(ViaBase58 s :: ViaBase58 "UTXOBlock" ByteString) -> s) <$> (bp JSON..: "nonce"))
 instance IsMerkle f => JSON.ToJSON (UTXOBlock f) where
-  toJSON (UTXOBlock nonce proper) =
-     JSON.object ["nonce" JSON..= (JSON.toJSON $ ViaBase58 nonce), "proper" JSON..= proper]
-instance Serialise (UTXOBlock Identity) -- XXX questionable. We probably need custom things here.
+  toJSON (UTXOBlock d (POW.Target t) b) =
+    JSON.object
+      [ "data"   JSON..= d
+      , "target" JSON..= t
+      , "nonce"  JSON..= ViaBase58 b
+      ]
+instance Serialise (UTXOBlock Identity)
 instance Serialise (UTXOBlock Proxy)
 
 
 instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
   hashStep = Crypto.genericHashStep "block proper"
 
-instance POW.BlockData UTXOBlock where
 
+instance POW.BlockData UTXOBlock where
+  --
   newtype BlockID UTXOBlock = UB'BID { fromUBBID :: Crypto.Hash SHA256 }
     deriving newtype
       (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON, ByteRepr)
@@ -215,7 +197,7 @@ instance POW.BlockData UTXOBlock where
 
   txID    = UTXOTxID . hash
   blockID = UB'BID   . hash
-  blockTransactions = merkleValue . ubpData . ubProper . POW.blockData
+  blockTransactions = merkleValue . ubData . POW.blockData
 
   validateHeader bh (POW.Time now) header
     | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
@@ -223,7 +205,7 @@ instance POW.BlockData UTXOBlock where
       answerIsGood <- {-Debug.trace "no puzzle check right now" $ -}return True
       return $ if
          | not answerIsGood -> Left WrongAnswer
-         | ubpTarget (ubProper $ POW.blockData header) /= POW.retarget bh
+         | ubTarget (POW.blockData header) /= POW.retarget bh
                             -> Left WrongTarget
          | t > now + (2 * 60 * 60 * 1000)
                             -> Left AheadOfTime
@@ -236,16 +218,14 @@ instance POW.BlockData UTXOBlock where
   validateTxContextFree = validateTransactionContextFree
 
   blockWork b = POW.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
-                              $ POW.targetInteger $ ubpTarget $ ubProper
+                              $ POW.targetInteger $ ubTarget
                               $ POW.blockData b
 
-  blockTargetThreshold b = POW.Target $ POW.targetInteger $
-                          ubpTarget $ ubProper $ POW.blockData b
+  blockTargetThreshold b = POW.Target $ POW.targetInteger $ ubTarget $ POW.blockData b
 
 
 instance MerkleMap UTXOBlock where
-  merkleMap f ub = ub
-                 { ubProper = (ubProper ub) { ubpData = mapMerkleNode f $ ubpData $ ubProper ub } }
+  merkleMap f ub = ub { ubData = mapMerkleNode f $ ubData ub }
 
 -- |The Reward.
 miningRewardAmount :: Money
@@ -379,7 +359,7 @@ makeStateView bIdx0 overlay = sview where
         unless (POW.bhPrevious bh ==      Just bh0)  $ throwError $ InternalErr "BH mismatich"
         unless (POW.bhBID bh      == POW.blockID b) $ throwError $ InternalErr "BH don't match block"
         --
-        let txList = merkleValue $ ubpData $ ubProper $ POW.blockData b
+        let txList = merkleValue $ ubData $ POW.blockData b
         -- Perform context free validation of all transactions in
         -- block
         () <- except
@@ -454,11 +434,9 @@ makeStateView bIdx0 overlay = sview where
           Right () -> return ()
         -- Create block!
         return UTXOBlock
-          { ubNonce    = ""
-          , ubProper   = UTXOBlockProper
-                           { ubpData     = merkled blockTxs
-                           , ubpTarget   = POW.retarget bh
-                           }
+          { ubNonce  = ""
+          , ubData   = merkled blockTxs
+          , ubTarget = POW.retarget bh
           }
     }
 
@@ -791,9 +769,9 @@ storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
     , blockHeight
     , blockTime
     , prevBlock
-    , ByteRepred $ merkleHash $ ubpData $ ubProper blk
+    , ByteRepred $ merkleHash $ ubData blk
     , CBORed blk
-    , CBORed $ ubpTarget $ ubProper blk
+    , CBORed $ ubTarget blk
     , ubNonce blk
     )
 
@@ -803,22 +781,17 @@ utxoBlockDecoder = do
   blockTime   <- field
   prevBlock   <- field
   blockData   <- fieldCBOR
---  _ubpTarget  <- fieldCBOR
---  _ubNonce    <- field
-  let r = POW.GBlock {..}
-  -- Debug.trace ("decoded block "++show r) $
-  return r
+  pure POW.GBlock {..}
 
 utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header UTXOBlock)
 utxoBlockHeaderDecoder = do
   blockHeight <- field
   blockTime   <- field
   prevBlock   <- field
-  ubpData     <- fromHashed <$> fieldByteRepr
-  ubpTarget   <- fieldCBOR
+  ubData      <- fromHashed <$> fieldByteRepr
+  ubTarget    <- fieldCBOR
   ubNonce     <- field
-  let ubProper = UTXOBlockProper ubpData ubpTarget
-  return POW.GBlock{ POW.blockData = UTXOBlock{..}, ..}
+  return POW.GBlock{ blockData = UTXOBlock{..}, .. }
 
 -- Initialize database for mock coin blockchain
 initUTXODB :: (MonadThrow m, MonadDB m, MonadIO m) => m ()

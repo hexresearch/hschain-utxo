@@ -144,11 +144,9 @@ genesis = POW.GBlock
   , blockTime   = POW.Time   0
   , prevBlock   = Nothing
   , blockData   = UTXOBlock
-    { ubNonce = ""
-    , ubProper = UTXOBlockProper
-      { ubpData     = merkled []
-      , ubpTarget   = POW.Target $ 2^255
-      }
+    { ubNonce  = ""
+    , ubData   = merkled []
+    , ubTarget = POW.Target $ 2^255
     }
   }
 
