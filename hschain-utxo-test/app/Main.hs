@@ -9,8 +9,14 @@ import Hschain.Utxo.Test.Client.Scripts.AtomicSwap
 import Hschain.Utxo.Test.Client.Scripts.MultiSig
 import Hschain.Utxo.Test.Client.Scripts.Channel
 
+import Hschain.Utxo.Test.Client.Scripts.Lightning.Example
+
 main :: IO ()
-main = do
+main =
+  lightningExample
+
+main' :: IO ()
+main' = do
   exchangeTest   <- runTestProc simpleExchange
   xorTest        <- runTestProc xorGame
   payTest1       <- runTestProc payForCofeeAlice
