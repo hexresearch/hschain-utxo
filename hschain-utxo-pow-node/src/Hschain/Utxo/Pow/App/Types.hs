@@ -131,9 +131,6 @@ instance SQL.FromRow Box where
 -------------------------------------------------------------------------------
 -- The Block.
 
--- |Signature and hash used.
-type Alg = Ed25519 :& SHA256
-
 -- ^A block proper. It does not contain nonce to solve PoW puzzle
 -- but it contains all information about block.
 data UTXOBlockProper f = UTXOBlockProper
