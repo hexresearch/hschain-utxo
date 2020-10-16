@@ -113,20 +113,6 @@ import Hschain.Utxo.API.Rest
 
 import qualified Debug.Trace as Debug
 
--------------------------------------------------------------------------------
--- Instances.
-
-deriving via (ByteRepred BoxId) instance SQL.FromField BoxId
-deriving via (ByteRepred BoxId) instance SQL.ToField   BoxId
-deriving via (CBORed Box)       instance SQL.FromField Box
-deriving via (CBORed Box)       instance SQL.ToField   Box
-
-instance SQL.ToRow Box where
-  toRow box = [SQL.toField box]
-
-instance SQL.FromRow Box where
-  fromRow = SQL.field
-
 
 -------------------------------------------------------------------------------
 -- The Block.
@@ -620,8 +606,8 @@ getDatabaseBox POW.NoChange boxInputRef@BoxInputRef{..} = do
     (Only boxid)
   {-Debug.trace ("fetched "++show r) $ -}
   case r of
-    Just u  -> return u
-    Nothing -> throwError $ InternalErr "No such UTXO"
+    Just (Only u) -> return u
+    Nothing       -> throwError $ InternalErr "No such UTXO"
 
 spendBox :: BoxId -> Unspent -> ActiveOverlay -> ActiveOverlay
 spendBox boxid val
@@ -632,20 +618,24 @@ createUnspentBox boxid val
   = typed . lensCreated . at boxid .~ Just val
 
 isSpentAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
-isSpentAtBlock i boxid = basicQuery1
-  "SELECT box \
-  \  FROM utxo_set \
-  \  JOIN utxo_spent ON utxo_id = utxo_ref \
-  \ WHERE box_id = ? AND block_ref = ?"
-  (boxid, i)
+isSpentAtBlock i boxid
+  =  fmap fromOnly
+ <$> basicQuery1
+       "SELECT box \
+       \  FROM utxo_set \
+       \  JOIN utxo_spent ON utxo_id = utxo_ref \
+       \ WHERE box_id = ? AND block_ref = ?"
+       (boxid, i)
 
 isCreatedAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Unspent)
-isCreatedAtBlock i boxid = basicQuery1
-  "SELECT box \
-  \  FROM utxo_set \
-  \  JOIN utxo_created ON utxo_id = utxo_ref \
-  \ WHERE box_id = ? AND block_ref = ?"
-  (boxid, i)
+isCreatedAtBlock i boxid
+  =  fmap fromOnly
+ <$> basicQuery1
+       "SELECT box \
+       \  FROM utxo_set \
+       \  JOIN utxo_created ON utxo_id = utxo_ref \
+       \ WHERE box_id = ? AND block_ref = ?"
+       (boxid, i)
 
 retrieveCurrentStateBlock :: MonadQueryRO m => m (Maybe (POW.BlockID UTXOBlock))
 retrieveCurrentStateBlock = fmap fromOnly <$> basicQuery1
@@ -726,7 +716,7 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
     {- Debug.trace ("inserting box "++show unspent++" with id "++show utxo) $ -}
     basicExecute
       "INSERT OR IGNORE INTO utxo_set VALUES (NULL,?,?)"
-      (Only utxo :. unspent)
+      (utxo, unspent)
   -- Write down block delta
   bid <- retrieveUTXOBlockTableID (POW.bhBID bh)
   forM_ (Map.keys utxoCreated) $ \utxo -> do
@@ -853,3 +843,13 @@ initUTXODB = mustQueryRW $ do
     \  , CHECK (uniq = 0) \
     \)"
 
+
+
+----------------------------------------------------------------
+-- SQL instances
+----------------------------------------------------------------
+
+deriving via (ByteRepred BoxId) instance SQL.FromField BoxId
+deriving via (ByteRepred BoxId) instance SQL.ToField   BoxId
+deriving via (CBORed Box)       instance SQL.FromField Box
+deriving via (CBORed Box)       instance SQL.ToField   Box
