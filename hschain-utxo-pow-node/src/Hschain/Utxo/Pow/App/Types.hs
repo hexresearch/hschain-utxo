@@ -114,8 +114,9 @@ import Hschain.Utxo.API.Rest
 import qualified Debug.Trace as Debug
 
 
--------------------------------------------------------------------------------
+----------------------------------------------------------------
 -- The Block.
+----------------------------------------------------------------
 
 -- ^ The block. Nonce (puzzle answer) is prepended to the header as it
 --   is more secure - prevents selfish pool mining utilization.  When
@@ -782,6 +783,11 @@ utxoBlockHeaderDecoder = do
   ubTarget    <- fieldCBOR
   ubNonce     <- field
   return POW.GBlock{ blockData = UTXOBlock{..}, .. }
+
+
+----------------------------------------------------------------
+-- Database schema
+----------------------------------------------------------------
 
 -- Initialize database for mock coin blockchain
 initUTXODB :: (MonadThrow m, MonadDB m, MonadIO m) => m ()
