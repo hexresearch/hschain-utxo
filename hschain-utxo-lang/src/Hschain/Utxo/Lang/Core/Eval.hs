@@ -77,8 +77,5 @@ verifyInput txArg input@BoxInput{..} = do
 -- | We verify that expression is evaluated to the sigma-value that is
 -- supplied by the proposer and then verify the proof itself.
 evalProveTx :: TxArg -> Either Text ()
-evalProveTx tx = do
-  unless (txPreservesValue tx) $
-    Left "Sum of inputs does not equal to sum of outputs"
-  mapM_ (verifyInput tx) (txArg'inputs tx)
+evalProveTx tx = mapM_ (verifyInput tx) (txArg'inputs tx)
 
