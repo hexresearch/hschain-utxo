@@ -65,7 +65,7 @@ import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.FromRow   as SQL
 import qualified Database.SQLite.Simple.ToRow     as SQL
 
-import GHC.Generics
+import GHC.Generics (Generic)
 
 import Katip (LogEnv, Namespace)
 
