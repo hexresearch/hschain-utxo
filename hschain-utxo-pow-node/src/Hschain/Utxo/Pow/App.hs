@@ -146,7 +146,7 @@ genesis = POW.GBlock
   , blockData   = UTXOBlock
     { ubNonce  = ""
     , ubData   = merkled []
-    , ubTarget = POW.Target $ 2^255
+    , ubTarget = POW.Target $ 2^256 - 1
     }
   }
 
