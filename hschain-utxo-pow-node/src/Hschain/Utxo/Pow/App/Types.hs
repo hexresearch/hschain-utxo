@@ -166,6 +166,8 @@ instance IsMerkle f => JSON.ToJSON (UTXOBlock f) where
 instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
   hashStep = Crypto.genericHashStep "block proper"
 
+$(makeLensesWithL ''UTXOBlock)
+$(makeLensesWithL ''POW.GBlock)
 
 ----------------------------------------------------------------
 -- BlockData instance
