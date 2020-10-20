@@ -70,8 +70,10 @@ import HSChain.Logger
 
 import HSChain.Store.Query
 
-import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.Lang.Build
+import Hschain.Utxo.Lang.Types
+import Hschain.Utxo.Lang.Core.Compile.Expr
+import Hschain.Utxo.Lang.Core.Eval
+import Hschain.Utxo.Lang.Core.Types
 
 
 ----------------------------------------------------------------
@@ -441,7 +443,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
   -- FIXME: Compute commisions
   -- -- Create and process coinbase transaction
   let coinbaseBox = Box { box'value  = miningRewardAmount
-                        , box'script = mainScriptUnsafe true
+                        , box'script = coreProgToScript $ EPrim (PrimBool True)
                         , box'args   = mempty
                         }
       coinbase = Tx { tx'inputs  = V.singleton BoxInputRef

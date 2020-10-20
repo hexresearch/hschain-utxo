@@ -13,7 +13,8 @@
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
-) where
+  , UtxoRestAPI(..)
+  ) where
 
 import Hex.Common.Aeson
 import Hex.Common.Yaml
