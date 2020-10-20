@@ -78,6 +78,7 @@ library
 
 executable hschain-utxo-pow-node-app
   main-is:             Main.hs
+  Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
