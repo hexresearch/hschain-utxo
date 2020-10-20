@@ -33,10 +33,7 @@ library
                      , hschain-db
                      , hschain-merkle
                      , hschain-utxo-lang
-                     , hschain-utxo-api-rest
-                     , hschain-utxo-state
                      , hschain-PoW
-                     , hschain
                      , hschain-control
                      , hschain-logger
                      , hschain-net

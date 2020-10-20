@@ -102,21 +102,14 @@ import HSChain.PoW.API
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.State.React
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.State.Types
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
-import qualified Hschain.Utxo.State.Query as S
-import Hschain.Utxo.State.Types
 import qualified Crypto.ECC.Edwards25519  as Ed
-
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
 
-
-import Hschain.Utxo.API.Rest
 
 import Hschain.Utxo.Pow.App.Options (Command(..), readCommandOptions)
 import Hschain.Utxo.Pow.App.Types
@@ -177,8 +170,7 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
       let endpointUTXOEnv = utxoEnv { ueMempool = POW.mempoolAPI pow }
       liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
       forM_ cfgWebAPI $ \port -> do
-        let api = Proxy :: Proxy UtxoAPI
-            run :: UTXOT IO a -> Servant.Handler a
+        let run :: UTXOT IO a -> Servant.Handler a
             run (UTXOT x) = liftIO $ runReaderT x endpointUTXOEnv
         liftIO $ hPutStrLn stderr $ "starting server at "++show port
         HControl.cforkLinkedIO $ do
@@ -205,7 +197,7 @@ data UtxoRestAPI route = UtxoRestAPI
       :> "box" :> "get" :> Capture "box-id" BoxId :> Get '[JSON] (Maybe Box)
   , debugGetState :: route
       :- Summary "Get full state of blockchain"
-      :> "debug" :> "state" :> "get" :> Get '[JSON] BoxChain
+      :> "debug" :> "state" :> "get" :> Get '[JSON] [(BoxId, Box)]
   }
   deriving (Generic)
 
@@ -222,119 +214,20 @@ endpointGetBoxImpl boxId = do
   liftIO $ hPutStrLn stderr $ "getBoxEndpoint: boxid "++show boxId++", box "++show r
   return r
 
-debugGetStateImpl :: (MonadIO m, MonadReadDB m) => m BoxChain
-debugGetStateImpl = do
-  live <- queryRO $ basicQuery_
-    "SELECT box_id, box \
-    \  FROM utxo_set \
-    \  JOIN utxo_state ON live_utxo = utxo_id"
-  return $ BoxChain (Map.fromList live) 0
+debugGetStateImpl :: (MonadIO m, MonadReadDB m) => m [(BoxId, Box)]
+debugGetStateImpl = queryRO $ basicQuery_
+  "SELECT box_id, box \
+  \  FROM utxo_set \
+  \  JOIN utxo_state ON live_utxo = utxo_id"
 
 
------------------------------------------------------------------
--- Legacy API
-----------------------------------------------------------------
-
-{-
--- | Server implementation for 'UtxoAPI'
-utxoServer :: Servant.ServerT UtxoAPI (UTXOT IO)
-utxoServer =
-       postTxEndpoint                -- posts transaction
-  :<|> getBoxEndpoint                -- gets box by id
-  :<|> getBoxBalanceEndpoint         -- reads balance for a box
-  :<|> getTxSigmaEndpoint            -- executes script to sigma-expression without commiting
-  :<|> getEnvEndpoint                -- reads blockchain environment
-  :<|> getStateEndpoint              -- reads whole state (for debug only)
-  :<|> getUtxosEndpoint              -- reads list of all available UTXOs
-  :<|> hasUtxoEndpoint               -- is UTXO exists (available to spend)
-  :<|> readBlockEndpoint             -- reads block at the given height
-  :<|> readBlockchainHeightEndpoint  -- reads current height of the blockchain
--}
-
-postTxEndpoint :: Tx -> ServerM PostTxResponse
-postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
-
-getBoxBalanceEndpoint :: BoxId -> ServerM (Maybe Money)
-getBoxBalanceEndpoint boxId =
-  --fmap (\bch -> S.getBoxBalance bch boxId) readBoxChain
-  pure Nothing
-
-getTxSigmaEndpoint :: Tx -> ServerM SigmaTxResponse
-getTxSigmaEndpoint tx =
-  --fmap (\bch -> uncurry SigmaTxResponse $ execInBoxChain tx bch) readBoxChain
-  pure $ SigmaTxResponse (Left "I can't") ("Yes, you heard right - I can't")
-
-getEnvEndpoint :: ServerM GetEnvResponse
-getEnvEndpoint = do
-  bch <- readBoxChain
-  return $ GetEnvResponse $ getEnv bch
-
-getStateEndpoint :: ServerM BoxChain
-getStateEndpoint =
-  readBoxChain
-
-getUtxosEndpoint :: ServerM [BoxId]
-getUtxosEndpoint = return []
-
-hasUtxoEndpoint :: BoxId -> ServerM Bool
-hasUtxoEndpoint boxId = return False
-
-readBlockEndpoint :: Int -> ServerM (Maybe [Tx])
-readBlockEndpoint height = return Nothing
-
-readBlockchainHeightEndpoint :: ServerM Int
-readBlockchainHeightEndpoint = return 0
 
 
 type ServerM a = UTXOT IO a
 
--- | Reads current state of the block chain
-readBoxChain :: ServerM BoxChain
-readBoxChain =
-  readBoxChainState
 
-
---------------------------------------------------
------- bchain store operations
-
-writeTx :: Tx -> UTXOT IO (Maybe TxHash)
-writeTx tx = do
-  POW.MempoolAPI {..} <- fmap ueMempool ask
-  liftIO $ hPutStrLn stderr $ "posting transaction "++show tx
-  HControl.sinkIO postTransaction tx
-  --Bchain{..} <- askBchain
-  --liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
-  --  ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
-  return $ Just $ TxHash h
-  where
-    Hash h = hash tx :: Hash SHA256
-
-readBlock :: Int -> UTXOT IO (Maybe [Tx])
-readBlock height = do
-  --Bchain{..} <- askBchain
-  --liftIO $ do
-  --  mb <- runDBT bchain'conn $ queryRO $ retrieveBlock (Height $ fromIntegral height)
-  --  pure $ unBData . merkleValue . blockData <$> mb
-  pure Nothing
-
-blockchainSize :: UTXOT IO Int
-blockchainSize = do
-  --Bchain{..} <- askBchain
-  --liftIO $ do
-  --  Height h <- runDBT bchain'conn $ queryRO blockchainHeight
-  --  pure $! fromIntegral h
-  return 0
-
-readBoxChainState :: UTXOT IO BoxChain
-readBoxChainState = do
-  --Bchain{..} <- askBchain
-  --liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
-  return $ BoxChain Map.empty 0
-
-postTxWait :: Tx -> UTXOT IO (Maybe TxHash)
-postTxWait tx = do
-  -- We start listening before sending transaction to mempool to avoid
-  -- race when tx is commited before we start listening
-  h <- writeTx tx
-  liftIO $ hPutStrLn stderr $ "posted tx "++show tx++", hash "++show h
-  return h
+-- FIXME
+instance Servant.FromHttpApiData BoxId where
+  parseQueryParam = (\txt -> maybe (err txt) Right $ decodeBase58 txt) <=< Servant.parseQueryParam
+    where
+      err txt = Left $ "Failed to parse boxId from: " <> txt
