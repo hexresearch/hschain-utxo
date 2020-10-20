@@ -14,7 +14,6 @@
 module Hschain.Utxo.Pow.App.Types where
 
 import Hex.Common.Aeson
-import Hex.Common.Yaml
 import Hex.Common.Lens
 
 import Codec.Serialise
@@ -23,60 +22,36 @@ import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad
-import Control.Concurrent.STM
-import Control.Monad.Base
 import Control.Monad.Catch hiding (Handler)
 import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Morph (hoist)
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Except (except)
-import Control.Monad.Trans.Maybe
 
 import Data.Coerce
-import qualified Data.Aeson as JSON
-
-import Data.ByteString (ByteString)
-import Data.ByteString.Builder (toLazyByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as T
-import Data.Fix
-
-import Data.Fixed
-
-import Data.Functor.Classes (Show1)
-
-import Data.Generics.Product.Typed (typed)
-
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-
-import Data.List (foldl')
-
+import Data.ByteString         (ByteString)
+import Data.ByteString.Builder (toLazyByteString,Builder)
+import Data.Functor.Classes    (Show1)
+import Data.List               (foldl')
 import Data.Maybe
-
-import Data.Text (Text)
-
-import qualified Data.Vector as V
-
 import Data.Word
+import qualified Data.Aeson           as JSON
+import qualified Data.ByteString      as BS
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text            as T
+import qualified Data.Map.Strict      as Map
+import qualified Data.Set             as Set
+import qualified Data.Vector          as V
 
-import Database.SQLite.Simple ((:.)(..))
 import qualified Database.SQLite.Simple           as SQL
-import qualified Database.SQLite.Simple.Ok        as SQL
 import qualified Database.SQLite.Simple.ToField   as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.FromRow   as SQL
-import qualified Database.SQLite.Simple.ToRow     as SQL
 
 import GHC.Generics (Generic)
 
 import Katip (LogEnv, Namespace)
-
--- import Servant.API
--- import Servant.Server
 
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
@@ -86,15 +61,10 @@ import qualified HSChain.PoW.Consensus  as POW
 import qualified HSChain.PoW.BlockIndex as POW
 import qualified HSChain.PoW.P2P        as POW
 import qualified HSChain.PoW.Types      as POW
-import qualified HSChain.PoW.Node       as POW
 import HSChain.Types.Merkle.Types
 
 import HSChain.Control.Class
 import HSChain.Crypto hiding (PublicKey)
-import HSChain.Crypto.Classes.Hash
-import HSChain.Crypto.Ed25519
-import HSChain.Crypto.SHA
-import HSChain.Types.Merkle.Types
 
 import HSChain.Logger
 
@@ -102,22 +72,11 @@ import HSChain.Store.Query
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.State.React
-import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.State.Types
 
-import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Types
-import qualified Hschain.Utxo.State.Query as S
-import Hschain.Utxo.State.Types
-import qualified Crypto.ECC.Edwards25519  as Ed
 
-import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
-
-import Hschain.Utxo.API.Rest
-
-import qualified Debug.Trace as Debug
+----------------------------------------------------------------
+--
+----------------------------------------------------------------
 
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
@@ -235,6 +194,7 @@ computeBlockID b
  <> hashStep (ubNonce $ POW.blockData b)
 
 -- | Builder without which doesn't include nonce
+blockIdBuilder :: POW.GBlock UTXOBlock f -> Builder
 blockIdBuilder (POW.GBlock{blockData = UTXOBlock{..}, ..})
   = hashStep (Crypto.UserType "utxo" "Block")
  <> hashStep blockHeight
@@ -560,7 +520,7 @@ processTX
   -> ActiveOverlay
   -> TxArg
   -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ActiveOverlay
-processTX pathInDB overlay0 tx@TxArg{..} = do
+processTX pathInDB overlay0 TxArg{..} = do
   overlay1 <- foldM spendBox  overlay0 txArg'inputs
   pure $ foldl' createBox overlay1 txArg'outputs
   where
@@ -574,26 +534,6 @@ processTX pathInDB overlay0 tx@TxArg{..} = do
       ) boxInput'id
     -- On other hand new
     createBox o (IBox boxId box) = o & activeLayer . lensCreated . at boxId .~ Just box
-
-{-
-  -- Fetch all inputs & check that we can spend them
-  inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
-    let boxid = boxInputRef'id
-    case getOverlayBoxId overlay boxid of
-      Just (Spent _) -> throwError $ InternalErr "Input already spent"
-      Just (Added u) -> return (boxid,u)
-      Nothing        -> (,) boxid <$> getDatabaseBox pathInDB bir
-  checkSpendability inputs tx
-  let inputsSum = sum $ fmap (box'value . snd) inputs
-      outputsSum = sum $ fmap box'value tx'outputs
-  -- Update overlay
-  let overlay1 = foldl' (\o (boxid,u) -> spendBox boxid u o) overlay inputs
-      overlay2 = foldl' (\o (boxid,u) -> createUnspentBox boxid u o) overlay1
-               $ V.imap (\i b -> (computeBoxId txId (fromIntegral i), b)) tx'outputs
-  return (outputsSum - inputsSum, overlay2)
-  where
-    txId = computeTxId tx
--}
 
 
 -------------------------------------------------------------------------------
@@ -616,47 +556,6 @@ validateTransactionContextFree (Tx{}) = do
 --  -- Signature must be valid.
 --  unless (verifySignatureHashed pubK txSend sig)
 --    $ Left $ CoinError "Invalid signature"
-
--- | We check transactions in block as a whole.
---
-checkBlockTransactions
-  :: POW.BlockID UTXOBlock
-  -> POW.BlockIndexPath (ID (POW.Block UTXOBlock))
-  -> ActiveOverlay
-  -> [Tx]
-  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ()
-checkBlockTransactions prevBID pathInDB overlay txs = do
-  {-
-  moneyCreated <- fmap sum $ forM (zip txs $ True : repeat False) $ \(tx@Tx{..}, canCreateMoney) -> do
-    inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
-      let boxid = boxInputRef'id
-      case getOverlayBoxId overlay boxid of
-        Just (Spent _) -> throwError $ InternalErr "Input already spent"
-        Just (Added u) -> return (boxid,u)
-        Nothing        -> (,) boxid <$> getDatabaseBox pathInDB bir
-    checkSpendability inputs tx
-    let inputsSum  = sum $ fmap (box'value . snd) inputs
-        outputsSum = sum $ fmap box'value tx'outputs
-    when (inputsSum < outputsSum && not canCreateMoney) $ throwError $ BadTx "money creation not in coinbase"
-    return $ outputsSum - inputsSum
-  when (moneyCreated /= miningRewardAmount) $ throwError $
-    BadCoinbase $ "block reward is "++show moneyCreated++" instead of "++show miningRewardAmount
--}
-  return ()
-{-
-  -- Check inputs
-  case ins of
-    [UTXO 0 h] | h == coerce prevBID -> return ()
-    _ -> throwError $ InternalErr "Invalid backreference in coinbase"
-  -- Check outputs
-  u <- case outs of
-    [u@(Unspent _ 100)] -> return u
-    _ -> throwError $ InternalErr "Invalid output in coinbase"
-  return $ createUnspentBox boxid u overlay
-  where
-    txHash = hashed tx
-    utxo   = UTXO 0 txHash
--}
 
 
 getDatabaseBox
@@ -693,13 +592,6 @@ getDatabaseBox POW.NoChange boxId = do
     Just (Only u) -> return u
     Nothing       -> throwError $ InternalErr "No such UTXO"
 
-spendBox :: BoxId -> Box -> ActiveOverlay -> ActiveOverlay
-spendBox boxid val
-  = activeLayer . lensSpent . at boxid .~ Just val
-
-createUnspentBox :: BoxId -> Box -> ActiveOverlay -> ActiveOverlay
-createUnspentBox boxid val
-  = activeLayer . lensCreated . at boxid .~ Just val
 
 isSpentAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe Box)
 isSpentAtBlock i boxid
