@@ -144,14 +144,14 @@ instance POW.BlockData UTXOBlock where
                      , JSON.ToJSON, JSON.FromJSON)
     deriving (SQL.FromField, SQL.ToField) via ByteRepred (POW.TxID UTXOBlock)
 
-  data BlockException UTXOBlock =
-                                  WrongAnswer
-                                | WrongTarget
-                                | AheadOfTime
-                                | BadCoinbase String
-                                | BadTx String
-                                | EmptyBlock
-                                | InternalErr String
+  data BlockException UTXOBlock
+    = WrongAnswer
+    | WrongTarget
+    | AheadOfTime
+    | BadCoinbase String
+    | BadTx String
+    | EmptyBlock
+    | InternalErr String
     deriving stock    (Show,Generic)
     deriving anyclass (Exception,JSON.ToJSON)
 
