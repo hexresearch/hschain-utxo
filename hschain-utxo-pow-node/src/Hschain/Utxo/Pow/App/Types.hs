@@ -203,7 +203,7 @@ instance POW.BlockData UTXOBlock where
   validateHeader bh (POW.Time now) header
     | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
     | otherwise = do
-      answerIsGood <- {-Debug.trace "no puzzle check right now" $ -}return True
+      answerIsGood <- liftIO $ checkPuzzle header
       return $ if
          | not answerIsGood -> Left WrongAnswer
          | ubTarget (POW.blockData header) /= POW.retarget bh
@@ -248,21 +248,29 @@ blockIdBuilder (POW.GBlock{blockData = UTXOBlock{..}, ..})
 miningRewardAmount :: Money
 miningRewardAmount = 100
 
+checkPuzzle :: POW.GBlock UTXOBlock f -> IO Bool
+checkPuzzle b = POW.check bs nonce h powCfg
+  where
+    bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b
+    nonce  = ubNonce $ POW.blockData b
+    tgt    = POW.blockTargetThreshold b
+    powCfg = POW.defaultPOWConfig
+      { POW.powCfgTarget = POW.targetInteger tgt
+      }
+    Hash h = hashBlob @SHA256 $ nonce <> bs
+
 instance POW.Mineable UTXOBlock where
   adjustPuzzle b0@POW.GBlock{..} = do
-    (maybeAnswer, hash) <- liftIO $ POW.solve [bs] powCfg
-    Debug.traceShowM (isJust maybeAnswer)
-    let tgt = POW.hash256AsTarget hash
+    (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
     return ( do answer <- maybeAnswer
                 pure $ b0 & blockDataL . ubNonceL .~ answer
-           , tgt
+           , POW.hash256AsTarget hashR
            )
     where
       bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b0
       powCfg = POW.defaultPOWConfig
-        { POW.powCfgTarget = POW.targetInteger tgt
+        { POW.powCfgTarget = POW.targetInteger $ POW.blockTargetThreshold b0
         }
-      tgt = POW.blockTargetThreshold b0
 
 data UTXOEnv = UTXOEnv
   { ueLogEnv      :: !LogEnv
