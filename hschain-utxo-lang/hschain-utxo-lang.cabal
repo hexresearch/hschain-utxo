@@ -39,6 +39,7 @@ library
       Hschain.Utxo.Lang.Core.Types
       Hschain.Utxo.Lang.Core.Eval
       Hschain.Utxo.Lang.Core.RefEval
+      Hschain.Utxo.Lang.Crypto.Signature
       Hschain.Utxo.Lang.Desugar
       Hschain.Utxo.Lang.Desugar.Case
       Hschain.Utxo.Lang.Desugar.ExtendedLC
