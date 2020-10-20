@@ -144,6 +144,8 @@ Test-suite hschain-utxo-lang-tests
   Build-Depends:       base              >=4.9 && <5
                      , hschain-utxo-lang
                      , hschain-crypto
+                     , cryptonite
+                     , memory
                      , data-fix
                      , bytestring
                      , vector
@@ -159,6 +161,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Common
                        TM.Core.List
                        TM.Tx.Sigma
+                       TM.Tx.Sign
                        Examples.SKI
                        Examples.Simple
   default-extensions:

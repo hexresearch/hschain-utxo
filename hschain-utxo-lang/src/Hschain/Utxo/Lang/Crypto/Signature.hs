@@ -1,4 +1,4 @@
--- | Signatures based on Ed25519
+-- | Signatures based on Ed25519 (Schnorr signatures are used)
 module Hschain.Utxo.Lang.Crypto.Signature(
     Signature
   , signMessage
@@ -6,38 +6,46 @@ module Hschain.Utxo.Lang.Crypto.Signature(
 ) where
 
 import Control.Applicative
-import Crypto.Error
 
-import Data.ByteString (ByteString)
-import Data.Maybe
+import Hschain.Utxo.Lang.Sigma (CryptoAlg, PublicKey, Secret, SigMessage)
 
-import Hschain.Utxo.Lang.Sigma (PublicKey, Secret, SigMessage, getPublicKey)
+import HSChain.Crypto (ByteRepr(..))
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..))
+import Hschain.Utxo.Lang.Sigma.Types (Response)
 
-import HSChain.Crypto (ByteRepr(..), CryptoHashable)
+import qualified Data.ByteString as B
 
-import qualified Crypto.PubKey.Ed25519 as Ed
+import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
-import qualified Data.ByteArray as BA
+-- | Signature.
+data Signature = Signature
+  { signature'commitment :: ECPoint CryptoAlg
+  , signature'response   :: Response CryptoAlg
+  }
+  deriving (Show, Eq)
 
-newtype Signature = Signature ByteString
-  deriving newtype (ByteRepr, CryptoHashable)
+instance ByteRepr Signature where
+  encodeToBS (Signature commitment response) = encodeToBS commitment <> encodeToBS response
 
-signMessage :: Secret -> SigMessage -> Maybe Signature
-signMessage privKey msg = maybeCryptoError $
-  liftA2 (\priv pub -> Signature $ BA.convert $ Ed.sign priv pub (encodeToBS msg)) (fromPrivKey privKey) (fromPubKey pubKey)
-  where
-    pubKey = getPublicKey privKey
+  decodeFromBS bs = liftA2 Signature (decodeFromBS commitmentBS) (decodeFromBS responseBS)
+    where
+      (commitmentBS, responseBS) = B.splitAt 32 bs
 
+-- | Signs message.
+signMessage :: Secret -> SigMessage -> IO Signature
+signMessage (Sigma.Secret privKey) msg = do
+  k <- generateScalar
+  let commitment = fromGenerator k
+      challenge = randomOracle $ encodeToBS commitment <> encodeToBS msg
+      response = k .+. fromChallenge challenge .*. privKey
+  return $ Signature
+    { signature'commitment = commitment
+    , signature'response   = response }
+
+-- | Verifies signed message
 verifyMessage :: PublicKey -> Signature -> SigMessage -> Bool
-verifyMessage pubKey signature msg = fromMaybe False $ maybeCryptoError $
-  liftA2 (\pub sig -> Ed.verify pub (encodeToBS msg) sig) (fromPubKey pubKey) (fromSignature signature)
-
-fromPrivKey :: Secret -> CryptoFailable Ed.SecretKey
-fromPrivKey = Ed.secretKey . encodeToBS
-
-fromPubKey :: PublicKey -> CryptoFailable Ed.PublicKey
-fromPubKey  = Ed.publicKey . encodeToBS
-
-fromSignature :: Signature -> CryptoFailable Ed.Signature
-fromSignature = Ed.signature . encodeToBS
+verifyMessage (Sigma.PublicKey pubKey) (Signature commitment response) msg =
+  fromGenerator response == commitment ^+^ (ch .*^ pubKey )
+  where
+    ch = fromChallenge $ randomOracle $ encodeToBS commitment <> encodeToBS msg
 

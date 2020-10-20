@@ -5,6 +5,7 @@ import qualified TM.Core.Box
 import qualified TM.Core.Cost
 import qualified TM.Core.List
 import qualified TM.Tx.Sigma
+import qualified TM.Tx.Sign
 
 main :: IO ()
 main = defaultMain $ testGroup "lang"
@@ -15,4 +16,5 @@ main = defaultMain $ testGroup "lang"
   , TM.Core.Cost.tests
   , TM.Core.List.tests
   , TM.Tx.Sigma.tests
+  , TM.Tx.Sign.tests
   ]
