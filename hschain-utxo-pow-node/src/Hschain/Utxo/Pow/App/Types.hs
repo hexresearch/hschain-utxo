@@ -378,7 +378,6 @@ applyUtxoBlock
   -> m (Either (POW.BlockException UTXOBlock) (POW.StateView m UTXOBlock))
 applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   when (null txList) $ throwError EmptyBlock
-  Debug.traceM "applyUtxoBlock A"
   -- Consistency checks
   unless (POW.bhPrevious bh ==      Just bh0) $ throwError $ InternalErr "BH mismatich"
   unless (POW.bhBID bh      == POW.blockID b) $ throwError $ InternalErr "BH don't match block"
@@ -414,7 +413,6 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
       $ mapM_ evalProveTx txArgs
     -- Mark every input as spend and create outputs
     foldM (processTX pathInDB) overlay0 txArgs
-  Debug.traceM "applyUtxoBlock BB"
   return
     $ makeStateView bIdx
     $ fromMaybe (error "UTXO: invalid BH in apply block")
@@ -435,14 +433,11 @@ createUtxoCandidate
   -> [Tx]
   -> m (UTXOBlock Identity)
 createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
-  Debug.trace "createUtxoCandidate A" $ return ()
   pathInDB <- do
     Just stateBid <- retrieveCurrentStateBlock
     let Just bhState = POW.lookupIdx stateBid bIdx
     POW.makeBlockIndexPathM (retrieveUTXOBlockTableID . POW.bhBID)
       bhState (overlayBase overlay)
-  --
-  Debug.trace "createUtxoCandidate A1" $ return ()
   -- Select transaction
   let tryTX o tx = do
         txArg <- buildTxArg (getDatabaseBox pathInDB) env tx
@@ -460,7 +455,6 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
       --
   txList <- selectTX txlist $ addOverlayLayer overlay
   -- FIXME: Compute commisions
-  -- commissionsTxs <- {-Debug.trace ("selecting transactions from "++show txlist) $ -}
   -- -- Create and process coinbase transaction
   let coinbaseBox = Box { box'value  = miningRewardAmount
                         , box'script = mainScriptUnsafe true
@@ -476,8 +470,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
                     }
       blockTxs = coinbase : [] -- fmap snd txList
   -- Create block!
-  Debug.trace "createUtxoCandidate B" $ return ()
-  Debug.traceShowM coinbase
+
   return UTXOBlock
     { ubNonce  = ""
     , ubData   = merkled blockTxs
