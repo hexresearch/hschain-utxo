@@ -231,3 +231,6 @@ instance Servant.FromHttpApiData BoxId where
   parseQueryParam = (\txt -> maybe (err txt) Right $ decodeBase58 txt) <=< Servant.parseQueryParam
     where
       err txt = Left $ "Failed to parse boxId from: " <> txt
+
+instance Servant.ToHttpApiData BoxId where
+  toQueryParam = encodeBase58
