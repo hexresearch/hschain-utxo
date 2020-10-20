@@ -38,6 +38,7 @@ import Data.Coerce
 import qualified Data.Aeson as JSON
 
 import Data.ByteString (ByteString)
+import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
@@ -163,9 +164,6 @@ instance IsMerkle f => JSON.ToJSON (UTXOBlock f) where
       , "nonce"  JSON..= ViaBase58 b
       ]
 
-instance (IsMerkle f) => Crypto.CryptoHashable (UTXOBlock f) where
-  hashStep = Crypto.genericHashStep "block proper"
-
 $(makeLensesWithL ''UTXOBlock)
 $(makeLensesWithL ''POW.GBlock)
 
@@ -199,7 +197,7 @@ instance POW.BlockData UTXOBlock where
     deriving anyclass (Exception,JSON.ToJSON)
 
   txID    = UTXOTxID . hash
-  blockID = UB'BID   . hash
+  blockID = computeBlockID
   blockTransactions = merkleValue . ubData . POW.blockData
 
   validateHeader bh (POW.Time now) header
@@ -230,23 +228,41 @@ instance POW.BlockData UTXOBlock where
 instance MerkleMap UTXOBlock where
   merkleMap f ub = ub { ubData = mapMerkleNode f $ ubData ub }
 
+computeBlockID :: POW.GBlock UTXOBlock f -> POW.BlockID UTXOBlock
+computeBlockID b
+  = UB'BID . hashBuilder
+  $ blockIdBuilder b
+ <> hashStep (ubNonce $ POW.blockData b)
+
+-- | Builder without which doesn't include nonce
+blockIdBuilder (POW.GBlock{blockData = UTXOBlock{..}, ..})
+  = hashStep (Crypto.UserType "utxo" "Block")
+ <> hashStep blockHeight
+ <> hashStep blockTime
+ <> hashStep prevBlock
+ <> hashStep ubData
+ <> hashStep ubTarget
+
+
 -- |The Reward.
 miningRewardAmount :: Money
 miningRewardAmount = 100
 
 instance POW.Mineable UTXOBlock where
   adjustPuzzle b0@POW.GBlock{..} = do
-    Debug.traceShowM ("adjustPuzzle", blockHeight, blockTime)
-    (maybeAnswer, hash) <- liftIO $ POW.solve [LBS.toStrict $ serialise blockData] powCfg
+    (maybeAnswer, hash) <- liftIO $ POW.solve [bs] powCfg
     Debug.traceShowM (isJust maybeAnswer)
     let tgt = POW.hash256AsTarget hash
-    return (fmap (\answer -> b0 { POW.blockData = blockData { ubNonce = answer} }) maybeAnswer, tgt)
+    return ( do answer <- maybeAnswer
+                pure $ b0 & blockDataL . ubNonceL .~ answer
+           , tgt
+           )
     where
-      h0 = POW.toHeader b0
-      powCfg = defaultPOWConfig
-                       { POW.powCfgTarget = POW.targetInteger tgt }
+      bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b0
+      powCfg = POW.defaultPOWConfig
+        { POW.powCfgTarget = POW.targetInteger tgt
+        }
       tgt = POW.blockTargetThreshold b0
-      defaultPOWConfig = POW.defaultPOWConfig
 
 data UTXOEnv = UTXOEnv
   { ueLogEnv      :: !LogEnv
@@ -468,7 +484,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
                         }
                     , tx'outputs = V.fromList [coinbaseBox]
                     }
-      blockTxs = coinbase : [] -- fmap snd txList
+      blockTxs = coinbase : fmap snd txList
   -- Create block!
 
   return UTXOBlock
