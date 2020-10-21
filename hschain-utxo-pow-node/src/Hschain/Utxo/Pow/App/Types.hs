@@ -82,8 +82,6 @@ import Hschain.Utxo.Lang.Core.Types
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
 $(makeLensesWithL ''Box)
-ibox'boxL :: Lens' IBox Box
-ibox'boxL = lens (\(IBox _ b) -> b) (\(IBox i _) b -> IBox i b)
 
 ----------------------------------------------------------------
 -- The Block.

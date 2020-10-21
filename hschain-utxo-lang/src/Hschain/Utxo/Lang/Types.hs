@@ -15,7 +15,6 @@ module Hschain.Utxo.Lang.Types
   , argTypes
     -- * Blockchain state manipulation
   , InputEnv(..)
-  , IBox(..)
   , TxArg(..)
   , buildTxArg
   , BoxInput(..)
@@ -131,11 +130,6 @@ data Box = Box
   }
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (Serialise, NFData)
-
--- | Box with box ID. We use this data type instead of a type chiefly
---   in order to facilitate type-class based dispatch in evaluator.
-data IBox = IBox BoxId Box
-  deriving stock (Show, Eq, Ord, Generic)
 
 -- | Box and relevant information that is aquired at TX-post time.
 data PostBox = PostBox
@@ -473,7 +467,6 @@ $(deriveJSON dropPrefixOptions ''BoxInput)
 $(deriveJSON dropPrefixOptions ''BoxOutput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
 $(deriveJSON dropPrefixOptions ''Box)
-$(deriveJSON dropPrefixOptions ''IBox)
 $(deriveJSON dropPrefixOptions ''SigMask)
 
 instance CryptoHashable Tx where
