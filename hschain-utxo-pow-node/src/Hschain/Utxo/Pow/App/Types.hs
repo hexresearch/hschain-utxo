@@ -59,7 +59,6 @@ import qualified HSChain.Crypto.Classes.Hash as Crypto
 import qualified HSChain.POW            as POW
 import qualified HSChain.PoW.Consensus  as POW
 import qualified HSChain.PoW.BlockIndex as POW
-import qualified HSChain.PoW.P2P        as POW
 import qualified HSChain.PoW.Types      as POW
 import HSChain.Types.Merkle.Types
 
@@ -342,7 +341,7 @@ makeStateView bIdx0 overlay = sview where
            basicExecute "UPDATE utxo_state_bid SET state_block = ?" (Only i)
         return $ makeStateView bIdx0 (emptyOverlay bh0)
       -- FIXME: not implemented
-    , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
+    , checkTx = \_tx@Tx{..} -> queryRO $ runExceptT $ do
         undefined
         -- inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
         --   u <- getDatabaseBox POW.NoChange bir
@@ -397,7 +396,7 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
     either (throwError . InternalErr . T.unpack) pure
       $ mapM_ evalProveTx txArgs
     -- Mark every input as spend and create outputs
-    foldM (processTX pathInDB) overlay0 txArgs
+    foldM processTX overlay0 txArgs
   return
     $ makeStateView bIdx
     $ fromMaybe (error "UTXO: invalid BH in apply block")
@@ -430,7 +429,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
         --
         either (throwError . InternalErr . T.unpack) pure
           $ evalProveTx txArg
-        o' <- processTX pathInDB o txArg
+        o' <- processTX o txArg
         return (txArg, o')
   -- Select transactions
   let selectTX []     _ = return []
@@ -517,11 +516,10 @@ checkBalance (coinbase:txArgs) = do
 
 -- | Mark every input as spent and mark every output as created
 processTX
-  :: POW.BlockIndexPath (ID (POW.Block UTXOBlock))
-  -> ActiveOverlay
+  :: ActiveOverlay
   -> TxArg
   -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ActiveOverlay
-processTX pathInDB overlay0 TxArg{..} = do
+processTX overlay0 TxArg{..} = do
   overlay1 <- foldM spendBox  overlay0 txArg'inputs
   pure $ foldl' createBox overlay1 txArg'outputs
   where
