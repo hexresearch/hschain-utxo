@@ -64,11 +64,14 @@ toHaskExp (Fix expr) = case expr of
   FailCase loc -> H.Var loc (H.UnQual loc $ H.Ident loc "undefined")
   Let loc binds e -> H.Let loc (toLetBinds loc binds) (rec e)
   PrimLet loc binds e -> H.Let loc (toPrimLetBinds loc binds) (rec e)
+  CheckSig loc a b -> ap2 (VarName loc Const.checkSig) a b
+  CheckMultiSig loc a b c -> ap3 (VarName loc Const.checkMultiSig) a b c
   AltE _ _ _ -> error "Alt is for internal usage"
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
     ap2 f x y = H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)
+    ap3 f x y z = H.App (HM.getLoc z) (H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)) (rec z)
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
     toPrimLetBinds loc bg = H.BDecls loc $ toPrimDecl bg
 

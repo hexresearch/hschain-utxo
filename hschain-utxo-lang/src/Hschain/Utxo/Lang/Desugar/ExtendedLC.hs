@@ -73,6 +73,8 @@ exprToExtendedLC typeCtx = cataM $ \case
   BoxE loc e              -> fromBoxExpr loc e
   Trace loc a b           -> fromTrace loc a b
   Ascr loc e t            -> fromAscr loc e t
+  CheckSig loc a b        -> fromCheckSig loc a b
+  CheckMultiSig loc a b c -> fromCheckMultiSig loc a b c
   Let _ _ _               -> failedToEliminate "Complex let-expression"
   InfixApply _ _ _ _      -> failedToEliminate "InfixApply"
   Lam _ _ _               -> failedToEliminate "Single argument Lam"
@@ -221,6 +223,9 @@ exprToExtendedLC typeCtx = cataM $ \case
           IntToText    -> "Int"
           BoolToText   -> "Bool"
           ScriptToText -> "Script"  -- TODO: in low level language we don't have type for Script, or should we?
+
+    fromCheckSig loc a b = pure $ ap2 loc (var loc Const.checkSig) a b
+    fromCheckMultiSig loc a b c = pure $ ap3 loc (var loc Const.checkMultiSig) a b c
 
     fromBytesExpr _ expr = pure $ case expr of
       BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b

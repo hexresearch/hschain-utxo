@@ -12,6 +12,7 @@ module Hschain.Utxo.Repl.Eval(
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
+import Data.Default
 import Data.Maybe
 
 import HSChain.Crypto (hashBlob)
@@ -94,12 +95,15 @@ defaultInputEnv = InputEnv
     , boxInput'box     = post self
     , boxInput'args    = mempty
     , boxInput'proof   = Nothing
+    , boxInput'sigs    = mempty
     , boxInput'sigMask = SigAll
     , boxInput'sigMsg  = SigMessage $ hashBlob "SIGNME"
     }
-  , inputEnv'inputs  = V.fromList []
-  , inputEnv'outputs = V.fromList []
+  , inputEnv'inputs  = mempty
+  , inputEnv'outputs = mempty
+  , inputEnv'sigs    = mempty
   , inputEnv'args    = mempty
+  , inputEnv'sigMsg  = def
   }
   where
     defHeight = 0

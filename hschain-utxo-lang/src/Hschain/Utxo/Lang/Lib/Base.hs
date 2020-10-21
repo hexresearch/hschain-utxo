@@ -113,6 +113,8 @@ baseFuns =
   , snd
   , otherwise
   , undefined
+  , checkSig
+  , checkMultiSig
   ] P.++ getBoxArgListFuns P.++ getVars
   where
     getBoxArgListFuns = fmap getBoxArgList argTypes
@@ -186,6 +188,8 @@ baseNames =
   , "snd"
   , "otherwise"
   , "undefined"
+  , Const.checkSig
+  , Const.checkMultiSig
   ] P.++ getVarNames
 
 getVarNames :: [Text]
@@ -267,6 +271,8 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "snd" (forAB $ tupleT [aT, bT] ~> bT)
   , assumpType "otherwise" (monoT boolT)
   , assumpType "undefined" $ forA aT
+  , assumpType Const.checkSig $ monoT $ textT ~> intT ~> boolT
+  , assumpType Const.checkMultiSig $ monoT $ intT ~> listT textT ~> listT intT ~> boolT
   ] P.++ getBoxArgListTypes P.++ getEnvVarTypes
   where
     forA = forAllT' "a" . monoT
@@ -479,6 +485,12 @@ foldVec = bind "fold" (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE no
 
 appendVec :: Bind Lang
 appendVec = bind "++" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)
+
+checkSig :: Bind Lang
+checkSig = bind Const.checkSig (Fix $ LamList noLoc ["pubKey", "sigIndex"] $ Fix $ CheckSig noLoc (var' "pubKey") (var' "sigIndex"))
+
+checkMultiSig :: Bind Lang
+checkMultiSig = bind Const.checkMultiSig (Fix $ LamList noLoc ["total", "pubKeys", "sigIndices"] $ Fix $ CheckMultiSig noLoc (var' "total") (var' "pubKeys") (var' "sigIndices"))
 
 appendText :: Bind Lang
 appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
