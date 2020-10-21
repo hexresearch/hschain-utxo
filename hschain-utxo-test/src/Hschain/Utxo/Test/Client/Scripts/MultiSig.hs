@@ -77,6 +77,7 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       { boxInputRef'id      = boxId
       , boxInputRef'args    = mempty
       , boxInputRef'proof   = proof
+      , boxInputRef'sigs    = mempty
       , boxInputRef'sigMask = SigAll
       }
 
@@ -126,6 +127,7 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
       { boxInputRef'id      = commonBoxId
       , boxInputRef'args    = mempty
       , boxInputRef'proof   = proof
+      , boxInputRef'sigs    = mempty
       , boxInputRef'sigMask = SigAll
       }
 
@@ -165,6 +167,7 @@ simpleSpendToTx wallet fromId toPubKey value =
       { boxInputRef'id    = fromId
       , boxInputRef'args  = mempty
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
+      , boxInputRef'sigs    = mempty
       , boxInputRef'sigMask = SigAll
       }
 

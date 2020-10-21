@@ -160,6 +160,7 @@ xorGameRound Scene{..} game@Game{..} = do
             { boxInputRef'id      = inBox
             , boxInputRef'args    = mempty
             , boxInputRef'proof   = Just $ singleOwnerSigmaExpr wallet
+            , boxInputRef'sigs    = mempty
             , boxInputRef'sigMask = SigAll
             }
 
@@ -186,8 +187,8 @@ xorGameRound Scene{..} game@Game{..} = do
           height <- M.getHeight
           let preTx = Tx
                 { tx'inputs  = V.fromList
-                    [ BoxInputRef inBox mempty (Just $ singleOwnerSigmaExpr wallet) SigAll
-                    , BoxInputRef scriptBox mempty Nothing SigAll
+                    [ BoxInputRef inBox mempty (Just $ singleOwnerSigmaExpr wallet) mempty SigAll
+                    , BoxInputRef scriptBox mempty Nothing mempty SigAll
                     ]
                 , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
                 }
@@ -234,7 +235,7 @@ xorGameRound Scene{..} game@Game{..} = do
       return (tx, extractWinAddr tx)
       where
         preTx = Tx
-            { tx'inputs  = V.fromList [BoxInputRef gameBox args (Just $ singleOwnerSigmaExpr wallet) SigAll]
+            { tx'inputs  = V.fromList [BoxInputRef gameBox args (Just $ singleOwnerSigmaExpr wallet) mempty SigAll]
             , tx'outputs = V.fromList [outBox]
             }
 

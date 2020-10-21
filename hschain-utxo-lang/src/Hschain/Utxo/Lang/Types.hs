@@ -59,6 +59,7 @@ import GHC.Generics
 import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr, decodeBase58, encodeBase58)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.SHA          (SHA256)
+import Hschain.Utxo.Lang.Crypto.Signature
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
@@ -220,9 +221,15 @@ getTxSizes Tx{..} = TxSizes
 -- of reulting sigma expression.
 data BoxInputRef a = BoxInputRef
   { boxInputRef'id       :: BoxId
+  -- ^ identifier of the box to spend
   , boxInputRef'args     :: Args
+  -- ^ arguments for box script
   , boxInputRef'proof    :: Maybe a
+  -- ^ proof for the script
+  , boxInputRef'sigs     :: Vector Signature
+  -- ^ signatures for the script
   , boxInputRef'sigMask  :: SigMask
+  -- ^ mask of TX which defines the filter of inputs and outputs that we sign
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
@@ -458,6 +465,7 @@ singleOwnerInput boxId pubKey = return $ BoxInputRef
   { boxInputRef'id      = boxId
   , boxInputRef'args    = mempty
   , boxInputRef'proof   = Just $ singleOwnerSigma pubKey
+  , boxInputRef'sigs    = mempty
   , boxInputRef'sigMask = SigAll
   }
 

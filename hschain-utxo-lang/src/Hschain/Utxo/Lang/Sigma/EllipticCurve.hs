@@ -27,7 +27,6 @@ import HSChain.Crypto.Classes.Hash
 infixl 6 .+.
 infixl 7 .*.
 
-
 -- | Operations with elliptic curve
 class ( ByteRepr (ECPoint   a)
       , ByteRepr (ECScalar  a)
