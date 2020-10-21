@@ -156,8 +156,7 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
                           , POW.nConnectedPeers = 3
                           }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
-    let unassignedMempool = error "mempool is not assigned!"
-    in withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn unassignedMempool $ evalContT $ do
+    withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
       (db, bIdx, sView) <- lift $ utxoStateView genesis
       c0  <- lift $ POW.createConsensus db sView bIdx
       pow <- POW.startNode netcfg net cfgPeers db c0
@@ -168,11 +167,10 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
                      print (POW.bhHeight bh, POW.bhBID bh)
                      print $ POW.retarget bh
       utxoEnv <- lift ask
-      let endpointUTXOEnv = utxoEnv { ueMempool = POW.mempoolAPI pow }
       liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
       forM_ cfgWebAPI $ \port -> do
         let run :: UTXOT IO a -> Servant.Handler a
-            run (UTXOT x) = liftIO $ runReaderT x endpointUTXOEnv
+            run (UTXOT x) = liftIO $ runReaderT x utxoEnv
         liftIO $ hPutStrLn stderr $ "starting server at "++show port
         HControl.cforkLinkedIO $ do
           hPutStrLn stderr $ "server started at "++show port

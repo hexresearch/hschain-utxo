@@ -238,7 +238,6 @@ data UTXOEnv = UTXOEnv
   { ueLogEnv      :: !LogEnv
   , ueNamespace   :: !Namespace
   , ueConn        :: !(Connection 'RW)
-  , ueMempool     :: POW.MempoolAPI (UTXOT IO) UTXOBlock
   }
   deriving (Generic)
 
@@ -249,8 +248,8 @@ newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
   deriving (MonadDB, MonadReadDB) via DatabaseByType (ReaderT UTXOEnv m)
 
 
-runUTXOT :: LogEnv -> Connection 'RW -> POW.MempoolAPI (UTXOT IO) UTXOBlock -> UTXOT m a -> m a
-runUTXOT logenv conn mempool (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn mempool)
+runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
+runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
 
 -------------------------------------------------------------------------------
 -- Executable part.
