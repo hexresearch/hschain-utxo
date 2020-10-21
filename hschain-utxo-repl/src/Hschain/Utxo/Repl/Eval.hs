@@ -91,7 +91,7 @@ defaultInputEnv = InputEnv
   { inputEnv'height  = 0
   , inputEnv'self    = BoxInput
     { boxInput'id      = bid
-    , boxInput'box     = self
+    , boxInput'box     = post self
     , boxInput'args    = mempty
     , boxInput'proof   = Nothing
     , boxInput'sigMask = SigAll
@@ -102,7 +102,11 @@ defaultInputEnv = InputEnv
   , inputEnv'args    = mempty
   }
   where
+    defHeight = 0
+    post box = PostBox box defHeight
+
     bid  = BoxId $ hashBlob "default-input-box"
+
     self = Box
       { box'value  = 1
       , box'script = Script BS.empty

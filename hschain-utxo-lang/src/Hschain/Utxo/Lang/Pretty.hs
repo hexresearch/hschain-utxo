@@ -103,8 +103,23 @@ instance Pretty TxArg where
 instance Pretty BoxInput where
   pretty BoxInput{..} = prettyRecord "BoxInput"
     [ ("box",   pretty boxInput'box)
+    , ("id",    pretty boxInput'id)
     , ("args",  prettyArgs boxInput'args)
     , ("proof", pretty boxInput'proof)
+    , ("sigMask", pretty boxInput'sigMask)
+    , ("sigMsg", pretty boxInput'sigMsg)
+    ]
+
+instance Pretty BoxOutput where
+  pretty BoxOutput{..} = prettyRecord "BoxOutput"
+    [ ("box",   pretty boxOutput'box)
+    , ("id",    pretty boxOutput'id)
+    ]
+
+instance Pretty PostBox where
+  pretty PostBox{..} = prettyRecord "PostBox"
+    [ ("content", pretty postBox'content)
+    , ("height",  pretty postBox'height)
     ]
 
 instance Pretty a => Pretty (BoxInputRef a) where
@@ -207,6 +222,7 @@ instance Pretty BoxField where
     BoxFieldValue       -> "value"
     BoxFieldScript      -> "script"
     BoxFieldArgList tag -> pretty $ getBoxArgVar tag
+    BoxFieldPostHeight  -> "postHeight"
 
 instance Pretty Error where
   pretty = \case

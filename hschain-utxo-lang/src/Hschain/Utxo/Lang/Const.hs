@@ -13,6 +13,7 @@ module Hschain.Utxo.Lang.Const(
   , getBoxId
   , getBoxScript
   , getBoxValue
+  , getBoxPostHeight
   -- * List functions
   , listAt
   , map
@@ -65,12 +66,12 @@ getArgs typeName = mconcat ["get", typeName, "Args"]
 getBoxArgs :: Text -> Text
 getBoxArgs typeName = mconcat ["getBox", typeName, "Args"]
 
-getBoxId, getBoxScript, getBoxValue :: Text
+getBoxId, getBoxScript, getBoxValue, getBoxPostHeight :: Text
 
-getBoxId     = "getBoxId"
-getBoxScript = "getBoxScript"
-getBoxValue  = "getBoxValue"
-
+getBoxId         = "getBoxId"
+getBoxScript     = "getBoxScript"
+getBoxValue      = "getBoxValue"
+getBoxPostHeight = "getBoxPostHeight"
 -------------------------------------------------------------------
 -- list functions
 

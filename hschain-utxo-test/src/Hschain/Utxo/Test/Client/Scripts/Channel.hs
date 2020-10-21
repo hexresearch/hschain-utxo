@@ -432,7 +432,7 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
       }
 
     revoceScript =
-          (pk' myPk &&* (toSigma $ getHeight >* int postDelay))
+          (pk' myPk &&* (toSigma $ getHeight >* getBoxPostHeight getSelf + int postDelay))
       ||* (pk' partnerPk &&* (toSigma $ sha256 readKey ==* bytes revoceHash))
       where
         revoceHash = getSha256 revoceSecret

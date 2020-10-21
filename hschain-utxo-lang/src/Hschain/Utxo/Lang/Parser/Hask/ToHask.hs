@@ -149,10 +149,11 @@ toHaskExp (Fix expr) = case expr of
       BoxAt loc a field   -> fromBoxField loc a field
 
     fromBoxField loc a = \case
-      BoxFieldId          -> get "getBoxId"
-      BoxFieldValue       -> get "getBoxValue"
-      BoxFieldScript      -> get "getBoxScript"
+      BoxFieldId          -> get Const.getBoxId
+      BoxFieldValue       -> get Const.getBoxValue
+      BoxFieldScript      -> get Const.getBoxScript
       BoxFieldArgList ty  -> get (getBoxArgVar ty)
+      BoxFieldPostHeight  -> get Const.getBoxPostHeight
       where
         get name = ap (VarName loc name) a
 

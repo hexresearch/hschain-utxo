@@ -19,11 +19,13 @@ module Hschain.Utxo.Lang.Types
   , TxArg(..)
   , buildTxArg
   , BoxInput(..)
+  , BoxOutput(..)
   , SigMask(..)
   , signAll
   , ExpectedBox
   , Env(..)
   , TxHash(..)
+  , PostBox(..)
     -- * Functions
   , newProofTx
   , newProofTxOrFail
@@ -49,7 +51,6 @@ import Data.Bifunctor
 import Data.Coerce
 import Data.Fix
 import Data.Int
-import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
@@ -62,6 +63,7 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
 
+import qualified Data.List as L
 import qualified Data.Vector as V
 
 -- | Type synonym for money values
@@ -134,6 +136,13 @@ data Box = Box
 --   in order to facilitate type-class based dispatch in evaluator.
 data IBox = IBox BoxId Box
   deriving stock (Show, Eq, Ord, Generic)
+
+-- | Box and relevant information that is aquired at TX-post time.
+data PostBox = PostBox
+  { postBox'content :: Box    -- ^ approved box
+  , postBox'height  :: Int64  -- ^ time at which box was commited to blockchain
+  -- ^ time at which box was posted
+  } deriving (Show, Eq, Generic, Serialise)
 
 computeBoxId :: TxId -> Int64 -> BoxId
 computeBoxId txId i
@@ -280,15 +289,16 @@ filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
 -- of identifiers. Boxes are read from the current blockchain state.
 data TxArg = TxArg
   { txArg'inputs       :: !(Vector BoxInput)
-  , txArg'outputs      :: !(Vector IBox)
+  , txArg'outputs      :: !(Vector BoxOutput)
   , txArg'env          :: !Env
   , txArg'id           :: !TxId
   }
   deriving (Show, Eq)
 
+-- | Information relevant to proof of the spend script
 data BoxInput = BoxInput
-  { boxInput'id      :: !BoxId
-  , boxInput'box     :: !Box
+  { boxInput'box     :: !PostBox
+  , boxInput'id      :: !BoxId
   , boxInput'args    :: !Args
   , boxInput'proof   :: !(Maybe Proof)
   , boxInput'sigMask :: !SigMask
@@ -296,10 +306,17 @@ data BoxInput = BoxInput
   }
   deriving (Show, Eq, Generic)
 
+-- | Information relevant to script for outputs
+data BoxOutput = BoxOutput
+  { boxOutput'box    :: !PostBox
+  , boxOutput'id     :: !BoxId
+  }
+  deriving (Show, Eq, Generic)
+
 -- | Substitute box references in transaction by boxes
 buildTxArg
   :: Monad m
-  => (BoxId -> m Box)           -- ^ Function to look up box by its IDs
+  => (BoxId -> m PostBox)      -- ^ Function to look up box by its IDs
   -> Env                        -- ^ Environment
   -> Tx
   -> m TxArg
@@ -314,12 +331,15 @@ buildTxArg lookupBox env tx@Tx{..} = do
                   , boxInput'sigMsg  = getSigMessageTx boxInputRef'sigMask tx
                   }
   pure TxArg { txArg'inputs   = inputs
-             , txArg'outputs  = V.imap (\i b -> IBox (computeBoxId txId (fromIntegral i)) b) tx'outputs
+             , txArg'outputs  = V.imap (\i b -> let boxId = computeBoxId txId (fromIntegral i)
+                                                in  BoxOutput (PostBox b height) boxId
+                                       ) tx'outputs
              , txArg'env      = env
              , txArg'id       = txId
              }
   where
     txId = computeTxId tx
+    height = env'height env
 
 -- | Blockchain environment variables.
 data Env = Env
@@ -332,7 +352,7 @@ data InputEnv = InputEnv
   { inputEnv'height  :: !Int64
   , inputEnv'self    :: !BoxInput
   , inputEnv'inputs  :: !(Vector BoxInput)
-  , inputEnv'outputs :: !(Vector IBox)
+  , inputEnv'outputs :: !(Vector BoxOutput)
   , inputEnv'args    :: !Args
   }
   deriving (Show, Eq)
@@ -349,9 +369,9 @@ getInputEnv TxArg{..} input = InputEnv
 txPreservesValue :: TxArg -> Bool
 txPreservesValue tx@TxArg{..}
   | isStartEpoch tx = True
-  | otherwise       = sumWith boxInput'box txArg'inputs == sumWith (\(IBox _ b) -> b) txArg'outputs
+  | otherwise       = sumWith (box'value . postBox'content . boxInput'box) txArg'inputs == sumWith (box'value . postBox'content . boxOutput'box) txArg'outputs
   where
-    sumWith f = getSum . foldMap (Sum . box'value . f)
+    sumWith f = L.foldl' (\acc x -> acc + f x) 0
 
 isStartEpoch :: TxArg -> Bool
 isStartEpoch TxArg{..} = env'height txArg'env == 0
@@ -448,7 +468,9 @@ singleOwnerInput boxId pubKey = return $ BoxInputRef
 $(deriveJSON dropPrefixOptions ''GTx)
 $(deriveJSON dropPrefixOptions ''TxArg)
 $(deriveJSON dropPrefixOptions ''Env)
+$(deriveJSON dropPrefixOptions ''PostBox)
 $(deriveJSON dropPrefixOptions ''BoxInput)
+$(deriveJSON dropPrefixOptions ''BoxOutput)
 $(deriveJSON dropPrefixOptions ''BoxInputRef)
 $(deriveJSON dropPrefixOptions ''Box)
 $(deriveJSON dropPrefixOptions ''IBox)
@@ -457,7 +479,13 @@ $(deriveJSON dropPrefixOptions ''SigMask)
 instance CryptoHashable Tx where
   hashStep = genericHashStep hashDomain
 
+instance CryptoHashable PostBox where
+  hashStep = genericHashStep hashDomain
+
 instance CryptoHashable BoxInput where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxOutput where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable a => CryptoHashable (BoxInputRef a) where

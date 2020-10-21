@@ -222,6 +222,7 @@ primopToType = \case
   OpGetBoxScript -> pure $ BoxT :-> BytesT
   OpGetBoxValue  -> pure $ BoxT :-> IntT
   OpGetBoxArgs t -> pure $ BoxT :-> ListT (tagToType t)
+  OpGetBoxPostHeight -> pure $ BoxT :-> IntT
   --
   OpShow      ty  -> showType ty
   OpToBytes   tag -> pure $ tagToType tag :-> BytesT

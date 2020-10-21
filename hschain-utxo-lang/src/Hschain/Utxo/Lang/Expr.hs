@@ -443,6 +443,8 @@ data BoxField
   | BoxFieldArgList ArgType
   -- ^ Get box argument. It should be primitive value stored in the vector.
   -- We get the vector of primitive values stored by primitive-value tag.
+  | BoxFieldPostHeight
+  -- ^ Get time at which box was posted. It's useful to create relative time bounds
   deriving (Show, Eq)
 
 argTagToType :: ArgType -> Type
@@ -887,6 +889,7 @@ monoPrimopName = \case
   OpGetBoxScript -> Just Const.getBoxScript
   OpGetBoxValue  -> Just Const.getBoxValue
   OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
+  OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
   --
   OpEnvGetHeight  -> Just "getHeight"
   OpEnvGetSelf    -> Just "getSelf"
@@ -922,7 +925,7 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
-  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue
+  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpGetBoxPostHeight
   , OpListSum
   , OpListAnd
   , OpListOr

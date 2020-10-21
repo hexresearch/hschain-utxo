@@ -22,7 +22,7 @@ import qualified Data.Map.Strict as M
 -- | Blockchain's state is a set of Boxes.
 -- each box contains value and script that protects value from spending.
 data BoxChain = BoxChain
-  { boxChain'boxes  :: !(Map BoxId Box)  -- ^ collection of boxes
+  { boxChain'boxes  :: !(Map BoxId PostBox)  -- ^ collection of boxes
   , boxChain'height :: !Int64            -- ^ height of blockchain
   } deriving (Show, Eq, Generic, Serialise)
 
@@ -47,7 +47,7 @@ instance CryptoHashable BoxChain where
 --
 -- The value of type @TxArg@ is self-contained for execution.
 toTxArg :: BoxChain -> Tx -> Either Text TxArg
-toTxArg bch@BoxChain{..} = buildTxArg lookupInput (getEnv bch) 
+toTxArg bch@BoxChain{..} = buildTxArg lookupInput (getEnv bch)
   where
     lookupInput boxId = case M.lookup boxId boxChain'boxes of
       Nothing -> Left $ mconcat ["Error: no box input with id: ", renderText boxId]

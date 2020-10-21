@@ -3,7 +3,10 @@ module TM.Core.Common
   ( env
   , testProgram
   , mkBoxInput
+  , mkBoxOutput
   ) where
+
+import Data.Int
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -30,11 +33,23 @@ env = InputEnv
 mkBoxInput :: BoxId -> Box -> BoxInput
 mkBoxInput bid box = BoxInput
   { boxInput'id      = bid
-  , boxInput'box     = box
+  , boxInput'box     = PostBox
+                          { postBox'content = box
+                          , postBox'height  = 1
+                          }
   , boxInput'args    = mempty
   , boxInput'proof   = Nothing
   , boxInput'sigMask = SigAll
   , boxInput'sigMsg  = SigMessage (hash ())
+  }
+
+mkBoxOutput :: Int64 -> BoxId -> Box -> BoxOutput
+mkBoxOutput height bid box = BoxOutput
+  { boxOutput'id  = bid
+  , boxOutput'box = PostBox
+                        { postBox'content = box
+                        , postBox'height  = height
+                        }
   }
 
 testProgram :: String -> ExprCore -> Prim -> TestTree
