@@ -14,6 +14,7 @@ build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     Hschain.Utxo.Pow.App
                      , Hschain.Utxo.Pow.App.Options
                      , Hschain.Utxo.Pow.App.Types
@@ -24,28 +25,36 @@ library
                      , bytestring
                      , cryptonite
                      , data-fix
+                     , generic-lens
+                     , lens
+                     , mmorph
                      , hex-common
                      , hschain-crypto
+                     , hschain-db
                      , hschain-merkle
-                     , hschain-types
                      , hschain-utxo-lang
-                     , hschain-utxo-api-rest
-                     , hschain-utxo-state
                      , hschain-PoW
+                     , hschain-control
+                     , hschain-logger
+                     , hschain-net
                      , hschain-pow-func
                      , containers
                      , exceptions
                      , monad-control
+                     , katip
                      , mtl
                      , optparse-applicative
                      , serialise
                      , servant
                      , servant-server
+                     , sqlite-simple
                      , stm
                      , text
                      , transformers
                      , transformers-base
                      , vector
+                     , warp
+                     , yaml
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
@@ -66,6 +75,7 @@ library
 
 executable hschain-utxo-pow-node-app
   main-is:             Main.hs
+  Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
@@ -74,24 +84,23 @@ executable hschain-utxo-pow-node-app
   hs-source-dirs:      app
   default-language:    Haskell2010
 
-executable hschain-utxo-pow-generate-genesis
-  main-is:             Genesis.hs
-  -- other-modules:
-  -- other-extensions:
-  build-depends:       base >=4.11 && <5
-                     , aeson
-                     , aeson-pretty
-                     , bytestring
-                     , containers
-                     , data-default
-                     , data-fix
-                     , hschain-utxo-lang
+
+-- Test suite
+Test-suite hschain-utxo-pow-node-tests
+  Type:                exitcode-stdio-1.0
+  Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
+  Default-Language:    Haskell2010
+  Build-Depends:       base              >=4.9 && <5
                      , hschain-utxo-pow-node
                      , hschain-PoW
+                     , hschain-crypto
+                     , hschain-control
                      , hschain-merkle
-                     , vector
-  hs-source-dirs:      app
-  default-language:    Haskell2010
-  default-extensions:
-    OverloadedStrings
+                     , hschain-db
+                     --
+                     , tasty             >=0.11
+                     , tasty-hunit       >=0.10
+  hs-source-dirs:      test
+  Main-is:             Main.hs
+  Other-modules:       TM.Store
 

@@ -3,280 +3,173 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-
--- Please keep switched off -Wno-orphans.
--- We need an instance of CryptoHashable of elliptic curve
--- scalar (Ed.Scalarbelow ) provided by very much external package.
--- We cannot fork that package and add an instance there.
-
-{-# OPTIONS  -Wno-orphans               #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds, ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RecordWildCards, StandaloneDeriving #-}
+-- Servant orphans
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Pow.App(
-  runApp
-) where
+    runApp
+  , runNode
+  , UtxoRestAPI(..)
+  ) where
 
-import Hex.Common.Aeson
-import Hex.Common.Yaml
-
-import Codec.Serialise
-
+import Control.Concurrent
 import Control.Monad
-import Control.Concurrent.STM
-import Control.Monad.Base
-import Control.Monad.Catch hiding (Handler)
-import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
-import Control.Monad.Trans.Maybe
-
-import qualified Data.Aeson as JSON
-
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-
-import Data.Fix
-
-import Data.Fixed
-
-import Data.Functor.Classes (Show1)
-
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import Control.Monad.Trans.Cont
 
 import Data.Maybe
-
-import Data.Text (Text)
-
-import qualified Data.Vector as V
-
-import Data.Word
-
+import Data.Yaml.Config (loadYamlSettings, requireEnv)
 import GHC.Generics
 
-import Servant.API
-import Servant.Server
+import Servant.API         ((:>),Capture,Summary,Get,JSON)
+import Servant.API.Generic ((:-)(..))
+import qualified Servant.API              as Servant
+import qualified Servant.Server           as Servant
+import qualified Servant.API.Generic      as Servant
+import qualified Servant.Server.Generic   as Servant
+import qualified Network.Wai.Handler.Warp as Warp
+
+import System.IO
 
 import HSChain.Crypto.Classes
-import HSChain.Crypto.SHA
-import qualified HSChain.Crypto.Classes.Hash as Crypto
-import qualified HSChain.POW as POWFunc
-import qualified HSChain.PoW.Types as POWTypes
-import qualified HSChain.PoW.Node as POWNode
+import HSChain.Store.Query (MonadReadDB,queryRO,withConnection,basicQuery_)
 import HSChain.Types.Merkle.Types
 
-import HSChain.Crypto hiding (PublicKey)
-import HSChain.Crypto.Classes.Hash
-import HSChain.Crypto.Ed25519
-import HSChain.Crypto.SHA
-import HSChain.Types
-import HSChain.Types.Merkle.Types
+import HSChain.Network.TCP
+import HSChain.Logger
+import HSChain.PoW.API
+import qualified HSChain.Control.Channels as HControl
+import qualified HSChain.Control.Class    as HControl
+import qualified HSChain.Control.Util     as HControl
+import qualified HSChain.PoW.P2P        as POW
+import qualified HSChain.PoW.P2P.Types  as POW
+import qualified HSChain.PoW.Consensus  as POW
+import qualified HSChain.PoW.Node       as POW
+import qualified HSChain.PoW.Types      as POW
 
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.State.React
-import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.State.Types
-
-import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Types
-import qualified Hschain.Utxo.State.Query as S
-import Hschain.Utxo.State.Types
-import qualified Crypto.ECC.Edwards25519  as Ed
-
-import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
-
-
-import Hschain.Utxo.API.Rest
-
-import Hschain.Utxo.Pow.App.Options (Options(..), readOptions)
+import Hschain.Utxo.Pow.App.Options (Command(..), readCommandOptions)
 import Hschain.Utxo.Pow.App.Types
+
 
 -------------------------------------------------------------------------------
 -- Executable part.
 
--- |Run the PoW node.
-runNode :: Options -> IO ()
-runNode (Options cfgConfigPath pathToGenesis nodeSecret optMine) = do
-  genesisBlock <- readGenesis pathToGenesis
-  POWNode.runNode [cfgConfigPath] optMine genesisBlock utxoViewStep getBlockToMine (UTXONodeState Set.empty Set.empty (getHashBytes (hash nodeSecret :: Hash SHA256)) 0)
-  where
-    readGenesis :: FilePath -> IO (POWTypes.Block UTXOBlock)
-    readGenesis = fmap (fromMaybe err) . readJson
-      where
-        err = error "Error: failed to read genesis"
-    getHashBytes :: Hash a -> BS.ByteString
-    getHashBytes (Hash bytes) = bytes
-    getBlockToMine bh st@(UTXONodeState{..}) = (POWTypes.GBlock
-      { blockHeight = blockHeight
-      , blockTime   = POWTypes.Time 0
-      , prevBlock   = Just $! POWTypes.bhBID bh
-      , blockData   = UTXOBlock {
-                           ubNonce = BS.empty
-                         , ubProper = UTXOBlockProper
-                              { ubpPrevious   = Just $! POWTypes.bhBID bh
-                              , ubpData       = merkled $ miningTx : []
-                              , ubpTarget     = POWTypes.retarget bh
-                              , ubpTime       = POWTypes.Time 0
-                              }
-                      }
-      }, st)
-      where
-        blockHeight = succ $ POWTypes.bhHeight bh
-        withSecret secret = do
-          Right proof <- newProof env (Fix $ SigmaPk publicKey)
-          return $ [tx proof]
-          where
-            publicKey = getPublicKey secret
-            env = proofEnvFromKeys [getKeyPair secret]
-
-            box = Box
-                  { box'id     = BoxId "master:box-0"
-                  , box'value  = 1
-                  , box'script = mainScriptUnsafe $ pk' publicKey
-                  , box'args   = mempty
-                  }
-
-            tx proof = Tx
-                       { tx'inputs  = V.empty
-                       , tx'outputs = V.fromList [box]
-                       }
-
-        currentSecret = getHashBytes (hash (unsUTXORandomness, blockHeight) :: Hash SHA256) -- ^ currentSecret depends on height and randomness and can be computed knowing both. Height is open to wide world, randomness is not.
-        currentSecretHash = getHashBytes (hash currentSecret :: Hash SHA256) -- ^This is what will be put into open world.
-        rewardBox = error "is not done"
-        miningTx = Tx
-                   { tx'inputs  = V.empty   -- ^ List of identifiers of input boxes in blockchain 
-                   , tx'outputs = V.fromList []    -- ^ List of outputs 
-                   }
-         
-
-    optNodeName = error "optnodename"
-    utxoViewStep :: POWTypes.Block UTXOBlock -> UTXONodeState -> Maybe UTXONodeState
-    utxoViewStep b m
-      | otherwise                               = error "utxo view step is not done"
-      where
-        txs = merkleValue $ ubpData $ ubProper $ POWTypes.blockData b
-
 runApp :: IO ()
-runApp = readOptions >>= runNode
+runApp = do
+  hSetBuffering stderr NoBuffering
+  hSetBuffering stdout NoBuffering
+  -- Parse configuration
+  command <- readCommandOptions
+  case command of
+    GenerateKey {..} -> do
+      error "gen key is not done!"
+    RunNode {..} -> do
+      config <- loadYamlSettings runnode'config [] requireEnv
+      runNode genesis config runnode'nodeSecret
 
--- | Server implementation for 'UtxoAPI'
-utxoServer :: ServerT UtxoAPI ServerM
-utxoServer =
-       postTxEndpoint
-  :<|> getBoxBalanceEndpoint
-  :<|> getTxSigmaEndpoint
-  :<|> getEnvEndpoint
-  :<|> getStateEndpoint
-
-postTxEndpoint :: Tx -> ServerM PostTxResponse
-postTxEndpoint tx = fmap PostTxResponse $ postTxWait tx
-
-getBoxBalanceEndpoint :: BoxId -> ServerM (Maybe Money)
-getBoxBalanceEndpoint boxId =
-  --fmap (\bch -> S.getBoxBalance bch boxId) readBoxChain
-  pure Nothing
-
-getTxSigmaEndpoint :: Tx -> ServerM SigmaTxResponse
-getTxSigmaEndpoint tx =
-  --fmap (\bch -> uncurry SigmaTxResponse $ execInBoxChain tx bch) readBoxChain
-  pure $ SigmaTxResponse (Left "I can't") ("Yes, you heard right - I can't")
-
-getEnvEndpoint :: ServerM GetEnvResponse
-getEnvEndpoint = do
-  --bch <- readBoxChain
-  --GetEnvResponse <$> getEnv bch
-  return undefined
-
-getStateEndpoint :: ServerM BoxChain
-getStateEndpoint =
-  --readBoxChain
-  return undefined
-
--- |Application environment.
-data AppEnv
-
--- | Server monad that holds internal environment
-newtype ServerM a = ServerM { unServerM :: ReaderT AppEnv Handler a }
-  deriving ( Functor, Applicative, Monad, MonadIO, MonadBase IO, MonadReader AppEnv
-           , MonadThrow, MonadCatch)
-
-newtype StMServerM a = StMServerM { unStMServerM :: StM (ReaderT AppEnv Handler) a }
-
--- | Execution of 'ServerM'
-runServerM :: AppEnv -> ServerM a -> Handler a
-runServerM e = flip runReaderT e . unServerM
-
--- | Execution of 'ServerM' in IO monad
-runServerMIO :: AppEnv -> ServerM a -> IO a
-runServerMIO env m = do
-  ea <- runHandler $ runServerM env m
-  case ea of
-    Left e -> fail $ "runServerMIO: " <> show e
-    Right a -> return a
-
--- | Reads current state of the block chain
-readBoxChain :: ServerM BoxChain
-readBoxChain =
-  --readBoxChainState
-  return undefined
+genesis :: POW.Block UTXOBlock
+genesis = POW.GBlock
+  { blockHeight = POW.Height 0
+  , blockTime   = POW.Time   0
+  , prevBlock   = Nothing
+  , blockData   = UTXOBlock
+    { ubNonce  = ""
+    , ubData   = merkled []
+    , ubTarget = POW.Target $ 2^(256::Int) - 1
+    }
+  }
 
 
--- | Connection to hschain internals.
--- Low level API to post transactions.
-data Bchain (m :: * -> *)
+-------------------------------------------------------------------------------
+-- Node.
 
---------------------------------------------------
------- bchain store operations
-
-writeTx :: Monad m => Tx -> m (Maybe TxHash)
-writeTx tx = do
-  --Bchain{..} <- askBchain
-  --liftIO $ fmap ((\(Crypto.Hashed (Crypto.Hash h)) -> TxHash h)) <$>
-  --  ((\cursor -> pushTransaction cursor tx) =<< getMempoolCursor bchain'mempool)
-  pure Nothing
-
-readBlock :: Monad m => Int -> m (Maybe [Tx])
-readBlock height = do
-  --Bchain{..} <- askBchain
-  --liftIO $ do
-  --  mb <- runDBT bchain'conn $ queryRO $ retrieveBlock (Height $ fromIntegral height)
-  --  pure $ unBData . merkleValue . blockData <$> mb
-  pure Nothing
-
-blockchainSize :: Monad m => m Int
-blockchainSize = do
-  --Bchain{..} <- askBchain
-  --liftIO $ do
-  --  Height h <- runDBT bchain'conn $ queryRO blockchainHeight
-  --  pure $! fromIntegral h
-  return 0
-
-readBoxChainState :: (Monad m) => m BoxChain
-readBoxChainState = do
-  --Bchain{..} <- askBchain
-  --liftIO $ merkleValue . snd <$> bchCurrentState bchain'store
-  return undefined
-
-waitForTx :: (Monad m) => m (TxHash -> m Bool)
-waitForTx = do
-  --Bchain{..} <- askBchain
-  --fmap liftIO <$> liftIO bchain'waitForTx
-  return (const $ return False)
-
-postTxWait :: (Monad m) => Tx -> m (Maybe TxHash)
-postTxWait tx = do
-  -- We start listening before sending transaction to mempool to avoid
-  -- race when tx is commited before we start listening
-  listener <- waitForTx
-  runMaybeT $ do
-    h <- MaybeT $ writeTx tx
-    guard =<< lift (listener h)
-    -- lift $ incMetricSurelyPostedTx tx
-    return h
+runNode :: POW.Block UTXOBlock -> POW.Cfg -> Maybe c -> IO ()
+runNode genesisBlk POW.Cfg{..} maybePrivK = do
+  -- Acquire resources
+  let net    = newNetworkTcp cfgPort
+      netcfg = POW.NetCfg { POW.nKnownPeers     = 3
+                          , POW.nConnectedPeers = 3
+                          }
+  withConnection (fromMaybe "" cfgDB) $ \conn ->
+    withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
+      (db, bIdx, sView) <- lift $ utxoStateView genesisBlk
+      c0  <- lift $ POW.createConsensus db sView bIdx
+      pow <- POW.startNode netcfg net cfgPeers db c0
+      -- report progress
+      void $ liftIO $ forkIO $ do
+        ch <- HControl.atomicallyIO (POW.chainUpdate pow)
+        forever $ do (bh,_) <- HControl.awaitIO ch
+                     print (POW.bhHeight bh, POW.bhBID bh)
+                     print $ POW.retarget bh
+      utxoEnv <- lift ask
+      liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
+      forM_ cfgWebAPI $ \port -> do
+        let run :: UTXOT IO a -> Servant.Handler a
+            run (UTXOT x) = liftIO $ runReaderT x utxoEnv
+        liftIO $ hPutStrLn stderr $ "starting server at "++show port
+        HControl.cforkLinkedIO $ do
+          hPutStrLn stderr $ "server started at "++show port
+          Warp.run port $ Servant.genericServeT run $ utxoRestServer (POW.mempoolAPI pow)
+      case maybePrivK of
+        Just _privk -> do
+          HControl.cforkLinked $ POW.genericMiningLoop pow
+        Nothing -> return ()
+      -- Wait forever
+      liftIO $ forever $ threadDelay maxBound
 
 
+----------------------------------------------------------------
+-- REST API for PoW node
+----------------------------------------------------------------
+
+data UtxoRestAPI route = UtxoRestAPI
+  { utxoMempoolAPI :: route
+      :- Summary "Operations with Mempool"
+      :> "mempool" :> Servant.ToServantApi (MempoolRestAPI UTXOBlock)
+  , endpointGetBox :: route
+      :- Summary "Gets the box by identifier"
+      :> "box" :> "get" :> Capture "box-id" BoxId :> Get '[JSON] (Maybe Box)
+  , debugGetState :: route
+      :- Summary "Get full state of blockchain"
+      :> "debug" :> "state" :> "get" :> Get '[JSON] [(BoxId, Box)]
+  }
+  deriving (Generic)
+
+utxoRestServer :: (MonadIO m, MonadReadDB m) => POW.MempoolAPI m UTXOBlock -> UtxoRestAPI (Servant.AsServerT m)
+utxoRestServer mempool = UtxoRestAPI
+  { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
+  , endpointGetBox = endpointGetBoxImpl
+  , debugGetState  = debugGetStateImpl
+  }
+
+endpointGetBoxImpl :: (MonadIO m, MonadReadDB m) => BoxId -> m (Maybe Box)
+endpointGetBoxImpl boxId = do
+  r <- retrieveUTXOByBoxId boxId
+  liftIO $ hPutStrLn stderr $ "getBoxEndpoint: boxid "++show boxId++", box "++show r
+  return r
+
+debugGetStateImpl :: (MonadIO m, MonadReadDB m) => m [(BoxId, Box)]
+debugGetStateImpl = queryRO $ basicQuery_
+  "SELECT box_id, box \
+  \  FROM utxo_set \
+  \  JOIN utxo_state ON live_utxo = utxo_id"
+
+
+
+
+-- FIXME: Deal with orphans
+
+instance Servant.FromHttpApiData BoxId where
+  parseQueryParam = (\txt -> maybe (err txt) Right $ decodeBase58 txt) <=< Servant.parseQueryParam
+    where
+      err txt = Left $ "Failed to parse boxId from: " <> txt
+
+instance Servant.ToHttpApiData BoxId where
+  toQueryParam = encodeBase58

@@ -39,7 +39,7 @@ app :: Options -> Genesis -> IO [ThreadId]
 app opt genesisTx = do
   nodeCfg  <- readYaml $ configWebnodePath opt :: IO Config
   webThread <- forkIO $ runWebNode nodeCfg genesisTx
-  return [webThread]
+  return [] --[webThread]
 
 
 runTestProc :: App () -> IO Spec

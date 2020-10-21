@@ -19,7 +19,7 @@ import Hschain.Utxo.Lang
 
 import qualified Data.Map.Strict as M
 
--- | Blockchain is a set of Boxes.
+-- | Blockchain's state is a set of Boxes.
 -- each box contains value and script that protects value from spending.
 data BoxChain = BoxChain
   { boxChain'boxes  :: !(Map BoxId PostBox)  -- ^ collection of boxes

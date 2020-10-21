@@ -28,6 +28,8 @@ react :: Tx -> BoxChain -> Either Text BoxChain
 react tx bch = do
   txArg <- toTxArg bch tx
   -- Inputs are valid
+  unless (txPreservesValue txArg) $
+    Left "Sum of inputs does not equal to sum of outputs"
   evalProveTx txArg
   -- Spend scripts in outputs are decodable
   forM_ (fmap (postBox'content . boxOutput'box) $ txArg'outputs txArg) $ \Box{..} -> do
