@@ -388,7 +388,7 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
     txArgs <- case txList of
       []             -> throwError $ InternalErr "Empty block"
       (coinbase:txs) -> do t  <- coinbaseTxArg (POW.bhBID <$> POW.bhPrevious bh) env coinbase
-                           ts <- mapM (buildTxArg (getDatabaseBox pathInDB) env) txs
+                           ts <- undefined -- mapM (buildTxArg (getDatabaseBox pathInDB) env) txs
                            pure (t : ts)
     -- Check that block preserves balance
     checkBalance txArgs
@@ -424,7 +424,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
       bhState (overlayBase overlay)
   -- Select transaction
   let tryTX o tx = do
-        txArg <- buildTxArg (getDatabaseBox pathInDB) env tx
+        txArg <- undefined -- buildTxArg (getDatabaseBox pathInDB) env tx
         -- FIXME: Tx preserves value (module commission)
         --
         either (throwError . InternalErr . T.unpack) pure
@@ -484,11 +484,14 @@ coinbaseTxArg (Just bid) env tx@Tx{..}
   , [_] <- V.toList tx'outputs
   -- Build TxArg
   = pure TxArg { txArg'inputs   = V.empty
-               , txArg'outputs  = V.imap (\i b -> IBox (computeBoxId txId (fromIntegral i)) b) tx'outputs
+               , txArg'outputs  = V.imap
+                   (\i b -> BoxOutput (PostBox b h) (computeBoxId txId (fromIntegral i)))
+                   tx'outputs
                , txArg'env      = env
                , txArg'id       = txId
                }
   where
+    h    = env'height env
     txId = computeTxId tx
 coinbaseTxArg _ _ _ = throwError $ InternalErr "Invalid coinbase"
 
@@ -510,8 +513,8 @@ checkBalance (coinbase:txArgs) = do
     outputs    = sumOutputs coinbase + sumOf (each . _2) balances
     balances   = (sumInputs &&& sumOutputs) <$> txArgs
     --
-    sumInputs  = sumOf (txArg'inputsL  . each . boxInput'boxL . box'valueL)
-    sumOutputs = sumOf (txArg'outputsL . each . ibox'boxL     . box'valueL)
+    sumInputs  = sumOf (txArg'inputsL  . each . boxInput'boxL    . to postBox'content . box'valueL)
+    sumOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'content . box'valueL)
 
 
 -- | Mark every input as spent and mark every output as created
@@ -525,14 +528,14 @@ processTX overlay0 TxArg{..} = do
   where
     -- We must ensure that we won't spend same input twice
     spendBox o input
-      = traverseOf (activeLayer . lensSpent) (spend input) o
+      = undefined -- traverseOf (activeLayer . lensSpent) (spend input) o
     spend BoxInput{..} = Map.alterF
       (\case
           Just _  -> throwError $ InternalErr "Double spend or unknown ID"
           Nothing -> pure $ Just boxInput'box
       ) boxInput'id
     -- On other hand new
-    createBox o (IBox boxId box) = o & activeLayer . lensCreated . at boxId .~ Just box
+    createBox o = undefined -- (IBox boxId box) = o & activeLayer . lensCreated . at boxId .~ Just box
 
 
 -------------------------------------------------------------------------------
