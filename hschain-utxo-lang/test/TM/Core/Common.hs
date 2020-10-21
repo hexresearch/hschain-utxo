@@ -6,6 +6,7 @@ module TM.Core.Common
   , mkBoxOutput
   ) where
 
+import Data.Default
 import Data.Int
 
 import Test.Tasty
@@ -28,6 +29,8 @@ env = InputEnv
   , inputEnv'inputs   = mempty
   , inputEnv'outputs  = mempty
   , inputEnv'args     = mempty
+  , inputEnv'sigs     = mempty
+  , inputEnv'sigMsg   = def
   }
 
 mkBoxInput :: BoxId -> Box -> BoxInput
@@ -39,6 +42,7 @@ mkBoxInput bid box = BoxInput
                           }
   , boxInput'args    = mempty
   , boxInput'proof   = Nothing
+  , boxInput'sigs    = mempty
   , boxInput'sigMask = SigAll
   , boxInput'sigMsg  = SigMessage (hash ())
   }

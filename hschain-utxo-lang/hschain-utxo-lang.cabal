@@ -85,6 +85,7 @@ library
                      , containers
                      , cryptonite
                      , data-fix
+                     , data-default
                      , deepseq
                      , deriving-compat
                      , extra
@@ -147,6 +148,7 @@ Test-suite hschain-utxo-lang-tests
                      , cryptonite
                      , memory
                      , data-fix
+                     , data-default
                      , bytestring
                      , vector
                      , text

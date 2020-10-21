@@ -14,9 +14,11 @@ import Control.Monad
 import Data.Int
 import Data.Bits       (xor)
 import Data.ByteString (ByteString)
+import Data.Bool
 import Data.Text       (Text)
 import Data.Typeable
 import Data.Fix
+import Data.Either.Extra
 import qualified Data.Vector     as V
 import qualified Data.Text       as T
 import qualified Data.Map.Strict as Map
@@ -31,13 +33,16 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
 
+import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
+
 -- | Value hanled by evaluator
 data Val
-  = ValP !Prim                  -- ^ Primitive value
-  | ValBottom !EvalErr          -- ^ Bottom. Always terminate evaluation
-  | ValF  (Val -> Val)          -- ^ Unary function
-  | Val2F (Val -> Val -> Val)   -- ^ Binary function. Added in order to make defining primops easier
-  | ValCon Int [Val]            -- ^ Constructor cell
+  = ValP !Prim                       -- ^ Primitive value
+  | ValBottom !EvalErr               -- ^ Bottom. Always terminate evaluation
+  | ValF  (Val -> Val)               -- ^ Unary function
+  | Val2F (Val -> Val -> Val)        -- ^ Binary function. Added in order to make defining primops easier
+  | Val3F (Val -> Val -> Val -> Val) -- ^ Ternary function. Added in order to make defining primops easier
+  | ValCon Int [Val]                 -- ^ Constructor cell
 
 instance Show Val where
   showsPrec n v
@@ -47,6 +52,7 @@ instance Show Val where
         ValBottom e -> showsPrec 11 e
         ValF  _     -> showString "Function"
         Val2F _     -> showString "Function"
+        Val3F _     -> showString "Function"
         ValCon i xs -> showString "CON "
                      . showsPrec 11 i
                      . showChar ' '
@@ -77,6 +83,7 @@ evalProg env prog =
     ValBottom e -> EvalFail e
     ValF{}      -> EvalFail $ EvalErr "Returning function"
     Val2F{}     -> EvalFail $ EvalErr "Returning function"
+    Val3F{}     -> EvalFail $ EvalErr "Returning function"
     ValCon i xs -> maybe (EvalFail $ EvalErr "Not a list") EvalList
                  $ con2list i xs
   where
@@ -161,9 +168,7 @@ evalPrimOp env = \case
   OpSigBool -> lift1 $ Fix . SigmaBool
   OpSigAnd  -> lift2 $ \a b -> Fix $ SigmaAnd [a,b]
   OpSigOr   -> lift2 $ \a b -> Fix $ SigmaOr  [a,b]
-  OpSigPK   -> lift1 $ \t   -> case publicKeyFromText t of
-                                 Nothing -> Left  $ EvalErr "Can't parse public key"
-                                 Just k  -> Right $ Fix $ SigmaPk k
+  OpSigPK   -> lift1 $ \t   -> fmap (Fix . SigmaPk) $ parsePublicKey t
   OpSigListAnd   -> lift1 $ Fix . SigmaAnd
   OpSigListOr    -> lift1 $ Fix . SigmaOr
   OpSigListAll _ -> Val2F $ \valF valXS -> inj $ do
@@ -174,6 +179,16 @@ evalPrimOp env = \case
     f  <- match @(Val -> Val) valF
     xs <- match @[Val]        valXS
     Fix . SigmaOr <$> mapM (match . f) xs
+  --
+  OpCheckSig -> lift2 $ \txt sigIndex ->
+    let msg = inputEnv'sigMsg env
+    in  liftA2 (\key sig -> Crypto.verify key sig msg) (parsePublicKey txt) (readSig env sigIndex)
+  OpCheckMultiSig -> lift3 $ \(total :: Int64) keyTexts sigIndices -> do
+      keys <- mapM parsePublicKey keyTexts
+      sigs <- mapM (readSig env) sigIndices
+      let sigCount = sum $ zipWith (\key sig -> bool 0 1 (Crypto.verify key sig msg)) keys sigs
+          msg = inputEnv'sigMsg env
+      return $ sigCount >= total
   --
   OpEQ _ -> opComparison (==)
   OpNE _ -> opComparison (/=)
@@ -302,6 +317,16 @@ opComparison (#) = lift2 go
     go  _             _            = ValBottom TypeMismatch
 
 
+parsePublicKey :: Text -> Either EvalErr PublicKey
+parsePublicKey txt = maybeToEither err $ publicKeyFromText txt
+  where
+    err = EvalErr "Can't parse public key"
+
+readSig :: InputEnv -> Int64 -> Either EvalErr Crypto.Signature
+readSig InputEnv{..} index = maybeToEither err (inputEnv'sigs V.!? fromIntegral index)
+  where
+    err = EvalErr "Index of signature is out of bound"
+
 ----------------------------------------------------------------
 -- Lifting of functions
 ----------------------------------------------------------------
@@ -345,8 +370,8 @@ instance MatchPrim (Val -> Val) where
   matchVal = \case
     ValF      f -> Right f
     Val2F     f -> Right $ ValF . f
+    Val3F     f -> Right $ Val2F . f
     v           -> Left $ EvalErr $ "Expecting function, got " ++ conName v
-
 
 instance (Typeable a, MatchPrim a) => MatchPrim [a] where
   matchVal (ValCon 0 [])     = Right []
@@ -412,11 +437,17 @@ lift2 f = Val2F go
   where
     go a b = inj $ f <$> match a <*> match b
 
+lift3 :: (MatchPrim a, MatchPrim b, MatchPrim c, InjPrim d) => (a -> b -> c -> d) -> Val
+lift3 f = Val3F go
+  where
+    go a b c = inj $ f <$> match a <*> match b <*>  match c
+
 conName :: Val -> String
 conName = \case
   ValP p      -> "Primitive: " ++ show p
   ValBottom e -> "Bottom: " ++ show e
   ValF{}      -> "ValF"
   Val2F{}     -> "Val2F"
+  Val3F{}     -> "Val3F"
   ValCon{}    -> "ValCon"
 

@@ -2,6 +2,7 @@ module TM.Core.Box(
     tests
 ) where
 
+import Data.Default
 import Data.Int
 
 import Test.Tasty
@@ -26,6 +27,8 @@ txEnv = InputEnv
   , inputEnv'inputs  = [in1, in2]
   , inputEnv'outputs = [out1]
   , inputEnv'args    = intArgs [1,2,3] <> textArgs ["alice", "bob"] <> boolArgs [True, False]
+  , inputEnv'sigs    = []
+  , inputEnv'sigMsg  = def
   }
   where
     in1 = mkBoxInput (BoxId $ Hash "box-1") Box

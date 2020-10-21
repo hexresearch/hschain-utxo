@@ -876,6 +876,9 @@ monoPrimopName = \case
   OpSigListAll _ -> Nothing
   OpSigListAny _ -> Nothing
   --
+  OpCheckSig      -> Just Const.checkSig
+  OpCheckMultiSig -> Just Const.checkMultiSig
+  --
   OpSHA256      -> Just Const.sha256
   OpTextLength  -> Just Const.lengthText
   OpBytesLength -> Just Const.lengthBytes

@@ -1,8 +1,8 @@
 -- | Signatures based on Ed25519 (Schnorr signatures are used)
 module Hschain.Utxo.Lang.Crypto.Signature(
     Signature
-  , signMessage
-  , verifyMessage
+  , sign
+  , verify
 ) where
 
 import Hex.Common.Aeson
@@ -39,8 +39,8 @@ instance ByteRepr Signature where
       (commitmentBS, responseBS) = B.splitAt 32 bs
 
 -- | Signs message.
-signMessage :: Secret -> SigMessage -> IO Signature
-signMessage (Sigma.Secret privKey) msg = do
+sign :: Secret -> SigMessage -> IO Signature
+sign (Sigma.Secret privKey) msg = do
   k <- generateScalar
   let commitment = fromGenerator k
       challenge = randomOracle $ encodeToBS commitment <> encodeToBS msg
@@ -50,8 +50,8 @@ signMessage (Sigma.Secret privKey) msg = do
     , signature'response   = response }
 
 -- | Verifies signed message
-verifyMessage :: PublicKey -> Signature -> SigMessage -> Bool
-verifyMessage (Sigma.PublicKey pubKey) (Signature commitment response) msg =
+verify :: PublicKey -> Signature -> SigMessage -> Bool
+verify (Sigma.PublicKey pubKey) (Signature commitment response) msg =
   fromGenerator response == commitment ^+^ (ch .*^ pubKey )
   where
     ch = fromChallenge $ randomOracle $ encodeToBS commitment <> encodeToBS msg

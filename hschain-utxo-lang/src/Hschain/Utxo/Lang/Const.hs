@@ -33,6 +33,9 @@ module Hschain.Utxo.Lang.Const(
   , serialiseBytes
   , deserialiseBytes
   , sha256
+  -- * bitcoin style signatures
+  , checkSig
+  , checkMultiSig
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length)
@@ -116,4 +119,14 @@ sha256 = "sha256"
 
 main :: Text
 main = "main"
+
+----------------------------------------------------------------
+-- Bitcoin like signatures
+
+checkSig, checkMultiSig :: Text
+
+checkSig = "checkSig"
+checkMultiSig = "checkMultiSig"
+
+
 
