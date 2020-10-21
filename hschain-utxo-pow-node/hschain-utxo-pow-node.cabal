@@ -90,10 +90,18 @@ executable hschain-utxo-pow-node-cli
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , hschain-crypto
+                     , hschain-PoW
                      , hschain-utxo
                      , hschain-utxo-lang
                      , hschain-utxo-pow-node
                      , containers
+                     , semigroups
+                     , text
+                     , yaml
+                     , vector
+                     , data-fix
+                     , servant
                      , servant-client
                      , servant-client-core
                      , http-client
