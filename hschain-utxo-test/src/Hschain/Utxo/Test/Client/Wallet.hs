@@ -134,6 +134,7 @@ toSendTx wallet Send{..} SendBack{..} =
       { boxInputRef'id    = send'from
       , boxInputRef'args  = mempty
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
+      , boxInputRef'sigs    = mempty
       , boxInputRef'sigMask = SigAll
       }
 

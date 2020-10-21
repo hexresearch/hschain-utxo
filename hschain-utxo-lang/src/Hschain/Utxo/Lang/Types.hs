@@ -59,6 +59,7 @@ import GHC.Generics
 import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr, decodeBase58, encodeBase58)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.SHA          (SHA256)
+import Hschain.Utxo.Lang.Crypto.Signature
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.ByteString
@@ -220,9 +221,15 @@ getTxSizes Tx{..} = TxSizes
 -- of reulting sigma expression.
 data BoxInputRef a = BoxInputRef
   { boxInputRef'id       :: BoxId
+  -- ^ identifier of the box to spend
   , boxInputRef'args     :: Args
+  -- ^ arguments for box script
   , boxInputRef'proof    :: Maybe a
+  -- ^ proof for the script
+  , boxInputRef'sigs     :: Vector Signature
+  -- ^ signatures for the script. We have to exclude this field on computing TxId and on computing SigMessage
   , boxInputRef'sigMask  :: SigMask
+  -- ^ mask of TX which defines the filter of inputs and outputs that we sign
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
@@ -301,6 +308,7 @@ data BoxInput = BoxInput
   , boxInput'id      :: !BoxId
   , boxInput'args    :: !Args
   , boxInput'proof   :: !(Maybe Proof)
+  , boxInput'sigs    :: !(Vector Signature)
   , boxInput'sigMask :: !SigMask
   , boxInput'sigMsg  :: !SigMessage
   }
@@ -317,7 +325,7 @@ data BoxOutput = BoxOutput
 buildTxArg
   :: Monad m
   => (BoxId -> m PostBox)      -- ^ Function to look up box by its IDs
-  -> Env                        -- ^ Environment
+  -> Env                       -- ^ Environment
   -> Tx
   -> m TxArg
 buildTxArg lookupBox env tx@Tx{..} = do
@@ -327,6 +335,7 @@ buildTxArg lookupBox env tx@Tx{..} = do
                   , boxInput'box     = box
                   , boxInput'args    = boxInputRef'args
                   , boxInput'proof   = boxInputRef'proof
+                  , boxInput'sigs    = boxInputRef'sigs
                   , boxInput'sigMask = boxInputRef'sigMask
                   , boxInput'sigMsg  = getSigMessageTx boxInputRef'sigMask tx
                   }
@@ -354,6 +363,8 @@ data InputEnv = InputEnv
   , inputEnv'inputs  :: !(Vector BoxInput)
   , inputEnv'outputs :: !(Vector BoxOutput)
   , inputEnv'args    :: !Args
+  , inputEnv'sigs    :: !(Vector Signature)
+  , inputEnv'sigMsg  :: !SigMessage
   }
   deriving (Show, Eq)
 
@@ -364,6 +375,8 @@ getInputEnv TxArg{..} input = InputEnv
   , inputEnv'inputs  = txArg'inputs
   , inputEnv'outputs = txArg'outputs
   , inputEnv'args    = boxInput'args input
+  , inputEnv'sigs    = boxInput'sigs input
+  , inputEnv'sigMsg  = boxInput'sigMsg input
   }
 
 txPreservesValue :: TxArg -> Bool
@@ -458,6 +471,7 @@ singleOwnerInput boxId pubKey = return $ BoxInputRef
   { boxInputRef'id      = boxId
   , boxInputRef'args    = mempty
   , boxInputRef'proof   = Just $ singleOwnerSigma pubKey
+  , boxInputRef'sigs    = mempty
   , boxInputRef'sigMask = SigAll
   }
 

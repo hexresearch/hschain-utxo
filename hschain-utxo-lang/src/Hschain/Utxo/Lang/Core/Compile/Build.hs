@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , bytes
   , sigmaBool
   , equals
+  , listExpr
   , listAt
   , appendList
   , mapList
@@ -27,6 +28,8 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , getTextArgs
   , getByteArgs
   , getBoolArgs
+  , checkSig
+  , checkMultiSig
 ) where
 
 import Data.ByteString (ByteString)
@@ -76,6 +79,12 @@ appendList ty as bs = ap (EPrimOp (OpListAppend ty)) [as, bs]
 mapList :: TypeCore -> TypeCore -> ExprCore -> ExprCore -> ExprCore
 mapList ta tb f as = ap (EPrimOp (OpListMap ta tb)) [f, as]
 
+listExpr :: TypeCore -> [ExprCore] -> ExprCore
+listExpr ty = foldr cons nil
+  where
+    nil      = EConstr (ListT ty) 0
+    cons a b = ap (EConstr (ListT ty) 1) [a, b]
+
 getBoxId :: ExprCore -> ExprCore
 getBoxId = EAp (EPrimOp OpGetBoxId)
 
@@ -103,3 +112,11 @@ getIntArgs  = EPrimOp $ OpArgs IntArg
 getTextArgs = EPrimOp $ OpArgs TextArg
 getByteArgs = EPrimOp $ OpArgs BytesArg
 getBoolArgs = EPrimOp $ OpArgs BoolArg
+
+checkSig :: ExprCore -> ExprCore -> ExprCore
+checkSig pk ix = ap (EPrimOp OpCheckSig) [pk, ix]
+
+checkMultiSig :: ExprCore -> ExprCore -> ExprCore -> ExprCore
+checkMultiSig total pks indices = ap (EPrimOp OpCheckMultiSig) [total, pks, indices]
+
+

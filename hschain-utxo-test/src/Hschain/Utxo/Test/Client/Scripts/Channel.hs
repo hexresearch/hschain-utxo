@@ -421,6 +421,7 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
       { boxInputRef'id = commonBoxId
       , boxInputRef'args  = mempty
       , boxInputRef'proof = proof
+      , boxInputRef'sigs    = mempty
       , boxInputRef'sigMask = SigAll
       }
 
@@ -461,6 +462,7 @@ getRevoceTx wallet RevoceBox{..} =
       { boxInputRef'id = revoceBox'id
       , boxInputRef'args = byteArgs [revoceBox'secret]
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
+      , boxInputRef'sigs    = mempty
       , boxInputRef'sigMask = SigAll
       }
 

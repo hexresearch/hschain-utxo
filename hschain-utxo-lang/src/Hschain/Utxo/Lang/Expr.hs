@@ -391,6 +391,10 @@ data E a
   -- boxes
   | BoxE Loc (BoxExpr a)
   -- ^ Box-expression
+  | CheckSig Loc a a
+  -- ^ check signature. Arguments are: public key as text and index of boxInput'sigs vector (of signatures)
+  | CheckMultiSig Loc a a a
+  -- ^ check multi-signature M out of N. Arguments are: number of signatures o be valid, list of public keys as texts, list of indices to boxInput'sigs vector (of signatures)
   -- debug
   | Trace Loc a a
   -- ^ Trace print for debug of execution (@trace printMessage value@)
@@ -722,6 +726,9 @@ instance Show a => H.HasLoc (E a) where
     BytesE loc _ -> loc
     -- boxes
     BoxE loc _ -> loc
+    -- BTC-style signatures
+    CheckSig loc _ _ -> loc
+    CheckMultiSig loc _ _ _ -> loc
     -- debug
     Trace loc _ _ -> loc
     AltE loc _ _ -> loc
@@ -790,6 +797,8 @@ freeVars = cata $ \case
   BoxE _ box       -> fold box
   Trace _ a b      -> mconcat [a, b]
   AltE _ a b       -> mappend a b
+  CheckSig _ a b   -> a <> b
+  CheckMultiSig _ a b c -> a <> b <> c
   FailCase _       -> Set.empty
   where
     getBgNames :: [Bind a] -> Set VarName
@@ -875,6 +884,9 @@ monoPrimopName = \case
   OpSigListOr    -> Just "orSigma"
   OpSigListAll _ -> Nothing
   OpSigListAny _ -> Nothing
+  --
+  OpCheckSig      -> Just Const.checkSig
+  OpCheckMultiSig -> Just Const.checkMultiSig
   --
   OpSHA256      -> Just Const.sha256
   OpTextLength  -> Just Const.lengthText

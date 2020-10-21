@@ -204,6 +204,9 @@ primopToType = \case
   OpSigListAll a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
   OpSigListAny a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
   --
+  OpCheckSig      -> pure $ TextT :-> IntT :-> BoolT
+  OpCheckMultiSig -> pure $ IntT :-> ListT TextT :-> ListT IntT :-> BoolT
+  --
   OpSHA256      -> pure $ BytesT :-> BytesT
   OpTextLength  -> pure $ TextT  :-> IntT
   OpTextAppend  -> pure $ TextT  :-> TextT :-> TextT

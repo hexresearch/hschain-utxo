@@ -105,6 +105,9 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   Trace loc a b             -> liftA2 (fromTrace loc) (rec a) (rec b)
   -- environment
   GetEnv loc envId          -> fmap (fromGetEnv loc) $ mapM rec envId
+  -- btc-style signatures
+  CheckSig loc a b          -> liftA2 (app2 loc checkSigVar) (rec a) (rec b)
+  CheckMultiSig loc a b c   -> liftA3 (app3 loc checkMultiSigVar) (rec a) (rec b) (rec c)
   AltE loc a b              -> liftA2 (app2 loc altVar) (rec a) (rec b)
   FailCase loc              -> return $ varE loc failCaseVar
   -- records
@@ -423,6 +426,11 @@ mapVecVar = secretVar "mapVec"
 foldVecVar = secretVar "foldVec"
 andSigmaVecVar = secretVar "andSigma"
 orSigmaVecVar = secretVar "orSigma"
+
+checkSigVar, checkMultiSigVar :: Text
+
+checkSigVar = secretVar Const.checkSig
+checkMultiSigVar = secretVar Const.checkMultiSig
 
 appendTextVar, lengthTextVar :: Text
 

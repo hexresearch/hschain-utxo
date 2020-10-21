@@ -24,6 +24,8 @@ import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
 import HSChain.Crypto.Classes.Hash
 
+infixl 6 .+.
+infixl 7 .*.
 
 -- | Operations with elliptic curve
 class ( ByteRepr (ECPoint   a)
@@ -44,6 +46,7 @@ class ( ByteRepr (ECPoint   a)
   generateScalar    :: IO (ECScalar a)
   fromGenerator     :: ECScalar  a -> ECPoint  a
   fromChallenge     :: Challenge a -> ECScalar a
+
   (.+.)   :: ECScalar a -> ECScalar a -> ECScalar a
   (.*.)   :: ECScalar a -> ECScalar a -> ECScalar a
 

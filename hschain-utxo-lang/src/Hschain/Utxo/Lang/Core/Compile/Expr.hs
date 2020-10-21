@@ -50,6 +50,9 @@ data PrimOp a
   | OpSigListAll !a       -- ^ AND for list of sigma expression
   | OpSigListAny !a       -- ^ OR for list of sigma expression
 
+  | OpCheckSig            -- ^ Verify single signature
+  | OpCheckMultiSig       -- ^ Verify N-of-M signatures
+
   | OpEQ !a               -- ^ Equal
   | OpNE !a               -- ^ Not equal
   | OpGT !a               -- ^ Greater then
