@@ -134,8 +134,7 @@ data Box = Box
 -- | Box and relevant information that is aquired at TX-post time.
 data PostBox = PostBox
   { postBox'content :: Box    -- ^ approved box
-  , postBox'height  :: Int64  -- ^ time at which box was commited to blockchain
-  -- ^ time at which box was posted
+  , postBox'height  :: Int64  -- ^ Height of block at which box was commited to blockchain
   } deriving (Show, Eq, Generic, Serialise)
 
 computeBoxId :: TxId -> Int64 -> BoxId
