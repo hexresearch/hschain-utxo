@@ -321,6 +321,7 @@ makeStateView
   -> POW.StateView m UTXOBlock
 makeStateView bIdx0 overlay = sview where
   bh0    = overlayTip overlay
+  env    = let POW.Height h = POW.bhHeight bh0 in Env (fromIntegral h)
   sview  = POW.StateView
     { stateBID    = POW.bhBID bh0
     , applyBlock  = applyUtxoBlock overlay
@@ -338,13 +339,12 @@ makeStateView bIdx0 overlay = sview where
         do i <- retrieveUTXOBlockTableID (POW.bhBID bh0)
            basicExecute "UPDATE utxo_state_bid SET state_block = ?" (Only i)
         return $ makeStateView bIdx0 (emptyOverlay bh0)
-      -- FIXME: not implemented
-    , checkTx = \_tx@Tx{..} -> queryRO $ runExceptT $ do
-        undefined
-        -- inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
-        --   u <- getDatabaseBox POW.NoChange bir
-        --   return (boxInputRef'id, u)
-        -- checkSpendability inputs tx
+    , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
+        -- Incoming transactions are validated against current state as recorde in DB
+        txArg <- buildTxArg (getDatabaseBox POW.NoChange) env tx
+        -- FIXME: Check that transaction doesn't create coins out of thin air
+        either (throwError . InternalErr . T.unpack) pure
+          $ evalProveTx txArg
       --
     , createCandidateBlockData = createUtxoCandidate overlay bIdx0
     }
