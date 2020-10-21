@@ -581,15 +581,15 @@ getDatabaseBox (POW.RevertBlock i path) boxId = do
     Just u  -> return u
     Nothing -> getDatabaseBox path boxId
 getDatabaseBox POW.NoChange boxId = do
+  -- FIXME: We have to store information about post time somehow
   r <- basicQuery1
-    "SELECT box, height \
+    "SELECT box \
     \  FROM utxo_set \
     \  JOIN utxo_state  ON live_utxo = utxo_id   \
-    \  JOIN utxo_blocks ON blk_id    = block_ref \
     \ WHERE box_id = ?"
     (Only boxId)
   case r of
-    Just u  -> return u
+    Just (Only u) -> return (PostBox u 0)
     Nothing -> throwError $ InternalErr "No such UTXO"
 
 
