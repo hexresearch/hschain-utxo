@@ -9,60 +9,25 @@
 {-# LANGUAGE DataKinds, ScopedTypeVariables, TypeApplications #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RecordWildCards, StandaloneDeriving #-}
-
+-- Servant orphans
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
   , UtxoRestAPI(..)
   ) where
 
-import Hex.Common.Aeson
-import Hex.Common.Yaml
-
-import Codec.Serialise
-
 import Control.Concurrent
-
 import Control.Monad
-import Control.Concurrent.STM
-import Control.Monad.Base
-import Control.Monad.Catch hiding (Handler)
-import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Trans.Cont
-import Control.Monad.Trans.Control
-import Control.Monad.Trans.Maybe
-
-import qualified Data.Aeson as JSON
-
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Char8 as BS8
-
-import Data.Fix
-
-import Data.Fixed
-
-import Data.Functor.Classes (Show1)
-
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 
 import Data.Maybe
-
-import Data.Text (Text)
-
-import qualified Data.Vector as V
-
-import Data.Word
-
 import Data.Yaml.Config (loadYamlSettings, requireEnv)
-
 import GHC.Generics
 
-import Servant.API ((:<|>)(..),(:>)(..),Capture,Summary,Get,JSON)
+import Servant.API         ((:>),Capture,Summary,Get,JSON)
 import Servant.API.Generic ((:-)(..))
 import qualified Servant.API              as Servant
 import qualified Servant.Server           as Servant
@@ -70,48 +35,25 @@ import qualified Servant.API.Generic      as Servant
 import qualified Servant.Server.Generic   as Servant
 import qualified Network.Wai.Handler.Warp as Warp
 
-import qualified System.Environment as SE
 import System.IO
 
 import HSChain.Crypto.Classes
-import HSChain.Crypto.SHA
 import HSChain.Store.Query (MonadReadDB,queryRO,withConnection,basicQuery_)
-import qualified HSChain.Crypto.Classes.Hash as Crypto
-import HSChain.Types.Merkle.Types
-
-import qualified HSChain.Control.Channels as HControl
-import qualified HSChain.Control.Class    as HControl
-import qualified HSChain.Control.Util     as HControl
-import HSChain.Crypto hiding (PublicKey)
-import HSChain.Crypto.Classes.Hash
-import HSChain.Crypto.Ed25519
-import HSChain.Crypto.SHA
 import HSChain.Types.Merkle.Types
 
 import HSChain.Network.TCP
-
-import qualified HSChain.POW            as POW
+import HSChain.Logger
+import HSChain.PoW.API
+import qualified HSChain.Control.Channels as HControl
+import qualified HSChain.Control.Class    as HControl
+import qualified HSChain.Control.Util     as HControl
 import qualified HSChain.PoW.P2P        as POW
 import qualified HSChain.PoW.P2P.Types  as POW
 import qualified HSChain.PoW.Consensus  as POW
-import qualified HSChain.PoW.BlockIndex as POW
 import qualified HSChain.PoW.Node       as POW
 import qualified HSChain.PoW.Types      as POW
 
-import HSChain.Logger
-import HSChain.PoW.API
-
 import Hschain.Utxo.Lang hiding (Height)
-import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.Lang.Sigma
-
-import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Types
-import qualified Crypto.ECC.Edwards25519  as Ed
-import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Interpreter as Sigma
-
-
 import Hschain.Utxo.Pow.App.Options (Command(..), readCommandOptions)
 import Hschain.Utxo.Pow.App.Types
 
@@ -140,7 +82,7 @@ genesis = POW.GBlock
   , blockData   = UTXOBlock
     { ubNonce  = ""
     , ubData   = merkled []
-    , ubTarget = POW.Target $ 2^256 - 1
+    , ubTarget = POW.Target $ 2^(256::Int) - 1
     }
   }
 
@@ -149,7 +91,7 @@ genesis = POW.GBlock
 -- Node.
 
 runNode :: POW.Block UTXOBlock -> POW.Cfg -> Maybe c -> IO ()
-runNode genesis config@POW.Cfg{..} maybePrivK = do
+runNode genesisBlk POW.Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
       netcfg = POW.NetCfg { POW.nKnownPeers     = 3
@@ -157,7 +99,7 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
                           }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
     withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
-      (db, bIdx, sView) <- lift $ utxoStateView genesis
+      (db, bIdx, sView) <- lift $ utxoStateView genesisBlk
       c0  <- lift $ POW.createConsensus db sView bIdx
       pow <- POW.startNode netcfg net cfgPeers db c0
       -- report progress
@@ -176,7 +118,7 @@ runNode genesis config@POW.Cfg{..} maybePrivK = do
           hPutStrLn stderr $ "server started at "++show port
           Warp.run port $ Servant.genericServeT run $ utxoRestServer (POW.mempoolAPI pow)
       case maybePrivK of
-        Just privk -> do
+        Just _privk -> do
           HControl.cforkLinked $ POW.genericMiningLoop pow
         Nothing -> return ()
       -- Wait forever
@@ -222,10 +164,8 @@ debugGetStateImpl = queryRO $ basicQuery_
 
 
 
-type ServerM a = UTXOT IO a
+-- FIXME: Deal with orphans
 
-
--- FIXME
 instance Servant.FromHttpApiData BoxId where
   parseQueryParam = (\txt -> maybe (err txt) Right $ decodeBase58 txt) <=< Servant.parseQueryParam
     where
