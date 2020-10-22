@@ -627,15 +627,6 @@ retrieveUTXOBlockTableID bid = do
     Nothing       -> error "Unknown BID"
     Just (Only i) -> return i
 
-retrieveUTXOIO :: MonadQueryRO m => BoxId -> m Int
-retrieveUTXOIO utxo = do
-  r <- basicQuery1
-    "SELECT utxo_id FROM utxo_set WHERE box_id = ?"
-    (Only utxo)
-  case r of
-    Just (Only i) -> return i
-    Nothing       -> error "retrieveUTXOIO"
-
 retrieveUTXOByBoxId :: (MonadReadDB m, MonadIO m) => BoxId -> m (Maybe Box)
 retrieveUTXOByBoxId boxid
   =  queryRO
@@ -770,15 +761,15 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
   -- Write down block delta
   bid <- retrieveUTXOBlockTableID (POW.bhBID bh)
   forM_ (Map.keys utxoCreated) $ \utxo -> do
-    box <- retrieveUTXOIO utxo
     basicExecute
-      "INSERT OR IGNORE INTO utxo_created VALUES (?,?)"
-      (bid, box)
+      "INSERT OR IGNORE INTO utxo_created \
+      \  SELECT ?,utxo_id FROM utxo_set WHERE box_id = ?"
+      (bid, utxo)
   forM_ (Map.keys utxoSpent) $ \utxo -> do
-    box <- retrieveUTXOIO utxo
     basicExecute
-      "INSERT OR IGNORE INTO utxo_spent VALUES (?,?)"
-      (bid, box)
+      "INSERT OR IGNORE INTO utxo_created \
+      \  SELECT ?,utxo_id FROM utxo_set WHERE box_id = ?"
+      (bid, utxo)
 dumpOverlay OverlayBase{} = return ()
 
 
