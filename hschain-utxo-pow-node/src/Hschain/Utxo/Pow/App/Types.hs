@@ -581,15 +581,14 @@ getDatabaseBox (POW.RevertBlock i path) boxId = do
     Just u  -> return u
     Nothing -> getDatabaseBox path boxId
 getDatabaseBox POW.NoChange boxId = do
-  -- FIXME: We have to store information about post time somehow
   r <- basicQuery1
     "SELECT box \
     \  FROM utxo_set \
-    \  JOIN utxo_state  ON live_utxo = utxo_id   \
+    \  JOIN utxo_state, utxo_height ON live_utxo = utxo_id   \
     \ WHERE box_id = ?"
     (Only boxId)
   case r of
-    Just (Only u) -> return (PostBox u 0)
+    Just u  -> return u
     Nothing -> throwError $ InternalErr "No such UTXO"
 
 
@@ -642,7 +641,10 @@ revertBlockDB bh = do
     (SQL.Only i)
   basicExecute
     "INSERT OR IGNORE INTO utxo_state \
-    \  SELECT utxo_ref FROM utxo_spent WHERE block_ref = ?"
+     \  SELECT utxo_ref, height \
+     \     FROM utxo_spent \
+     \     JOIN utxo_blocks ON blk_id = block_ref \
+     \    WHERE block_ref = ?"
     (SQL.Only i)
 
 applyBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
@@ -654,7 +656,10 @@ applyBlockDB bh = do
     (SQL.Only i)
   basicExecute
     "INSERT OR IGNORE INTO utxo_state \
-    \  SELECT utxo_ref FROM utxo_created WHERE block_ref = ?"
+     \  SELECT utxo_ref, height \
+     \     FROM utxo_created \
+     \     JOIN utxo_blocks ON blk_id = block_ref \
+     \    WHERE block_ref = ?"
     (SQL.Only i)
 
 ----------------------------------------------------------------
@@ -889,10 +894,11 @@ initUTXODB = mustQueryRW $ do
     \  , UNIQUE (block_ref, utxo_ref) \
     \)"
   -- Current state of blockchain. It's just set of currently live UTXO
-  -- with pointer to the block for which it corresponds
+  -- and height of block whenit was introduced
   basicExecute_
     "CREATE TABLE IF NOT EXISTS utxo_state \
-    \  ( live_utxo INTEGER NOT NULL \
+    \  ( live_utxo   INTEGER NOT NULL \
+    \  , utxo_height INTEGER NOT NULL \
     \  , FOREIGN KEY (live_utxo) REFERENCES utxo_set(utxo_id)\
     \  , UNIQUE (live_utxo) \
     \)"
