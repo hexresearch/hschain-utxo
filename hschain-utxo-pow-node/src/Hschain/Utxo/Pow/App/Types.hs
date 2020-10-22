@@ -342,7 +342,8 @@ makeStateView bIdx0 overlay = sview where
     , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
         -- Incoming transactions are validated against current state as recorde in DB
         txArg <- buildTxArg (getDatabaseBox POW.NoChange) env tx
-        -- FIXME: Check that transaction doesn't create coins out of thin air
+        unless (sumTxInputs txArg <= sumTxOutputs txArg) $
+          throwError $ InternalErr "Transaction create money"
         either (throwError . InternalErr . T.unpack) pure
           $ evalProveTx txArg
       --
@@ -422,9 +423,10 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
       bhState (overlayBase overlay)
   -- Select transaction
   let tryTX o tx = do
+        -- FIXME: duplication of checks with check TX
         txArg <- buildTxArg (getDatabaseBox pathInDB) env tx
-        -- FIXME: Tx preserves value (module commission)
-        --
+        unless (sumTxInputs txArg <= sumTxOutputs txArg) $
+          throwError $ InternalErr "Transaction create money"
         either (throwError . InternalErr . T.unpack) pure
           $ evalProveTx txArg
         o' <- processTX o txArg
@@ -508,11 +510,13 @@ checkBalance (coinbase:txArgs) = do
   unless (inputs == outputs) $ throwError $ InternalErr "Block is not balanced"
   where
     inputs     = miningRewardAmount  + sumOf (each . _1) balances
-    outputs    = sumOutputs coinbase + sumOf (each . _2) balances
-    balances   = (sumInputs &&& sumOutputs) <$> txArgs
-    --
-    sumInputs  = sumOf (txArg'inputsL  . each . boxInput'boxL    . to postBox'content . box'valueL)
-    sumOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'content . box'valueL)
+    outputs    = sumTxOutputs coinbase + sumOf (each . _2) balances
+    balances   = (sumTxInputs &&& sumTxOutputs) <$> txArgs
+
+
+sumTxInputs, sumTxOutputs :: TxArg -> Money
+sumTxInputs  = sumOf (txArg'inputsL  . each . boxInput'boxL    . to postBox'content . box'valueL)
+sumTxOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'content . box'valueL)
 
 
 -- | Mark every input as spent and mark every output as created
