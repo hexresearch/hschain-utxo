@@ -434,13 +434,14 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
   -- Select transactions
   let selectTX []     _ = return []
       selectTX (t:ts) o = runExceptT (tryTX o t) >>= \case
-        Left  _ -> selectTX ts o
+        Left  _       -> selectTX ts o
         Right (tA,o') -> ((tA,t):) <$> selectTX ts o'
       --
   txList <- selectTX txlist $ addOverlayLayer overlay
-  -- FIXME: Compute commisions
-  -- -- Create and process coinbase transaction
-  let coinbaseBox = Box { box'value  = miningRewardAmount
+  -- Create and process coinbase transaction
+  let commission  = sumOf (each . _1 . to sumTxOutputs) txList
+                  - sumOf (each . _1 . to sumTxInputs)  txList
+      coinbaseBox = Box { box'value  = miningRewardAmount + commission
                         , box'script = coreProgToScript $ EPrim (PrimBool True)
                         , box'args   = mempty
                         }
