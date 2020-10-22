@@ -935,6 +935,7 @@ monomorphicPrimops =
   [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
   , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
+  , OpCheckSig, OpCheckMultiSig
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
   , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpGetBoxPostHeight

@@ -64,5 +64,5 @@ verifyBrokenTx = do
 
 -- | External TX verifier.
 verifyTx :: Tx -> Bool
-verifyTx tx = all (\BoxInputRef{..} -> maybe False (\proof -> verifyProof proof (getSigMessageTx boxInputRef'sigMask tx)) boxInputRef'proof) $ tx'inputs tx
+verifyTx tx = all (\BoxInputRef{..} -> maybe False (\proof -> verifyProof proof (getSigMessage boxInputRef'sigMask tx)) boxInputRef'proof) $ tx'inputs tx
 

@@ -19,18 +19,21 @@ import Control.Concurrent.STM
 import Control.Monad
 
 import Data.Map.Strict (Map)
-import Data.Maybe
 
 import HSChain.Crypto.Classes (ByteRepr(..))
 
+import Hschain.Utxo.Test.Client.Wallet (Wallet, getWalletPublicKey, getWalletPrivateKey)
 import Hschain.Utxo.Lang hiding (Env)
 import Hschain.Utxo.Test.Client.Monad (randomBS)
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol
+import Hschain.Utxo.Test.Client.Scripts.Lightning.Tx
 
 import Text.Show.Pretty
 
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Map.Strict as M
+
+import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 -- Network state
 data Env = Env
@@ -73,8 +76,8 @@ startRedirectProc inChan outTv = do
 closeNetwork :: Net -> IO ()
 closeNetwork Net{..} = cancel net'redirect
 
-registerUser :: Net -> UserId -> PublicKey -> IO User
-registerUser net uid pubKey = do
+registerUser :: Net -> UserId -> Wallet -> [BoxId] -> IO User
+registerUser net uid wallet boxes = do
   insertUserToEnv net uid
   userChan <- insertUserMsgChan net uid
   return $ User
@@ -83,7 +86,8 @@ registerUser net uid pubKey = do
         { api'send = sendDebug $ atomically . writeTChan (net'msgIn net)
         , api'read = readDebug $ atomically $ readTChan userChan
         }
-    , user'publicKey = pubKey
+    , user'wallet = wallet
+    , user'boxes  = boxes
     }
   where
     sendDebug f msg = do
@@ -126,8 +130,8 @@ openChan alice bob value = do
             , chanSpec'delay    = 50
             , chanSpec'minDepth = 5 }
 
-    alicePk = user'publicKey alice
-    bobPk   = user'publicKey bob
+    alicePk = getWalletPublicKey $ user'wallet alice
+    bobPk   = getWalletPublicKey $ user'wallet bob
 
     aliceProc = do
       chId <- initChanId
@@ -146,12 +150,13 @@ openChan alice bob value = do
           act <- read
           case act of
             AcceptChan{..} -> do
-              txId <- fmap (TxId . fromJust . decodeFromBS) $ randomBS 16
-              signature <- randomBS 16
+              fundTx <- fundingTx (user'wallet alice) (5, 5) (user'boxes alice) act'publicKey
+              comTx <- commitmentTx (user'wallet alice) (getSharedBoxId fundTx) (5, 0)
+              signature <- Crypto.sign (getWalletPrivateKey $ user'wallet alice) (getSigMessage SigAll comTx)
               write $ FundingCreated
                 { act'chanId            = act'chanId
-                , act'fundingTxId       = txId
-                , act'signCommitmentTx  = signature
+                , act'fundingTxId       = computeTxId fundTx
+                , act'signCommitmentTx  = encodeToBS signature
                 }
             _ -> unexpectedMsg act
 
@@ -281,9 +286,10 @@ readNet to from = do
     else readNet to from
 
 data User = User
-  { user'id        :: UserId
-  , user'api       :: Api
-  , user'publicKey :: PublicKey
+  { user'id     :: UserId
+  , user'api    :: Api
+  , user'wallet :: Wallet
+  , user'boxes  :: [BoxId]
   }
 
 data Api = Api

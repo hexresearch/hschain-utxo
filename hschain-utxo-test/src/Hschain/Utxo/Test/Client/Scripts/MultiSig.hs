@@ -7,7 +7,6 @@ module Hschain.Utxo.Test.Client.Scripts.MultiSig(
     multiSigExchange
   , getSharedBoxTx
   , postTxDebug
-  , changeBox
   , spendCommonBoxTx
   , simpleSpendTo
 ) where
@@ -66,11 +65,11 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
     appendCommonBoxId tx = (tx, computeBoxId (computeTxId tx) 0, commonScript)
 
     preTx = getPreTx Nothing Nothing
-    message = getSigMessageTx SigAll preTx
+    message = getSigMessage SigAll preTx
 
     getPreTx aliceProof bobProof = Tx
       { tx'inputs   = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
-      , tx'outputs  = [commonBox, changeBox aliceChange alicePk, changeBox bobChange bobPk]
+      , tx'outputs  = [commonBox, singleSpendBox aliceChange alicePk, singleSpendBox bobChange bobPk]
       }
 
     inputBox boxId proof = BoxInputRef
@@ -121,7 +120,7 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
 
     preTx = getPreTx Nothing
 
-    message = getSigMessageTx SigAll preTx
+    message = getSigMessage SigAll preTx
 
     commonInput proof = BoxInputRef
       { boxInputRef'id      = commonBoxId
@@ -133,8 +132,8 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
 
     commonScript = sigmaPk alicePk &&* sigmaPk bobPk
 
-    aliceBox = changeBox aliceValue alicePk
-    bobBox   = changeBox bobValue   bobPk
+    aliceBox = singleSpendBox aliceValue alicePk
+    bobBox   = singleSpendBox bobValue   bobPk
 
     alicePk  = getWalletPublicKey alice
     bobPk    = getWalletPublicKey bob
@@ -160,7 +159,7 @@ simpleSpendToTx wallet fromId toPubKey value =
   where
     preTx = Tx
       { tx'inputs  = [inputRef]
-      , tx'outputs = [changeBox value toPubKey]
+      , tx'outputs = [singleSpendBox value toPubKey]
       }
 
     inputRef = BoxInputRef
@@ -185,10 +184,3 @@ postTxDebug isSuccess msg tx = do
   return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
   where
     wait = sleep 0.1
-
-changeBox :: Int64 -> PublicKey -> Box
-changeBox value pubKey = Box
-  { box'value  = value
-  , box'script = mainScriptUnsafe $ pk' pubKey
-  , box'args   = mempty
-  }

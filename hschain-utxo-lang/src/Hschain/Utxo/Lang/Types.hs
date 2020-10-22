@@ -33,7 +33,7 @@ module Hschain.Utxo.Lang.Types
   , txPreservesValue
   , computeTxId
   , SigMessage(..)
-  , getSigMessageTx
+  , getSigMessage
     -- * Helperes
   , singleOwnerInput
     -- * Lenses
@@ -272,8 +272,8 @@ computeTxId Tx{..}
                            <> hashStep boxInputRef'sigMask
     stepOut = hashStep
 
-getSigMessageTx :: SigMask -> GTx a Box -> SigMessage
-getSigMessageTx mask Tx{..}
+getSigMessage :: SigMask -> GTx a Box -> SigMessage
+getSigMessage mask Tx{..}
    = SigMessage . hashBuilder
    $ hashStep (UserType hashDomain "Tx")
   <> hashStepFoldableWith stepIn  (filterIns  tx'inputs)
@@ -337,7 +337,7 @@ buildTxArg lookupBox env tx@Tx{..} = do
                   , boxInput'proof   = boxInputRef'proof
                   , boxInput'sigs    = boxInputRef'sigs
                   , boxInput'sigMask = boxInputRef'sigMask
-                  , boxInput'sigMsg  = getSigMessageTx boxInputRef'sigMask tx
+                  , boxInput'sigMsg  = getSigMessage boxInputRef'sigMask tx
                   }
   pure TxArg { txArg'inputs   = inputs
              , txArg'outputs  = V.imap (\i b -> let boxId = computeBoxId txId (fromIntegral i)
@@ -398,7 +398,7 @@ makeInput
   -> BoxInputRef (Sigma PublicKey)
   -> IO (BoxInputRef Proof)
 makeInput tx proofEnv BoxInputRef{..} = do
-  let message = getSigMessageTx boxInputRef'sigMask tx
+  let message = getSigMessage boxInputRef'sigMask tx
   mProof <- mapM (\sigma -> newProof proofEnv sigma message) boxInputRef'proof
   return BoxInputRef{ boxInputRef'proof = either (const Nothing) Just =<< mProof
                     , ..
@@ -414,7 +414,7 @@ makeInputOrFail tx proofEnv ref@BoxInputRef{..}
   where
     toInput sigma = ExceptT $ newProof proofEnv sigma message
 
-    message = getSigMessageTx boxInputRef'sigMask tx
+    message = getSigMessage boxInputRef'sigMask tx
 
 
 -- | Expectation of the result of the box. We use it when we know to
