@@ -128,4 +128,5 @@ Test-suite hschain-utxo-pow-node-tests
   hs-source-dirs:      test
   Main-is:             Main.hs
   Other-modules:       TM.Store
+                       TM.Blocks
 
