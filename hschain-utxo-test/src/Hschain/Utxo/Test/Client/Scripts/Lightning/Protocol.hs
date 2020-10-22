@@ -61,10 +61,12 @@ data Act
       { act'chanId           :: ChanId        -- channel id
       , act'fundingTxId      :: TxId          -- txid for funding TX
       , act'signCommitmentTx :: ByteString    -- signature for first commitment TX
+      , act'revokeHash       :: ByteString    -- hash of revoke secret for first commitment
       }
   | FundingSigned
       { act'chanId           :: ChanId
       , act'signCommitmentTx :: ByteString    -- signature for first commitment TX from other party
+      , act'revokeHash       :: ByteString    -- hash of revoke secret for first commitment
       }
   | FundingLocked
       { act'chanId           :: ChanId

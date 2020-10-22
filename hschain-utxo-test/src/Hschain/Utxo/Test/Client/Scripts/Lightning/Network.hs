@@ -22,6 +22,7 @@ import Data.Map.Strict (Map)
 
 import HSChain.Crypto.Classes (ByteRepr(..))
 
+import Hschain.Utxo.Lang.Utils.ByteString (getSha256)
 import Hschain.Utxo.Test.Client.Wallet (Wallet, getWalletPublicKey, getWalletPrivateKey)
 import Hschain.Utxo.Lang hiding (Env)
 import Hschain.Utxo.Test.Client.Monad (randomBS)
@@ -135,8 +136,9 @@ openChan alice bob value = do
 
     aliceProc = do
       chId <- initChanId
-      requestChan chId
-      fundingCreated
+      let chSpec = spec chId
+      requestChan chSpec
+      fundingCreated chSpec
       fundingLocked
       readFundingLocked =<< read
       return chId
@@ -144,19 +146,22 @@ openChan alice bob value = do
         write = writeNet alice bob
         read  = readNet alice bob
 
-        requestChan chanId = write (OpenChan (spec chanId) alicePk)
+        requestChan chanSpec = write (OpenChan chanSpec alicePk)
 
-        fundingCreated = do
+        fundingCreated chSpec = do
           act <- read
           case act of
             AcceptChan{..} -> do
               fundTx <- fundingTx (user'wallet alice) (5, 5) (user'boxes alice) act'publicKey
-              comTx <- commitmentTx (user'wallet alice) (getSharedBoxId fundTx) (5, 0)
+              revokeSecret <- randomBS 16
+              let revokeHash = getSha256 revokeSecret
+                  comTx = commitmentTx act'publicKey (getSharedBoxId fundTx) (0, 5) alicePk (chanSpec'delay chSpec) revokeHash
               signature <- Crypto.sign (getWalletPrivateKey $ user'wallet alice) (getSigMessage SigAll comTx)
               write $ FundingCreated
                 { act'chanId            = act'chanId
                 , act'fundingTxId       = computeTxId fundTx
                 , act'signCommitmentTx  = encodeToBS signature
+                , act'revokeHash        = getSha256 revokeSecret
                 }
             _ -> unexpectedMsg act
 
@@ -168,8 +173,8 @@ openChan alice bob value = do
             _ -> unexpectedMsg act
 
     bobProc = do
-      acceptChan
-      fundingSigned
+      chSpec <- acceptChan
+      fundingSigned chSpec
       readFundingLocked =<< read
       return ()
       where
@@ -181,14 +186,18 @@ openChan alice bob value = do
           case act of
             OpenChan{..} -> do
               write $ AcceptChan (chanSpec'id act'spec) bobPk
+              return act'spec
             _ -> unexpectedMsg act
 
-        fundingSigned = do
+        fundingSigned chSpec = do
           act <- read
           case act of
             FundingCreated{..} -> do
-              signature <- randomBS 16
-              write $ FundingSigned act'chanId signature
+              revokeSecret <- randomBS 16
+              let revokeHash = getSha256 revokeSecret
+                  comTx = commitmentTx alicePk (computeBoxId act'fundingTxId 0) (5, 0) bobPk (chanSpec'delay chSpec) revokeHash
+              signature <- Crypto.sign (getWalletPrivateKey $ user'wallet bob) (getSigMessage SigAll comTx)
+              write $ FundingSigned act'chanId (encodeToBS signature) revokeHash
               -- we should listen to Blockchain to wait for minDepth confirmations
               -- but let's skip this for know and send it right away
               fundingLocked act'chanId

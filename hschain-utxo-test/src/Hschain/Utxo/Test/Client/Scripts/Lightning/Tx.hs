@@ -5,8 +5,11 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Tx(
   , commitmentTx
 ) where
 
+
 import Control.Monad.IO.Class
 
+import Data.ByteString (ByteString)
+import Data.Int
 import Data.Maybe
 
 import Hschain.Utxo.Lang
@@ -43,6 +46,32 @@ getSharedBoxId :: Tx -> BoxId
 getSharedBoxId tx = computeBoxId (computeTxId tx) 0
 
 -- | Commitment TX
-commitmentTx :: MonadIO io => Wallet -> BoxId -> Balance -> io Tx
-commitmentTx = undefined
+commitmentTx :: PublicKey -> BoxId -> Balance -> PublicKey -> Int64 -> ByteString -> Tx
+commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHash =
+  Tx
+    { tx'inputs  = [commonInput]
+    , tx'outputs = [myBox, otherBox]
+    }
+  where
+    commonInput = BoxInputRef
+      { boxInputRef'id    = commonBoxId
+      , boxInputRef'proof = Nothing
+      , boxInputRef'args  = mempty
+      , boxInputRef'sigs  = mempty
+      , boxInputRef'sigMask = SigAll
+      }
+
+    myBox = Box
+      { box'value  = myValue
+      , box'script = mainScriptUnsafe revokeScript
+      , box'args   = mempty
+      }
+      where
+        revokeScript =
+              (pk' myPk &&* (toSigma $ getHeight >* getBoxPostHeight getSelf + int (fromIntegral spendDelay)))
+          ||* (pk' otherPk &&* (toSigma $ sha256 readKey ==* bytes revokeHash))
+
+    readKey = listAt getBytesVars 0
+
+    otherBox = singleSpendBox otherValue otherPk
 
