@@ -449,6 +449,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
                         { boxInputRef'id      = coerce (POW.bhBID bh)
                         , boxInputRef'args    = mempty
                         , boxInputRef'proof   = Nothing
+                        , boxInputRef'sigs    = V.empty
                         , boxInputRef'sigMask = SigAll
                         }
                     , tx'outputs = V.fromList [coinbaseBox]

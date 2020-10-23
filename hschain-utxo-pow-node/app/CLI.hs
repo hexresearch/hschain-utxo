@@ -101,7 +101,7 @@ parseSend = do
     -- Prepare transaction
     let tx :: Tx
         tx = Tx
-          { tx'inputs  = V.fromList [ BoxInputRef bid mempty Nothing SigAll
+          { tx'inputs  = V.fromList [ BoxInputRef bid mempty Nothing V.empty SigAll
                                     | bid <- inputs
                                     ]
           , tx'outputs = V.fromList [
