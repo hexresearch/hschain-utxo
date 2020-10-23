@@ -321,6 +321,7 @@ makeStateView
   -> POW.StateView m UTXOBlock
 makeStateView bIdx0 overlay = sview where
   bh0    = overlayTip overlay
+  env    = let POW.Height h = POW.bhHeight bh0 in Env (fromIntegral h)
   sview  = POW.StateView
     { stateBID    = POW.bhBID bh0
     , applyBlock  = applyUtxoBlock overlay
@@ -338,13 +339,13 @@ makeStateView bIdx0 overlay = sview where
         do i <- retrieveUTXOBlockTableID (POW.bhBID bh0)
            basicExecute "UPDATE utxo_state_bid SET state_block = ?" (Only i)
         return $ makeStateView bIdx0 (emptyOverlay bh0)
-      -- FIXME: not implemented
-    , checkTx = \_tx@Tx{..} -> queryRO $ runExceptT $ do
-        undefined
-        -- inputs <- forM tx'inputs $ \bir@BoxInputRef{..} -> do
-        --   u <- getDatabaseBox POW.NoChange bir
-        --   return (boxInputRef'id, u)
-        -- checkSpendability inputs tx
+    , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
+        -- Incoming transactions are validated against current state as recorde in DB
+        txArg <- buildTxArg (getDatabaseBox POW.NoChange) env tx
+        unless (sumTxInputs txArg <= sumTxOutputs txArg) $
+          throwError $ InternalErr "Transaction create money"
+        either (throwError . InternalErr . T.unpack) pure
+          $ evalProveTx txArg
       --
     , createCandidateBlockData = createUtxoCandidate overlay bIdx0
     }
@@ -422,9 +423,10 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
       bhState (overlayBase overlay)
   -- Select transaction
   let tryTX o tx = do
+        -- FIXME: duplication of checks with check TX
         txArg <- buildTxArg (getDatabaseBox pathInDB) env tx
-        -- FIXME: Tx preserves value (module commission)
-        --
+        unless (sumTxInputs txArg <= sumTxOutputs txArg) $
+          throwError $ InternalErr "Transaction create money"
         either (throwError . InternalErr . T.unpack) pure
           $ evalProveTx txArg
         o' <- processTX o txArg
@@ -432,13 +434,14 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
   -- Select transactions
   let selectTX []     _ = return []
       selectTX (t:ts) o = runExceptT (tryTX o t) >>= \case
-        Left  _ -> selectTX ts o
+        Left  _       -> selectTX ts o
         Right (tA,o') -> ((tA,t):) <$> selectTX ts o'
       --
   txList <- selectTX txlist $ addOverlayLayer overlay
-  -- FIXME: Compute commisions
-  -- -- Create and process coinbase transaction
-  let coinbaseBox = Box { box'value  = miningRewardAmount
+  -- Create and process coinbase transaction
+  let commission  = sumOf (each . _1 . to sumTxOutputs) txList
+                  - sumOf (each . _1 . to sumTxInputs)  txList
+      coinbaseBox = Box { box'value  = miningRewardAmount + commission
                         , box'script = coreProgToScript $ EPrim (PrimBool True)
                         , box'args   = mempty
                         }
@@ -446,6 +449,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
                         { boxInputRef'id      = coerce (POW.bhBID bh)
                         , boxInputRef'args    = mempty
                         , boxInputRef'proof   = Nothing
+                        , boxInputRef'sigs    = V.empty
                         , boxInputRef'sigMask = SigAll
                         }
                     , tx'outputs = V.fromList [coinbaseBox]
@@ -508,11 +512,13 @@ checkBalance (coinbase:txArgs) = do
   unless (inputs == outputs) $ throwError $ InternalErr "Block is not balanced"
   where
     inputs     = miningRewardAmount  + sumOf (each . _1) balances
-    outputs    = sumOutputs coinbase + sumOf (each . _2) balances
-    balances   = (sumInputs &&& sumOutputs) <$> txArgs
-    --
-    sumInputs  = sumOf (txArg'inputsL  . each . boxInput'boxL    . to postBox'content . box'valueL)
-    sumOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'content . box'valueL)
+    outputs    = sumTxOutputs coinbase + sumOf (each . _2) balances
+    balances   = (sumTxInputs &&& sumTxOutputs) <$> txArgs
+
+
+sumTxInputs, sumTxOutputs :: TxArg -> Money
+sumTxInputs  = sumOf (txArg'inputsL  . each . boxInput'boxL    . to postBox'content . box'valueL)
+sumTxOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'content . box'valueL)
 
 
 -- | Mark every input as spent and mark every output as created
@@ -582,10 +588,9 @@ getDatabaseBox (POW.RevertBlock i path) boxId = do
     Nothing -> getDatabaseBox path boxId
 getDatabaseBox POW.NoChange boxId = do
   r <- basicQuery1
-    "SELECT box, height \
+    "SELECT box \
     \  FROM utxo_set \
-    \  JOIN utxo_state  ON live_utxo = utxo_id   \
-    \  JOIN utxo_blocks ON blk_id    = block_ref \
+    \  JOIN utxo_state, utxo_height ON live_utxo = utxo_id   \
     \ WHERE box_id = ?"
     (Only boxId)
   case r of
@@ -627,15 +632,6 @@ retrieveUTXOBlockTableID bid = do
     Nothing       -> error "Unknown BID"
     Just (Only i) -> return i
 
-retrieveUTXOIO :: MonadQueryRO m => BoxId -> m Int
-retrieveUTXOIO utxo = do
-  r <- basicQuery1
-    "SELECT utxo_id FROM utxo_set WHERE box_id = ?"
-    (Only utxo)
-  case r of
-    Just (Only i) -> return i
-    Nothing       -> error "retrieveUTXOIO"
-
 retrieveUTXOByBoxId :: (MonadReadDB m, MonadIO m) => BoxId -> m (Maybe Box)
 retrieveUTXOByBoxId boxid
   =  queryRO
@@ -651,7 +647,10 @@ revertBlockDB bh = do
     (SQL.Only i)
   basicExecute
     "INSERT OR IGNORE INTO utxo_state \
-    \  SELECT utxo_ref FROM utxo_spent WHERE block_ref = ?"
+     \  SELECT utxo_ref, height \
+     \     FROM utxo_spent \
+     \     JOIN utxo_blocks ON blk_id = block_ref \
+     \    WHERE block_ref = ?"
     (SQL.Only i)
 
 applyBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
@@ -663,7 +662,10 @@ applyBlockDB bh = do
     (SQL.Only i)
   basicExecute
     "INSERT OR IGNORE INTO utxo_state \
-    \  SELECT utxo_ref FROM utxo_created WHERE block_ref = ?"
+     \  SELECT utxo_ref, height \
+     \     FROM utxo_created \
+     \     JOIN utxo_blocks ON blk_id = block_ref \
+     \    WHERE block_ref = ?"
     (SQL.Only i)
 
 ----------------------------------------------------------------
@@ -770,15 +772,15 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
   -- Write down block delta
   bid <- retrieveUTXOBlockTableID (POW.bhBID bh)
   forM_ (Map.keys utxoCreated) $ \utxo -> do
-    box <- retrieveUTXOIO utxo
     basicExecute
-      "INSERT OR IGNORE INTO utxo_created VALUES (?,?)"
-      (bid, box)
+      "INSERT OR IGNORE INTO utxo_created \
+      \  SELECT ?,utxo_id FROM utxo_set WHERE box_id = ?"
+      (bid, utxo)
   forM_ (Map.keys utxoSpent) $ \utxo -> do
-    box <- retrieveUTXOIO utxo
     basicExecute
-      "INSERT OR IGNORE INTO utxo_spent VALUES (?,?)"
-      (bid, box)
+      "INSERT OR IGNORE INTO utxo_created \
+      \  SELECT ?,utxo_id FROM utxo_set WHERE box_id = ?"
+      (bid, utxo)
 dumpOverlay OverlayBase{} = return ()
 
 
@@ -898,10 +900,11 @@ initUTXODB = mustQueryRW $ do
     \  , UNIQUE (block_ref, utxo_ref) \
     \)"
   -- Current state of blockchain. It's just set of currently live UTXO
-  -- with pointer to the block for which it corresponds
+  -- and height of block whenit was introduced
   basicExecute_
     "CREATE TABLE IF NOT EXISTS utxo_state \
-    \  ( live_utxo INTEGER NOT NULL \
+    \  ( live_utxo   INTEGER NOT NULL \
+    \  , utxo_height INTEGER NOT NULL \
     \  , FOREIGN KEY (live_utxo) REFERENCES utxo_set(utxo_id)\
     \  , UNIQUE (live_utxo) \
     \)"

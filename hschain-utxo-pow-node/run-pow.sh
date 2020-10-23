@@ -2,7 +2,7 @@
 set -e
 #trap 'echo TRAP; pkill -P $$' SIGINT SIGTERM
 
-cabal new-build hschain-utxo-pow-node
+cabal new-build hschain-utxo-pow-node-app
 #--enable-profiling --enable-library-profiling
 echo ====
 export PK1='"FPY3TBv4c4gKkTsWH68wUAUrXvaLnJnWsDEwhHqotE4T"'
