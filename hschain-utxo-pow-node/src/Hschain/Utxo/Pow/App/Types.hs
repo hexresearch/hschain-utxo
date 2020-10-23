@@ -104,12 +104,15 @@ data UTXOBlock t f = UTXOBlock
   }
   deriving stock (Generic)
 
+-- | Configuration of PoW function for given tag. It allows to pick
+--   concrete set of parameters of disable work check at all
 class Typeable t => UtxoPOWCongig t where
   powConfig :: Proxy t -> POW.POWConfig
+  checkBlockWork :: Proxy t -> Bool
+  checkBlockWork _ = True
 
 instance UtxoPOWCongig () where
-  powConfig _ = POW.defaultPOWConfig
-
+  powConfig      _ = POW.defaultPOWConfig
 
 deriving stock instance (Show1 f)    => Show (UTXOBlock t f)
 deriving stock instance (IsMerkle f) => Eq   (UTXOBlock t f)
@@ -170,7 +173,9 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
   validateHeader bh (POW.Time now) header
     | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
     | otherwise = do
-      answerIsGood <- liftIO $ checkPuzzle header
+      answerIsGood <- case checkBlockWork (Proxy @t) of
+                        True  -> liftIO $ checkPuzzle header
+                        False -> pure True
       return $ if
          | not answerIsGood -> Left WrongAnswer
          | ubTarget (POW.blockData header) /= POW.retarget bh
