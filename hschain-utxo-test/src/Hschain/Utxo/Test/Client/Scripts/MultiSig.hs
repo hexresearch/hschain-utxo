@@ -11,17 +11,13 @@ module Hschain.Utxo.Test.Client.Scripts.MultiSig(
   , simpleSpendTo
 ) where
 
-import Hex.Common.Delay
-
 import Control.Monad
 import Control.Monad.IO.Class
 
 import Data.Int
 import Data.Text
 import Data.Either.Extra
-import Data.Maybe
 
-import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Test.Client.Wallet
 
 import Hschain.Utxo.Test.Client.Monad
@@ -170,17 +166,3 @@ simpleSpendToTx wallet fromId toPubKey value =
       , boxInputRef'sigMask = SigAll
       }
 
-postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
-postTxDebug isSuccess msg tx = do
-  logTest msg
-  logTest "Going to post TX:"
-  logTest $ renderText tx
-  resp <- postTx tx
-  printTest $ postTxResponse'value resp
-  st <- getState
-  logTest $ renderText st
-  wait
-  testCase msg $ (isJust $ getTxHash resp) == isSuccess
-  return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
-  where
-    wait = sleep 0.1

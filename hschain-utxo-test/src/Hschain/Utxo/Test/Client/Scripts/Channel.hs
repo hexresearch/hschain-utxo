@@ -33,7 +33,7 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Chan (BlockChan)
 
 import Hschain.Utxo.Test.Client.Monad hiding (getHeight)
-import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, postTxDebug, simpleSpendTo, spendCommonBoxTx)
+import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, simpleSpendTo, spendCommonBoxTx)
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Utils.ByteString

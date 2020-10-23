@@ -12,8 +12,7 @@ import Hschain.Utxo.Test.Client.Scripts.Channel
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Example
 
 main :: IO ()
-main =
-  lightningExample
+main = hspec =<< runTestProc lightningExample
 
 main' :: IO ()
 main' = do

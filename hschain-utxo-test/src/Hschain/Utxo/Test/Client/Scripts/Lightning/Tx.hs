@@ -3,6 +3,7 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Tx(
     fundingTx
   , getSharedBoxId
   , commitmentTx
+  , closeChanTx
 ) where
 
 
@@ -49,18 +50,10 @@ getSharedBoxId tx = computeBoxId (computeTxId tx) 0
 commitmentTx :: PublicKey -> BoxId -> Balance -> PublicKey -> Int64 -> ByteString -> Tx
 commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHash =
   Tx
-    { tx'inputs  = [commonInput]
+    { tx'inputs  = [commonInput commonBoxId]
     , tx'outputs = [myBox, otherBox]
     }
   where
-    commonInput = BoxInputRef
-      { boxInputRef'id    = commonBoxId
-      , boxInputRef'proof = Nothing
-      , boxInputRef'args  = mempty
-      , boxInputRef'sigs  = mempty
-      , boxInputRef'sigMask = SigAll
-      }
-
     myBox = Box
       { box'value  = myValue
       , box'script = mainScriptUnsafe revokeScript
@@ -74,4 +67,20 @@ commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHas
     readKey = listAt getBytesVars 0
 
     otherBox = singleSpendBox otherValue otherPk
+
+closeChanTx :: BoxId -> Balance -> (PublicKey, PublicKey) -> Tx
+closeChanTx commonBoxId (valA, valB) (pkA, pkB) =
+  Tx
+    { tx'inputs  = [commonInput commonBoxId]
+    , tx'outputs = [singleSpendBox valA pkA, singleSpendBox valB pkB]
+    }
+
+commonInput :: BoxId -> BoxInputRef a
+commonInput commonBoxId = BoxInputRef
+  { boxInputRef'id    = commonBoxId
+  , boxInputRef'proof = Nothing
+  , boxInputRef'args  = mempty
+  , boxInputRef'sigs  = mempty
+  , boxInputRef'sigMask = SigAll
+  }
 

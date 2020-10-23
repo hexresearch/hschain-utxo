@@ -5,7 +5,6 @@ import Prelude hiding ((<*))
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Timeout
 
 import Data.ByteString (ByteString)
 import Data.Int
@@ -20,7 +19,7 @@ import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle)
+import Hschain.Utxo.Test.Client.Monad (App, testCase, testTitle)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
@@ -255,20 +254,4 @@ makeAliceSecret guess = liftIO $ do
   s <- fmap fromString $ sequence $ replicate 64 randomIO
   let k = B.getSha256 $ s <> (B.serialiseInt guess)
   return (k, s)
-
-postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
-postTxDebug isSuccess msg tx = do
-  logTest msg
-  logTest "Going to post TX:"
-  logTest $ renderText tx
-  resp <- M.postTx tx
-  printTest $ postTxResponse'value resp
-  -- logTest $ postTxResponse'debug resp
-  st <- M.getState
-  logTest $ renderText st
-  wait
-  testCase msg $ (isJust $ getTxHash resp) == isSuccess
-  return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
-  where
-    wait = sleep 0.25
 

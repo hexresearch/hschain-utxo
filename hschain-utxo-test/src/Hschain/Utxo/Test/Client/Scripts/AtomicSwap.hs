@@ -390,20 +390,6 @@ dumpState = do
   st <- getState
   logTest $ renderText st
 
-postTxSuccess :: Text -> Tx -> App ()
-postTxSuccess = postTxDebug True
-
-postTxFailure :: Text -> Tx -> App ()
-postTxFailure = postTxDebug False
-
-postTxDebug :: Bool -> Text -> Tx -> App ()
-postTxDebug isOk msg tx = do
-  dumpState
-  logTest msg
-  logTest $ renderText tx
-  resp <- postTx tx
-  checkTxResponce isOk msg resp
-
 checkTxResponce :: Bool -> Text -> PostTxResponse -> App ()
 checkTxResponce isOk msg resp = do
   logTest msg

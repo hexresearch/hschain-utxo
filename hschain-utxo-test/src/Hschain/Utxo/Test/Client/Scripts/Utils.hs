@@ -8,6 +8,9 @@ module Hschain.Utxo.Test.Client.Scripts.Utils(
   , Scene(..)
   , getTxHash
   , mainScriptUnsafe
+  , postTxDebug
+  , postTxSuccess
+  , postTxFailure
 ) where
 
 import Control.Timeout
@@ -119,4 +122,28 @@ setupScene scene@Scene{..} = do
     }
     where
       withBox u b = u { user'box = Just b }
+
+
+postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
+postTxDebug isSuccess msg tx = do
+  logTest msg
+  logTest "Going to post TX:"
+  logTest $ renderText tx
+  resp <- postTx tx
+  printTest $ postTxResponse'value resp
+  st <- getState
+  logTest $ renderText st
+  wait
+  testCase msg $ (isJust $ getTxHash resp) == isSuccess
+  return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
+  where
+    wait = sleep 0.1
+
+postTxSuccess :: Text -> Tx -> App ()
+postTxSuccess msg tx = void $ postTxDebug True msg tx
+
+postTxFailure :: Text -> Tx -> App ()
+postTxFailure msg tx = void $ postTxDebug False msg tx
+
+
 

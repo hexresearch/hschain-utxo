@@ -7,15 +7,19 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol(
   , Msg(..)
   , Act(..)
   , Route
+  , userIdToText
 ) where
 
 import Data.ByteString (ByteString)
 import Data.Int
+import Data.Text
 
 import Hschain.Utxo.Lang
 
+import Data.Text.Encoding
+
 newtype ChanId = ChanId ByteString
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- | Chan is a link between two users
 -- that ar erepresented by their publickeys
@@ -29,6 +33,9 @@ data Chan = Chan
 
 data UserId = UserId ByteString
   deriving (Show, Eq, Ord)
+
+userIdToText :: UserId -> Text
+userIdToText (UserId bs) = decodeUtf8 bs
 
 data ChanSpec = ChanSpec
   { chanSpec'id        :: ChanId -- ^ channel id
@@ -55,6 +62,7 @@ data Act
   | AcceptChan
       { act'chanId           :: ChanId
       , act'publicKey        :: PublicKey
+      , act'revokeHash       :: ByteString
       }
   -- ^ Accept request to open channel
   | FundingCreated
@@ -66,7 +74,6 @@ data Act
   | FundingSigned
       { act'chanId           :: ChanId
       , act'signCommitmentTx :: ByteString    -- signature for first commitment TX from other party
-      , act'revokeHash       :: ByteString    -- hash of revoke secret for first commitment
       }
   | FundingLocked
       { act'chanId           :: ChanId
