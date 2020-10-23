@@ -131,7 +131,7 @@ $(makeLensesWithL ''POW.GBlock)
 
 instance POW.BlockData UTXOBlock where
   --
-  newtype BlockID UTXOBlock = UB'BID { fromUBBID :: Crypto.Hash SHA256 }
+  newtype BlockID UTXOBlock = UB'BID (Crypto.Hash SHA256)
     deriving newtype
       (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON, ByteRepr)
     deriving (SQL.FromField, SQL.ToField) via ByteRepred (POW.BlockID UTXOBlock)
