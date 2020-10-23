@@ -51,7 +51,7 @@ main = do
 
 parser :: Parser (IO ())
 parser = subparser $ mconcat
-  [ command "balance" (parseBalance `info` header "Generate key(s)")
+  [ command "balance" (parseBalance `info` header "Print balances of different users")
   , command "send"    (parseSend    `info` header "Send coins to given user")
   ]
 
