@@ -18,12 +18,12 @@ tests = testGroup "Block store"
       testIdempotence emptyCoinChain db
   ]
 
-emptyCoinChain :: [Block UTXOBlock]
+emptyCoinChain :: [Block (UTXOBlock ())]
 emptyCoinChain = gen : unfoldr (Just . (\b -> (b,b)) . mineCoin [] . Just) gen
   where
     gen = mineCoin [] Nothing
 
-mineCoin :: [Tx UTXOBlock] -> Maybe (Block UTXOBlock) -> Block UTXOBlock
+mineCoin :: [Tx (UTXOBlock ())] -> Maybe (Block (UTXOBlock ())) -> Block (UTXOBlock ())
 mineCoin txs mb = GBlock
   { blockHeight = maybe (Height 0) (succ . blockHeight) mb
   , blockTime   = Time 0

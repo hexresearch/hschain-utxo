@@ -74,7 +74,7 @@ runApp = do
       config <- loadYamlSettings runnode'config [] requireEnv
       runNode genesis config runnode'nodeSecret
 
-genesis :: POW.Block UTXOBlock
+genesis :: POW.Block (UTXOBlock ())
 genesis = POW.GBlock
   { blockHeight = POW.Height 0
   , blockTime   = POW.Time   0
@@ -90,7 +90,7 @@ genesis = POW.GBlock
 -------------------------------------------------------------------------------
 -- Node.
 
-runNode :: POW.Block UTXOBlock -> POW.Cfg -> Maybe c -> IO ()
+runNode :: POW.Block (UTXOBlock ()) -> POW.Cfg -> Maybe c -> IO ()
 runNode genesisBlk POW.Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
@@ -132,7 +132,7 @@ runNode genesisBlk POW.Cfg{..} maybePrivK = do
 data UtxoRestAPI route = UtxoRestAPI
   { utxoMempoolAPI :: route
       :- Summary "Operations with Mempool"
-      :> "mempool" :> Servant.ToServantApi (MempoolRestAPI UTXOBlock)
+      :> "mempool" :> Servant.ToServantApi (MempoolRestAPI (UTXOBlock ()))
   , endpointGetBox :: route
       :- Summary "Gets the box by identifier"
       :> "box" :> "get" :> Capture "box-id" BoxId :> Get '[JSON] (Maybe Box)
@@ -142,7 +142,7 @@ data UtxoRestAPI route = UtxoRestAPI
   }
   deriving (Generic)
 
-utxoRestServer :: (MonadIO m, MonadReadDB m) => POW.MempoolAPI m UTXOBlock -> UtxoRestAPI (Servant.AsServerT m)
+utxoRestServer :: (MonadIO m, MonadReadDB m) => POW.MempoolAPI m (UTXOBlock ()) -> UtxoRestAPI (Servant.AsServerT m)
 utxoRestServer mempool = UtxoRestAPI
   { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
   , endpointGetBox = endpointGetBoxImpl

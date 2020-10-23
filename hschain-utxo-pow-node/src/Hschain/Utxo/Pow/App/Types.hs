@@ -3,7 +3,7 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-{-# LANGUAGE DataKinds                                       #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveAnyClass, DerivingVia, DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts                                #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, TypeApplications    #-}
@@ -33,6 +33,7 @@ import Data.Coerce
 import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (toLazyByteString,Builder)
 import Data.Functor.Classes    (Show1)
+import Data.Typeable           (Typeable)
 import Data.List               (foldl')
 import Data.Maybe
 import Data.Word
@@ -96,25 +97,32 @@ $(makeLensesWithL ''Box)
 --
 --   A block proper. It does not contain nonce to solve PoW puzzle but
 --   it contains all information about block.
-data UTXOBlock f = UTXOBlock
+data UTXOBlock t f = UTXOBlock
   { ubData   :: !(MerkleNode f SHA256 [Tx])
   , ubTarget :: !POW.Target
   , ubNonce  :: !ByteString
   }
   deriving stock (Generic)
 
-deriving stock instance (Show1 f)    => Show (UTXOBlock f)
-deriving stock instance (IsMerkle f) => Eq   (UTXOBlock f)
-instance Serialise (UTXOBlock Identity)
-instance Serialise (UTXOBlock Proxy)
+class Typeable t => UtxoPOWCongig t where
+  powConfig :: Proxy t -> POW.POWConfig
 
-instance IsMerkle f => JSON.FromJSON (UTXOBlock f) where
+instance UtxoPOWCongig () where
+  powConfig _ = POW.defaultPOWConfig
+
+
+deriving stock instance (Show1 f)    => Show (UTXOBlock t f)
+deriving stock instance (IsMerkle f) => Eq   (UTXOBlock t f)
+instance Serialise (UTXOBlock t Identity)
+instance Serialise (UTXOBlock t Proxy)
+
+instance IsMerkle f => JSON.FromJSON (UTXOBlock t f) where
   parseJSON = JSON.withObject "UtxoBlock" $ \bp ->
     UTXOBlock
       <$> (bp JSON..: "data")
       <*> (POW.Target <$> bp JSON..: "target")
       <*> ((\(ViaBase58 s :: ViaBase58 "UTXOBlock" ByteString) -> s) <$> (bp JSON..: "nonce"))
-instance IsMerkle f => JSON.ToJSON (UTXOBlock f) where
+instance IsMerkle f => JSON.ToJSON (UTXOBlock t f) where
   toJSON (UTXOBlock d (POW.Target t) b) =
     JSON.object
       [ "data"   JSON..= d
@@ -125,25 +133,26 @@ instance IsMerkle f => JSON.ToJSON (UTXOBlock f) where
 $(makeLensesWithL ''UTXOBlock)
 $(makeLensesWithL ''POW.GBlock)
 
+
 ----------------------------------------------------------------
 -- BlockData instance
 ----------------------------------------------------------------
 
-instance POW.BlockData UTXOBlock where
+instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
   --
-  newtype BlockID UTXOBlock = UB'BID (Crypto.Hash SHA256)
+  newtype BlockID (UTXOBlock t) = UB'BID (Crypto.Hash SHA256)
     deriving newtype
       (Show, Eq, Ord, Crypto.CryptoHashable, Serialise, ToJSON, FromJSON, ByteRepr)
-    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POW.BlockID UTXOBlock)
+    deriving (SQL.FromField, SQL.ToField) via ByteRepred (Crypto.Hash SHA256)
 
-  type Tx UTXOBlock = Tx
+  type Tx (UTXOBlock t) = Tx
 
-  newtype TxID UTXOBlock = UTXOTxID (Hash SHA256)
+  newtype TxID (UTXOBlock t) = UTXOTxID (Hash SHA256)
     deriving newtype ( Show, Eq, Ord, CryptoHashable, Serialise, ByteRepr
                      , JSON.ToJSON, JSON.FromJSON)
-    deriving (SQL.FromField, SQL.ToField) via ByteRepred (POW.TxID UTXOBlock)
+    deriving (SQL.FromField, SQL.ToField) via ByteRepred (Crypto.Hash SHA256)
 
-  data BlockException UTXOBlock
+  data BlockException (UTXOBlock t)
     = WrongAnswer
     | WrongTarget
     | AheadOfTime
@@ -183,17 +192,17 @@ instance POW.BlockData UTXOBlock where
   blockTargetThreshold b = POW.Target $ POW.targetInteger $ ubTarget $ POW.blockData b
 
 
-instance MerkleMap UTXOBlock where
+instance MerkleMap (UTXOBlock t) where
   merkleMap f ub = ub { ubData = mapMerkleNode f $ ubData ub }
 
-computeBlockID :: POW.GBlock UTXOBlock f -> POW.BlockID UTXOBlock
+computeBlockID :: POW.GBlock (UTXOBlock t) f -> POW.BlockID (UTXOBlock t)
 computeBlockID b
   = UB'BID . hashBuilder
   $ blockIdBuilder b
  <> hashStep (ubNonce $ POW.blockData b)
 
 -- | Builder without which doesn't include nonce
-blockIdBuilder :: POW.GBlock UTXOBlock f -> Builder
+blockIdBuilder :: POW.GBlock (UTXOBlock t) f -> Builder
 blockIdBuilder (POW.GBlock{blockData = UTXOBlock{..}, ..})
   = hashStep (Crypto.UserType "utxo" "Block")
  <> hashStep blockHeight
@@ -207,18 +216,18 @@ blockIdBuilder (POW.GBlock{blockData = UTXOBlock{..}, ..})
 miningRewardAmount :: Money
 miningRewardAmount = 100
 
-checkPuzzle :: POW.GBlock UTXOBlock f -> IO Bool
+checkPuzzle :: forall t f. (UtxoPOWCongig t) => POW.GBlock (UTXOBlock t) f -> IO Bool
 checkPuzzle b = POW.check bs nonce h powCfg
   where
     bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b
     nonce  = ubNonce $ POW.blockData b
     tgt    = POW.blockTargetThreshold b
-    powCfg = POW.defaultPOWConfig
+    powCfg = (powConfig (Proxy @t))
       { POW.powCfgTarget = POW.targetInteger tgt
       }
     Hash h = hashBlob @SHA256 $ nonce <> bs
 
-instance POW.Mineable UTXOBlock where
+instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
   adjustPuzzle b0@POW.GBlock{..} = do
     (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
     return ( do answer <- maybeAnswer
@@ -227,7 +236,7 @@ instance POW.Mineable UTXOBlock where
            )
     where
       bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b0
-      powCfg = POW.defaultPOWConfig
+      powCfg = (powConfig (Proxy @t))
         { POW.powCfgTarget = POW.targetInteger $ POW.blockTargetThreshold b0
         }
 
@@ -286,9 +295,9 @@ initialUTXONodeState = UTXONodeState
 -- | Create triple: block storage, block index, state view using
 --   current database state.
 utxoStateView
-  :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m)
-  => POW.Block UTXOBlock
-  -> m (POW.BlockDB m UTXOBlock, POW.BlockIndex UTXOBlock, POW.StateView m UTXOBlock)
+  :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m, UtxoPOWCongig t)
+  => POW.Block (UTXOBlock t)
+  -> m (POW.BlockDB m (UTXOBlock t), POW.BlockIndex (UTXOBlock t), POW.StateView m (UTXOBlock t))
 utxoStateView genesis = do
   initUTXODB
   storeUTXOBlock genesis
@@ -297,10 +306,10 @@ utxoStateView genesis = do
   return (utxoBlockDB, bIdx, st)
 
 initializeStateView
-  :: (MonadDB m, MonadThrow m, MonadQueryRW q,  MonadIO m)
-  => POW.Block UTXOBlock            -- ^ Genesis block
-  -> POW.BlockIndex UTXOBlock       -- ^ Block index
-  -> q (POW.StateView m UTXOBlock)
+  :: (MonadDB m, MonadThrow m, MonadQueryRW q, MonadIO m, UtxoPOWCongig t)
+  => POW.Block (UTXOBlock t)            -- ^ Genesis block
+  -> POW.BlockIndex (UTXOBlock t)       -- ^ Block index
+  -> q (POW.StateView m (UTXOBlock t))
 initializeStateView genesis bIdx = do
   retrieveCurrentStateBlock >>= \case
     Just bid -> do let Just bh = {-Debug.trace ("looking up bid "++show bid) $ -}POW.lookupIdx bid bIdx
@@ -315,10 +324,10 @@ initializeStateView genesis bIdx = do
       return $ makeStateView bIdx (emptyOverlay bh)
 
 makeStateView
-  :: (MonadDB m, MonadThrow m, MonadIO m)
-  => POW.BlockIndex UTXOBlock
-  -> StateOverlay
-  -> POW.StateView m UTXOBlock
+  :: (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
+  => POW.BlockIndex (UTXOBlock t)
+  -> StateOverlay t
+  -> POW.StateView m (UTXOBlock t)
 makeStateView bIdx0 overlay = sview where
   bh0    = overlayTip overlay
   env    = let POW.Height h = POW.bhHeight bh0 in Env (fromIntegral h)
@@ -353,12 +362,12 @@ makeStateView bIdx0 overlay = sview where
 
 -- | Validate and apply block to current state view. Returns Left on failed validation
 applyUtxoBlock
-  :: (MonadDB m, MonadThrow m, MonadIO m)
-  => StateOverlay
-  -> POW.BlockIndex UTXOBlock
-  -> POW.BH UTXOBlock
-  -> POW.GBlock UTXOBlock Identity
-  -> m (Either (POW.BlockException UTXOBlock) (POW.StateView m UTXOBlock))
+  :: (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
+  => StateOverlay t
+  -> POW.BlockIndex (UTXOBlock t)
+  -> POW.BH (UTXOBlock t)
+  -> POW.GBlock (UTXOBlock t) Identity
+  -> m (Either (POW.BlockException (UTXOBlock t)) (POW.StateView m (UTXOBlock t)))
 applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   when (null txList) $ throwError EmptyBlock
   -- Consistency checks
@@ -408,13 +417,13 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
 
 
 createUtxoCandidate
-  :: (MonadReadDB m, MonadIO m)
-  => StateOverlay
-  -> POW.BlockIndex UTXOBlock
-  -> POW.BH UTXOBlock
+  :: (MonadReadDB m, MonadIO m, UtxoPOWCongig t)
+  => StateOverlay t
+  -> POW.BlockIndex (UTXOBlock t)
+  -> POW.BH (UTXOBlock t)
   -> p
   -> [Tx]
-  -> m (UTXOBlock Identity)
+  -> m (UTXOBlock t Identity)
 createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
   pathInDB <- do
     Just stateBid <- retrieveCurrentStateBlock
@@ -469,8 +478,8 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
 -- | Create TxArg for coinbase transaction. It's treated differently
 --   so we couldn't use 'buildTxArg'
 coinbaseTxArg
-  :: (MonadError (POW.BlockException UTXOBlock) m)
-  => Maybe (POW.BlockID UTXOBlock) -> Env -> Tx -> m TxArg
+  :: (MonadError (POW.BlockException (UTXOBlock t)) m)
+  => Maybe (POW.BlockID (UTXOBlock t)) -> Env -> Tx -> m TxArg
 coinbaseTxArg Nothing    _   _  = throwError $ InternalErr "No previous block"
 coinbaseTxArg (Just bid) env tx@Tx{..}
   -- Coinbase contains single mock input which references previous
@@ -503,7 +512,7 @@ coinbaseTxArg _ _ _ = throwError $ InternalErr "Invalid coinbase"
 --   leave part of value as reward for miners. So transactions do
 --   not preserve value while whole block should
 checkBalance
-  :: (MonadError (POW.BlockException UTXOBlock) m)
+  :: (MonadError (POW.BlockException (UTXOBlock t)) m)
   => [TxArg] -> m ()
 -- FIXME: Overflows
 checkBalance []                = throwError $ InternalErr "Empty block"
@@ -523,9 +532,9 @@ sumTxOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'cont
 
 -- | Mark every input as spent and mark every output as created
 processTX
-  :: ActiveOverlay
+  :: ActiveOverlay t
   -> TxArg
-  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) ActiveOverlay
+  -> ExceptT (POW.BlockException (UTXOBlock t)) (Query rw) (ActiveOverlay t)
 processTX overlay0 TxArg{..} = do
   overlay1 <- foldM spendBox  overlay0 txArg'inputs
   pure $ foldl' createBox overlay1 txArg'outputs
@@ -548,7 +557,7 @@ processTX overlay0 TxArg{..} = do
 -- | Context free TX validation for transactions. This function
 --   performs all checks that could be done having only transaction at
 --   hand.
-validateTransactionContextFree :: Tx -> Either (POW.BlockException UTXOBlock) ()
+validateTransactionContextFree :: Tx -> Either (POW.BlockException (UTXOBlock t)) ()
 validateTransactionContextFree (Tx{}) = do
   return ()
 --  -- Inputs and outputs are not null
@@ -566,9 +575,9 @@ validateTransactionContextFree (Tx{}) = do
 
 getDatabaseBox
   :: ()
-  => POW.BlockIndexPath (ID (POW.Block UTXOBlock))
+  => POW.BlockIndexPath (ID (POW.Block (UTXOBlock t)))
   -> BoxId
-  -> ExceptT (POW.BlockException UTXOBlock) (Query rw) PostBox
+  -> ExceptT (POW.BlockException (UTXOBlock t)) (Query rw) PostBox
 -- Check whether output was created in the block
 getDatabaseBox (POW.ApplyBlock i path) boxId = do
   isSpentAtBlock i boxId >>= \case
@@ -598,7 +607,7 @@ getDatabaseBox POW.NoChange boxId = do
     Nothing -> throwError $ InternalErr "No such UTXO"
 
 
-isSpentAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe PostBox)
+isSpentAtBlock :: MonadQueryRO m => ID (POW.Block (UTXOBlock t)) -> BoxId -> m (Maybe PostBox)
 isSpentAtBlock i boxid = basicQuery1
   "SELECT box, height \
   \  FROM utxo_set \
@@ -607,7 +616,7 @@ isSpentAtBlock i boxid = basicQuery1
   \ WHERE box_id = ? AND block_ref = ?"
   (boxid, i)
 
-isCreatedAtBlock :: MonadQueryRO m => ID (POW.Block UTXOBlock) -> BoxId -> m (Maybe PostBox)
+isCreatedAtBlock :: MonadQueryRO m => ID (POW.Block (UTXOBlock t)) -> BoxId -> m (Maybe PostBox)
 isCreatedAtBlock i boxid = basicQuery1
   "SELECT box \
   \  FROM utxo_set \
@@ -616,14 +625,14 @@ isCreatedAtBlock i boxid = basicQuery1
   \ WHERE box_id = ? AND block_ref = ?"
   (boxid, i)
 
-retrieveCurrentStateBlock :: MonadQueryRO m => m (Maybe (POW.BlockID UTXOBlock))
+retrieveCurrentStateBlock :: MonadQueryRO m => m (Maybe (POW.BlockID (UTXOBlock t)))
 retrieveCurrentStateBlock = fmap fromOnly <$> basicQuery1
   "SELECT bid \
   \  FROM utxo_blocks \
   \  JOIN utxo_state_bid ON state_block = blk_id"
   ()
 
-retrieveUTXOBlockTableID :: MonadQueryRO m => POW.BlockID UTXOBlock -> m (ID (POW.Block UTXOBlock))
+retrieveUTXOBlockTableID :: MonadQueryRO m => POW.BlockID (UTXOBlock t) -> m (ID (POW.Block (UTXOBlock t)))
 retrieveUTXOBlockTableID bid = do
   r <- basicQuery1
     "SELECT blk_id FROM utxo_blocks WHERE bid =?"
@@ -638,7 +647,7 @@ retrieveUTXOByBoxId boxid
   $  fmap fromOnly
  <$> basicQuery1 "SELECT box FROM utxo_set WHERE box_id = ?" (Only boxid)
 
-revertBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
+revertBlockDB :: MonadQueryRW m => POW.BH (UTXOBlock t) -> m ()
 revertBlockDB bh = do
   i <- retrieveUTXOBlockTableID $ POW.bhBID bh
   basicExecute
@@ -653,7 +662,7 @@ revertBlockDB bh = do
      \    WHERE block_ref = ?"
     (SQL.Only i)
 
-applyBlockDB :: MonadQueryRW m => POW.BH UTXOBlock -> m ()
+applyBlockDB :: MonadQueryRW m => POW.BH (UTXOBlock t) -> m ()
 applyBlockDB bh = do
   i <- retrieveUTXOBlockTableID $ POW.bhBID bh
   basicExecute
@@ -681,13 +690,13 @@ applyBlockDB bh = do
 --
 --   Note that it only contains blocks that are added to blockchain but
 --   not rollbacks since latter are already commited.
-data StateOverlay
-  = OverlayBase  (POW.BH UTXOBlock)
-  | OverlayLayer (POW.BH UTXOBlock) Layer StateOverlay
+data StateOverlay t
+  = OverlayBase  (POW.BH (UTXOBlock t))
+  | OverlayLayer (POW.BH (UTXOBlock t)) Layer (StateOverlay t)
 
 -- | Overlay that is guaranteed to have layer which is used to
 --   add/remove UTXOs
-data ActiveOverlay = ActiveOverlay Layer StateOverlay
+data ActiveOverlay t = ActiveOverlay Layer (StateOverlay t)
   deriving Generic
 
 -- | Changes to database set generated by single block
@@ -701,7 +710,7 @@ data Change a
   = Added a
   | Spent a
 
-activeLayer :: Lens' ActiveOverlay Layer
+activeLayer :: Lens' (ActiveOverlay t) Layer
 activeLayer = lens (\(ActiveOverlay l _) -> l) (\(ActiveOverlay _ o) l -> ActiveOverlay l o)
 
 lensCreated, lensSpent :: Lens' Layer (Map.Map BoxId PostBox)
@@ -709,12 +718,12 @@ lensCreated = lens utxoCreated (\m x -> m { utxoCreated = x })
 lensSpent   = lens utxoSpent   (\m x -> m { utxoSpent   = x })
 
 -- | Convert overlay to active overlay by adding empty layer
-addOverlayLayer :: StateOverlay -> ActiveOverlay
+addOverlayLayer :: StateOverlay t -> ActiveOverlay t
 addOverlayLayer = ActiveOverlay (Layer mempty mempty)
 
 -- | Finalize layer and convert active overlay into normal overlay
 --   with no modification possible.
-finalizeOverlay :: POW.BH UTXOBlock -> ActiveOverlay -> Maybe StateOverlay
+finalizeOverlay :: POW.BH (UTXOBlock t) -> ActiveOverlay t -> Maybe (StateOverlay t)
 finalizeOverlay bh (ActiveOverlay l o) = do
   bid <- POW.bhBID <$> POW.bhPrevious bh
   guard $ POW.bhBID (overlayTip o) == bid
@@ -722,21 +731,21 @@ finalizeOverlay bh (ActiveOverlay l o) = do
 
 -- | Create empty overlay build over given block. It correspond to
 --   state after evaluation of that block.
-emptyOverlay :: POW.BH UTXOBlock -> StateOverlay
+emptyOverlay :: POW.BH (UTXOBlock t) -> StateOverlay t
 emptyOverlay = OverlayBase
 
 -- | Get pointer to block index to block over which overlay is built.
-overlayBase :: StateOverlay -> POW.BH UTXOBlock
+overlayBase :: StateOverlay t -> POW.BH (UTXOBlock t)
 overlayBase (OverlayBase  bh)    = bh
 overlayBase (OverlayLayer _ _ o) = overlayBase o
 
-overlayTip :: StateOverlay -> POW.BH UTXOBlock
+overlayTip :: StateOverlay t -> POW.BH (UTXOBlock t)
 overlayTip (OverlayBase  bh)     = bh
 overlayTip (OverlayLayer bh _ _) = bh
 
 -- | Roll back overlay by one block. Will throw if rolling past
 --   genesis is attempted.
-rollbackOverlay :: StateOverlay -> StateOverlay
+rollbackOverlay :: StateOverlay t -> StateOverlay t
 rollbackOverlay (OverlayBase bh0) = case POW.bhPrevious bh0 of
   Just bh -> OverlayBase bh
   Nothing -> error "Cant rewind overlay past genesis"
@@ -746,7 +755,7 @@ rollbackOverlay (OverlayLayer _ _ o) = o
 --   already. We need latter since UTXO could be available in
 --   underlying state but spent in overlay and we need to account for
 --   that explicitly.
-getOverlayBoxId :: ActiveOverlay -> BoxId -> Maybe (Change PostBox)
+getOverlayBoxId :: ActiveOverlay t -> BoxId -> Maybe (Change PostBox)
 getOverlayBoxId (ActiveOverlay l0 o0) boxid
   =  getFromLayer l0
  <|> recur o0
@@ -761,7 +770,7 @@ getOverlayBoxId (ActiveOverlay l0 o0) boxid
 -- | Dump overlay content into database. We write both UTXO content
 --   (table utxo_set) and when given utxo was created/spent. Operation
 --   is idempotent.
-dumpOverlay :: MonadQueryRW m => StateOverlay -> m ()
+dumpOverlay :: MonadQueryRW m => StateOverlay t -> m ()
 dumpOverlay (OverlayLayer bh Layer{..} o) = do
   dumpOverlay o
   -- Store create UTXO
@@ -789,7 +798,7 @@ dumpOverlay OverlayBase{} = return ()
 ----------------------------------------------------------------
 
 -- | Database-backed storage for blocks
-utxoBlockDB :: (MonadIO m, MonadDB m, MonadThrow m) => POW.BlockDB m UTXOBlock
+utxoBlockDB :: (MonadIO m, MonadDB m, MonadThrow m, UtxoPOWCongig t) => POW.BlockDB m (UTXOBlock t)
 utxoBlockDB = POW.BlockDB
   { storeBlock         = storeUTXOBlock
   , retrieveBlock      = retrieveUTXOBlock
@@ -797,27 +806,27 @@ utxoBlockDB = POW.BlockDB
   , retrieveAllHeaders = retrieveAllUTXOHeaders
   }
 
-retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header UTXOBlock]
+retrieveAllUTXOHeaders :: (MonadIO m, MonadReadDB m) => m [POW.Header (UTXOBlock t)]
 retrieveAllUTXOHeaders
   = queryRO
   $ basicQueryWith_ utxoBlockHeaderDecoder
     "SELECT height, time, prev, dataHash, target, nonce FROM utxo_blocks ORDER BY height"
 
-retrieveUTXOHeader :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Header UTXOBlock))
+retrieveUTXOHeader :: (MonadIO m, MonadReadDB m) => POW.BlockID (UTXOBlock t) -> m (Maybe (POW.Header (UTXOBlock t)))
 retrieveUTXOHeader bid
   = queryRO
   $ basicQueryWith1 utxoBlockHeaderDecoder
     "SELECT height, time, prev, dataHash, target, nonce FROM utxo_blocks WHERE bid = ?"
     (Only bid)
 
-retrieveUTXOBlock :: (MonadIO m, MonadReadDB m) => POW.BlockID UTXOBlock -> m (Maybe (POW.Block UTXOBlock))
+retrieveUTXOBlock :: (MonadIO m, MonadReadDB m) => POW.BlockID (UTXOBlock t) -> m (Maybe (POW.Block (UTXOBlock t)))
 retrieveUTXOBlock bid
   = queryRO
   $ basicQueryWith1 utxoBlockDecoder
     "SELECT height, time, prev, blockData FROM utxo_blocks WHERE bid = ?"
     (Only bid)
 
-storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m) => POW.Block UTXOBlock -> m ()
+storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m, UtxoPOWCongig t) => POW.Block (UTXOBlock t) -> m ()
 storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
   let bid = POW.blockID b
   basicExecute
@@ -832,7 +841,7 @@ storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
     , ubNonce blk
     )
 
-utxoBlockDecoder :: SQL.RowParser (POW.Block UTXOBlock)
+utxoBlockDecoder :: SQL.RowParser (POW.Block (UTXOBlock t))
 utxoBlockDecoder = do
   blockHeight <- field
   blockTime   <- field
@@ -840,7 +849,7 @@ utxoBlockDecoder = do
   blockData   <- fieldCBOR
   pure POW.GBlock {..}
 
-utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header UTXOBlock)
+utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header (UTXOBlock t))
 utxoBlockHeaderDecoder = do
   blockHeight <- field
   blockTime   <- field
