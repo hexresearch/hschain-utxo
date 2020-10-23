@@ -9,15 +9,12 @@
 import Control.Monad
 import Control.Exception
 
--- import Data.Semigroup         (Semigroup(..))
 import Data.Int
 import Data.Fix
 import Data.Foldable
 import Data.Text (Text)
 import Data.Map.Strict (Map,(!))
 import Data.Yaml (decodeFileThrow)
-import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
-import qualified Data.Map.Strict as Map
 import qualified Data.Sequence   as Seq
 import qualified Data.Vector     as V
 
@@ -25,7 +22,7 @@ import Options.Applicative
 import Servant.Client
 import Servant.Client.Generic
 import Servant.API.Generic    (fromServant)
-import Network.HTTP.Client    (Manager, newManager, defaultManagerSettings)
+import Network.HTTP.Client    (newManager, defaultManagerSettings)
 import Text.Printf
 import GHC.Generics (Generic)
 
@@ -92,7 +89,7 @@ parseSend = do
     env   <- mkEnv
     boxes <- debugGetState (nodeRoutes env)
     --
-    let select n []     = []
+    let select _ []     = []
         select n ((bid,b):bs)
           | n' >= amount = [bid]
           | otherwise    = bid : select n' bs
@@ -116,7 +113,7 @@ parseSend = do
 
 
 toBalance :: (BoxId, Box) -> Balance
-toBalance pair@(boxId, Box{..})
+toBalance pair@(_boxId, Box{..})
   | script == EPrim (PrimBool True) = mempty { publicBox = boxset }
   | otherwise                       = mempty
   where
@@ -160,29 +157,16 @@ nodeRoutes :: ClientEnv -> UtxoRestAPI (AsClientT IO)
 nodeRoutes env = genericClientHoist
   (\x -> runClientM x env >>= either throwIO return)
 
--- callOuter    :: ClientM ()
--- callInnerFoo :: ClientM ()
--- callInnerBar :: ClientM ()
--- Outer
---   { outer = callOuter
---   , inner = 
---       fromServant @_ @(AsClientT ClientM) ->
---         Inner
---           { foo = callInnerFoo
---           , bar = callInnerBar
---           }
---   } = genericClient
-
-callEndpointGetBox :: BoxId -> ClientM (Maybe Box)
-callDebugGetState  :: ClientM [(BoxId,Box)]
+-- callEndpointGetBox :: BoxId -> ClientM (Maybe Box)
+-- callDebugGetState  :: ClientM [(BoxId,Box)]
 callMempoolRestAPI :: MempoolRestAPI UTXOBlock (AsClientT ClientM)
 UtxoRestAPI
   { utxoMempoolAPI = (let mempoolTy :: a -> MempoolRestAPI UTXOBlock (AsClientT ClientM)
                           mempoolTy = undefined
                        in fromServant `asTypeOf` mempoolTy) ->
      callMempoolRestAPI 
-  , endpointGetBox = callEndpointGetBox
-  , debugGetState = callDebugGetState
+--  , endpointGetBox = callEndpointGetBox
+--  , debugGetState = callDebugGetState
   } = genericClient
 
 
