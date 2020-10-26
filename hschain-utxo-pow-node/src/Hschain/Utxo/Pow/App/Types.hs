@@ -599,9 +599,9 @@ getDatabaseBox (POW.RevertBlock i path) boxId = do
     Nothing -> getDatabaseBox path boxId
 getDatabaseBox POW.NoChange boxId = do
   r <- basicQuery1
-    "SELECT box \
+    "SELECT box, utxo_height \
     \  FROM utxo_set \
-    \  JOIN utxo_state, utxo_height ON live_utxo = utxo_id   \
+    \  JOIN utxo_state ON live_utxo = utxo_id   \
     \ WHERE box_id = ?"
     (Only boxId)
   case r of
