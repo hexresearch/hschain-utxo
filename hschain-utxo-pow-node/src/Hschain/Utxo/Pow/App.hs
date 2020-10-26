@@ -14,6 +14,7 @@
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
+  , TestNet
   , UtxoRestAPI(..)
   ) where
 
@@ -52,6 +53,7 @@ import qualified HSChain.PoW.P2P.Types  as POW
 import qualified HSChain.PoW.Consensus  as POW
 import qualified HSChain.PoW.Node       as POW
 import qualified HSChain.PoW.Types      as POW
+import qualified HSChain.POW            as POW
 
 import Hschain.Utxo.Lang hiding (Height)
 import Hschain.Utxo.Pow.App.Options (Command(..), readCommandOptions)
@@ -60,6 +62,12 @@ import Hschain.Utxo.Pow.App.Types
 
 -------------------------------------------------------------------------------
 -- Executable part.
+
+data TestNet
+
+instance UtxoPOWCongig TestNet where
+  powConfig _ = POW.defaultPOWConfig
+
 
 runApp :: IO ()
 runApp = do
@@ -74,7 +82,7 @@ runApp = do
       config <- loadYamlSettings runnode'config [] requireEnv
       runNode genesis config runnode'nodeSecret
 
-genesis :: POW.Block UTXOBlock
+genesis :: POW.Block (UTXOBlock TestNet)
 genesis = POW.GBlock
   { blockHeight = POW.Height 0
   , blockTime   = POW.Time   0
@@ -90,7 +98,7 @@ genesis = POW.GBlock
 -------------------------------------------------------------------------------
 -- Node.
 
-runNode :: POW.Block UTXOBlock -> POW.Cfg -> Maybe c -> IO ()
+runNode :: POW.Block (UTXOBlock TestNet) -> POW.Cfg -> Maybe c -> IO ()
 runNode genesisBlk POW.Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
@@ -132,7 +140,7 @@ runNode genesisBlk POW.Cfg{..} maybePrivK = do
 data UtxoRestAPI route = UtxoRestAPI
   { utxoMempoolAPI :: route
       :- Summary "Operations with Mempool"
-      :> "mempool" :> Servant.ToServantApi (MempoolRestAPI UTXOBlock)
+      :> "mempool" :> Servant.ToServantApi (MempoolRestAPI (UTXOBlock TestNet))
   , endpointGetBox :: route
       :- Summary "Gets the box by identifier"
       :> "box" :> "get" :> Capture "box-id" BoxId :> Get '[JSON] (Maybe Box)
@@ -142,7 +150,9 @@ data UtxoRestAPI route = UtxoRestAPI
   }
   deriving (Generic)
 
-utxoRestServer :: (MonadIO m, MonadReadDB m) => POW.MempoolAPI m UTXOBlock -> UtxoRestAPI (Servant.AsServerT m)
+utxoRestServer
+  :: (MonadIO m, MonadReadDB m)
+  => POW.MempoolAPI m (UTXOBlock TestNet) -> UtxoRestAPI (Servant.AsServerT m)
 utxoRestServer mempool = UtxoRestAPI
   { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
   , endpointGetBox = endpointGetBoxImpl

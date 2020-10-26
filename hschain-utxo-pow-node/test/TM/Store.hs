@@ -10,6 +10,7 @@ import HSChain.Types.Merkle.Types
 import HSChain.PoW.Types
 import HSChain.PoW.Tests
 import Hschain.Utxo.Pow.App.Types
+import Hschain.Utxo.Pow.App (TestNet)
 
 tests :: TestTree
 tests = testGroup "Block store"
@@ -18,12 +19,12 @@ tests = testGroup "Block store"
       testIdempotence emptyCoinChain db
   ]
 
-emptyCoinChain :: [Block UTXOBlock]
+emptyCoinChain :: [Block (UTXOBlock TestNet)]
 emptyCoinChain = gen : unfoldr (Just . (\b -> (b,b)) . mineCoin [] . Just) gen
   where
     gen = mineCoin [] Nothing
 
-mineCoin :: [Tx UTXOBlock] -> Maybe (Block UTXOBlock) -> Block UTXOBlock
+mineCoin :: [Tx (UTXOBlock TestNet)] -> Maybe (Block (UTXOBlock TestNet)) -> Block (UTXOBlock TestNet)
 mineCoin txs mb = GBlock
   { blockHeight = maybe (Height 0) (succ . blockHeight) mb
   , blockTime   = Time 0

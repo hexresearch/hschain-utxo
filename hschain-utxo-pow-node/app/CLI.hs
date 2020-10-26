@@ -159,9 +159,9 @@ nodeRoutes env = genericClientHoist
 
 -- callEndpointGetBox :: BoxId -> ClientM (Maybe Box)
 -- callDebugGetState  :: ClientM [(BoxId,Box)]
-callMempoolRestAPI :: MempoolRestAPI UTXOBlock (AsClientT ClientM)
+callMempoolRestAPI :: MempoolRestAPI (UTXOBlock ()) (AsClientT ClientM)
 UtxoRestAPI
-  { utxoMempoolAPI = (let mempoolTy :: a -> MempoolRestAPI UTXOBlock (AsClientT ClientM)
+  { utxoMempoolAPI = (let mempoolTy :: a -> MempoolRestAPI (UTXOBlock ()) (AsClientT ClientM)
                           mempoolTy = undefined
                        in fromServant `asTypeOf` mempoolTy) ->
      callMempoolRestAPI 
