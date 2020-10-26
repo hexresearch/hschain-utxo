@@ -132,6 +132,7 @@ Test-suite hschain-utxo-pow-node-tests
                      , Boolean
                      , mtl
                      , data-fix
+                     , lens
                      , vector
                      , transformers
                      , tasty             >=0.11
@@ -139,5 +140,6 @@ Test-suite hschain-utxo-pow-node-tests
   hs-source-dirs:      test
   Main-is:             Main.hs
   Other-modules:       TM.Store
+                       TM.BCH.Util
                        TM.Blocks
 
