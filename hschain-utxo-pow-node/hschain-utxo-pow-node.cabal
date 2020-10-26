@@ -129,7 +129,9 @@ Test-suite hschain-utxo-pow-node-tests
                      --
                      , exceptions
                      , stm
+                     , Boolean
                      , mtl
+                     , data-fix
                      , vector
                      , transformers
                      , tasty             >=0.11
