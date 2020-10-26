@@ -8,7 +8,11 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Network(
   , closeChan
   , send
   , User(..)
+  , Link(..)
   , Api(..)
+  , initTestRoute
+  , initRoute
+  , initTimeLimits
 ) where
 
 
@@ -19,6 +23,8 @@ import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class
 
+import Data.ByteString (ByteString)
+import Data.Int
 import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Text (Text)
@@ -29,7 +35,7 @@ import HSChain.Crypto.Classes (ByteRepr(..))
 import Hschain.Utxo.Lang.Utils.ByteString (getSha256)
 import Hschain.Utxo.Test.Client.Wallet (Wallet, getWalletPublicKey, getWalletPrivateKey)
 import Hschain.Utxo.Lang hiding (Env)
-import Hschain.Utxo.Test.Client.Monad (App, randomBS, txIsValid, testCase, getBoxBalance)
+import Hschain.Utxo.Test.Client.Monad (App, randomBS, txIsValid, testCase, getBoxBalance, getHeight)
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Tx
 import Hschain.Utxo.Test.Client.Scripts.Utils(postTxSuccess)
@@ -44,7 +50,7 @@ import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 -- Network state
 data Env = Env
-  { env'chans :: [Chan]
+  { env'chans :: Map ChanId Chan
   , env'users :: [UserId]
   }
   deriving (Show, Eq)
@@ -350,8 +356,28 @@ insertChanSt :: User -> ChanId -> ChanSt -> App ()
 insertChanSt User{..} key val =
   liftIO $  atomically $ modifyTVar user'channels $ M.insert key val
 
-send :: User -> User -> Money -> App ()
-send _ _ _ = return () -- undefined
+type TestRoute = [Link]      -- ^ route augmented with info on participants and secrets
+
+data Link = Link
+  { link'from    :: (User, PayInfo)
+  , link'to      :: (User, PayInfo)
+  , link'hop     :: Hop
+  }
+
+data PayInfo = PayInfo
+  { payInfo'hash    :: Maybe ByteString
+  -- ^ some of the users know only payHash
+  , payInfo'secret  :: Maybe ByteString
+  -- ^ some users know both. Secret propagates along the route backwards during the process of exchange
+  }
+
+-- | We assume that route is already defined and it has at least two hops.
+-- In real system sender creates the route from network information.
+send :: TestRoute -> App ()
+send = mapConcurrently_ hopProc
+  where
+    hopProc Link{..} = do
+      return ()
 
 writeNet :: MonadIO io => User -> User -> Act -> io ()
 writeNet from to act = liftIO $ api'send (user'api from) Msg
@@ -379,4 +405,26 @@ data Api = Api
   { api'send  :: Msg -> IO ()
   , api'read  :: IO Msg
   }
+
+initTestRoute :: Money -> [(ChanId, User, User)] -> App TestRoute
+initTestRoute value chanUsers = do
+  secret <- liftIO $ randomBS 16
+  initRoute secret value chanUsers
+
+initRoute :: ByteString -> Money -> [(ChanId, User, User)] -> App [Link]
+initRoute secret value chanUsers =
+  fmap (zipWith (\((ch, from, to), (fromSecret, toSecret)) (index, time) -> Link (from, fromSecret) (to, toSecret) (Hop ch time value index)) (zip chanUsers secrets)) $ initTimeLimits
+  where
+    payHash = getSha256 secret
+
+    secrets = [(firstUser, middleUser)] ++ replicate (length chanUsers - 2) (middleUser, middleUser) ++ [(middleUser, lastUser)]
+
+    firstUser  = PayInfo (Just payHash) Nothing
+    middleUser = PayInfo Nothing Nothing
+    lastUser   = PayInfo (Just payHash) (Just secret)
+
+initTimeLimits :: App [(Int64, Int64)]
+initTimeLimits = do
+  curHeight <- getHeight
+  return $ reverse $ fmap (\n -> (n - 1, n * 20 + curHeight)) [1, 2 ..]
 

@@ -7,6 +7,7 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol(
   , Msg(..)
   , Act(..)
   , Route
+  , Hop(..)
   , userIdToText
 ) where
 
@@ -120,6 +121,19 @@ data Act
   -- ^ reveals revocation secret
   deriving (Show, Eq)
 
-type Route = [Chan]
+-- | Route of channels
+-- For now we do not encrypt hops and do not hide the links
+-- but we should in real system.
+type Route = [Hop]
+
+-- | Single link in the route.
+data Hop = Hop
+  { hop'chanId    :: ChanId  -- ^ Channel id
+  , hop'timeLimit :: Int64   -- ^ time limit for HTLC TX
+  , hop'value     :: Money   -- ^ money to send on this hop
+  , hop'index     :: Int64   -- ^ how many hops till end
+  }
+  deriving (Show, Eq)
+
 
 

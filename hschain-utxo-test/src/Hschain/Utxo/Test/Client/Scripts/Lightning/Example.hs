@@ -26,9 +26,12 @@ lightningExample = do
   john  <- registerUser net (UserId "john")  johnW  [johnBox1]
   ch1 <- openChan alice john 5
   ch2 <- openChan bob   john 5
-  send alice bob 2
-  send bob   alice 1
+  -- send 2 from alice to bob over john
+  send =<< initTestRoute 2 [(ch1, alice, john), (ch2, john, bob)]
+  -- send 1 from bob to alice over john
+  send =<< initTestRoute 1 [(ch2, bob, john), (ch1, john, alice)]
   closeChan ch1 alice john
   closeChan ch2 bob   john
   closeNetwork net
+
 
