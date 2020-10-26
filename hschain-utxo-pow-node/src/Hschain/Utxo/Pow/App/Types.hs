@@ -111,9 +111,6 @@ class Typeable t => UtxoPOWCongig t where
   checkBlockWork :: Proxy t -> Bool
   checkBlockWork _ = True
 
-instance UtxoPOWCongig () where
-  powConfig      _ = POW.defaultPOWConfig
-
 deriving stock instance (Show1 f)    => Show (UTXOBlock t f)
 deriving stock instance (IsMerkle f) => Eq   (UTXOBlock t f)
 instance Serialise (UTXOBlock t Identity)
