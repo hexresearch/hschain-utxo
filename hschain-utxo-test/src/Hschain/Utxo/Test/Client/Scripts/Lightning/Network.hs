@@ -29,7 +29,7 @@ import HSChain.Crypto.Classes (ByteRepr(..))
 import Hschain.Utxo.Lang.Utils.ByteString (getSha256)
 import Hschain.Utxo.Test.Client.Wallet (Wallet, getWalletPublicKey, getWalletPrivateKey)
 import Hschain.Utxo.Lang hiding (Env)
-import Hschain.Utxo.Test.Client.Monad (App, randomBS)
+import Hschain.Utxo.Test.Client.Monad (App, randomBS, txIsValid, testCase, getBoxBalance)
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Tx
 import Hschain.Utxo.Test.Client.Scripts.Utils(postTxSuccess)
@@ -174,14 +174,15 @@ openChan alice bob value = do
 
         requestChan chanSpec = liftIO $ write (OpenChan chanSpec alicePk)
 
-        fundingCreated chSpec = liftIO $ do
+        fundingCreated chSpec = do
+          totalValue <- fmap (sum . catMaybes) $ mapM getBoxBalance $ user'boxes alice
           act <- read
-          case act of
+          liftIO $ case act of
             AcceptChan{..} -> do
-              fundTx <- fundingTx (user'wallet alice) (5, 5) (user'boxes alice) act'publicKey
+              fundTx <- fundingTx (user'wallet alice) (value, totalValue - value) (user'boxes alice) act'publicKey
               aliceRevokeSecret <- randomBS 16
               let bobRevokeHash   = act'revokeHash
-                  comTx = commitmentTx act'publicKey (getSharedBoxId fundTx) (0, 5) alicePk (chanSpec'delay chSpec) bobRevokeHash
+                  comTx = commitmentTx act'publicKey (getSharedBoxId fundTx) (0, value) alicePk (chanSpec'delay chSpec) bobRevokeHash
               signature <- Crypto.sign (getWalletPrivateKey $ user'wallet alice) (getSigMessage SigAll comTx)
               write $ FundingCreated
                 { act'chanId            = act'chanId
@@ -239,7 +240,7 @@ openChan alice bob value = do
             FundingCreated{..} -> do
               let aliceRevokeHash = act'revokeHash
                   commonBoxId = computeBoxId act'fundingTxId 0
-                  comTx = commitmentTx alicePk commonBoxId (5, 0) bobPk (chanSpec'delay chSpec) aliceRevokeHash
+                  comTx = commitmentTx alicePk commonBoxId (value, 0) bobPk (chanSpec'delay chSpec) aliceRevokeHash
               signature <- liftIO $ Crypto.sign (getWalletPrivateKey $ user'wallet bob) (getSigMessage SigAll comTx)
               write $ FundingSigned act'chanId (encodeToBS signature)
               -- we should listen to Blockchain to wait for minDepth confirmations
@@ -304,7 +305,9 @@ closeChan chanId alice bob = do
             ConfirmClosingSigned{..} -> return act'sign
             _ -> unexpectedMsg act
 
-    postCloseChanTx tx signA signB = postTxSuccess (msgForUsers "Post close TX" alice bob) signedTx
+    postCloseChanTx tx signA signB = do
+      testCase "close chan TX is valid" =<< txIsValid signedTx
+      postTxSuccess (msgForUsers "Post close TX" alice bob) signedTx
       where
         signedTx = tx { tx'inputs = fmap setSigns $ tx'inputs tx }
         setSigns x = x { boxInputRef'sigs = V.fromList $ catMaybes $ fmap decodeFromBS [signA, signB] }

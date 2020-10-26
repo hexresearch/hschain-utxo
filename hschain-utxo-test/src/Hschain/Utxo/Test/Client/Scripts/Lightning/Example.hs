@@ -24,8 +24,8 @@ lightningExample = do
   alice <- registerUser net (UserId "alice") aliceW [aliceBox1]
   bob   <- registerUser net (UserId "bob")   bobW   [bobBox1]
   john  <- registerUser net (UserId "john")  johnW  [johnBox1]
-  ch1 <- openChan alice john 10
-  ch2 <- openChan bob   john 10
+  ch1 <- openChan alice john 5
+  ch2 <- openChan bob   john 5
   send alice bob 2
   send bob   alice 1
   closeChan ch1 alice john

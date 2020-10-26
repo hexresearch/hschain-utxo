@@ -41,7 +41,6 @@ import Control.Monad.Trans.Control
 
 import Data.ByteString (ByteString)
 import Data.Int
-import Data.Either
 import Data.Time
 import Data.Sequence (Seq)
 import Data.Text (Text)
@@ -229,7 +228,11 @@ initGenesis secret = ([tx], masterBoxId)
 
 -- | Checks that TX is valid on current blockchain state without commiting it.
 txIsValid :: Tx -> App Bool
-txIsValid tx = fmap (isRight . react tx) getState
+txIsValid tx = (either onErr (const $ pure True) . react tx) =<< getState
+  where
+    onErr txt = do
+      logTest $ mappend "TX is invalid: " txt
+      return False
 
 
 randomBS :: Int -> IO ByteString
