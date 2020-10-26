@@ -21,7 +21,7 @@ module TM.BCH.Util
     -- * Transactions
   , simpleInputRef
   , simpleScript
-  , burn
+  , burnBox
   ) where
 
 import Control.Lens
@@ -219,5 +219,8 @@ simpleInputRef boxId pk = BoxInputRef
 simpleScript pk = coreProgToScript $ EPrim $ PrimSigma $ Fix $ Sigma.SigmaPk pk
 
 -- | Unspendable box
-burn :: Script
-burn = coreProgToScript $ EPrim $ PrimBool False
+burnBox :: Money -> Box
+burnBox n = Box { box'value  = n
+                , box'script = coreProgToScript $ EPrim $ PrimBool False
+                , box'args   = mempty
+                }
