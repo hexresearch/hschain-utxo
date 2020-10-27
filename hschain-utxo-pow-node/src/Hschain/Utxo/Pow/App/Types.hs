@@ -790,7 +790,7 @@ dumpOverlay (OverlayLayer bh Layer{..} o) = do
       (bid, utxo)
   forM_ (Map.keys utxoSpent) $ \utxo -> do
     basicExecute
-      "INSERT OR IGNORE INTO utxo_created \
+      "INSERT OR IGNORE INTO utxo_spent \
       \  SELECT ?,utxo_id FROM utxo_set WHERE box_id = ?"
       (bid, utxo)
 dumpOverlay OverlayBase{} = return ()
