@@ -58,18 +58,17 @@ simpleTransfers = do
   bidAlice <- mineBlock (Just pkAlice) []
   ----------------------------------------
   -- H=2
-  do -- Bob can't spend output
-    tx <- newProofTx sigmaEnv $ Tx
-      { tx'inputs  = [ simpleInputRef bidAlice pkBob ]
-      , tx'outputs = [ burnBox 100 ]
-      }
-    badBlock [ tx ]
-  do -- Alice can't create more money
-    tx <- newProofTx sigmaEnv $ Tx
-      { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
-      , tx'outputs = [ burnBox 101 ]
-      }
-    badBlock [ tx ]
+  --
+  -- Bob can't spend output
+  badTx sigmaEnv $ Tx
+    { tx'inputs  = [ simpleInputRef bidAlice pkBob ]
+    , tx'outputs = [ burnBox 100 ]
+    }
+  -- Alice can't create more money
+  badTx sigmaEnv $ Tx
+    { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
+    , tx'outputs = [ burnBox 101 ]
+    }
   -- Now Alice may spend mined block and pay 10 coin in fees
   txAlice <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
@@ -88,12 +87,12 @@ simpleTransfers = do
   ----------------------------------------
   -- H=3
   --
-  --  * Bob spends new coinbase with fee
+  --  * Bob burns new coinbase with fee
   txBob1 <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidBob pkBob ]
     , tx'outputs = [ burnBox 110 ]
     }
-  --  * Bob and Charlie burn moeny received from Alice
+  --  * Bob and Charlie burn money received from Alice
   txBob2 <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef (computeBoxId (computeTxId txAlice) 0) pkBob ]
     , tx'outputs = [ burnBox 60 ]

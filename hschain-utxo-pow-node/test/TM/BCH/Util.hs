@@ -17,6 +17,7 @@ module TM.BCH.Util
   , runMiner
   , mineBlock
   , badBlock
+  , badTx
   , mineBlockE
     -- * Transactions
   , simpleInputRef
@@ -149,6 +150,11 @@ badBlock :: [Tx] -> Mine ()
 badBlock txs = mineBlockE Nothing txs >>= \case
   Left  e -> return ()
   Right a -> error "Block should be rejected"
+
+badTx :: Sigma.ProofEnv -> GTx (Sigma.Sigma Sigma.PublicKey) Box -> Mine ()
+badTx env tx = do
+  tx' <- newProofTx env tx
+  badBlock [tx']
 
 -- | Same as 'mineBlock' but doesn't throw exception when block is rejected.
 mineBlockE :: Maybe Sigma.PublicKey -> [Tx] -> Mine (Either SomeException BoxId)
