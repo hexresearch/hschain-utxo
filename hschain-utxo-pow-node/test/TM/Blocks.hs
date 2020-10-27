@@ -59,7 +59,9 @@ noDoubleTx = do
     }
   _ <- mineBlock Nothing [txAlice]
   -- Same transaction now should be rejected
-  badBlock [txAlice]
+  mineBlockE Nothing (Just 0) [txAlice] >>= \case
+    Left  _ -> pure ()
+    Right _ -> error "Block should be rejected"
   return ()
 
 
@@ -163,7 +165,7 @@ payforCoffee = do
     { tx'inputs  = [ simpleInputRef coffeeBoxId pkBob ]
     , tx'outputs = [ burnBox 100 ]
     }
-  Left _ <- mineBlockE Nothing [ txBob ]
+  badBlock [ txBob ]
   -- H=3,4. Just skip some
   _ <- mineBlock Nothing []
   _ <- mineBlock Nothing []

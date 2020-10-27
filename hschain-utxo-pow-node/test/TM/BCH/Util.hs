@@ -141,13 +141,13 @@ runMiner (Mine action) = withHSChainT $ evalContT $ do
 --   @Nothing@ is provided coinbase will be spendable by anyone. If
 --   block is rejected exception is thrown.
 mineBlock :: Maybe Sigma.PublicKey -> [Tx] -> Mine BoxId
-mineBlock mpk txs = mineBlockE mpk txs >>= \case
+mineBlock mpk txs = mineBlockE mpk Nothing txs >>= \case
   Left  e -> liftIO $ throwM e
   Right a -> return a
 
 -- | Same as 'mineBlock' but block must be rejected instead
 badBlock :: [Tx] -> Mine ()
-badBlock txs = mineBlockE Nothing txs >>= \case
+badBlock txs = mineBlockE Nothing Nothing txs >>= \case
   Left  e -> return ()
   Right a -> error "Block should be rejected"
 
@@ -157,17 +157,19 @@ badTx env tx = do
   badBlock [tx']
 
 -- | Same as 'mineBlock' but doesn't throw exception when block is rejected.
-mineBlockE :: Maybe Sigma.PublicKey -> [Tx] -> Mine (Either SomeException BoxId)
-mineBlockE mpk txs = Mine $ do
+mineBlockE :: Maybe Sigma.PublicKey -> Maybe Money -> [Tx] -> Mine (Either SomeException BoxId)
+mineBlockE mpk mFee txs = Mine $ do
   bh           <- get
   (upd,pow,db) <- ask
   -- Compute fee
-  fee <- do Right txArgs <- lift . lift
-                          $ queryRO . runExceptT
-                          $ forM txs
-                          $ buildTxArg (getDatabaseBox NoChange) (Env 0)
-            pure $! sumOf (each . to sumTxInputs)  txArgs
-                  - sumOf (each . to sumTxOutputs) txArgs
+  fee <- case mFee of
+    Just fee -> pure fee
+    Nothing  -> do Right txArgs <- lift . lift
+                                 $ queryRO . runExceptT
+                                 $ forM txs
+                                 $ buildTxArg (getDatabaseBox NoChange) (Env 0)
+                   pure $! sumOf (each . to sumTxInputs)  txArgs
+                         - sumOf (each . to sumTxOutputs) txArgs
   -- Make coinbase transaction
   let bid = bhBID bh
       coinbaseBox = Box { box'value  = miningRewardAmount + fee
@@ -204,8 +206,18 @@ mineBlockE mpk txs = Mine $ do
     Right () -> do
       liftIO (timeout 1e6 (atomically $ await upd)) >>= \case
         Nothing      -> error "Blockchain timed out"
-        Just (bh',_) -> do put bh'
-                           return $ Right boxId
+        Just (bh',_) -> do
+          -- Check total balance of live UTXO
+          r <- queryRO $ basicQuery_
+            "SELECT box \
+            \  FROM utxo_set \
+            \  JOIN utxo_state ON live_utxo = utxo_id"
+          let coins    = sumOf (each . to fromOnly . to box'value) r
+              Height h = bhHeight bh'
+          liftIO $ fromIntegral h * 100 @=? coins
+          --
+          put bh'
+          return $ Right boxId
 
 
 ----------------------------------------------------------------
