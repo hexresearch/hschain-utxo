@@ -203,7 +203,7 @@ mineBlockE mpk txs = Mine $ do
     Left  e  -> pure $ Left e
     Right () -> do
       liftIO (timeout 1e6 (atomically $ await upd)) >>= \case
-        Nothing      -> pure $ Left undefined
+        Nothing      -> error "Blockchain timed out"
         Just (bh',_) -> do put bh'
                            return $ Right boxId
 
