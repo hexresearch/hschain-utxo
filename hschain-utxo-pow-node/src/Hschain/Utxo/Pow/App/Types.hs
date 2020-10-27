@@ -519,8 +519,8 @@ checkBalance
 -- FIXME: Overflows
 checkBalance []                = throwError $ InternalErr "Empty block"
 checkBalance (coinbase:txArgs) = do
-  forM_ balances $ \(i, o) ->
-    unless (i >= o) $ throwError $ InternalErr "Tx spends more than it has"
+  forM_ balances $ \(ins, outs) ->
+    unless (ins >= outs) $ throwError $ InternalErr "Tx spends more than it has"
   unless (inputs == outputs) $ throwError $ InternalErr "Block is not balanced"
   where
     inputs     = miningRewardAmount    + sumOf (each . _1) balances
