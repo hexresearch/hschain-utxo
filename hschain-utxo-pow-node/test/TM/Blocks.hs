@@ -38,8 +38,9 @@ tests = testGroup "Running blockchain"
       _ <- mineBlock Nothing []
       return ()
   , testCase "No double transactions" $ runMiner noDoubleTx
-  , testCase "Simple transfers" $ runMiner simpleTransfers
-  , testCase "Pay for coffee" $ runMiner payforCoffee
+  , testCase "Simple transfers"       $ runMiner simpleTransfers
+  , testCase "Pay for coffee (Bob)"   $ runMiner $ payforCoffee True
+  , testCase "Pay for coffee (Alice)" $ runMiner $ payforCoffee False
   ]
 
 ----------------------------------------------------------------
@@ -132,8 +133,8 @@ simpleTransfers = do
 -- Pay for cofee
 ----------------------------------------------------------------
 
-payforCoffee :: Mine ()
-payforCoffee = do
+payforCoffee :: Bool -> Mine ()
+payforCoffee isBob = do
   alice@KeyPair{publicKey=pkAlice} <- liftIO $ generateKeyPair
   bob@KeyPair  {publicKey=pkBob  } <- liftIO $ generateKeyPair
   let sigmaEnv = Sigma.Env [ alice, bob ]
@@ -159,16 +160,28 @@ payforCoffee = do
       ]
     }
   _ <- mineBlock Nothing [ txToBob ]
-  -- H=3 Bob tries to spend transaction
   let coffeeBoxId = computeBoxId (computeTxId txToBob) 0
-  txBob <- newProofTx sigmaEnv $ Tx
-    { tx'inputs  = [ simpleInputRef coffeeBoxId pkBob ]
-    , tx'outputs = [ burnBox 100 ]
-    }
-  badBlock [ txBob ]
-  -- H=3,4. Just skip some
-  _ <- mineBlock Nothing []
-  _ <- mineBlock Nothing []
-  -- H=5. Bob successfully spends transaction
-  _ <- mineBlock Nothing [ txBob ]
-  pure ()
+  -- Here we play ou two possible scenario
+  case isBob of
+    True -> do
+      -- H=3 Bob tries to spend transaction
+      txBob <- newProofTx sigmaEnv $ Tx
+        { tx'inputs  = [ simpleInputRef coffeeBoxId pkBob ]
+        , tx'outputs = [ burnBox 100 ]
+        }
+      badBlock [ txBob ]
+      -- H=3,4. Just skip some
+      _ <- mineBlock Nothing []
+      _ <- mineBlock Nothing []
+      -- H=5. Bob successfully spends transaction
+      _ <- mineBlock Nothing [ txBob ]
+      pure ()
+    ----------------------------------------
+    False -> do
+      -- H=3 Alice tries to spend transaction
+      txAlice <- newProofTx sigmaEnv $ Tx
+        { tx'inputs  = [ simpleInputRef coffeeBoxId pkAlice ]
+        , tx'outputs = [ burnBox 100 ]
+        }
+      _ <- mineBlock Nothing [txAlice]
+      pure ()
