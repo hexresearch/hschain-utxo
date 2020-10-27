@@ -37,9 +37,31 @@ tests = testGroup "Running blockchain"
       _ <- mineBlock Nothing []
       _ <- mineBlock Nothing []
       return ()
+  , testCase "No double transactions" $ runMiner noDoubleTx
   , testCase "Simple transfers" $ runMiner simpleTransfers
   , testCase "Pay for coffee" $ runMiner payforCoffee
   ]
+
+----------------------------------------------------------------
+-- Same transaction couldn't be used twice
+----------------------------------------------------------------
+
+noDoubleTx :: Mine ()
+noDoubleTx = do
+  alice@KeyPair  {publicKey=pkAlice  } <- liftIO generateKeyPair
+  let sigmaEnv = Sigma.Env [ alice ]
+  -- H=1. Alice mines block
+  bidAlice <- mineBlock (Just pkAlice) []
+  -- H=2. Alice spends mining reward
+  txAlice <- newProofTx sigmaEnv $ Tx
+    { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
+    , tx'outputs = [ burnBox 100 ]
+    }
+  _ <- mineBlock Nothing [txAlice]
+  -- Same transaction now should be rejected
+  badBlock [txAlice]
+  return ()
+
 
 ----------------------------------------------------------------
 -- Simple transfers
