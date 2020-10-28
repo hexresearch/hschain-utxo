@@ -12,5 +12,5 @@ packages:
   hschain-utxo-state
   hschain-utxo-test
   hschain-utxo-pow-node
---  hschain-utxo-pow-test
-
+  hschain-pow-check
+  hschain-pow-func
