@@ -151,5 +151,5 @@ check headerWithoutAnswer answer hashOfAnswerHeader POWConfig{..} = evalContT $ 
     encodedTarget = encodeIntegerLSB powCfgTarget
     --
     abortIf :: Bool -> ContT Bool IO ()
-    abortIf True  = return ()
-    abortIf False = ContT $ \_ -> return False
+    abortIf False = return ()
+    abortIf True  = ContT $ \_ -> return False
