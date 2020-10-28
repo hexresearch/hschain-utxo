@@ -10,6 +10,7 @@ extra-source-files:  CHANGELOG.md
 
 
 library
+  Ghc-options:         -Wall
   exposed-modules:     HSChain.POW
   build-depends:       base >=4.9
                      , bytestring
