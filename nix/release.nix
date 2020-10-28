@@ -51,14 +51,15 @@ let
       "hschain-utxo-repl"       = callInternal "hschain-utxo-repl"       ../hschain-utxo-repl       {};
       "hschain-utxo-lang"       = callInternal "hschain-utxo-lang"       ../hschain-utxo-lang       {};
       # PBFT node
-      "hschain-utxo-api-rest"   = callInternal "hschain-utxo-api-rest" ../hschain-utxo-api/hschain-utxo-api-rest {};
+      "hschain-utxo-api-rest"   = callInternal "hschain-utxo-api-rest"   ../hschain-utxo-api/hschain-utxo-api-rest {};
       "hschain-utxo-api-client" = callInternal "hschain-utxo-api-client" ../hschain-utxo-api/hschain-utxo-api-client {};
       "hschain-utxo-service"    = callInternal "hschain-utxo-service"    ../hschain-utxo-service    {};
       "hschain-utxo-test"       = callInternal "hschain-utxo-test"       ../hschain-utxo-test       {};
       "hschain-utxo"            = callInternal "hschain-utxo"            ../hschain-utxo            {};
       # PoW node
       "hschain-utxo-pow-node"   = callInternal "hschain-utxo-pow-node"   ../hschain-utxo-pow-node   {};
-      #    "hschain-utxo-pow-test"   = callInternal "hschain-utxo-pow-test"   ../hschain-utxo-pow-test   {};
+      "hschain-pow-func"        = callInternal "hschain-pow-func"        ../hschain-pow-func        {};
+      "hschain-pow-check"       = callInternal "hschain-pow-check"       ../hschain-pow-check       {};
     };
   haskellOverrides = hsNew: hsOld:
     let
@@ -91,7 +92,6 @@ let
         hschain-types    = callHSChain "hschain-types";
         hschain-net      = callHSChain "hschain-net";
         hschain-db       = callHSChain "hschain-db";
-        hschain-pow-func = callHSChainWithDir "hschain-pow-func" "proof-of-work/full-mining";
         hschain-PoW      = callHSChain "hschain-PoW";
         hschain          = callHSChain "hschain";
         # Disable tests
