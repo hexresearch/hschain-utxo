@@ -13,6 +13,9 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Pow.App.Types
   ( UTXOBlock(..)
+  , ubDataL
+  , ubTargetL
+  , ubNonceL
   , UtxoPOWCongig(..)
   , utxoStateView
     -- * Working with state
@@ -27,7 +30,6 @@ import Hex.Common.Lens
 
 import Codec.Serialise
 
-import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad
@@ -45,13 +47,10 @@ import Data.Functor.Classes    (Show1)
 import Data.Typeable           (Typeable)
 import Data.List               (foldl')
 import Data.Maybe
-import Data.Word
 import qualified Data.Aeson           as JSON
-import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text            as T
 import qualified Data.Map.Strict      as Map
-import qualified Data.Set             as Set
 import qualified Data.Vector          as V
 
 import qualified Database.SQLite.Simple           as SQL
@@ -267,37 +266,6 @@ newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
 
 runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
 runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
-
--------------------------------------------------------------------------------
--- Executable part.
-
-newtype Profitability = Profitability Rational
-  deriving (Eq, Show)
-
-instance Ord Profitability where
-  compare (Profitability a) (Profitability b) = compare b a -- ^More profitable first.
-
-data ProfitTx = PTx
-  { ptxProfitability :: !Profitability
-  , ptxTx            :: !Tx
-  }
-  deriving (Eq, Ord, Show)
-
-data UTXONodeState = UTXONodeState
-  { unsTransactions   :: !(Set.Set ProfitTx)
-  , unsUTXOSet        :: !(Set.Set Box)
-  , unsUTXORandomness :: !BS.ByteString
-  , unsUTXOIndex      :: !Word64
-  }
-  deriving (Eq, Ord, Show)
-
-initialUTXONodeState :: UTXONodeState
-initialUTXONodeState = UTXONodeState
-  { unsTransactions   = Set.empty
-  , unsUTXOSet        = Set.empty
-  , unsUTXORandomness = BS.pack $ replicate 32 71
-  , unsUTXOIndex      = 0
-  }
 
 ----------------------------------------------------------------
 -- Blockchain state management
@@ -717,11 +685,6 @@ data Layer = Layer
   , utxoSpent   :: Map.Map BoxId PostBox
   }
 
--- | Change to UTXO set
-data Change a
-  = Added a
-  | Spent a
-
 activeLayer :: Lens' (ActiveOverlay t) Layer
 activeLayer = lens (\(ActiveOverlay l _) -> l) (\(ActiveOverlay _ o) l -> ActiveOverlay l o)
 
@@ -763,21 +726,6 @@ rollbackOverlay (OverlayBase bh0) = case POW.bhPrevious bh0 of
   Nothing -> error "Cant rewind overlay past genesis"
 rollbackOverlay (OverlayLayer _ _ o) = o
 
--- | Find whether given UTXO is awaialble to be spent or spent
---   already. We need latter since UTXO could be available in
---   underlying state but spent in overlay and we need to account for
---   that explicitly.
-getOverlayBoxId :: ActiveOverlay t -> BoxId -> Maybe (Change PostBox)
-getOverlayBoxId (ActiveOverlay l0 o0) boxid
-  =  getFromLayer l0
- <|> recur o0
- where
-   recur (OverlayBase  _)     = Nothing
-   recur (OverlayLayer _ l o) =  getFromLayer l
-                             <|> recur o
-   getFromLayer Layer{..}
-     =  Spent <$> Map.lookup boxid utxoSpent
-    <|> Added <$> Map.lookup boxid utxoCreated
 
 -- | Dump overlay content into database. We write both UTXO content
 --   (table utxo_set) and when given utxo was created/spent. Operation
