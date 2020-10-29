@@ -20,9 +20,6 @@ module Hschain.Utxo.Pow.App.Types
   , utxoStateView
     -- * Working with state
   , retrieveUTXOByBoxId
-    -- * Monad for running
-  , UTXOT(..)
-  , runUTXOT
   ) where
 
 import Hex.Common.Aeson
@@ -37,7 +34,6 @@ import Control.Monad.Catch hiding (Handler)
 import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Morph (hoist)
-import Control.Monad.Reader
 import Control.Monad.Trans.Except (except)
 
 import Data.Coerce
@@ -60,8 +56,6 @@ import qualified Database.SQLite.Simple.FromRow   as SQL
 
 import GHC.Generics (Generic)
 
-import Katip (LogEnv, Namespace)
-
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
@@ -70,12 +64,7 @@ import qualified HSChain.PoW.Consensus  as POW
 import qualified HSChain.PoW.BlockIndex as POW
 import qualified HSChain.PoW.Types      as POW
 import HSChain.Types.Merkle.Types
-
-import HSChain.Control.Class
 import HSChain.Crypto hiding (PublicKey)
-
-import HSChain.Logger
-
 import HSChain.Store.Query
 
 import Hschain.Utxo.Lang.Types
@@ -245,23 +234,6 @@ instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
       powCfg = (powConfig (Proxy @t))
         { POW.powCfgTarget = POW.targetInteger $ POW.blockTargetThreshold b0
         }
-
-data UTXOEnv = UTXOEnv
-  { ueLogEnv      :: !LogEnv
-  , ueNamespace   :: !Namespace
-  , ueConn        :: !(Connection 'RW)
-  }
-  deriving (Generic)
-
-newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
-  deriving newtype ( Functor, Applicative, Monad, MonadIO
-                   , MonadCatch, MonadThrow, MonadMask, MonadFork, MonadReader UTXOEnv)
-  deriving (MonadLogger)          via LoggerByTypes  (ReaderT UTXOEnv m)
-  deriving (MonadDB, MonadReadDB) via DatabaseByType (ReaderT UTXOEnv m)
-
-
-runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
-runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
 
 ----------------------------------------------------------------
 -- Blockchain state management
