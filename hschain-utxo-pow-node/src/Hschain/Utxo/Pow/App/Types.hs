@@ -11,7 +11,16 @@
 {-# LANGUAGE UndecidableInstances                            #-}
 -- SQL-related orphans
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Hschain.Utxo.Pow.App.Types where
+module Hschain.Utxo.Pow.App.Types
+  ( UTXOBlock(..)
+  , UtxoPOWCongig(..)
+  , utxoStateView
+    -- * Working with state
+  , retrieveUTXOByBoxId
+    -- * Monad for running
+  , UTXOT(..)
+  , runUTXOT
+  ) where
 
 import Hex.Common.Aeson
 import Hex.Common.Lens
