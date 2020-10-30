@@ -18,8 +18,15 @@ module Hschain.Utxo.Pow.App.Types
   , ubNonceL
   , UtxoPOWCongig(..)
   , utxoStateView
+  , miningRewardAmount
     -- * Working with state
   , retrieveUTXOByBoxId
+  , getDatabaseBox
+  , sumTxInputs
+  , sumTxOutputs
+    -- * Data families constructors
+  , POW.BlockID(..)
+  , POW.TxID(..)
   ) where
 
 import Hex.Common.Aeson
