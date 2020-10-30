@@ -25,28 +25,21 @@ module TM.BCH.Util
   , burnBox
   ) where
 
-import Control.Lens
 import Control.Concurrent.STM
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Cont
-import Control.Monad.Reader
-import Control.Monad.Except
-import Control.Monad.State.Strict
-import Control.Monad.IO.Class
+import Control.Lens
 import Control.Monad.Catch
+import Control.Monad.Except
+import Control.Monad.Reader
+import Control.Monad.State.Strict
+import Control.Monad.Trans.Cont
 
-import Data.Coerce
 import Data.Fix
-import Data.Boolean
 import qualified Data.Vector as V
 import System.Timeout
 
-import Test.Tasty
 import Test.Tasty.HUnit
 import Prelude hiding ((<*))
 
-import HSChain.Crypto (Hash(..))
-import HSChain.Control.Class
 import HSChain.Control.Channels
 import HSChain.Control.Util
 import HSChain.Types.Merkle.Types
@@ -56,22 +49,16 @@ import HSChain.PoW.BlockIndex
 import HSChain.PoW.P2P
 import HSChain.PoW.P2P.Types
 import qualified HSChain.POW            as POW
-import HSChain.Logger
 import HSChain.Network.Types
 import HSChain.Network.Mock
 import HSChain.PoW.Consensus
 import HSChain.Store.Query
 
-import Hschain.Utxo.Lang.Expr (intArgs)
-import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Sigma.Types (generateKeyPair, KeyPair(..))
 import Hschain.Utxo.Pow.App.Types
-import qualified Hschain.Utxo.Lang.Sigma          as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
-
+import qualified Hschain.Utxo.Lang.Sigma as Sigma
 
 
 ----------------------------------------------------------------
@@ -148,8 +135,8 @@ mineBlock mpk txs = mineBlockE mpk Nothing txs >>= \case
 -- | Same as 'mineBlock' but block must be rejected instead
 badBlock :: [Tx] -> Mine ()
 badBlock txs = mineBlockE Nothing Nothing txs >>= \case
-  Left  e -> return ()
-  Right a -> error "Block should be rejected"
+  Left  _ -> return ()
+  Right _ -> error "Block should be rejected"
 
 badTx :: Sigma.ProofEnv -> GTx (Sigma.Sigma Sigma.PublicKey) Box -> Mine ()
 badTx env tx = do
@@ -159,8 +146,8 @@ badTx env tx = do
 -- | Same as 'mineBlock' but doesn't throw exception when block is rejected.
 mineBlockE :: Maybe Sigma.PublicKey -> Maybe Money -> [Tx] -> Mine (Either SomeException BoxId)
 mineBlockE mpk mFee txs = Mine $ do
-  bh           <- get
-  (upd,pow,db) <- ask
+  bh            <- get
+  (upd,pow,_db) <- ask
   -- Compute fee
   fee <- case mFee of
     Just fee -> pure fee
@@ -190,7 +177,7 @@ mineBlockE mpk mFee txs = Mine $ do
       txId  = computeTxId coinbase
       boxId = computeBoxId txId 0
   -- Send block
-  r <- lift $ lift $ sendNewBlock pow GBlock
+  res <- lift $ lift $ sendNewBlock pow GBlock
     { blockHeight = succ $ bhHeight bh
     , blockTime   = let Height h = bhHeight bh
                     in Time (fromIntegral h * 1000)
@@ -201,7 +188,7 @@ mineBlockE mpk mFee txs = Mine $ do
       , ubTarget = Target $ 2^(256::Int) - 1
       }
     }
-  case r of
+  case res of
     Left  e  -> pure $ Left e
     Right () -> do
       liftIO (timeout 1e6 (atomically $ await upd)) >>= \case
@@ -234,6 +221,7 @@ simpleInputRef boxId pk = BoxInputRef
   , boxInputRef'sigMask = SigAll
   }
 
+simpleScript :: Sigma.PublicKey -> Script
 simpleScript pk = coreProgToScript $ EPrim $ PrimSigma $ Fix $ Sigma.SigmaPk pk
 
 -- | Unspendable box
