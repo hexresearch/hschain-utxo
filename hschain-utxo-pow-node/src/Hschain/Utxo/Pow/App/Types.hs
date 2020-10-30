@@ -74,10 +74,6 @@ import Hschain.Utxo.Lang.Core.Types
 
 
 ----------------------------------------------------------------
---
-----------------------------------------------------------------
-
-----------------------------------------------------------------
 -- The Block.
 ----------------------------------------------------------------
 
@@ -123,7 +119,15 @@ instance IsMerkle f => JSON.ToJSON (UTXOBlock t f) where
       , "nonce"  JSON..= ViaBase58 b
       ]
 
-$(makeLensesWithL ''UTXOBlock)
+ubDataL :: Lens (UTXOBlock t f) (UTXOBlock t g) (MerkleNode f SHA256 [Tx]) (MerkleNode g SHA256 [Tx])
+ubDataL = lens ubData (\b x -> b { ubData = x })
+
+ubTargetL :: Lens' (UTXOBlock t f) POW.Target
+ubTargetL = lens ubTarget (\b x -> b { ubTarget = x })
+
+ubNonceL :: Lens' (UTXOBlock t f) ByteString
+ubNonceL = lens ubNonce (\b x -> b { ubNonce = x })
+
 $(makeLensesWithL ''POW.GBlock)
 
 
@@ -188,7 +192,7 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
 
 
 instance MerkleMap (UTXOBlock t) where
-  merkleMap f ub = ub { ubData = mapMerkleNode f $ ubData ub }
+  merkleMap f = ubDataL %~ mapMerkleNode f
 
 computeBlockID :: POW.GBlock (UTXOBlock t) f -> POW.BlockID (UTXOBlock t)
 computeBlockID b
