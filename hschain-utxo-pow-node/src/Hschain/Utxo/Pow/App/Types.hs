@@ -11,14 +11,29 @@
 {-# LANGUAGE UndecidableInstances                            #-}
 -- SQL-related orphans
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Hschain.Utxo.Pow.App.Types where
+module Hschain.Utxo.Pow.App.Types
+  ( UTXOBlock(..)
+  , ubDataL
+  , ubTargetL
+  , ubNonceL
+  , UtxoPOWCongig(..)
+  , utxoStateView
+  , miningRewardAmount
+    -- * Working with state
+  , retrieveUTXOByBoxId
+  , getDatabaseBox
+  , sumTxInputs
+  , sumTxOutputs
+    -- * Data families constructors
+  , POW.BlockID(..)
+  , POW.TxID(..)
+  ) where
 
 import Hex.Common.Aeson
 import Hex.Common.Lens
 
 import Codec.Serialise
 
-import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad
@@ -26,7 +41,6 @@ import Control.Monad.Catch hiding (Handler)
 import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Morph (hoist)
-import Control.Monad.Reader
 import Control.Monad.Trans.Except (except)
 
 import Data.Coerce
@@ -36,13 +50,10 @@ import Data.Functor.Classes    (Show1)
 import Data.Typeable           (Typeable)
 import Data.List               (foldl')
 import Data.Maybe
-import Data.Word
 import qualified Data.Aeson           as JSON
-import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text            as T
 import qualified Data.Map.Strict      as Map
-import qualified Data.Set             as Set
 import qualified Data.Vector          as V
 
 import qualified Database.SQLite.Simple           as SQL
@@ -52,8 +63,6 @@ import qualified Database.SQLite.Simple.FromRow   as SQL
 
 import GHC.Generics (Generic)
 
-import Katip (LogEnv, Namespace)
-
 import HSChain.Crypto.Classes
 import HSChain.Crypto.SHA
 import qualified HSChain.Crypto.Classes.Hash as Crypto
@@ -62,12 +71,7 @@ import qualified HSChain.PoW.Consensus  as POW
 import qualified HSChain.PoW.BlockIndex as POW
 import qualified HSChain.PoW.Types      as POW
 import HSChain.Types.Merkle.Types
-
-import HSChain.Control.Class
 import HSChain.Crypto hiding (PublicKey)
-
-import HSChain.Logger
-
 import HSChain.Store.Query
 
 import Hschain.Utxo.Lang.Types
@@ -75,14 +79,6 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Eval
 import Hschain.Utxo.Lang.Core.Types
 
-
-----------------------------------------------------------------
---
-----------------------------------------------------------------
-
-$(makeLensesWithL ''TxArg)
-$(makeLensesWithL ''BoxInput)
-$(makeLensesWithL ''Box)
 
 ----------------------------------------------------------------
 -- The Block.
@@ -130,7 +126,15 @@ instance IsMerkle f => JSON.ToJSON (UTXOBlock t f) where
       , "nonce"  JSON..= ViaBase58 b
       ]
 
-$(makeLensesWithL ''UTXOBlock)
+ubDataL :: Lens (UTXOBlock t f) (UTXOBlock t g) (MerkleNode f SHA256 [Tx]) (MerkleNode g SHA256 [Tx])
+ubDataL = lens ubData (\b x -> b { ubData = x })
+
+ubTargetL :: Lens' (UTXOBlock t f) POW.Target
+ubTargetL = lens ubTarget (\b x -> b { ubTarget = x })
+
+ubNonceL :: Lens' (UTXOBlock t f) ByteString
+ubNonceL = lens ubNonce (\b x -> b { ubNonce = x })
+
 $(makeLensesWithL ''POW.GBlock)
 
 
@@ -195,7 +199,7 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
 
 
 instance MerkleMap (UTXOBlock t) where
-  merkleMap f ub = ub { ubData = mapMerkleNode f $ ubData ub }
+  merkleMap f = ubDataL %~ mapMerkleNode f
 
 computeBlockID :: POW.GBlock (UTXOBlock t) f -> POW.BlockID (UTXOBlock t)
 computeBlockID b
@@ -241,54 +245,6 @@ instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
       powCfg = (powConfig (Proxy @t))
         { POW.powCfgTarget = POW.targetInteger $ POW.blockTargetThreshold b0
         }
-
-data UTXOEnv = UTXOEnv
-  { ueLogEnv      :: !LogEnv
-  , ueNamespace   :: !Namespace
-  , ueConn        :: !(Connection 'RW)
-  }
-  deriving (Generic)
-
-newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
-  deriving newtype ( Functor, Applicative, Monad, MonadIO
-                   , MonadCatch, MonadThrow, MonadMask, MonadFork, MonadReader UTXOEnv)
-  deriving (MonadLogger)          via LoggerByTypes  (ReaderT UTXOEnv m)
-  deriving (MonadDB, MonadReadDB) via DatabaseByType (ReaderT UTXOEnv m)
-
-
-runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
-runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
-
--------------------------------------------------------------------------------
--- Executable part.
-
-newtype Profitability = Profitability Rational
-  deriving (Eq, Show)
-
-instance Ord Profitability where
-  compare (Profitability a) (Profitability b) = compare b a -- ^More profitable first.
-
-data ProfitTx = PTx
-  { ptxProfitability :: !Profitability
-  , ptxTx            :: !Tx
-  }
-  deriving (Eq, Ord, Show)
-
-data UTXONodeState = UTXONodeState
-  { unsTransactions   :: !(Set.Set ProfitTx)
-  , unsUTXOSet        :: !(Set.Set Box)
-  , unsUTXORandomness :: !BS.ByteString
-  , unsUTXOIndex      :: !Word64
-  }
-  deriving (Eq, Ord, Show)
-
-initialUTXONodeState :: UTXONodeState
-initialUTXONodeState = UTXONodeState
-  { unsTransactions   = Set.empty
-  , unsUTXOSet        = Set.empty
-  , unsUTXORandomness = BS.pack $ replicate 32 71
-  , unsUTXOIndex      = 0
-  }
 
 ----------------------------------------------------------------
 -- Blockchain state management
@@ -708,11 +664,6 @@ data Layer = Layer
   , utxoSpent   :: Map.Map BoxId PostBox
   }
 
--- | Change to UTXO set
-data Change a
-  = Added a
-  | Spent a
-
 activeLayer :: Lens' (ActiveOverlay t) Layer
 activeLayer = lens (\(ActiveOverlay l _) -> l) (\(ActiveOverlay _ o) l -> ActiveOverlay l o)
 
@@ -754,21 +705,6 @@ rollbackOverlay (OverlayBase bh0) = case POW.bhPrevious bh0 of
   Nothing -> error "Cant rewind overlay past genesis"
 rollbackOverlay (OverlayLayer _ _ o) = o
 
--- | Find whether given UTXO is awaialble to be spent or spent
---   already. We need latter since UTXO could be available in
---   underlying state but spent in overlay and we need to account for
---   that explicitly.
-getOverlayBoxId :: ActiveOverlay t -> BoxId -> Maybe (Change PostBox)
-getOverlayBoxId (ActiveOverlay l0 o0) boxid
-  =  getFromLayer l0
- <|> recur o0
- where
-   recur (OverlayBase  _)     = Nothing
-   recur (OverlayLayer _ l o) =  getFromLayer l
-                             <|> recur o
-   getFromLayer Layer{..}
-     =  Spent <$> Map.lookup boxid utxoSpent
-    <|> Added <$> Map.lookup boxid utxoCreated
 
 -- | Dump overlay content into database. We write both UTXO content
 --   (table utxo_set) and when given utxo was created/spent. Operation

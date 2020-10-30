@@ -3,6 +3,7 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
+{-# LANGUAGE DerivingVia          #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -16,10 +17,14 @@ module Hschain.Utxo.Pow.App(
   , runNode
   , TestNet
   , UtxoRestAPI(..)
+    -- * Monad for running
+  , UTXOT(..)
+  , runUTXOT
   ) where
 
 import Control.Concurrent
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Trans.Cont
@@ -36,12 +41,14 @@ import qualified Servant.API.Generic      as Servant
 import qualified Servant.Server.Generic   as Servant
 import qualified Network.Wai.Handler.Warp as Warp
 
+import Katip (LogEnv,Namespace)
 import System.IO
 
+import HSChain.Control.Class
 import HSChain.Crypto.Classes
-import HSChain.Store.Query (MonadReadDB,queryRO,withConnection,basicQuery_)
+import HSChain.Store.Query
+import HSChain.Logger
 import HSChain.Types.Merkle.Types
-
 import HSChain.Network.TCP
 import HSChain.Logger
 import HSChain.PoW.API
@@ -62,6 +69,23 @@ import Hschain.Utxo.Pow.App.Types
 
 -------------------------------------------------------------------------------
 -- Executable part.
+
+data UTXOEnv = UTXOEnv
+  { ueLogEnv      :: !LogEnv
+  , ueNamespace   :: !Namespace
+  , ueConn        :: !(Connection 'RW)
+  }
+  deriving (Generic)
+
+newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
+  deriving newtype ( Functor, Applicative, Monad, MonadIO
+                   , MonadCatch, MonadThrow, MonadMask, MonadFork, MonadReader UTXOEnv)
+  deriving (MonadLogger)          via LoggerByTypes  (ReaderT UTXOEnv m)
+  deriving (MonadDB, MonadReadDB) via DatabaseByType (ReaderT UTXOEnv m)
+
+runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
+runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
+
 
 data TestNet
 

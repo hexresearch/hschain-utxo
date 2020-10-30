@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Core.Eval(
   , execScriptToSigma
 ) where
 
-import Control.Monad
 import Data.Fix
 import Data.Text
 import Data.Bifunctor

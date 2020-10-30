@@ -13,7 +13,6 @@ module TM.Blocks where
 
 import Control.Monad.Reader
 
-import Data.Fix
 import Data.Boolean
 
 import Test.Tasty
@@ -23,9 +22,6 @@ import Prelude hiding ((<*))
 import Hschain.Utxo.Lang.Expr (intArgs)
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Core.Compile.Expr
-import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.Types (generateKeyPair, KeyPair(..))
 import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
 

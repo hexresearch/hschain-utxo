@@ -36,10 +36,16 @@ module Hschain.Utxo.Lang.Types
   , getSigMessageTx
     -- * Helperes
   , singleOwnerInput
+    -- * Lenses
+  , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL
+  , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
+  , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
+  , box'argsL, box'scriptL, box'valueL
   ) where
 
 import Hex.Common.Aeson
 import Hex.Common.Text
+import Hex.Common.Lens (makeLensesWithL)
 import Control.DeepSeq (NFData)
 import Control.Monad.Except
 
@@ -525,3 +531,7 @@ instance ToJSON Args where
     , "texts" .= args'texts
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
+
+$(makeLensesWithL ''TxArg)
+$(makeLensesWithL ''BoxInput)
+$(makeLensesWithL ''Box)
