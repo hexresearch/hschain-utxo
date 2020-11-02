@@ -45,7 +45,6 @@ import HSChain.Store.Query
 import HSChain.Logger
 import HSChain.Types.Merkle.Types
 import HSChain.Network.TCP
-import HSChain.Logger
 import HSChain.PoW.API
 import qualified HSChain.Control.Channels as HControl
 import qualified HSChain.Control.Class    as HControl
@@ -102,7 +101,7 @@ runApp = do
       runNode genesis config runnode'nodeSecret
 
 genesis :: POW.Block (UTXOBlock TestNet)
-genesis = POW.GBlock
+genesis = POW.Block
   { blockHeight = POW.Height 0
   , blockTime   = POW.Time   0
   , prevBlock   = Nothing

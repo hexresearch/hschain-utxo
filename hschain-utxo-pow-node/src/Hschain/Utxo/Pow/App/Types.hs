@@ -26,10 +26,8 @@ module Hschain.Utxo.Pow.App.Types
   ) where
 
 import Hex.Common.Aeson
-import Hex.Common.Lens
 
 import Codec.Serialise
-
 import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad
@@ -131,12 +129,23 @@ ubTargetL = lens ubTarget (\b x -> b { ubTarget = x })
 ubNonceL :: Lens' (UTXOBlock t f) ByteString
 ubNonceL = lens ubNonce (\b x -> b { ubNonce = x })
 
-$(makeLensesWithL ''POW.GBlock)
 
 
 ----------------------------------------------------------------
 -- BlockData instance
 ----------------------------------------------------------------
+
+data UtxoException
+  = WrongAnswer
+  | WrongTarget
+  | AheadOfTime
+  | BadCoinbase String
+  | BadTx String
+  | EmptyBlock
+  | InternalErr String
+  deriving stock    (Show,Generic)
+  deriving anyclass (Exception,JSON.ToJSON)
+
 
 instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
   --
@@ -152,16 +161,7 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
                      , JSON.ToJSON, JSON.FromJSON)
     deriving (SQL.FromField, SQL.ToField) via ByteRepred (Crypto.Hash SHA256)
 
-  data BlockException (UTXOBlock t)
-    = WrongAnswer
-    | WrongTarget
-    | AheadOfTime
-    | BadCoinbase String
-    | BadTx String
-    | EmptyBlock
-    | InternalErr String
-    deriving stock    (Show,Generic)
-    deriving anyclass (Exception,JSON.ToJSON)
+  type BlockException (UTXOBlock t) = UtxoException
 
   txID    = UTXOTxID . hash
   blockID = computeBlockID
@@ -205,7 +205,7 @@ computeBlockID b
 
 -- | Builder without which doesn't include nonce
 blockIdBuilder :: POW.GBlock (UTXOBlock t) f -> Builder
-blockIdBuilder (POW.GBlock{blockData = UTXOBlock{..}, ..})
+blockIdBuilder (POW.Block{blockData = UTXOBlock{..}, ..})
   = hashStep (Crypto.UserType "utxo" "Block")
  <> hashStep blockHeight
  <> hashStep blockTime
@@ -230,10 +230,10 @@ checkPuzzle b = POW.check bs nonce h powCfg
     Hash h = hashBlob @SHA256 $ nonce <> bs
 
 instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
-  adjustPuzzle b0@POW.GBlock{..} = do
+  adjustPuzzle b0@POW.Block{..} = do
     (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
     return ( do answer <- maybeAnswer
-                pure $ b0 & blockDataL . ubNonceL .~ answer
+                pure $ b0 & POW.blockDataL . ubNonceL .~ answer
            , POW.hash256AsTarget hashR
            )
     where
@@ -316,7 +316,7 @@ makeStateView bIdx0 overlay = sview where
 
 -- | Validate and apply block to current state view. Returns Left on failed validation
 applyUtxoBlock
-  :: (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
+  :: forall m t. (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
   => StateOverlay t
   -> POW.BlockIndex (UTXOBlock t)
   -> POW.BH (UTXOBlock t)
@@ -331,7 +331,7 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   --
   -- FIXME: We're doing nothing here so far
   () <- except
-      $ mapM_ POW.validateTxContextFree txList
+      $ mapM_ (POW.validateTxContextFree @(UTXOBlock t)) txList
   -- Now we need to fully verify each transaction and build new
   -- overlay for database
   overlay' <- hoist mustQueryRW $ do
@@ -762,7 +762,7 @@ retrieveUTXOBlock bid
     (Only bid)
 
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m, UtxoPOWCongig t) => POW.Block (UTXOBlock t) -> m ()
-storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
+storeUTXOBlock b@POW.Block{POW.blockData=blk, ..} = mustQueryRW $ do
   let bid = POW.blockID b
   basicExecute
     "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -782,7 +782,7 @@ utxoBlockDecoder = do
   blockTime   <- field
   prevBlock   <- field
   blockData   <- fieldCBOR
-  pure POW.GBlock {..}
+  pure POW.Block {..}
 
 utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header (UTXOBlock t))
 utxoBlockHeaderDecoder = do
@@ -792,7 +792,7 @@ utxoBlockHeaderDecoder = do
   ubData      <- fromHashed <$> fieldByteRepr
   ubTarget    <- fieldCBOR
   ubNonce     <- field
-  return POW.GBlock{ blockData = UTXOBlock{..}, .. }
+  return POW.Block{ blockData = UTXOBlock{..}, .. }
 
 
 ----------------------------------------------------------------

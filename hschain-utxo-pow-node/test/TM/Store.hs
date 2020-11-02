@@ -25,7 +25,7 @@ emptyCoinChain = gen : unfoldr (Just . (\b -> (b,b)) . mineCoin [] . Just) gen
     gen = mineCoin [] Nothing
 
 mineCoin :: [Tx (UTXOBlock TestNet)] -> Maybe (Block (UTXOBlock TestNet)) -> Block (UTXOBlock TestNet)
-mineCoin txs mb = GBlock
+mineCoin txs mb = Block
   { blockHeight = maybe (Height 0) (succ . blockHeight) mb
   , blockTime   = Time 0
   , prevBlock   = blockID <$> mb

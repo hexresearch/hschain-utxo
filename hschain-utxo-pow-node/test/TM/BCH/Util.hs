@@ -77,7 +77,7 @@ instance UtxoPOWCongig Test where
   checkBlockWork _ = False
 
 genesis :: Block (UTXOBlock Test)
-genesis = GBlock
+genesis = Block
   { blockHeight = Height 0
   , blockTime   = Time   0
   , prevBlock   = Nothing
@@ -177,7 +177,7 @@ mineBlockE mpk mFee txs = Mine $ do
       txId  = computeTxId coinbase
       boxId = computeBoxId txId 0
   -- Send block
-  res <- lift $ lift $ sendNewBlock pow GBlock
+  res <- lift $ lift $ sendNewBlock pow Block
     { blockHeight = succ $ bhHeight bh
     , blockTime   = let Height h = bhHeight bh
                     in Time (fromIntegral h * 1000)
