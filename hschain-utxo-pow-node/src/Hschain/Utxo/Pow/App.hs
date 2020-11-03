@@ -25,6 +25,7 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Cont
 
 import Data.Maybe
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Yaml.Config (loadYamlSettings, requireEnv)
 import GHC.Generics
 
@@ -43,7 +44,7 @@ import HSChain.Control.Class
 import HSChain.Crypto.Classes
 import HSChain.Store.Query
 import HSChain.Logger
-import HSChain.Types.Merkle.Types
+import HSChain.Types.Merkle.Tree
 import HSChain.Network.TCP
 import HSChain.PoW.API
 import qualified HSChain.Control.Channels as HControl
@@ -107,10 +108,14 @@ genesis = POW.Block
   , prevBlock   = Nothing
   , blockData   = UTXOBlock
     { ubNonce  = ""
-    , ubData   = merkled []
+    , ubData   = createMerkleTreeNE1 $ coinbase :| []
     , ubTarget = POW.Target $ 2^(256::Int) - 1
     }
   }
+  where
+    coinbase = Tx { tx'inputs  = mempty
+                  , tx'outputs = mempty
+                  }
 
 
 -------------------------------------------------------------------------------

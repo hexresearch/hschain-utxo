@@ -41,8 +41,9 @@ import Data.Coerce
 import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (toLazyByteString,Builder)
 import Data.Functor.Classes    (Show1)
+import Data.Foldable
 import Data.Typeable           (Typeable)
-import Data.List               (foldl')
+import Data.List.NonEmpty      (NonEmpty(..))
 import Data.Maybe
 import qualified Data.Aeson           as JSON
 import qualified Data.ByteString.Lazy as LBS
@@ -67,6 +68,7 @@ import qualified HSChain.PoW.Types      as POW
 import HSChain.Types.Merkle.Types
 import HSChain.Crypto hiding (PublicKey)
 import HSChain.Store.Query
+import HSChain.Types.Merkle.Tree
 
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -88,7 +90,7 @@ import Hschain.Utxo.Lang.Core.Types
 --   A block proper. It does not contain nonce to solve PoW puzzle but
 --   it contains all information about block.
 data UTXOBlock t f = UTXOBlock
-  { ubData   :: !(MerkleNode f SHA256 [Tx])
+  { ubData   :: !(MerkleBinTree1 SHA256 f Tx)
   , ubTarget :: !POW.Target
   , ubNonce  :: !ByteString
   }
@@ -106,21 +108,21 @@ deriving stock instance (IsMerkle f) => Eq   (UTXOBlock t f)
 instance Serialise (UTXOBlock t Identity)
 instance Serialise (UTXOBlock t Proxy)
 
-instance IsMerkle f => JSON.FromJSON (UTXOBlock t f) where
-  parseJSON = JSON.withObject "UtxoBlock" $ \bp ->
-    UTXOBlock
-      <$> (bp JSON..: "data")
-      <*> (POW.Target <$> bp JSON..: "target")
-      <*> ((\(ViaBase58 s :: ViaBase58 "UTXOBlock" ByteString) -> s) <$> (bp JSON..: "nonce"))
-instance IsMerkle f => JSON.ToJSON (UTXOBlock t f) where
-  toJSON (UTXOBlock d (POW.Target t) b) =
-    JSON.object
-      [ "data"   JSON..= d
-      , "target" JSON..= t
-      , "nonce"  JSON..= ViaBase58 b
-      ]
+-- instance IsMerkle f => JSON.FromJSON (UTXOBlock t f) where
+--   parseJSON = JSON.withObject "UtxoBlock" $ \bp ->
+--     UTXOBlock
+--       <$> (bp JSON..: "data")
+--       <*> (POW.Target <$> bp JSON..: "target")
+--       <*> ((\(ViaBase58 s :: ViaBase58 "UTXOBlock" ByteString) -> s) <$> (bp JSON..: "nonce"))
+-- instance IsMerkle f => JSON.ToJSON (UTXOBlock t f) where
+--   toJSON (UTXOBlock d (POW.Target t) b) =
+--     JSON.object
+--       [ "data"   JSON..= d
+--       , "target" JSON..= t
+--       , "nonce"  JSON..= ViaBase58 b
+--       ]
 
-ubDataL :: Lens (UTXOBlock t f) (UTXOBlock t g) (MerkleNode f SHA256 [Tx]) (MerkleNode g SHA256 [Tx])
+ubDataL :: Lens (UTXOBlock t f) (UTXOBlock t g) (MerkleBinTree1 SHA256 f Tx) (MerkleBinTree1 SHA256 g Tx)
 ubDataL = lens ubData (\b x -> b { ubData = x })
 
 ubTargetL :: Lens' (UTXOBlock t f) POW.Target
@@ -165,7 +167,7 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
 
   txID    = UTXOTxID . hash
   blockID = computeBlockID
-  blockTransactions = merkleValue . ubData . POW.blockData
+  blockTransactions = toList . ubData . POW.blockData
 
   validateHeader bh (POW.Time now) header
     | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
@@ -366,7 +368,7 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   where
     env      = Env $ fromIntegral h where POW.Height h = POW.blockHeight b
     bh0      = overlayTip overlay
-    txList   = merkleValue $ ubData $ POW.blockData b
+    txList   = toList $ ubData $ POW.blockData b
     overlay0 = addOverlayLayer overlay
 
 
@@ -417,12 +419,10 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
                         }
                     , tx'outputs = V.fromList [coinbaseBox]
                     }
-      blockTxs = coinbase : fmap snd txList
   -- Create block!
-
   return UTXOBlock
     { ubNonce  = ""
-    , ubData   = merkled blockTxs
+    , ubData   = createMerkleTreeNE1 $ coinbase :| fmap snd txList
     , ubTarget = POW.retarget bh
     }
   where
@@ -789,7 +789,7 @@ utxoBlockHeaderDecoder = do
   blockHeight <- field
   blockTime   <- field
   prevBlock   <- field
-  ubData      <- fromHashed <$> fieldByteRepr
+  ubData      <- nodeFromHash <$> fieldByteRepr
   ubTarget    <- fieldCBOR
   ubNonce     <- field
   return POW.Block{ blockData = UTXOBlock{..}, .. }
