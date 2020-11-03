@@ -3,12 +3,8 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveAnyClass, DerivingVia, DerivingStrategies #-}
-{-# LANGUAGE FlexibleContexts                                #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, TypeApplications    #-}
-{-# LANGUAGE MultiWayIf, ScopedTypeVariables, TypeOperators  #-}
-{-# LANGUAGE UndecidableInstances                            #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE TypeFamilies         #-}
 -- SQL-related orphans
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Pow.App.Types
