@@ -413,7 +413,7 @@ initTestRoute value chanUsers = do
 
 initRoute :: ByteString -> Money -> [(ChanId, User, User)] -> App [Link]
 initRoute secret value chanUsers =
-  fmap (zipWith (\((ch, from, to), (fromSecret, toSecret)) (index, time) -> Link (from, fromSecret) (to, toSecret) (Hop ch time value index)) (zip chanUsers secrets)) $ initTimeLimits
+  fmap (zipWith (\((ch, from, to), (fromSecret, toSecret)) (index, time) -> Link (from, fromSecret) (to, toSecret) (Hop ch (Htlc value 0 time payHash) index)) (zip chanUsers secrets)) $ initTimeLimits
   where
     payHash = getSha256 secret
 

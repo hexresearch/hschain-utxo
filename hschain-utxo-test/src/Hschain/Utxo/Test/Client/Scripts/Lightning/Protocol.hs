@@ -6,6 +6,8 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol(
   , UserId(..)
   , Msg(..)
   , Act(..)
+  , HtlcId(..)
+  , Htlc(..)
   , Route
   , Hop(..)
   , userIdToText
@@ -51,6 +53,17 @@ data Msg = Msg
   , msg'to    :: UserId
   , msg'act   :: Act
   }
+
+newtype HtlcId = HtlcId Int64
+  deriving (Show, Eq, Ord)
+
+data Htlc = Htlc
+  { htlc'value     :: Int64       -- ^ amount of money to transfer
+  , htlc'fee       :: Int64       -- ^ fee for transaction
+  , htlc'time      :: Int64       -- ^ HTLC expiry absolute time
+  , htlc'payHash   :: ByteString  -- ^ HTLC hash of the preimage
+  }
+  deriving (Show, Eq)
 
 data Act
   --------------------------------------------------
@@ -100,12 +113,15 @@ data Act
   -- ^ confirms signature and fee for closing TX
   --------------------------------------------------
   -- Normal operation
-  | UpdateAndHtlc
+  | UpdateAddHtlc
       { act'chanId           :: ChanId
-      , act'routing          :: Route
-      , act'amount           :: Money
-      , act'paymentHash      :: ByteString
-      , act'cltvExpiry       :: Int64
+      , act'htlcId           :: HtlcId       -- ^ HTLC id
+      , act'route            :: Route
+      }
+  | UpdateFulfillHtlc
+      { act'chanId           :: ChanId
+      , act'htlcId           :: HtlcId       -- ^ HTLC id
+      , act'paymentSecret    :: ByteString
       }
   -- ^ sets up HTLC
   | CommitmentSigned
@@ -129,8 +145,7 @@ type Route = [Hop]
 -- | Single link in the route.
 data Hop = Hop
   { hop'chanId    :: ChanId  -- ^ Channel id
-  , hop'timeLimit :: Int64   -- ^ time limit for HTLC TX
-  , hop'value     :: Money   -- ^ money to send on this hop
+  , hop'htlc      :: Htlc
   , hop'index     :: Int64   -- ^ how many hops till end
   }
   deriving (Show, Eq)
