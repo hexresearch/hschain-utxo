@@ -7,6 +7,7 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.User(
   , cancelUserProc
 ) where
 
+import Control.Arrow (first, second)
 import Control.Concurrent.Async.Lifted
 import Control.Concurrent.STM
 import Control.Monad
@@ -85,13 +86,24 @@ data ChanSt
     , chanSt'commonBoxId :: BoxId
     , chanSt'revokes     :: Map BoxId RevokeBox
     , chanSt'htlcCount   :: Int64
-    , chanSt'htlcs       :: Map HtlcId Htlc
+    , chanSt'htlcs       :: Map HtlcId HtlcLink
     }
   | ChanShutdownPending ChanSt
 
 data RevokeBox = RevokeBox
   { revokeBox'secret     :: ByteString
   , revokeBox'value      :: Money
+  }
+
+-- | Htlc with info on where to give back revoke secret
+data HtlcLink = HtlcLink
+  { htlcLink'content :: Htlc
+  , htlcLink'prev    :: Maybe BackHop
+  }
+
+data BackHop = BackHop
+  { backHop'chanId   :: ChanId
+  , backHop'htlcId   :: HtlcId
   }
 
 -- | User
@@ -151,6 +163,7 @@ react msg@Msg{..} env =
     ClosingSigned{..}        -> closingSigned act'chanId act'sign act'fee
     ConfirmClosingSigned{..} -> confirmClosingSigned act'chanId act'sign act'fee
     UpdateAddHtlc{..}        -> updateAddHtlc act'chanId act'htlcId act'route
+    UpdateFulfillHtlc{..}    -> updateFulfillHtlc act'chanId act'htlcId act'paymentSecret
   where
     myPk = getWalletPublicKey $ userEnv'wallet env
 
@@ -266,42 +279,97 @@ react msg@Msg{..} env =
           []              -> throwError "Empty route"
           curHop:restHops -> if shouldProceed curHop
                                then proceedHops curHop restHops st
-                               else replyWithSecret curHop st
+                               else replyWithSecret curHop
       _ -> errWrongChanState
       where
         proceedHops curHop restHops st = do
-          env1 <- addHtlc curHop st env
+          env1 <- addIncomeHtlc htlcId (hop'htlc curHop) Nothing st chanId env
           case restHops of
             []          -> throwError "Empty route"
             nextHop : _ -> do
               let nextChanId = hop'chanId nextHop
               (nextHtlcId, env2) <- newHtlcId nextChanId env1
-              nextUserId <- getChanPartner nextChanId env2
+              env3 <- addOutcomeHtlc nextHtlcId (hop'htlc nextHop) (Just $ BackHop chanId htlcId) nextChanId env2
+              nextUserId <- getChanPartner nextChanId env3
               let reply = Msg
-                    { msg'from = msg'to
+                    { msg'from = userEnv'id env
                     , msg'to   = nextUserId
                     , msg'act  = UpdateAddHtlc nextChanId nextHtlcId restHops
                     }
               return (env2, Just reply)
 
-        replyWithSecret Hop{..} st = do
+        replyWithSecret Hop{..} = do
           case M.lookup (htlc'payHash hop'htlc) (userEnv'secrets env) of
             Just secret -> do
               let reply = toReplyMsg msg $ UpdateFulfillHtlc chanId htlcId secret
               return (env, Just reply)
             _ -> throwError "No secret found"
 
-        addHtlc Hop{..} st e = case st of
-          ChanActive{..} -> return $ insertChan chanId st' e
-          _              -> errWrongChanState
-          where
-            st' = st
-                    { chanSt'htlcCount = chanSt'htlcCount st + 1
-                    , chanSt'htlcs     = M.insert htlcId hop'htlc (chanSt'htlcs st)
-                    }
+    addIncomeHtlc htlcId htlc backRef st chanId e = case st of
+      ChanActive{..} -> return $ insertChan chanId st' e
+      _              -> errWrongChanState
+      where
+        st' = st
+                { chanSt'htlcCount = chanSt'htlcCount st + 1
+                , chanSt'htlcs     = M.insert htlcId (HtlcLink htlc backRef) (chanSt'htlcs st)
+                , chanSt'balance   = second (\v -> v - htlc'value htlc) $ chanSt'balance st
+                }
 
+    addOutcomeHtlc htlcId htlc backRef chId e = case lookupChan chId e of
+      Just st@ChanActive{..} -> do
+          let st' = st { chanSt'htlcs = M.insert htlcId (HtlcLink (negateHtlc htlc) backRef) chanSt'htlcs
+                        , chanSt'balance = first (\v -> v - htlc'value htlc) chanSt'balance
+                        }
+          return $ insertChan chId st e
+      _              -> errWrongChanState
+
+    updateFulfillHtlc chanId htlcId paySecret = case lookupChan chanId env of
+      Just ChanActive{..} -> do
+        case M.lookup htlcId chanSt'htlcs of
+          Just h  ->
+            if checkHtlcSecret paySecret (htlcLink'content h)
+              then do
+                let env1 = fulfillHtlc chanId htlcId env
+                case htlcLink'prev h of
+                  Just prevHop -> sendPrevHop prevHop paySecret env1
+                  Nothing      -> return (env1, Nothing)
+              else errHtlcPaymentSecretIsNotValid
+          Nothing -> errHtlcNotFound
+
+      _ -> errWrongChanState
+
+    errHtlcNotFound = throwError "HTLC is not found"
+    errHtlcPaymentSecretIsNotValid = throwError "HTLC payment secret is not valid"
+
+    checkHtlcSecret secret Htlc{..} = htlc'payHash == getSha256 secret
+
+    sendPrevHop BackHop{..} paySecret e = do
+      partnerId <- getChanPartner backHop'chanId e
+      return (e1, Just $ Msg
+             { msg'from = userEnv'id e
+             , msg'to   = partnerId
+             , msg'act  = UpdateFulfillHtlc backHop'chanId backHop'htlcId paySecret
+             })
+      where
+        e1 = fulfillHtlc backHop'chanId backHop'htlcId e
+
+    fulfillHtlc chanId htlcId env = case lookupChan chanId env of
+      Just st@ChanActive{..} -> case M.lookup htlcId chanSt'htlcs of
+                                  Just HtlcLink{..} ->
+                                    insertChan chanId (st
+                                      { chanSt'htlcs   = M.delete htlcId chanSt'htlcs
+                                      , chanSt'balance =
+                                          let val = htlc'value htlcLink'content
+                                          in  if val > 0
+                                                then first  (+ val) chanSt'balance
+                                                else second (+ val) chanSt'balance
+                                      }) env
+                                  Nothing -> env
+      Nothing                -> env
 
     shouldProceed Hop{..} = hop'index > 0
+
+    negateHtlc h = h { htlc'value = negate $ htlc'value h }
 
     newHtlcId chanId env = case lookupChan chanId env of
       Just st@ChanActive{..} -> do
@@ -327,7 +395,6 @@ react msg@Msg{..} env =
 msgForUsers :: Text -> Msg -> Text
 msgForUsers txt Msg{..} =
   mconcat [txt, " for ", userIdToText msg'from, " and ", userIdToText msg'to]
-
 
 toReplyMsg :: Msg -> Act -> Msg
 toReplyMsg msg act = swapAddr msg { msg'act = act }
