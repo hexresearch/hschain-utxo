@@ -127,7 +127,7 @@ data Act
   | CommitmentSigned
       { act'chanId           :: ChanId
       , act'sign             :: ByteString
-      , act'htlcs            :: [ByteString]
+      , act'revokeHash       :: ByteString
       }
   -- ^ sign commitment
   | RevokeAndAck

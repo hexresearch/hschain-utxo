@@ -16,6 +16,7 @@ import Data.Maybe
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Wallet
+import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol
 
 import qualified Data.Vector as V
 
@@ -47,11 +48,11 @@ getSharedBoxId :: Tx -> BoxId
 getSharedBoxId tx = computeBoxId (computeTxId tx) 0
 
 -- | Commitment TX
-commitmentTx :: PublicKey -> BoxId -> Balance -> PublicKey -> Int64 -> ByteString -> Tx
-commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHash =
+commitmentTx :: PublicKey -> BoxId -> Balance -> PublicKey -> Int64 -> ByteString -> [Htlc] -> Tx
+commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHash htlcs =
   Tx
     { tx'inputs  = [commonInput commonBoxId]
-    , tx'outputs = [myBox, otherBox]
+    , tx'outputs = V.fromList $ [myBox, otherBox] ++ fmap fromHtlc htlcs
     }
   where
     myBox = Box
@@ -67,6 +68,16 @@ commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHas
     readKey = listAt getBytesVars 0
 
     otherBox = singleSpendBox otherValue otherPk
+
+    fromHtlc Htlc{..} = Box
+      { box'value  = abs $ htlc'value
+      , box'script = mainScriptUnsafe $ htlcScript htlc'payHash (if (htlc'value > 0) then (otherPk, myPk) else (myPk, otherPk)) (fromIntegral htlc'time)
+      , box'args   = mempty
+      }
+
+    htlcScript payHash (receiverKey, senderKey) time =
+          (pk' receiverKey &&* (toSigma $ sha256 readKey ==* bytes payHash))
+      ||* (pk' senderKey &&* (toSigma $ getHeight >=* int time))
 
 closeChanTx :: BoxId -> Balance -> (PublicKey, PublicKey) -> Tx
 closeChanTx commonBoxId (valA, valB) (pkA, pkB) =

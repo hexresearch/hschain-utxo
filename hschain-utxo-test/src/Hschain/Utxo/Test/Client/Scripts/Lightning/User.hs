@@ -5,6 +5,9 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.User(
   , User(..)
   , newUser
   , cancelUserProc
+  , insertChan
+  , lookupChan
+  , ChanSt(..)
 ) where
 
 import Control.Arrow (first, second)
@@ -27,7 +30,7 @@ import Hschain.Utxo.Test.Client.Monad
 import Hschain.Utxo.Test.Client.Wallet (Wallet(..), getWalletPublicKey, getWalletPrivateKey)
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Tx
-import Hschain.Utxo.Test.Client.Scripts.Utils (postTxSuccess)
+import Hschain.Utxo.Test.Client.Scripts.Utils (postTxSuccess, postTxFailure)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -79,14 +82,15 @@ data ChanSt
     , chanSt'revoke      :: ByteString
     }
   | ChanActive
-    { chanSt'spec        :: ChanSpec
-    , chanSt'balance     :: (Money, Money)
-    , chanSt'partnerId   :: UserId
-    , chanSt'partnerKey  :: PublicKey
-    , chanSt'commonBoxId :: BoxId
-    , chanSt'revokes     :: Map BoxId RevokeBox
-    , chanSt'htlcCount   :: Int64
-    , chanSt'htlcs       :: Map HtlcId HtlcLink
+    { chanSt'spec          :: ChanSpec
+    , chanSt'balance       :: (Money, Money)
+    , chanSt'partnerId     :: UserId
+    , chanSt'partnerKey    :: PublicKey
+    , chanSt'commonBoxId   :: BoxId
+    , chanSt'revokes       :: Map BoxId RevokeBox
+    , chanSt'htlcCount     :: Int64
+    , chanSt'htlcs         :: Map HtlcId HtlcLink
+    , chanSt'lastRevoke    :: ByteString
     }
   | ChanShutdownPending ChanSt
 
@@ -108,31 +112,33 @@ data BackHop = BackHop
 
 -- | User
 data User = User
-  { user'env        :: TVar UserEnv   -- ^ user internal state
+  { user'id         :: UserId
+  , user'env        :: TVar UserEnv   -- ^ user internal state
   , user'api        :: Api            -- ^ communication with network
   , user'proc       :: Async ()       -- ^ background listen and response process
   , user'revokeProc :: Async ()       -- ^ revoke TXs process
   }
 
-newUser :: Api -> UserId -> Wallet-> App User
-newUser api uid wallet = do
-  env <- liftIO $ newUserEnv uid wallet
+newUser :: Api -> UserId -> Wallet -> Funds -> App User
+newUser api uid wallet funds = do
+  env <- liftIO $ newUserEnv uid wallet funds
   proc <- startUserProc api env
   revokeProc <- startRevokeProc env
   return $ User
-    { user'env  = env
+    { user'id   = uid
+    , user'env  = env
     , user'api  = api
     , user'proc = proc
     , user'revokeProc = revokeProc
     }
 
-newUserEnv :: UserId -> Wallet -> IO (TVar UserEnv)
-newUserEnv uid wallet = do
-  tv <- newTVarIO $ UserEnv uid wallet [] M.empty M.empty
+newUserEnv :: UserId -> Wallet -> Funds -> IO (TVar UserEnv)
+newUserEnv uid wallet funds = do
+  tv <- newTVarIO $ UserEnv uid wallet funds M.empty M.empty
   return tv
 
 startUserProc :: Api -> TVar UserEnv -> App (Async ())
-startUserProc Api{..} tv = fmap void $ async $ fix $ \rec -> loop >> rec
+startUserProc Api{..} tv = fmap void $ async $ loop
   where
     loop = do
       msg <- liftIO api'read
@@ -142,6 +148,7 @@ startUserProc Api{..} tv = fmap void $ async $ fix $ \rec -> loop >> rec
         liftIO $ do
           atomically $ writeTVar tv env'
           mapM_ api'send mReply
+      loop
 
 cancelUserProc :: User -> App ()
 cancelUserProc User{..} = do
@@ -164,6 +171,7 @@ react msg@Msg{..} env =
     ConfirmClosingSigned{..} -> confirmClosingSigned act'chanId act'sign act'fee
     UpdateAddHtlc{..}        -> updateAddHtlc act'chanId act'htlcId act'route
     UpdateFulfillHtlc{..}    -> updateFulfillHtlc act'chanId act'htlcId act'paymentSecret
+    CommitmentSigned{..}     -> commitmentSigned act'chanId act'sign act'revokeHash
   where
     myPk = getWalletPublicKey $ userEnv'wallet env
 
@@ -179,7 +187,7 @@ react msg@Msg{..} env =
         let value  = chanSpec'capacity chanSt'spec
         fundTx <- fundingTx (userEnv'wallet env) (value, chanSt'change) chanSt'boxes pubKey
         aliceRevokeSecret <- randomBS 16
-        let comTx = commitmentTx pubKey (getSharedBoxId fundTx) (0, value) myPk (chanSpec'delay chanSt'spec) bobRevokeHash
+        let comTx = commitmentTx pubKey (getSharedBoxId fundTx) (0, value) myPk (chanSpec'delay chanSt'spec) bobRevokeHash []
         signature <- Crypto.sign (getWalletPrivateKey $ userEnv'wallet env) (getSigMessage SigAll comTx)
         let reply = toReplyMsg msg FundingCreated
                       { act'chanId            = chanId
@@ -202,7 +210,7 @@ react msg@Msg{..} env =
       Just ChanOpen{..} -> do
         let commonBoxId = computeBoxId fundingTxId 0
             value = chanSpec'capacity chanSt'spec
-            comTx = commitmentTx  chanSt'partnerKey commonBoxId (value, 0) myPk (chanSpec'delay chanSt'spec) partnerRevokeHash
+            comTx = commitmentTx  chanSt'partnerKey commonBoxId (value, 0) myPk (chanSpec'delay chanSt'spec) partnerRevokeHash []
         signature <- liftIO $ Crypto.sign (getWalletPrivateKey $ userEnv'wallet env) (getSigMessage SigAll comTx)
         let reply = toReplyMsg msg $ FundingSigned chanId (encodeToBS signature)
             env' = insertChan chanId ChanSigned
@@ -218,12 +226,18 @@ react msg@Msg{..} env =
 
     fundingSigned chanId _signature = case lookupChan chanId env of
       Just ChanAccepted{..} -> do
-        postTxSuccess (msgForUsers "Funding TX is posted" msg) chanSt'fundTx
+        isSent <- checkFundingWasSent chanSt'fundTx
+        when (not isSent) $ postTxSuccess (msgForUsers "Post Funding TX" msg) chanSt'fundTx
         -- we should listen to Blockchain to wait for minDepth confirmations
         -- but let's skip this for know and send it right away
         let reply = toReplyMsg msg $ FundingLocked chanId
         return (env, Just reply)
       _ -> errWrongChanState
+      where
+        checkFundingWasSent tx =
+          fmap isNothing $ getBoxBalance boxId
+          where
+            boxId = boxInputRef'id $ tx'inputs tx V.! 0
 
     fundingLocked chanId = case lookupChan chanId env of
       Just ChanAccepted{..} -> do
@@ -236,6 +250,7 @@ react msg@Msg{..} env =
                   , chanSt'revokes = M.empty
                   , chanSt'htlcCount = 0
                   , chanSt'htlcs = M.empty
+                  , chanSt'lastRevoke = chanSt'revoke
                   }
         return (insertChan chanId st env, Nothing)
       Just ChanSigned{..}   -> do
@@ -248,6 +263,7 @@ react msg@Msg{..} env =
                   , chanSt'revokes = M.empty
                   , chanSt'htlcCount = 0
                   , chanSt'htlcs = M.empty
+                  , chanSt'lastRevoke = chanSt'revoke
                   }
         return (insertChan chanId st env, Nothing)
       _  -> errWrongChanState
@@ -320,7 +336,7 @@ react msg@Msg{..} env =
           let st' = st { chanSt'htlcs = M.insert htlcId (HtlcLink (negateHtlc htlc) backRef) chanSt'htlcs
                         , chanSt'balance = first (\v -> v - htlc'value htlc) chanSt'balance
                         }
-          return $ insertChan chId st e
+          return $ insertChan chId st' e
       _              -> errWrongChanState
 
     updateFulfillHtlc chanId htlcId paySecret = case lookupChan chanId env of
@@ -353,7 +369,7 @@ react msg@Msg{..} env =
       where
         e1 = fulfillHtlc backHop'chanId backHop'htlcId e
 
-    fulfillHtlc chanId htlcId env = case lookupChan chanId env of
+    fulfillHtlc chanId htlcId e = case lookupChan chanId e of
       Just st@ChanActive{..} -> case M.lookup htlcId chanSt'htlcs of
                                   Just HtlcLink{..} ->
                                     insertChan chanId (st
@@ -363,18 +379,18 @@ react msg@Msg{..} env =
                                           in  if val > 0
                                                 then first  (+ val) chanSt'balance
                                                 else second (+ val) chanSt'balance
-                                      }) env
-                                  Nothing -> env
-      Nothing                -> env
+                                      }) e
+                                  Nothing -> e
+      _                     -> e
 
     shouldProceed Hop{..} = hop'index > 0
 
     negateHtlc h = h { htlc'value = negate $ htlc'value h }
 
-    newHtlcId chanId env = case lookupChan chanId env of
+    newHtlcId chanId e = case lookupChan chanId e of
       Just st@ChanActive{..} -> do
         let curId = chanSt'htlcCount
-            env' = insertChan chanId (st { chanSt'htlcCount = curId + 1 }) env
+            env' = insertChan chanId (st { chanSt'htlcCount = curId + 1 }) e
         return (HtlcId curId, env')
       _ -> errWrongChanState
 
@@ -383,7 +399,9 @@ react msg@Msg{..} env =
         then cont
         else throwError "HTLC id is not new"
 
-    errWrongChanState = throwError "Wrong channel state"
+    errWrongChanState =  testCase msg False >> throwError msg
+      where
+        msg = "Wrong channel state"
 
     postCloseChanTx tx signA signB = do
       testCase "close chan TX is valid" =<< txIsValid signedTx
@@ -391,6 +409,19 @@ react msg@Msg{..} env =
       where
         signedTx = tx { tx'inputs = fmap setSigns $ tx'inputs tx }
         setSigns x = x { boxInputRef'sigs = V.fromList $ catMaybes $ fmap decodeFromBS [signA, signB] }
+
+
+    commitmentSigned chanId signature revokeHash = case lookupChan chanId env of
+      Just st@ChanActive{..} -> if checkCommitmentSignature signature revokeHash
+        then do
+          nextRevokeSecret <- liftIO $ randomBS 16
+          let reply = toReplyMsg msg $ RevokeAndAck chanId chanSt'lastRevoke
+              env'  = insertChan chanId (st { chanSt'lastRevoke = nextRevokeSecret }) env
+          return (env', Just reply)
+        else throwError "Signature is incorrect"
+      _ -> errWrongChanState
+
+    checkCommitmentSignature = undefined
 
 msgForUsers :: Text -> Msg -> Text
 msgForUsers txt Msg{..} =
