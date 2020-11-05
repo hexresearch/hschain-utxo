@@ -139,8 +139,11 @@ Test-suite hschain-utxo-pow-node-tests
                      --
                      , exceptions
                      , stm
+                     , bytestring
+                     , text
                      , Boolean
                      , mtl
+                     , random
                      , data-fix
                      , lens
                      , vector
