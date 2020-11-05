@@ -33,6 +33,7 @@ import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Cont
 
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Fix
 import qualified Data.Vector as V
 import System.Timeout
@@ -42,7 +43,6 @@ import Prelude hiding ((<*))
 
 import HSChain.Control.Channels
 import HSChain.Control.Util
-import HSChain.Types.Merkle.Types
 import HSChain.PoW.Types hiding (Tx)
 import HSChain.PoW.Tests
 import HSChain.PoW.BlockIndex
@@ -53,6 +53,7 @@ import HSChain.Network.Types
 import HSChain.Network.Mock
 import HSChain.PoW.Consensus
 import HSChain.Store.Query
+import HSChain.Types.Merkle.Tree
 
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -77,17 +78,20 @@ instance UtxoPOWCongig Test where
   checkBlockWork _ = False
 
 genesis :: Block (UTXOBlock Test)
-genesis = GBlock
+genesis = Block
   { blockHeight = Height 0
   , blockTime   = Time   0
   , prevBlock   = Nothing
   , blockData   = UTXOBlock
     { ubNonce  = ""
-    , ubData   = merkled []
+    , ubData   = createMerkleTreeNE1 $ coinbase :| []
     , ubTarget = Target $ 2^(256::Int) - 1
     }
   }
-
+  where
+    coinbase = Tx { tx'inputs  = mempty
+                  , tx'outputs = mempty
+                  }
 
 ----------------------------------------------------------------
 -- Helpers for running test sequences with blockchain engine
@@ -177,13 +181,13 @@ mineBlockE mpk mFee txs = Mine $ do
       txId  = computeTxId coinbase
       boxId = computeBoxId txId 0
   -- Send block
-  res <- lift $ lift $ sendNewBlock pow GBlock
+  res <- lift $ lift $ sendNewBlock pow Block
     { blockHeight = succ $ bhHeight bh
     , blockTime   = let Height h = bhHeight bh
                     in Time (fromIntegral h * 1000)
     , prevBlock   = Just bid
     , blockData   = UTXOBlock
-      { ubData   = merkled $ coinbase : txs
+      { ubData   = createMerkleTreeNE1 $ coinbase :| txs
       , ubNonce  = ""
       , ubTarget = Target $ 2^(256::Int) - 1
       }

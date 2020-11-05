@@ -3,13 +3,8 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-{-# LANGUAGE DerivingVia          #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DataKinds, ScopedTypeVariables, TypeApplications #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, RecordWildCards, StandaloneDeriving #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE TypeFamilies         #-}
 -- Servant orphans
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Pow.App(
@@ -30,6 +25,7 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Cont
 
 import Data.Maybe
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Yaml.Config (loadYamlSettings, requireEnv)
 import GHC.Generics
 
@@ -48,9 +44,8 @@ import HSChain.Control.Class
 import HSChain.Crypto.Classes
 import HSChain.Store.Query
 import HSChain.Logger
-import HSChain.Types.Merkle.Types
+import HSChain.Types.Merkle.Tree
 import HSChain.Network.TCP
-import HSChain.Logger
 import HSChain.PoW.API
 import qualified HSChain.Control.Channels as HControl
 import qualified HSChain.Control.Class    as HControl
@@ -107,16 +102,20 @@ runApp = do
       runNode genesis config runnode'nodeSecret
 
 genesis :: POW.Block (UTXOBlock TestNet)
-genesis = POW.GBlock
+genesis = POW.Block
   { blockHeight = POW.Height 0
   , blockTime   = POW.Time   0
   , prevBlock   = Nothing
   , blockData   = UTXOBlock
     { ubNonce  = ""
-    , ubData   = merkled []
+    , ubData   = createMerkleTreeNE1 $ coinbase :| []
     , ubTarget = POW.Target $ 2^(256::Int) - 1
     }
   }
+  where
+    coinbase = Tx { tx'inputs  = mempty
+                  , tx'outputs = mempty
+                  }
 
 
 -------------------------------------------------------------------------------

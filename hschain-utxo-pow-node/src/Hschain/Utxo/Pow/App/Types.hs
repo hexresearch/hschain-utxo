@@ -3,12 +3,8 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveAnyClass, DerivingVia, DerivingStrategies #-}
-{-# LANGUAGE FlexibleContexts                                #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, TypeApplications    #-}
-{-# LANGUAGE MultiWayIf, ScopedTypeVariables, TypeOperators  #-}
-{-# LANGUAGE UndecidableInstances                            #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE TypeFamilies         #-}
 -- SQL-related orphans
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Pow.App.Types
@@ -30,10 +26,8 @@ module Hschain.Utxo.Pow.App.Types
   ) where
 
 import Hex.Common.Aeson
-import Hex.Common.Lens
 
 import Codec.Serialise
-
 import Control.Arrow ((&&&))
 import Control.Lens
 import Control.Monad
@@ -47,8 +41,9 @@ import Data.Coerce
 import Data.ByteString         (ByteString)
 import Data.ByteString.Builder (toLazyByteString,Builder)
 import Data.Functor.Classes    (Show1)
+import Data.Foldable
 import Data.Typeable           (Typeable)
-import Data.List               (foldl')
+import Data.List.NonEmpty      (NonEmpty(..))
 import Data.Maybe
 import qualified Data.Aeson           as JSON
 import qualified Data.ByteString.Lazy as LBS
@@ -73,6 +68,7 @@ import qualified HSChain.PoW.Types      as POW
 import HSChain.Types.Merkle.Types
 import HSChain.Crypto hiding (PublicKey)
 import HSChain.Store.Query
+import HSChain.Types.Merkle.Tree
 
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -94,7 +90,7 @@ import Hschain.Utxo.Lang.Core.Types
 --   A block proper. It does not contain nonce to solve PoW puzzle but
 --   it contains all information about block.
 data UTXOBlock t f = UTXOBlock
-  { ubData   :: !(MerkleNode f SHA256 [Tx])
+  { ubData   :: !(MerkleBinTree1 SHA256 f Tx)
   , ubTarget :: !POW.Target
   , ubNonce  :: !ByteString
   }
@@ -112,21 +108,21 @@ deriving stock instance (IsMerkle f) => Eq   (UTXOBlock t f)
 instance Serialise (UTXOBlock t Identity)
 instance Serialise (UTXOBlock t Proxy)
 
-instance IsMerkle f => JSON.FromJSON (UTXOBlock t f) where
-  parseJSON = JSON.withObject "UtxoBlock" $ \bp ->
-    UTXOBlock
-      <$> (bp JSON..: "data")
-      <*> (POW.Target <$> bp JSON..: "target")
-      <*> ((\(ViaBase58 s :: ViaBase58 "UTXOBlock" ByteString) -> s) <$> (bp JSON..: "nonce"))
-instance IsMerkle f => JSON.ToJSON (UTXOBlock t f) where
-  toJSON (UTXOBlock d (POW.Target t) b) =
-    JSON.object
-      [ "data"   JSON..= d
-      , "target" JSON..= t
-      , "nonce"  JSON..= ViaBase58 b
-      ]
+-- instance IsMerkle f => JSON.FromJSON (UTXOBlock t f) where
+--   parseJSON = JSON.withObject "UtxoBlock" $ \bp ->
+--     UTXOBlock
+--       <$> (bp JSON..: "data")
+--       <*> (POW.Target <$> bp JSON..: "target")
+--       <*> ((\(ViaBase58 s :: ViaBase58 "UTXOBlock" ByteString) -> s) <$> (bp JSON..: "nonce"))
+-- instance IsMerkle f => JSON.ToJSON (UTXOBlock t f) where
+--   toJSON (UTXOBlock d (POW.Target t) b) =
+--     JSON.object
+--       [ "data"   JSON..= d
+--       , "target" JSON..= t
+--       , "nonce"  JSON..= ViaBase58 b
+--       ]
 
-ubDataL :: Lens (UTXOBlock t f) (UTXOBlock t g) (MerkleNode f SHA256 [Tx]) (MerkleNode g SHA256 [Tx])
+ubDataL :: Lens (UTXOBlock t f) (UTXOBlock t g) (MerkleBinTree1 SHA256 f Tx) (MerkleBinTree1 SHA256 g Tx)
 ubDataL = lens ubData (\b x -> b { ubData = x })
 
 ubTargetL :: Lens' (UTXOBlock t f) POW.Target
@@ -135,12 +131,23 @@ ubTargetL = lens ubTarget (\b x -> b { ubTarget = x })
 ubNonceL :: Lens' (UTXOBlock t f) ByteString
 ubNonceL = lens ubNonce (\b x -> b { ubNonce = x })
 
-$(makeLensesWithL ''POW.GBlock)
 
 
 ----------------------------------------------------------------
 -- BlockData instance
 ----------------------------------------------------------------
+
+data UtxoException
+  = WrongAnswer
+  | WrongTarget
+  | AheadOfTime
+  | BadCoinbase String
+  | BadTx String
+  | EmptyBlock
+  | InternalErr String
+  deriving stock    (Show,Generic)
+  deriving anyclass (Exception,JSON.ToJSON)
+
 
 instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
   --
@@ -156,20 +163,11 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
                      , JSON.ToJSON, JSON.FromJSON)
     deriving (SQL.FromField, SQL.ToField) via ByteRepred (Crypto.Hash SHA256)
 
-  data BlockException (UTXOBlock t)
-    = WrongAnswer
-    | WrongTarget
-    | AheadOfTime
-    | BadCoinbase String
-    | BadTx String
-    | EmptyBlock
-    | InternalErr String
-    deriving stock    (Show,Generic)
-    deriving anyclass (Exception,JSON.ToJSON)
+  type BlockException (UTXOBlock t) = UtxoException
 
   txID    = UTXOTxID . hash
   blockID = computeBlockID
-  blockTransactions = merkleValue . ubData . POW.blockData
+  blockTransactions = toList . ubData . POW.blockData
 
   validateHeader bh (POW.Time now) header
     | POW.blockHeight header == 0 = return $ Right () -- skip genesis check.
@@ -209,7 +207,7 @@ computeBlockID b
 
 -- | Builder without which doesn't include nonce
 blockIdBuilder :: POW.GBlock (UTXOBlock t) f -> Builder
-blockIdBuilder (POW.GBlock{blockData = UTXOBlock{..}, ..})
+blockIdBuilder (POW.Block{blockData = UTXOBlock{..}, ..})
   = hashStep (Crypto.UserType "utxo" "Block")
  <> hashStep blockHeight
  <> hashStep blockTime
@@ -234,10 +232,10 @@ checkPuzzle b = POW.check bs nonce h powCfg
     Hash h = hashBlob @SHA256 $ nonce <> bs
 
 instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
-  adjustPuzzle b0@POW.GBlock{..} = do
+  adjustPuzzle b0@POW.Block{..} = do
     (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
     return ( do answer <- maybeAnswer
-                pure $ b0 & blockDataL . ubNonceL .~ answer
+                pure $ b0 & POW.blockDataL . ubNonceL .~ answer
            , POW.hash256AsTarget hashR
            )
     where
@@ -320,7 +318,7 @@ makeStateView bIdx0 overlay = sview where
 
 -- | Validate and apply block to current state view. Returns Left on failed validation
 applyUtxoBlock
-  :: (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
+  :: forall m t. (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
   => StateOverlay t
   -> POW.BlockIndex (UTXOBlock t)
   -> POW.BH (UTXOBlock t)
@@ -335,7 +333,7 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   --
   -- FIXME: We're doing nothing here so far
   () <- except
-      $ mapM_ POW.validateTxContextFree txList
+      $ mapM_ (POW.validateTxContextFree @(UTXOBlock t)) txList
   -- Now we need to fully verify each transaction and build new
   -- overlay for database
   overlay' <- hoist mustQueryRW $ do
@@ -370,7 +368,7 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   where
     env      = Env $ fromIntegral h where POW.Height h = POW.blockHeight b
     bh0      = overlayTip overlay
-    txList   = merkleValue $ ubData $ POW.blockData b
+    txList   = toList $ ubData $ POW.blockData b
     overlay0 = addOverlayLayer overlay
 
 
@@ -421,12 +419,10 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
                         }
                     , tx'outputs = V.fromList [coinbaseBox]
                     }
-      blockTxs = coinbase : fmap snd txList
   -- Create block!
-
   return UTXOBlock
     { ubNonce  = ""
-    , ubData   = merkled blockTxs
+    , ubData   = createMerkleTreeNE1 $ coinbase :| fmap snd txList
     , ubTarget = POW.retarget bh
     }
   where
@@ -766,7 +762,7 @@ retrieveUTXOBlock bid
     (Only bid)
 
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m, UtxoPOWCongig t) => POW.Block (UTXOBlock t) -> m ()
-storeUTXOBlock b@POW.GBlock{POW.blockData=blk, ..} = mustQueryRW $ do
+storeUTXOBlock b@POW.Block{POW.blockData=blk, ..} = mustQueryRW $ do
   let bid = POW.blockID b
   basicExecute
     "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -786,17 +782,17 @@ utxoBlockDecoder = do
   blockTime   <- field
   prevBlock   <- field
   blockData   <- fieldCBOR
-  pure POW.GBlock {..}
+  pure POW.Block {..}
 
 utxoBlockHeaderDecoder :: SQL.RowParser (POW.Header (UTXOBlock t))
 utxoBlockHeaderDecoder = do
   blockHeight <- field
   blockTime   <- field
   prevBlock   <- field
-  ubData      <- fromHashed <$> fieldByteRepr
+  ubData      <- nodeFromHash <$> fieldByteRepr
   ubTarget    <- fieldCBOR
   ubNonce     <- field
-  return POW.GBlock{ blockData = UTXOBlock{..}, .. }
+  return POW.Block{ blockData = UTXOBlock{..}, .. }
 
 
 ----------------------------------------------------------------
