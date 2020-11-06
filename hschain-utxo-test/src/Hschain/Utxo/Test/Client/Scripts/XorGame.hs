@@ -10,12 +10,10 @@ import Data.ByteString (ByteString)
 import Data.Int
 import Data.Maybe
 import Data.String
-import Data.Text (Text)
 
 import System.Random
 
 import HSChain.Crypto (ByteRepr(..))
-import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 

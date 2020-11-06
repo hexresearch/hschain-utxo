@@ -32,6 +32,7 @@ immortalProc' label proc = Immortal.createWithLabel label $ const $ Immortal.onF
     echoExit x = case x of
       Left se -> case fromException se of
         Just ThreadKilled -> return ()
+        _                 -> return ()
       e ->  liftIO $ do
         putStrLn $ mconcat ["Process ", label, " exits with:"]
         print e
