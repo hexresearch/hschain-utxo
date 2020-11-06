@@ -25,9 +25,10 @@ import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
 
 import qualified Data.Vector as V
 
-import HSChain.Crypto.Classes (encodeBase58)
+import HSChain.Crypto.Classes (encodeToBS, encodeBase58)
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
+import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 import qualified Language.HM as H
 import qualified Language.HM.Pretty as H
@@ -116,11 +117,15 @@ instance Pretty PostBox where
 
 instance Pretty a => Pretty (BoxInputRef a) where
   pretty BoxInputRef{..} = prettyRecord "BoxInputRef"
-    [ ("id",    pretty boxInputRef'id)
-    , ("args",  prettyArgs boxInputRef'args)
-    , ("proof", pretty boxInputRef'proof)
+    [ ("id",      pretty boxInputRef'id)
+    , ("args",    prettyArgs boxInputRef'args)
+    , ("proof",   pretty boxInputRef'proof)
     , ("sigMask", pretty boxInputRef'sigMask)
+    , ("sigs",    pretty $ V.toList boxInputRef'sigs)
     ]
+
+instance Pretty Crypto.Signature where
+  pretty sig = pretty $ encodeBase58 $ encodeToBS sig
 
 instance Pretty SigMask where
   pretty SigAll = "SigAll"

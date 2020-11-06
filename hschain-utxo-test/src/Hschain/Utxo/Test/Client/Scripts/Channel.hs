@@ -33,7 +33,7 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Chan (BlockChan)
 
 import Hschain.Utxo.Test.Client.Monad hiding (getHeight)
-import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, postTxDebug, changeBox, simpleSpendTo, spendCommonBoxTx)
+import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, simpleSpendTo, spendCommonBoxTx)
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Utils.ByteString
@@ -309,7 +309,7 @@ signOffChainTx (Player me) (Player other) preTx = liftIO $ do
       myKeys = [myPk]
       otherKeys = [otherPk]
       commonScript = playerEnv'commonScript myEnv
-      message = getSigMessageTx SigAll preTx
+      message = getSigMessage SigAll preTx
       myProofEnv = getProofEnv $ playerEnv'wallet myEnv
       otherProofEnv = getProofEnv $ playerEnv'wallet otherEnv
   proof <- fmap eitherToMaybe $ runProve $ do
@@ -455,7 +455,7 @@ getRevoceTx wallet RevoceBox{..} =
 
     preTx = Tx
       { tx'inputs  = [inputRef]
-      , tx'outputs = [changeBox revoceBox'value pubKey ]
+      , tx'outputs = [singleSpendBox revoceBox'value pubKey ]
       }
 
     inputRef = BoxInputRef

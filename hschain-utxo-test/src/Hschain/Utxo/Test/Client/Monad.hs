@@ -26,6 +26,7 @@ module Hschain.Utxo.Test.Client.Monad(
   , getBlockTChan
   , findTx
   , txIsValid
+  , randomBS
 ) where
 
 import Hex.Common.Text
@@ -38,8 +39,8 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 
+import Data.ByteString (ByteString)
 import Data.Int
-import Data.Either
 import Data.Time
 import Data.Sequence (Seq)
 import Data.Text (Text)
@@ -55,12 +56,17 @@ import Hschain.Utxo.State.React (react)
 import Hschain.Utxo.Back.Config
 import Hschain.Utxo.Test.Client.Chan (BlockChan, getBlockTChan, findTx)
 
+import System.Random
+
 import qualified Hschain.Utxo.API.Client as C
 
 import qualified Hschain.Utxo.Test.Client.Chan as C
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+
+import qualified Data.ByteString as B
+
 
 data Test = Test
   { test'name  :: !Text
@@ -222,5 +228,12 @@ initGenesis secret = ([tx], masterBoxId)
 
 -- | Checks that TX is valid on current blockchain state without commiting it.
 txIsValid :: Tx -> App Bool
-txIsValid tx = fmap (isRight . react tx) getState
+txIsValid tx = (either onErr (const $ pure True) . react tx) =<< getState
+  where
+    onErr txt = do
+      logTest $ mappend "TX is invalid: " txt
+      return False
 
+
+randomBS :: Int -> IO ByteString
+randomBS size = fmap B.pack $ mapM (const randomIO) [1 .. size]
