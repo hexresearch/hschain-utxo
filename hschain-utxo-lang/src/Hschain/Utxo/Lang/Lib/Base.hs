@@ -244,7 +244,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType "sigmaAnd" (monoT $ sigmaT ~> sigmaT ~> sigmaT)
   , assumpType "sigmaOr" (monoT $ sigmaT ~> sigmaT ~> sigmaT)
-  , assumpType "pk" (monoT $ textT ~> sigmaT)
+  , assumpType "pk" (monoT $ bytesT ~> sigmaT)
   , assumpType "toSigma" (monoT $ boolT ~> sigmaT)
   , assumpType "+" (monoT $ intT ~> intT ~> intT)
   , assumpType "-" (monoT $ intT ~> intT ~> intT)

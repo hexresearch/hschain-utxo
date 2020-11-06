@@ -6,6 +6,7 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Tx(
   , closeChanTx
 ) where
 
+import HSChain.Crypto (ByteRepr(..))
 
 import Control.Monad.IO.Class
 
@@ -35,7 +36,7 @@ fundingTx wallet (value, change) inputIds otherPubKey = newProofTx  (getProofEnv
       , box'args   = mempty
       }
       where
-        keys = fmap (text . publicKeyToText) [ownerPubKey, otherPubKey]
+        keys = fmap (bytes . encodeToBS) [ownerPubKey, otherPubKey]
         indices = fmap int [0, 1]
 
     changeBox

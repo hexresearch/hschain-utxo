@@ -30,7 +30,7 @@ initTx = do
       { tx'inputs  = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
       , tx'outputs = return $ Box
           { box'value  = 1
-          , box'script = mainScriptUnsafe $ pk $ bytes $ encodeToBS pubKey
+          , box'script = mainScriptUnsafe $ pk' pubKey
           , box'args   = mempty
           }
       }

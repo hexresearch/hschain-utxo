@@ -320,10 +320,10 @@ instance OrdB (Expr ByteString) where
 -------------------------
 -- btc-like signatures
 
-checkSig :: Expr Text -> Expr Int -> Expr Bool
+checkSig :: Expr ByteString -> Expr Int -> Expr Bool
 checkSig (Expr a) (Expr b) = Expr $ Fix $ CheckSig noLoc a b
 
-checkMultiSig :: Expr Int -> Expr (Vector Text) -> Expr (Vector Int) -> Expr Bool
+checkMultiSig :: Expr Int -> Expr (Vector ByteString) -> Expr (Vector Int) -> Expr Bool
 checkMultiSig (Expr a) (Expr b) (Expr c) = Expr $ Fix $ CheckMultiSig noLoc a b c
 
 --------------------------
