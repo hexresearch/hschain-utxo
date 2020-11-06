@@ -9,12 +9,8 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Network(
   , waitForChanToOpen
   , closeChan
   , send
-  , User(..)
-  , Api(..)
-  , TestRoute(..)
   , initTestRoute
-  , initRoute
-  , initTimeLimits
+  , TestRoute
 ) where
 
 import Hex.Common.Delay

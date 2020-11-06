@@ -79,9 +79,9 @@ data ChanSt
   | ChanAccepted
     { chanSt'fundTx      :: Tx
     , chanSt'partnerKey  :: PublicKey
+    , chanSt'revoke      :: ByteString
     , chanSt'partnerHash :: ByteString
     , chanSt'spec        :: ChanSpec
-    , chanSt'revoke      :: ByteString
     }
   | ChanSigned
     { chanSt'spec        :: ChanSpec
@@ -114,6 +114,7 @@ data HtlcLink = HtlcLink
   }
   deriving (Show, Eq)
 
+-- | Reference to previous hop in the route.
 data BackHop = BackHop
   { backHop'chanId   :: ChanId
   , backHop'htlcId   :: HtlcId
@@ -444,11 +445,6 @@ react msg@Msg{..} env =
       where
         comTx = commitmentTx myPk commonBoxId balance otherPk spendDelay revokeHash htlcs
 
--- commitmentTx :: PublicKey -> BoxId -> Balance -> PublicKey -> Int64 -> ByteString -> [Htlc] -> Tx
--- commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHash htlcs =
-
-
-
 errWrongChanState :: App a
 errWrongChanState = testCase txt False >> throwError txt
   where
@@ -525,3 +521,4 @@ showUser User{..} = do
   logTest . fromString . ppShow . toPrint =<< liftIO (readTVarIO user'env)
   where
     toPrint UserEnv{..} = (userEnv'funds, userEnv'chans, userEnv'secrets)
+
