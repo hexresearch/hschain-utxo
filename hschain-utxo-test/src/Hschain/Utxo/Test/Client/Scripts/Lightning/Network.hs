@@ -10,8 +10,8 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Network(
   , closeChan
   , send
   , User(..)
-  , Link(..)
   , Api(..)
+  , TestRoute(..)
   , initTestRoute
   , initRoute
   , initTimeLimits
@@ -30,29 +30,21 @@ import Data.ByteString (ByteString)
 import Data.Int
 import Data.Map.Strict (Map)
 import Data.Maybe
-import Data.Text (Text)
-import Data.Tuple (swap)
 import Data.Time
-
-import HSChain.Crypto.Classes (ByteRepr(..))
+import Safe (headMay)
 
 import Hschain.Utxo.Lang.Utils.ByteString (getSha256)
-import Hschain.Utxo.Test.Client.Wallet (Wallet, getWalletPublicKey, getWalletPrivateKey)
+import Hschain.Utxo.Test.Client.Wallet (Wallet, getWalletPublicKey)
 import Hschain.Utxo.Lang hiding (Env)
-import Hschain.Utxo.Test.Client.Monad (App, randomBS, txIsValid, testCase, getBoxBalance, getHeight)
+import Hschain.Utxo.Test.Client.Monad (App, randomBS, getBoxBalance, getHeight)
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol
-import Hschain.Utxo.Test.Client.Scripts.Lightning.Tx
 import Hschain.Utxo.Test.Client.Scripts.Lightning.User
-import Hschain.Utxo.Test.Client.Scripts.Utils(postTxSuccess)
 
 import Text.Show.Pretty
 
 import qualified Data.ByteString.Char8 as C
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
-import qualified Data.Vector as V
-
-import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 -- Network state
 data Env = Env
@@ -60,14 +52,6 @@ data Env = Env
   , env'users :: [UserId]
   }
   deriving (Show, Eq)
-
--- | Channel internal state
-data ChanSt = ChanSt
-  { chanSt'spec             :: ChanSpec
-  , chanSt'balance          :: (Money, Money)
-  , chanSt'partnerPublicKey :: PublicKey
-  , chanSt'commonBoxId      :: BoxId
-  }
 
 emptyEnv :: Env
 emptyEnv = Env [] []
@@ -174,22 +158,15 @@ waitForChanToOpen maxTime chanId a b = liftIO $ do
   (resA, resB) <- join $ waitBoth <$> (async $ checkIsOpen 0.2 a) <*> (async $ checkIsOpen 0.2 b)
   return $ resA && resB
   where
-    checkIsOpen dt user = check 0
+    checkIsOpen dt user = go 0
       where
-        check time = do
+        go time = do
           env <- readTVarIO $ user'env user
           case lookupChan chanId env of
             Just ChanActive{..} -> (putStrLn $ "time to open chan: " <> show time) >> return True
             _                   ->  if time > maxTime
                                       then return False
-                                      else sleep dt >> check (time + dt)
-
-unexpectedMsg :: MonadIO io => Act -> io a
-unexpectedMsg act = liftIO $ do
-  putStrLn "Unexpected message received:"
-  pPrint act
-  return $ error "Failed"
-
+                                      else sleep dt >> go (time + dt)
 
 initChanId :: MonadIO io => io ChanId
 initChanId = liftIO $ fmap ChanId $ randomBS 16
@@ -202,62 +179,48 @@ closeChan chanId alice bob =
     , msg'act  = ShutdownChan chanId
     }
 
-type TestRoute = [Link]      -- ^ route augmented with info on participants and secrets
-
-data Link = Link
-  { link'from    :: (User, PayInfo)
-  , link'to      :: (User, PayInfo)
-  , link'hop     :: Hop
-  }
-
-data PayInfo = PayInfo
-  { payInfo'hash    :: Maybe ByteString
-  -- ^ some of the users know only payHash
-  , payInfo'secret  :: Maybe ByteString
-  -- ^ some users know both. Secret propagates along the route backwards during the process of exchange
+-- | Route augmented with info on participants and secrets
+data TestRoute = TestRoute
+  { testRoute'hops    :: Route
+  , testRoute'secret  :: ByteString
   }
 
 -- | We assume that route is already defined and it has at least two hops.
 -- In real system sender creates the route from network information.
-send :: TestRoute -> App ()
-send = mapConcurrently_ hopProc
-  where
-    hopProc Link{..} = do
-      return ()
+--
+-- Alice sends money to bob over route. Bob creates secret and shares revoke hash with alice.
+send :: User -> User -> TestRoute -> App ()
+send alice bob TestRoute{..} = do
+  saveSecret testRoute'secret bob
+  forM_ (headMay testRoute'hops) $ \nextHop -> do
+    nextUser <- getChanPartner (hop'chanId nextHop) =<< liftIO (readTVarIO $ user'env alice)
+    htlcId <- allocHtlc nextHop alice
+    liftIO $ api'send (user'api alice) Msg
+      { msg'from = user'id alice
+      , msg'to   = nextUser
+      , msg'act  = UpdateAddHtlc (hop'chanId nextHop) htlcId testRoute'hops
+      }
 
-writeNet :: MonadIO io => User -> User -> Act -> io ()
-writeNet from to act = liftIO $ api'send (user'api from) Msg
-  { msg'from = user'id from
-  , msg'to   = user'id to
-  , msg'act  = act
-  }
+saveSecret :: ByteString -> User -> App ()
+saveSecret secret user = modifyUserEnv user $ \env ->
+    env { userEnv'secrets = M.insert (getSha256 secret) secret $ userEnv'secrets env }
 
-readNet :: MonadIO io => User -> User -> io Act
-readNet to from = liftIO $ do
-  msg <- api'read (user'api to)
-  if msg'from msg == user'id from
-    then return $ msg'act msg
-    else readNet to from
-
-initTestRoute :: Money -> [(ChanId, User, User)] -> App TestRoute
+initTestRoute :: Money -> [ChanId] -> App TestRoute
 initTestRoute value chanUsers = do
   secret <- liftIO $ randomBS 16
-  initRoute secret value chanUsers
+  fmap (\route -> TestRoute route secret) $ initRoute secret value chanUsers
 
-initRoute :: ByteString -> Money -> [(ChanId, User, User)] -> App [Link]
+initRoute :: ByteString -> Money -> [ChanId] -> App Route
 initRoute secret value chanUsers =
-  fmap (zipWith (\((ch, from, to), (fromSecret, toSecret)) (index, time) -> Link (from, fromSecret) (to, toSecret) (Hop ch (Htlc value 0 time payHash) index)) (zip chanUsers secrets)) $ initTimeLimits
+  fmap (zipWith (\ch (index, time) -> Hop ch (Htlc value 0 time payHash) index) chanUsers) $ initTimeLimits (length chanUsers)
   where
     payHash = getSha256 secret
 
-    secrets = [(firstUser, middleUser)] ++ replicate (length chanUsers - 2) (middleUser, middleUser) ++ [(middleUser, lastUser)]
-
-    firstUser  = PayInfo (Just payHash) Nothing
-    middleUser = PayInfo Nothing Nothing
-    lastUser   = PayInfo (Just payHash) (Just secret)
-
-initTimeLimits :: App [(Int64, Int64)]
-initTimeLimits = do
+initTimeLimits :: Int -> App [(Int64, Int64)]
+initTimeLimits size = do
   curHeight <- getHeight
-  return $ reverse $ fmap (\n -> (n - 1, n * 20 + curHeight)) [1, 2 ..]
+  return $ reverse $ fmap (\n -> (n - 1, n * 20 + curHeight)) $ take size [1, 2 ..]
+
+modifyUserEnv :: User -> (UserEnv -> UserEnv) -> App ()
+modifyUserEnv User{..} f = liftIO $ atomically $ modifyTVar' user'env f
 
