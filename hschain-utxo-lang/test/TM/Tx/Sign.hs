@@ -53,7 +53,7 @@ testByteReprSignature = do
 
 
 pkExpr :: PublicKey -> ExprCore
-pkExpr = text . publicKeyToText
+pkExpr = bytes . encodeToBS
 
 testCheckSig :: IO Bool
 testCheckSig = do
@@ -71,7 +71,7 @@ testCheckMultiSig sigCount = do
   let pubKeys = fmap getPublicKey privKeys
   -- all signatures but first dropCount keys are present, and we duplicate first signature as fill in
   env <- inputEnv (dupFirst $ dropPrivs privKeys) testMsg
-  let script = checkMultiSig (int 2) (listExpr TextT $ fmap pkExpr pubKeys) (listExpr IntT $ fmap int [0, 1, 2])
+  let script = checkMultiSig (int 2) (listExpr BytesT $ fmap pkExpr pubKeys) (listExpr IntT $ fmap int [0, 1, 2])
   return $ evalProg env script == EvalPrim (PrimBool True)
   where
     dropCount = 3 - sigCount

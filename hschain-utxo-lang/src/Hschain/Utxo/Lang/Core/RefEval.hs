@@ -26,7 +26,7 @@ import qualified Data.Map.Lazy   as MapL
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LB
 
-import HSChain.Crypto     (Hash(..),hashBlob)
+import HSChain.Crypto     (Hash(..),hashBlob,ByteRepr(..))
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -180,11 +180,12 @@ evalPrimOp env = \case
     xs <- match @[Val]        valXS
     Fix . SigmaOr <$> mapM (match . f) xs
   --
-  OpCheckSig -> lift2 $ \txt sigIndex ->
-    let msg = inputEnv'sigMsg env
-    in  liftA2 (\key sig -> Crypto.verify key sig msg) (parsePublicKey txt) (readSig env sigIndex)
-  OpCheckMultiSig -> lift3 $ \(total :: Int64) keyTexts sigIndices -> do
-      keys <- mapM parsePublicKey keyTexts
+  OpCheckSig -> lift2 $ \bs sigIndex -> do
+    pk  <- parsePublicKey bs
+    sig <- readSig env sigIndex
+    pure $ Crypto.verify pk sig (inputEnv'sigMsg env)
+  OpCheckMultiSig -> lift3 $ \(total :: Int64) keysBS sigIndices -> do
+      keys <- mapM parsePublicKey keysBS
       sigs <- mapM (readSig env) sigIndices
       let sigCount = sum $ zipWith (\key sig -> bool 0 1 (Crypto.verify key sig msg)) keys sigs
           msg = inputEnv'sigMsg env
@@ -317,8 +318,8 @@ opComparison (#) = lift2 go
     go  _             _            = ValBottom TypeMismatch
 
 
-parsePublicKey :: Text -> Either EvalErr PublicKey
-parsePublicKey txt = maybeToEither err $ publicKeyFromText txt
+parsePublicKey :: ByteString -> Either EvalErr PublicKey
+parsePublicKey = maybeToEither err . decodeFromBS
   where
     err = EvalErr "Can't parse public key"
 

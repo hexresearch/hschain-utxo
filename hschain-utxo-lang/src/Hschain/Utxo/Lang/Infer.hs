@@ -262,7 +262,7 @@ defaultContext = H.Context $ M.fromList $
   -- if
   , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
   -- pk
-  , (pkVar,     monoT $ textT `arr` sigmaT)
+  , (pkVar,     monoT $ bytesT `arr` sigmaT)
   -- operations
   --  unary
   , (notVar,    monoT $ boolT `arr` boolT)

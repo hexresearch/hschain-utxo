@@ -29,7 +29,7 @@ import Data.Maybe
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-
+import HSChain.Crypto (ByteRepr(..))
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Monad
@@ -141,14 +141,14 @@ toSendTx wallet Send{..} SendBack{..} =
     senderUtxo
       | sendBack'totalAmount > send'amount = Just $ Box
                 { box'value  = sendBack'totalAmount - send'amount
-                , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+                , box'script = mainScriptUnsafe $ pk $ bytes $ encodeToBS $ getWalletPublicKey wallet
                 , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
     receiverUtxo = Box
       { box'value  = send'amount
-      , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
+      , box'script = mainScriptUnsafe $ pk $ bytes $ encodeToBS $ getWalletPublicKey send'recepientWallet
       , box'args   = mempty
       }
 

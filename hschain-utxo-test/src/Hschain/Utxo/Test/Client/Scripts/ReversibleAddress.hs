@@ -4,7 +4,7 @@ module Hschain.Utxo.Test.Client.Scripts.ReversibleAddress(
 
 import Prelude hiding ((<*))
 
-import Data.Text (Text)
+import Data.ByteString (ByteString)
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
@@ -20,17 +20,17 @@ bobPubKeyId = int 0
 getBobDeadline :: Expr Box -> Expr Int
 getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineId
 
-getBobPubKey :: Expr Box -> Expr Text
-getBobPubKey box = listAt (getBoxTextArgList box) bobPubKeyId
+getBobPubKey :: Expr Box -> Expr ByteString
+getBobPubKey box = listAt (getBoxBytesArgList box) bobPubKeyId
 
-withdrawScript :: Expr Text -> Expr SigmaBool
+withdrawScript :: Expr ByteString -> Expr SigmaBool
 withdrawScript carol =
   "bob"         =: getBobPubKey getSelf    $ \bob         ->
   "bobDeadline" =: getBobDeadline getSelf  $ \bobDeadline ->
   (pk bob &&* toSigma (getHeight >* bobDeadline)) ||* (pk carol &&* (toSigma $ getHeight <=* bobDeadline))
 
 
-reversibleAddressScript :: Expr Int -> Expr Text -> Expr SigmaBool -> Expr Int -> Expr SigmaBool
+reversibleAddressScript :: Expr Int -> Expr ByteString -> Expr SigmaBool -> Expr Int -> Expr SigmaBool
 reversibleAddressScript blocksIn24h carol feeProposition maxFee =
   "isChange"   =: (lam "out" $ \out -> getBoxScript out ==* getBoxScript getSelf) $ \isChange ->
   "isWithdraw" =: (lam "out" $ \out ->
@@ -44,7 +44,7 @@ reversibleAddressScript blocksIn24h carol feeProposition maxFee =
                         app isChange out ||* app isWithdraw out ||* app isFee out
                       ) $ \isValid ->
   "totalFee"   =: (foldVec (lam2 "x" "b" $ \x b -> ifB (app isFee b) (x + getBoxValue b) x) 0 getOutputs) $ \totalFee ->
-  pk "alice" &&* (toSigma $ allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee))
+  pk (bytes "alice") &&* (toSigma $ allVec (mapVec isValid getOutputs) &&* (totalFee <* maxFee))
   where
     -- TODO: find the analog for this script
     toScriptBytes = undefined
