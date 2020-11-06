@@ -17,7 +17,7 @@ import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..))
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, funT, listT
-                              , arrowT, intT, boolT, textT, sigmaT
+                              , arrowT, intT, boolT, bytesT, sigmaT
                               , monoPrimopNameMap)
 
 import qualified Language.HM as H
@@ -169,7 +169,7 @@ annotateTypes =
 libTypeContext :: H.Context Loc Tag
 libTypeContext = (H.Context $ M.fromList
   [ (IfTag, forA $ funT [boolT, aT, aT] aT)
-  , (VarTag "pk", H.monoT $ funT [textT] sigmaT)
+  , (VarTag "pk", H.monoT $ funT [bytesT] sigmaT)
   , (VarTag "listAt", H.forAllT noLoc "a" $ H.monoT $ funT [listT (varT "a"), intT] (varT "a"))
   , (VarTag "length", H.forAllT noLoc "a" $ H.monoT $ funT [listT (varT "a")] intT)
   ])

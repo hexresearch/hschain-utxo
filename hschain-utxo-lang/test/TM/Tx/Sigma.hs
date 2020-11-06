@@ -6,7 +6,7 @@ module TM.Tx.Sigma(
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import HSChain.Crypto (hashBlob)
+import HSChain.Crypto (hashBlob,ByteRepr(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Types
@@ -30,7 +30,7 @@ initTx = do
       { tx'inputs  = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
       , tx'outputs = return $ Box
           { box'value  = 1
-          , box'script = mainScriptUnsafe $ pk $ text $ publicKeyToText pubKey
+          , box'script = mainScriptUnsafe $ pk $ bytes $ encodeToBS pubKey
           , box'args   = mempty
           }
       }
@@ -47,7 +47,7 @@ bobStealsTx aliceTx = do
   let bobPubKey = getPublicKey bobSecret
       -- robbery happens: we substitute ownership of all boxes to Bob's key
       stealScript box = box
-        { box'script = mainScriptUnsafe $ pk $ text $ publicKeyToText bobPubKey
+        { box'script = mainScriptUnsafe $ pk $ bytes $ encodeToBS bobPubKey
         }
   return $ aliceTx
     { tx'outputs = fmap stealScript $ tx'outputs aliceTx

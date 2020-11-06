@@ -195,7 +195,7 @@ primopToType = \case
   OpBoolXor -> pure $ BoolT :-> BoolT :-> BoolT
   OpBoolNot -> pure $ BoolT :-> BoolT
   --
-  OpSigPK        -> pure $ TextT  :-> SigmaT
+  OpSigPK        -> pure $ BytesT :-> SigmaT
   OpSigBool      -> pure $ BoolT  :-> SigmaT
   OpSigAnd       -> pure $ SigmaT :-> SigmaT :-> SigmaT
   OpSigOr        -> pure $ SigmaT :-> SigmaT :-> SigmaT
@@ -204,8 +204,8 @@ primopToType = \case
   OpSigListAll a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
   OpSigListAny a -> pure $ (a :-> SigmaT) :-> ListT a :-> SigmaT
   --
-  OpCheckSig      -> pure $ TextT :-> IntT :-> BoolT
-  OpCheckMultiSig -> pure $ IntT :-> ListT TextT :-> ListT IntT :-> BoolT
+  OpCheckSig      -> pure $ BytesT :-> IntT :-> BoolT
+  OpCheckMultiSig -> pure $ IntT :-> ListT BytesT :-> ListT IntT :-> BoolT
   --
   OpSHA256      -> pure $ BytesT :-> BytesT
   OpTextLength  -> pure $ TextT  :-> IntT
@@ -253,7 +253,7 @@ primopToType = \case
     tagToType = \case
       IntArg   -> IntT
       BoolArg  -> BoolT
-      TextArg  ->TextT
+      TextArg  -> TextT
       BytesArg -> BytesT
 
 compareType :: TypeCore -> Check TypeCore

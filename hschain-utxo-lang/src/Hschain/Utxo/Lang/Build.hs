@@ -59,11 +59,12 @@ import Data.Vector (Vector)
 import qualified Data.Text   as T
 import qualified Data.Vector as V
 
+import HSChain.Crypto (ByteRepr(..))
 import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
+import Hschain.Utxo.Lang.Sigma (PublicKey)
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 
@@ -172,9 +173,9 @@ instance Boolean (Expr SigmaBool) where
   (||*) = sigmaOr
 
 pk' :: PublicKey -> Expr SigmaBool
-pk' = pk . text . publicKeyToText
+pk' = pk . bytes . encodeToBS
 
-pk :: Expr Text -> Expr SigmaBool
+pk :: Expr ByteString -> Expr SigmaBool
 pk (Expr key) = Expr $ Fix $ SigmaE noLoc $ Pk noLoc key
 
 sigmaAnd :: Expr SigmaBool -> Expr SigmaBool -> Expr SigmaBool
