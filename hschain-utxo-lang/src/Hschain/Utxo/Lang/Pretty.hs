@@ -10,6 +10,7 @@ import Codec.Serialise (deserialiseOrFail)
 import Hex.Common.Serialise
 
 import Data.Bool
+import Data.Fix
 import Data.String
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -144,13 +145,18 @@ instance Pretty SigMessage where
 instance Pretty Env where
   pretty Env{..} = prettyRecord "Env" [("height", pretty env'height)]
 
--- TODO
 instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof
 
--- TODO
 instance Pretty (S.Sigma S.PublicKey) where
-  pretty = undefined -- (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
+  pretty = cata $ \case
+      S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
+      S.SigmaAnd as  -> parens $ hsep $ "sigmaAnd" : as
+      S.SigmaOr  as  -> parens $ hsep $ "sigmaOr"  : as
+      S.SigmaBool b  -> "Sigma" <> pretty b
+
+instance Pretty S.PublicKey where
+  pretty = pretty . encodeBase58
 
 op1 :: Doc ann -> Doc ann -> Doc ann
 op1 name a = hcat [name, parens a]
