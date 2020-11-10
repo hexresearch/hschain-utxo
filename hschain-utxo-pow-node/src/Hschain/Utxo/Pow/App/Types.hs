@@ -323,7 +323,7 @@ applyUtxoBlock
   -> POW.BlockIndex (UTXOBlock t)
   -> POW.BH (UTXOBlock t)
   -> POW.GBlock (UTXOBlock t) Identity
-  -> m (Either (POW.BlockException (UTXOBlock t)) (POW.StateView m (UTXOBlock t)))
+  -> m (Either UtxoException (POW.StateView m (UTXOBlock t)))
 applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   when (null txList) $ throwError EmptyBlock
   -- Consistency checks
@@ -433,7 +433,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
 -- | Create TxArg for coinbase transaction. It's treated differently
 --   so we couldn't use 'buildTxArg'
 coinbaseTxArg
-  :: (MonadError (POW.BlockException (UTXOBlock t)) m)
+  :: (MonadError UtxoException m)
   => Maybe (POW.BlockID (UTXOBlock t)) -> Env -> Tx -> m TxArg
 coinbaseTxArg Nothing    _   _  = throwError $ InternalErr "No previous block"
 coinbaseTxArg (Just bid) env tx@Tx{..}
@@ -468,7 +468,7 @@ coinbaseTxArg _ _ _ = throwError $ InternalErr "Invalid coinbase"
 --   leave part of value as reward for miners. So transactions do
 --   not preserve value while whole block should
 checkBalance
-  :: (MonadError (POW.BlockException (UTXOBlock t)) m)
+  :: (MonadError UtxoException m)
   => [TxArg] -> m ()
 -- FIXME: Overflows
 checkBalance []                = throwError $ InternalErr "Empty block"
@@ -491,9 +491,9 @@ sumTxOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'cont
 processTX
   :: ActiveOverlay t
   -> TxArg
-  -> ExceptT (POW.BlockException (UTXOBlock t)) (Query rw) (ActiveOverlay t)
+  -> ExceptT UtxoException (Query rw) (ActiveOverlay t)
 processTX overlay0 TxArg{..} = do
-  overlay1 <- foldM spendBox  overlay0 txArg'inputs
+  overlay1 <- foldM spendBox overlay0 txArg'inputs
   pure $ foldl' createBox overlay1 txArg'outputs
   where
     -- We must ensure that we won't spend same input twice
@@ -514,7 +514,7 @@ processTX overlay0 TxArg{..} = do
 -- | Context free TX validation for transactions. This function
 --   performs all checks that could be done having only transaction at
 --   hand.
-validateTransactionContextFree :: Tx -> Either (POW.BlockException (UTXOBlock t)) ()
+validateTransactionContextFree :: Tx -> Either UtxoException ()
 validateTransactionContextFree (Tx{}) = do
   return ()
 --  -- Inputs and outputs are not null
@@ -530,11 +530,11 @@ validateTransactionContextFree (Tx{}) = do
 --    $ Left $ CoinError "Invalid signature"
 
 
+-- | Lookup box in database using deltas for current state.
 getDatabaseBox
-  :: ()
-  => POW.BlockIndexPath (ID (POW.Block (UTXOBlock t)))
+  :: POW.BlockIndexPath (ID (POW.Block (UTXOBlock t)))
   -> BoxId
-  -> ExceptT (POW.BlockException (UTXOBlock t)) (Query rw) PostBox
+  -> ExceptT UtxoException (Query rw) PostBox
 -- Check whether output was created in the block
 getDatabaseBox (POW.ApplyBlock i path) boxId = do
   isSpentAtBlock i boxId >>= \case
