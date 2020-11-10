@@ -190,8 +190,8 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
   validateTxContextFree = validateTransactionContextFree
 
   blockWork b = POW.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
-                              $ POW.targetInteger $ ubTarget
-                              $ POW.blockData b
+                         $ POW.targetInteger $ ubTarget
+                         $ POW.blockData b
 
   blockTargetThreshold b = POW.Target $ POW.targetInteger $ ubTarget $ POW.blockData b
 
