@@ -268,7 +268,7 @@ initializeStateView
   -> q (POW.StateView m (UTXOBlock t))
 initializeStateView genesis bIdx = do
   retrieveCurrentStateBlock >>= \case
-    Just bid -> do let Just bh = {-Debug.trace ("looking up bid "++show bid) $ -}POW.lookupIdx bid bIdx
+    Just bid -> do let Just bh = POW.lookupIdx bid bIdx
                    return $ makeStateView bIdx (emptyOverlay bh)
     -- We need to initialize state table
     Nothing  -> do
