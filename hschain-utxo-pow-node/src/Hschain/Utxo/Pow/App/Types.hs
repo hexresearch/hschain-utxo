@@ -35,7 +35,6 @@ import Control.Monad.Catch hiding (Handler)
 import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Morph (hoist)
-import Control.Monad.Trans.Except (except)
 
 import Data.Coerce
 import Data.ByteString         (ByteString)
@@ -186,8 +185,7 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
     where
       POW.Time t = POW.blockTime header
 
-  validateBlock = const $ return $ Right ()
-
+  validateBlock         = pure . validateBlockContextFree
   validateTxContextFree = validateTransactionContextFree
 
   blockWork b = POW.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
@@ -329,11 +327,6 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   -- Consistency checks
   unless (POW.bhPrevious bh ==      Just bh0) $ throwError $ InternalErr "BH mismatich"
   unless (POW.bhBID bh      == POW.blockID b) $ throwError $ InternalErr "BH don't match block"
-  -- Perform context free validation of all transactions in block
-  --
-  -- FIXME: We're doing nothing here so far
-  () <- except
-      $ mapM_ (POW.validateTxContextFree @(UTXOBlock t)) txList
   -- Now we need to fully verify each transaction and build new
   -- overlay for database
   overlay' <- hoist mustQueryRW $ do
@@ -528,6 +521,11 @@ validateTransactionContextFree Tx{..} = do
          | boxId `Set.member` boxes = Left $ InternalErr "Duplicate input"
          | otherwise                = go (Set.insert boxId boxes) ins
        go _ [] = Right ()
+
+-- | Simply validate every TX in block
+validateBlockContextFree :: forall t. POW.Block (UTXOBlock t) -> Either UtxoException ()
+validateBlockContextFree POW.Block{..} = do
+  mapM_ validateTransactionContextFree $ ubData blockData
 
 
 
