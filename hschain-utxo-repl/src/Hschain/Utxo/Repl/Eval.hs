@@ -59,10 +59,7 @@ evalExpr lang = do
     let env = fromMaybe defaultInputEnv $ getInputEnv tx <$> txArg'inputs tx V.!? 0
     liftIO $ case evaluate env types expr of
       Right (res, debugTxt) -> do
-        case res of
-          EvalPrim p -> print p
-          EvalList p -> print p
-          EvalFail e -> print e
+        T.putStrLn $ renderText res
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
       Left err   -> T.putStrLn $ renderText err
 

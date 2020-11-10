@@ -22,6 +22,8 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
+import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
+import qualified Hschain.Utxo.Lang.Core.Types as Core
 
 import qualified Data.Vector as V
 
@@ -312,3 +314,22 @@ instance Pretty Hask.SrcLoc where
 
 instance H.HasPrefix Text where
   getFixity = const Nothing
+
+instance Pretty EvalResult where
+  pretty = \case
+    EvalPrim p   -> pretty p
+    EvalList ps  -> brackets $ hsep $ punctuate comma $ fmap pretty ps
+    EvalFail err -> pretty err
+
+instance Pretty Core.Prim where
+  pretty = \case
+    Core.PrimInt n      -> pretty n
+    Core.PrimText txt   -> dquotes $ pretty txt
+    Core.PrimBytes bs   -> pretty $ encodeBase58 bs
+    Core.PrimBool b     -> pretty b
+    Core.PrimSigma sig  -> pretty sig
+
+instance Pretty EvalErr where
+  pretty = \case
+    TypeMismatch    -> "Error: Type mismatch"
+    EvalErr msg     -> pretty msg
