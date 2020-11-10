@@ -49,6 +49,7 @@ import qualified Data.Aeson           as JSON
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text            as T
 import qualified Data.Map.Strict      as Map
+import qualified Data.Set             as Set
 import qualified Data.Vector          as V
 
 import qualified Database.SQLite.Simple           as SQL
@@ -515,19 +516,20 @@ processTX overlay0 TxArg{..} = do
 --   performs all checks that could be done having only transaction at
 --   hand.
 validateTransactionContextFree :: Tx -> Either UtxoException ()
-validateTransactionContextFree (Tx{}) = do
-  return ()
---  -- Inputs and outputs are not null
---  when (null txInputs)  $ Left $ CoinError "Empty input list"
---  when (null txOutputs) $ Left $ CoinError "Empty output list"
---  -- No duplicate inputs
---  when (nub txInputs /= txInputs) $ Left $ CoinError "Duplicate inputs"
---  -- Outputs are all positive
---  forM_ txOutputs $ \(Unspent _ n) ->
---    unless (n > 0) $ Left $ CoinError "Negative output"
---  -- Signature must be valid.
---  unless (verifySignatureHashed pubK txSend sig)
---    $ Left $ CoinError "Invalid signature"
+validateTransactionContextFree Tx{..} = do
+ -- Inputs and outputs are not null
+ when (null tx'inputs)  $ Left $ InternalErr "Empty input list"
+ when (null tx'outputs) $ Left $ InternalErr "Empty output list"
+ -- No duplicate inputs
+ checkDuplicates $ toList tx'inputs
+ where
+   checkDuplicates = go Set.empty
+     where
+       go boxes (BoxInputRef{boxInputRef'id = boxId} : ins)
+         | boxId `Set.member` boxes = Left $ InternalErr "Duplicate input"
+         | otherwise                = go (Set.insert boxId boxes) ins
+       go _ [] = Right ()
+
 
 
 -- | Lookup box in database using deltas for current state.
