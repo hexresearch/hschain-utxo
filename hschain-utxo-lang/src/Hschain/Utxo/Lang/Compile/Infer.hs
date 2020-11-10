@@ -23,6 +23,8 @@ import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, f
 import qualified Language.HM as H
 import qualified Data.Sequence as S
 
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
+
 
 -- | We need this type for type-inference algorithm
 data Tag
@@ -175,6 +177,7 @@ libTypeContext = (H.Context $ M.fromList
   ])
   <> genericCompareOps
   <> fromPrimOps
+  <> toTagContext baseLibTypeContext
   where
     aT = varT "a"
     forA = H.forAllT noLoc (VarTag "a") . H.monoT
@@ -189,3 +192,5 @@ libTypeContext = (H.Context $ M.fromList
       | (nm,op) <- M.toList monoPrimopNameMap
       , let Right ty = runCheck mempty $ primopToType op
       ]
+
+    toTagContext (H.Context m) = H.Context $ M.map (fmap VarTag) $ M.mapKeys VarTag m

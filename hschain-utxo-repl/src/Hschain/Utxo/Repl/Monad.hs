@@ -14,6 +14,7 @@ module Hschain.Utxo.Repl.Monad(
   , getUserTypes
   , checkType
   , hasType
+  , getClosureExpr
 ) where
 
 import Control.Monad.Except
@@ -31,6 +32,11 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Repl.Imports
+import Hschain.Utxo.Lang.Exec.Module (appendExecCtx)
+
+import Debug.Trace (trace)
+import Hschain.Utxo.Lang.Pretty
+import qualified Data.Text as T
 
 -- | Parse user input in the repl
 data ParseRes
@@ -77,6 +83,17 @@ runReplM tx (ReplM app) = evalStateT app defEnv
         , replEnv'txFile        = Nothing
         }
 
+getClosureExpr :: Lang -> Repl Lang
+getClosureExpr expr = do
+  closure <- fmap replEnv'closure get
+  ctx <- getExecCtx
+  return $ (\x -> trace (T.unpack $ renderText x) x) $ appendExecCtx ctx $ closure expr
+
+-- | Get context for execution. Bindings defined in local moduules and base library.
+getExecCtx :: Repl ExecCtx
+getExecCtx =
+  fmap (moduleCtx'exprs . imports'current . replEnv'imports) get
+
 -- | Get context for type inference.
 getInferCtx :: Repl InferCtx
 getInferCtx =
@@ -109,7 +126,7 @@ checkType :: Lang -> Repl (Either Error Type)
 checkType expr = do
   ctx <- getInferCtx
   closure <- fmap replEnv'closure get
-  return $ runInferM $ inferExpr ctx $ closure expr
+  return $ (\x -> trace (show x) x) $ runInferM $ inferExpr ctx $ closure expr
 
 -- | Check that expression has correct type
 hasType :: Lang -> Repl Bool

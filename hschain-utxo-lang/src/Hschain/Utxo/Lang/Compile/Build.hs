@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Compile.Build(
   , var
   , fun
   , prim
+  , primOp
 ) where
 
 import Data.Fix
@@ -11,8 +12,10 @@ import Data.Fix
 import Hschain.Utxo.Lang.Expr (Loc)
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
+import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
 
 import qualified Data.List as L
+import qualified Language.HM as H
 
 -- | Apply unary function to its argument
 ap1 :: Loc -> ExprLam a -> ExprLam a -> ExprLam a
@@ -37,4 +40,7 @@ var loc = Fix . EVar loc
 -- | Build a primitive value
 prim :: Loc -> Prim -> ExprLam a
 prim loc = Fix . EPrim loc . PrimLoc loc
+
+primOp :: Loc -> PrimOp (H.Type () Name) -> ExprLam a
+primOp loc = Fix . EPrimOp loc
 

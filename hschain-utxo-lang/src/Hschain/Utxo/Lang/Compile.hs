@@ -72,7 +72,10 @@ toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
 toCoreExpr = cataM convert
   where
     convert (Ann exprTy val) = case val of
-      EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
+      EVar loc name        ->
+        case Map.lookup name monoPrimopNameMap of
+          Just op  -> pure $ Core.EPrimOp op
+          Nothing  -> specifyPolyFun loc typeCtx exprTy name
       EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
       EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
       EAp _  f a           -> pure $ Core.EAp f a
@@ -87,7 +90,7 @@ toCoreExpr = cataM convert
                                  pure $ Core.EConstr (resultType ty) m
       EAssertType _ e _    -> pure e
       EBottom _            -> pure $ Core.EBottom
-    
+
     convertAlt CaseAlt{..} = return Core.CaseAlt
       { caseAlt'args = typed'value <$> caseAlt'args
       , ..

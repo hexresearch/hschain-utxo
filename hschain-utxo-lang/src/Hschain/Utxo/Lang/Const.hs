@@ -94,7 +94,7 @@ orSigma = "orSigma"
 -- text functions
 
 appendText :: Text
-appendText = "appendText"
+appendText = "<>"
 
 lengthText :: Text
 lengthText = "lengthText"

@@ -31,6 +31,7 @@ import qualified Hschain.Utxo.Lang.Core.Types as P
 import qualified Hschain.Utxo.Lang.Const as Const
 
 import qualified Language.HM as H
+import qualified Data.Text as T
 
 -- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
@@ -160,14 +161,21 @@ exprToExtendedLC typeCtx = cataM $ \case
         vs    = fmap (varT . mappend "a" . showt) [1 .. arity]
         tagId = 0
 
-    -- | TODO: how to handle tuple extractor and do we really need it
-    -- if we have pattern-matching and case expressions?
-    fromUnOp loc op a = pure $ ap1 loc (var loc $ fromOp op) a
+    fromUnOp loc op a = fromOp op
       where
         fromOp = \case
-          Not -> "not"
-          Neg -> "negate"
-          TupleAt _ _  -> error "TODO: tuple accessor"
+          Not -> unOp "not"
+          Neg -> unOp "negate"
+          TupleAt arity index -> pure $ Fix $ ECase loc a [CaseAlt loc 0 (tupleCaseArgs arity) (ty index) (Fix $ EVar loc $ tupleVar index)]
+
+        unOp name = pure $ ap1 loc (var loc name) a
+
+        tupleCaseArgs arity = fmap tyVar [0 .. arity-1]
+        tupleVar index = T.pack $ "v" <> show index
+        ty index = H.varT () (tupleVar index)
+
+        tyVar :: Int -> P.Typed (H.Type () Name) Name
+        tyVar index = P.Typed (tupleVar index) (ty index)
 
     -- | TODO: Maybe we should consider to use special type for primary operators
     -- instead of relying on string names

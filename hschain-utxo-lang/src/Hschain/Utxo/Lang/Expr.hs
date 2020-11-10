@@ -392,7 +392,7 @@ data E a
   | BoxE Loc (BoxExpr a)
   -- ^ Box-expression
   | CheckSig Loc a a
-  -- ^ check signature. Arguments are: public key as text and index of boxInput'sigs vector (of signatures)
+  -- ^ check signature. Arguments are: public key as byte string and index of boxInput'sigs vector (of signatures)
   | CheckMultiSig Loc a a a
   -- ^ check multi-signature M out of N. Arguments are: number of signatures o be valid, list of public keys as texts, list of indices to boxInput'sigs vector (of signatures)
   -- debug
@@ -773,7 +773,7 @@ instance Ord ConsName where
 freeVars :: Lang -> Set VarName
 freeVars = cata $ \case
   Var _ v         -> Set.singleton v
-  InfixApply _ a _ b -> a <> b
+  InfixApply _ a v b -> Set.singleton v <> a <> b
   Apply _ a b      -> a <> b
   Lam _ v a        -> a `Set.difference`  freeVarsPat v
   LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)

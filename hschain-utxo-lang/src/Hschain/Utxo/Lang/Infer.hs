@@ -284,6 +284,9 @@ defaultContext = H.Context $ M.fromList $
   , (sigmaOrVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (toSigmaVar, monoT $ boolT `arr` sigmaT)
+  -- signatures
+  , (checkSigVar, monoT $ bytesT `arr` (intT `arr` boolT))
+  , (checkMultiSigVar, monoT $ intT `arr` (listT bytesT `arr` (listT intT `arr` boolT)))
   -- vec expressions
   , (nilVecVar, forA $ monoT $ listT a)
   , (consVecVar, forA $ monoT $ a `arr` (listT a `arr` listT a))

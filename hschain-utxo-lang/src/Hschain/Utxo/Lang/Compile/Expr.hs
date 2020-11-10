@@ -84,6 +84,7 @@ data ExprLamF bind a
   | EPrim !Loc !PrimLoc
   -- ^ constant primitive
   | EPrimOp !Loc !(PrimOp (H.Type () Name))
+  -- ^ primitive operations
   | EAp !Loc a a
   -- ^ application
   | ELet !Loc [(bind, a)] a

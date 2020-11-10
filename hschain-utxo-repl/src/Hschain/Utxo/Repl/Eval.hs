@@ -33,11 +33,7 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
-
-getClosureExpr :: Lang -> Repl Lang
-getClosureExpr expr = do
-  closure <- fmap replEnv'closure get
-  return $ closure expr
+import Debug.Trace (trace)
 
 noTypeCheck :: Lang -> (Lang -> Repl ()) -> Repl ()
 noTypeCheck expr cont = cont expr
@@ -65,8 +61,8 @@ evalExpr lang = do
 
 evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
 evaluate env types expr = runExec $ do
-  core <- compile main
-  return $ evalProg env core
+  core <- fmap (trace ("CH:" <> T.unpack (renderText expr)) ) compile main
+  return $ evalProg env ((\x -> trace ("CORE: " <> show x) x) core)
   where
     main = Module
       { module'loc       = noLoc
