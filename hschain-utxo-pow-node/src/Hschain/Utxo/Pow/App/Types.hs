@@ -326,7 +326,6 @@ applyUtxoBlock
   -> POW.GBlock (UTXOBlock t) Identity
   -> m (Either UtxoException (POW.StateView m (UTXOBlock t)))
 applyUtxoBlock overlay bIdx bh b = runExceptT $ do
-  when (null txList) $ throwError EmptyBlock
   -- Consistency checks
   unless (POW.bhPrevious bh ==      Just bh0) $ throwError $ InternalErr "BH mismatich"
   unless (POW.bhBID bh      == POW.blockID b) $ throwError $ InternalErr "BH don't match block"
