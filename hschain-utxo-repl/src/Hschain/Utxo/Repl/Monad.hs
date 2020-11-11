@@ -1,9 +1,9 @@
 -- | REPL monad.
 module Hschain.Utxo.Repl.Monad(
     ReplEnv(..)
-  , ReplM(..)
-  , runReplM
-  , Repl
+  , Repl(..)
+  , runRepl
+  , ReplM
   , ParseRes(..)
   , CmdName
   , Arg
@@ -17,6 +17,7 @@ module Hschain.Utxo.Repl.Monad(
   , getClosureExpr
   , insertClosure
   , closureToExpr
+  , logError
 ) where
 
 import Control.Monad.Except
@@ -62,19 +63,18 @@ data ReplEnv = ReplEnv
   -- ^ Words for tab auto-completer
   , replEnv'txFile         :: Maybe FilePath
   -- ^ File with the transaction to execute script
+  , replEnv'errors         :: [Error]
   }
 
-
-
 -- | REPL monad.
-newtype ReplM a = ReplM { unReplM :: StateT ReplEnv IO a }
+newtype Repl a = Repl { unRepl :: StateT ReplEnv IO a }
   deriving (Functor, Applicative, Monad, MonadState ReplEnv, MonadIO, MonadException)
 
-type Repl a = HaskelineT ReplM a
+type ReplM a = HaskelineT Repl a
 
 -- | Run REPL monad
-runReplM :: TxArg -> ReplM a -> IO a
-runReplM tx (ReplM app) = evalStateT app defEnv
+runRepl :: TxArg -> Repl a -> IO a
+runRepl tx (Repl app) = evalStateT app defEnv
   where
     defEnv =
       ReplEnv
@@ -83,6 +83,7 @@ runReplM tx (ReplM app) = evalStateT app defEnv
         , replEnv'closure       = []
         , replEnv'words         = mempty
         , replEnv'txFile        = Nothing
+        , replEnv'errors        = []
         }
 
 getClosureExpr :: Lang -> Repl Lang
@@ -147,4 +148,8 @@ checkType expr = do
 -- | Check that expression has correct type
 hasType :: Lang -> Repl Bool
 hasType = fmap isRight . checkType
+
+logError :: Error -> Repl ()
+logError err = modify' $ \st -> st { replEnv'errors = err : replEnv'errors st }
+
 

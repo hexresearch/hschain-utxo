@@ -40,7 +40,9 @@ withTypeCheck expr cont = do
   eTy <- checkType expr
   case eTy of
     Right _  -> cont expr
-    Left err -> liftIO $ T.putStrLn $ renderText err
+    Left err -> do
+      logError err
+      liftIO $ T.putStrLn $ renderText err
 
 -- | Evaluate user expression
 evalExpr :: Lang -> Repl ()
@@ -50,11 +52,13 @@ evalExpr lang = do
     tx    <- fmap replEnv'tx get
     types <- getUserTypes
     let env = fromMaybe defaultInputEnv $ getInputEnv tx <$> txArg'inputs tx V.!? 0
-    liftIO $ case evaluate env types expr of
-      Right (res, debugTxt) -> do
+    case evaluate env types expr of
+      Right (res, debugTxt) -> liftIO $ do
         T.putStrLn $ renderText res
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
-      Left err   -> T.putStrLn $ renderText err
+      Left err   -> do
+        logError err
+        liftIO $ T.putStrLn $ renderText err
 
 evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
 evaluate env types expr = runExec $ do
