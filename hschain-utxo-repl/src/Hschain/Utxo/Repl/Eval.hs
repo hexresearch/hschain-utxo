@@ -32,8 +32,6 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
-import Debug.Trace (trace)
-
 noTypeCheck :: Lang -> (Lang -> Repl ()) -> Repl ()
 noTypeCheck expr cont = cont expr
 
@@ -60,8 +58,8 @@ evalExpr lang = do
 
 evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
 evaluate env types expr = runExec $ do
-  core <- fmap (trace ("CH:" <> T.unpack (renderText expr)) ) compile main
-  return $ evalProg env ((\x -> trace ("CORE: " <> show x) x) core)
+  core <- compile main
+  return $ evalProg env core
   where
     main = Module
       { module'loc       = noLoc
@@ -115,7 +113,7 @@ defaultInputEnv = InputEnv
 evalBind :: VarName -> Lang -> Repl ()
 evalBind var lang = do
   closure <- fmap replEnv'closure get
-  modify' $ \st -> st { replEnv'closure = (\x -> trace ("CLOS: " <> (show $ fmap fst x)) x) $ tail $ insertClosure var lang closure }
+  modify' $ \st -> st { replEnv'closure = tail $ insertClosure var lang closure }
   withTypeCheck lang $ \_ -> do
     modify' $ \st -> st { replEnv'closure = insertClosure var lang $ replEnv'closure st
                         , replEnv'words   = varName'name var : replEnv'words st

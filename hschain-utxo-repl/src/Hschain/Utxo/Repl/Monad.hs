@@ -24,7 +24,6 @@ import Control.Monad.State.Strict
 
 import Data.Default
 import Data.Either
-import Data.Fix
 import Data.Text (Text)
 
 import System.Console.Repline
@@ -34,13 +33,10 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Desugar (simpleBind, singleLet)
+import Hschain.Utxo.Lang.Desugar (singleLet)
 import Hschain.Utxo.Repl.Imports
 import Hschain.Utxo.Lang.Exec.Module (appendExecCtx)
 
-import Debug.Trace (trace)
-import Hschain.Utxo.Lang.Pretty
-import qualified Data.Text as T
 import qualified Data.List as L
 
 -- | Parse user input in the repl
@@ -93,12 +89,13 @@ getClosureExpr :: Lang -> Repl Lang
 getClosureExpr expr = do
   closure <- fmap (closureToExpr . replEnv'closure) get
   ctx <- getExecCtx
-  return $ (\x -> trace (T.unpack $ renderText x) x) $ appendExecCtx ctx $ closure expr
+  return $ appendExecCtx ctx $ closure expr
 
 closureToExpr :: [(VarName, Lang)] -> Lang -> Lang
 closureToExpr defs body =
   foldr (\(name, dfn) res -> singleLet noLoc name dfn res) body (L.reverse defs)
-  -- Fix $ Let noLoc (L.reverse $ fmap (uncurry simpleBind) defs) body
+-- TODO investigate this case (causes bug for type-checker)
+-- Fix $ Let noLoc (L.reverse $ fmap (uncurry simpleBind) defs) body
 
 insertClosure :: VarName -> Lang -> [(VarName, Lang)] -> [(VarName, Lang)]
 insertClosure var lang defs = ((var, lang) : ) $
@@ -145,7 +142,7 @@ checkType :: Lang -> Repl (Either Error Type)
 checkType expr = do
   ctx <- getInferCtx
   closure <- fmap (closureToExpr . replEnv'closure) get
-  return $ (\x -> trace ((T.unpack $ renderText $ closure expr) <> "\n" <> show x) x) $ runInferM $ inferExpr ctx $ closure expr
+  return $ runInferM $ inferExpr ctx $ closure expr
 
 -- | Check that expression has correct type
 hasType :: Lang -> Repl Bool

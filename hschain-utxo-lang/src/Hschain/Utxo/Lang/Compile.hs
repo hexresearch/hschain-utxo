@@ -29,11 +29,6 @@ import qualified Language.HM.Subst as H
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 import qualified Hschain.Utxo.Lang.Expr as E
 
-import Hschain.Utxo.Lang.Pretty
-
-import Debug.Trace
-import qualified Data.Text as T
-
 toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
@@ -75,7 +70,7 @@ fromDefs (Def{..}:rest)
         go (Typed nm ty : args) = Core.ELam nm <$> toCoreType ty <*> go args
 
 toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
-toCoreExpr tyExpr = cataM convert $ trace (show "\nANN TY: " <> (T.unpack $ renderText tyExpr)) tyExpr
+toCoreExpr tyExpr = cataM convert tyExpr
   where
     convert (Ann exprTy val) = case val of
       EVar loc name        ->
@@ -135,8 +130,8 @@ specifyPolyFun loc ctx ty name = do
     -- FIXME: what to do with polymorphic expressions?
     toPolyVar subst argOrder =
       case mapM (H.applyToVar subst) argOrder of
-        Just s  -> trace ("\nPOLY SUB: " <> show s) $ failedToFindMonoType loc name
-        Nothing ->  trace ("\nNO SUB: " <> show ty <> " " <> show name) $ failedToFindMonoType loc name
+        Just _  -> failedToFindMonoType loc name
+        Nothing -> failedToFindMonoType loc name
 
 
 toCoreType :: MonadLang m => H.Type loc Name -> m TypeCore

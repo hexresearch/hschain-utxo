@@ -22,6 +22,9 @@ tests = testGroup "infer"
   $ Right (var "a" --> (var "b" --> var "a")) @=? fmap fst (inferTerm mempty termK)
   , testCase "let-chain-case"
   $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termLetChain)
+-- TODO: failing case, need to investigate
+--  , testCase "let-group-case"
+--  $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termLetGroup)
   , testCase "let-rec-chain-case"
   $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termLetRecChain)
   ]
@@ -49,6 +52,15 @@ termLetChain = lamE () "x" $ letE ()
     (letE ()
       [ Bind () "b" $ varE () "a" ]
       (varE () "b"))
+
+{- TODO: failing case, need to investigate
+termLetGroup :: Term NoPrim () Text
+termLetGroup = lamE () "x" $ letE ()
+  [ Bind () "a" $ varE () "x"
+  , Bind () "b" $ varE () "a"
+  , Bind () "c" $ varE () "b" ]
+      (varE () "c")
+-}
 
 termLetRecChain :: Term NoPrim () Text
 termLetRecChain = lamE () "x" $ letRecE ()
