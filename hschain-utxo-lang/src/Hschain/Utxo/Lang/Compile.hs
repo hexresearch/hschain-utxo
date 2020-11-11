@@ -19,14 +19,15 @@ import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
 import qualified Language.HM       as H
 import qualified Language.HM.Subst as H
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
+import qualified Hschain.Utxo.Lang.Expr as E
 
 toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
@@ -36,7 +37,7 @@ compile :: MonadLang m => Module -> m ExprCore
 compile
   =  return . substPrimOp
  <=< toCoreProg
--- <=< makeMonomorphic
+ -- <=< makeMonomorphic
  <=< specifyCompareOps
  <=< annotateTypes
  <=< toExtendedLC
@@ -69,10 +70,13 @@ fromDefs (Def{..}:rest)
         go (Typed nm ty : args) = Core.ELam nm <$> toCoreType ty <*> go args
 
 toCoreExpr :: MonadLang m => TypedExprLam -> m ExprCore
-toCoreExpr = cataM convert
+toCoreExpr tyExpr = cataM convert tyExpr
   where
     convert (Ann exprTy val) = case val of
-      EVar loc name        -> specifyPolyFun loc typeCtx exprTy name
+      EVar loc name        ->
+        case Map.lookup name monoPrimopNameMap of
+          Just op  -> pure $ Core.EPrimOp op
+          Nothing  -> specifyPolyFun loc typeCtx exprTy name
       EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
       EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
       EAp _  f a           -> pure $ Core.EAp f a
@@ -87,7 +91,7 @@ toCoreExpr = cataM convert
                                  pure $ Core.EConstr (resultType ty) m
       EAssertType _ e _    -> pure e
       EBottom _            -> pure $ Core.EBottom
-    
+
     convertAlt CaseAlt{..} = return Core.CaseAlt
       { caseAlt'args = typed'value <$> caseAlt'args
       , ..
@@ -97,7 +101,8 @@ toCoreExpr = cataM convert
       e   <- toLambda vars body
       ty' <- toCoreType ty
       pure $ Core.ELam x ty' e
-    typeCtx = mempty
+
+    typeCtx = baseLibTypeContext
 
 resultType :: TypeCore -> TypeCore
 resultType (_ :-> b) = resultType b
@@ -106,10 +111,10 @@ resultType  a        = a
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
 -- We need to think on more generic rule for substitution like this.
-specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m ExprCore
+specifyPolyFun :: MonadLang m => Loc -> E.TypeContext -> H.Type () Name -> Name -> m ExprCore
 specifyPolyFun loc ctx ty name = do
-  case lookupSignature name ctx of
-    Just sig -> fromSignature $ H.monoT $ typeCoreToType sig
+  case H.lookupCtx name ctx of
+    Just sig -> fromSignature $ H.mapLoc (const ()) sig
     Nothing  -> return $ Core.EVar name
   where
     fromSignature sig

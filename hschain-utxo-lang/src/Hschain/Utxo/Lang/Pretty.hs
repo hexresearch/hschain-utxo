@@ -10,6 +10,7 @@ import Codec.Serialise (deserialiseOrFail)
 import Hex.Common.Serialise
 
 import Data.Bool
+import Data.Fix
 import Data.String
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -22,6 +23,11 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
+import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
+import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam)
+import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr)
+import qualified Hschain.Utxo.Lang.Core.Types as Core
+import Language.Haskell.Exts.Pretty (prettyPrint)
 
 import qualified Data.Vector as V
 
@@ -142,13 +148,18 @@ instance Pretty SigMessage where
 instance Pretty Env where
   pretty Env{..} = prettyRecord "Env" [("height", pretty env'height)]
 
--- TODO
 instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof
 
--- TODO
 instance Pretty (S.Sigma S.PublicKey) where
-  pretty = undefined -- (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
+  pretty = cata $ \case
+      S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
+      S.SigmaAnd as  -> parens $ hsep $ "sigmaAnd" : as
+      S.SigmaOr  as  -> parens $ hsep $ "sigmaOr"  : as
+      S.SigmaBool b  -> "Sigma" <> pretty b
+
+instance Pretty S.PublicKey where
+  pretty = pretty . encodeBase58
 
 op1 :: Doc ann -> Doc ann -> Doc ann
 op1 name a = hcat [name, parens a]
@@ -312,3 +323,26 @@ instance Pretty Hask.SrcLoc where
 
 instance H.HasPrefix Text where
   getFixity = const Nothing
+
+instance Pretty EvalResult where
+  pretty = \case
+    EvalPrim p   -> pretty p
+    EvalList ps  -> brackets $ hsep $ punctuate comma $ fmap pretty ps
+    EvalFail err -> pretty err
+
+instance Pretty Core.Prim where
+  pretty = \case
+    Core.PrimInt n      -> pretty n
+    Core.PrimText txt   -> dquotes $ pretty txt
+    Core.PrimBytes bs   -> pretty $ encodeBase58 bs
+    Core.PrimBool b     -> pretty b
+    Core.PrimSigma sig  -> pretty sig
+
+instance Pretty EvalErr where
+  pretty = \case
+    TypeMismatch    -> "Error: Type mismatch"
+    EvalErr msg     -> pretty msg
+
+instance Pretty TypedExprLam where
+  pretty = pretty . prettyPrint . toHaskExpr
+

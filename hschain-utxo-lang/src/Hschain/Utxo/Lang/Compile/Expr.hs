@@ -2,7 +2,7 @@
 -- We compile our high-level language to this reduced language.
 -- And then we compile from this language to core.
 -- for this language we have type-inference that can derive types
--- for all subexpressions. This is useful to get rexplicit type-annotations
+-- for all subexpressions. This is useful to get explicit type-annotations
 -- for fast type-checker in the core.
 --
 -- Lambda calculus is extended with very simple case-expressions.
@@ -84,10 +84,11 @@ data ExprLamF bind a
   | EPrim !Loc !PrimLoc
   -- ^ constant primitive
   | EPrimOp !Loc !(PrimOp (H.Type () Name))
+  -- ^ primitive operations
   | EAp !Loc a a
   -- ^ application
   | ELet !Loc [(bind, a)] a
-  -- ^ lent bindings
+  -- ^ let bindings
   | ELam !Loc [bind] a
   -- ^ lambda abstraction
   | EIf !Loc a a a

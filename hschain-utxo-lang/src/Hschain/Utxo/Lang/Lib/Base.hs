@@ -59,8 +59,6 @@ baseFuns =
   , or
   , sum
   , product
-  , sumInt
-  , productInt
   , id
   , const
   , compose
@@ -75,13 +73,11 @@ baseFuns =
   , getBoxScript
   , getBoxPostHeight
   , sha256
-  , trace
   , lengthVec
   , lengthText
   , lengthBytes
   , showInt
   , showBool
-  , showScript
   , plus
   , times
   , minus
@@ -128,8 +124,6 @@ baseNames =
   , "or"
   , "andSigma"
   , "orSigma"
-  , "sumInt"
-  , "productInt"
   , "sum"
   , "product"
   , "id"
@@ -148,14 +142,11 @@ baseNames =
   , "getBoxArg"
   , "sha256"
   , "blake2b256"
-  , "trace"
   , "length"
   , "lengthText"
   , "lengthBytes"
   , "showInt"
-  , "showDouble"
   , "showBool"
-  , "showScript"
   , "+"
   , "*"
   , "-"
@@ -168,7 +159,6 @@ baseNames =
   , "appendBytes"
   , "++"
   , "map"
-  , "fold"
   , "length"
   , "pk"
   , "toSigma"
@@ -212,8 +202,6 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "orSigma" (monoT $ listT sigmaT ~> sigmaT)
   , assumpType "all" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
   , assumpType "any" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
-  , assumpType "sumInt"      (monoT $ listT intT ~> intT)
-  , assumpType "productInt"  (monoT $ listT intT ~> intT)
   , assumpType "sum"      (monoT $ listT intT ~> intT)
   , assumpType "product"  (monoT $ listT intT ~> intT)
   , assumpType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
@@ -231,14 +219,11 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "getBoxScript" (monoT $ boxT ~> scriptT)
   , assumpType "sha256" (monoT $ bytesT ~> bytesT)
   , assumpType "getVar" (forA $ textT ~> aT)
-  , assumpType "trace" (forA $ textT ~> aT ~> aT)
   , assumpType "length" (forA $ listT aT ~> intT)
   , assumpType "lengthText" (monoT $ textT ~> intT)
   , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
   , assumpType "showInt" (monoT $ intT ~> textT)
-  , assumpType "showDouble" (monoT $ intT ~> textT)
   , assumpType "showBool" (monoT $ boolT ~> textT)
-  , assumpType "showScript" (monoT $ scriptT ~> textT)
   , assumpType "not" (monoT $ boolT ~> boolT)
   , assumpType "&&" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
@@ -258,7 +243,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "<>" (monoT $ textT ~> textT ~> textT)
   , assumpType "appendBytes" (monoT $ bytesT ~> bytesT ~> bytesT)
   , assumpType "map" (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
-  , assumpType "fold" (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
+  , assumpType Const.foldl (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
   , assumpType "length" (forA $ listT aT ~> intT)
   , assumpType Const.listAt (forA $ listT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
@@ -271,8 +256,8 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "snd" (forAB $ tupleT [aT, bT] ~> bT)
   , assumpType "otherwise" (monoT boolT)
   , assumpType "undefined" $ forA aT
-  , assumpType Const.checkSig $ monoT $ textT ~> intT ~> boolT
-  , assumpType Const.checkMultiSig $ monoT $ intT ~> listT textT ~> listT intT ~> boolT
+  , assumpType Const.checkSig $ monoT $ bytesT ~> intT ~> boolT
+  , assumpType Const.checkMultiSig $ monoT $ intT ~> listT bytesT ~> listT intT ~> boolT
   ] P.++ getBoxArgListTypes P.++ getEnvVarTypes
   where
     forA = forAllT' "a" . monoT
@@ -314,18 +299,6 @@ andSigma = bind "andSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE 
 
 orSigma :: Bind Lang
 orSigma = bind "orSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecOrSigma noLoc) x)
-
-sumInt :: Bind Lang
-sumInt = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Plus (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt 0
-
-productInt :: Bind Lang
-productInt = bind "product" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Times (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt 1
 
 sum :: Bind Lang
 sum = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
@@ -387,17 +360,11 @@ sha256 = bind "sha256" (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ BytesHash noL
 getVarBy :: ArgType -> Bind Lang
 getVarBy ty = bind (getEnvVarName ty) (Fix $ GetEnv noLoc $ GetVar noLoc ty)
 
-trace :: Bind Lang
-trace = bind "trace" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Trace noLoc (Fix $ Var noLoc "x") (Fix $ Var noLoc "y"))
-
 showInt :: Bind Lang
 showInt = bind "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) (Fix $ Var noLoc "x"))
 
 showBool :: Bind Lang
 showBool = bind "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc BoolToText)) (Fix $ Var noLoc "x"))
-
-showScript :: Bind Lang
-showScript = bind "showScript" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) (Fix $ Var noLoc "x"))
 
 lengthVec :: Bind Lang
 lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))
@@ -481,7 +448,7 @@ mapVec :: Bind Lang
 mapVec = bind "map" (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
 
 foldVec :: Bind Lang
-foldVec = bind "fold" (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) f x y)
+foldVec = bind Const.foldl (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) f x y)
 
 appendVec :: Bind Lang
 appendVec = bind "++" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)

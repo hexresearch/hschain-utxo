@@ -96,7 +96,7 @@ loadScript file = do
 
 resetEvalCtx :: Repl ()
 resetEvalCtx = modify' $ \st ->
-  st { replEnv'closure   = id
+  st { replEnv'closure   = []
      , replEnv'words     = [] }
 
 loadTx :: FilePath -> Repl ()

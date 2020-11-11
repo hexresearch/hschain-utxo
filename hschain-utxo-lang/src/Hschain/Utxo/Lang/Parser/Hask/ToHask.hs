@@ -126,7 +126,7 @@ toHaskExp (Fix expr) = case expr of
       VecAt loc a b     -> op2 loc "!" a b
       VecLength loc     -> toVar loc (VarName loc "length")
       VecMap loc        -> toVar loc (VarName loc "map")
-      VecFold loc       -> toVar loc (VarName loc "fold")
+      VecFold loc       -> toVar loc (VarName loc Const.foldl)
       VecAndSigma loc   -> toVar loc (VarName loc "andSigma")
       VecOrSigma loc    -> toVar loc (VarName loc "orSigma")
 

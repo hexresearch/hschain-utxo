@@ -19,7 +19,6 @@ import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Compile (compile)
 import Hschain.Utxo.Repl.Monad
 import Hschain.Utxo.Lang.Exec    (runExec)
@@ -33,12 +32,6 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 
-
-getClosureExpr :: Lang -> Repl Lang
-getClosureExpr expr = do
-  closure <- fmap replEnv'closure get
-  return $ closure expr
-
 noTypeCheck :: Lang -> (Lang -> Repl ()) -> Repl ()
 noTypeCheck expr cont = cont expr
 
@@ -47,7 +40,9 @@ withTypeCheck expr cont = do
   eTy <- checkType expr
   case eTy of
     Right _  -> cont expr
-    Left err -> liftIO $ T.putStrLn $ renderText err
+    Left err -> do
+      logError err
+      liftIO $ T.putStrLn $ renderText err
 
 -- | Evaluate user expression
 evalExpr :: Lang -> Repl ()
@@ -57,14 +52,13 @@ evalExpr lang = do
     tx    <- fmap replEnv'tx get
     types <- getUserTypes
     let env = fromMaybe defaultInputEnv $ getInputEnv tx <$> txArg'inputs tx V.!? 0
-    liftIO $ case evaluate env types expr of
-      Right (res, debugTxt) -> do
-        case res of
-          EvalPrim p -> print p
-          EvalList p -> print p
-          EvalFail e -> print e
+    case evaluate env types expr of
+      Right (res, debugTxt) -> liftIO $ do
+        T.putStrLn $ renderText res
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
-      Left err   -> T.putStrLn $ renderText err
+      Left err   -> do
+        logError err
+        liftIO $ T.putStrLn $ renderText err
 
 evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
 evaluate env types expr = runExec $ do
@@ -123,8 +117,9 @@ defaultInputEnv = InputEnv
 evalBind :: VarName -> Lang -> Repl ()
 evalBind var lang = do
   closure <- fmap replEnv'closure get
-  withTypeCheck (closure lang) $ \expr -> do
-    modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var expr next)
+  modify' $ \st -> st { replEnv'closure = tail $ insertClosure var lang closure }
+  withTypeCheck lang $ \_ -> do
+    modify' $ \st -> st { replEnv'closure = insertClosure var lang $ replEnv'closure st
                         , replEnv'words   = varName'name var : replEnv'words st
                         }
 
