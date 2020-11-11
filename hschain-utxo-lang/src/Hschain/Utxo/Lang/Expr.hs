@@ -929,6 +929,28 @@ monoPrimopName = \case
   OpListAll{}    -> Nothing
   OpListAny{}    -> Nothing
 
+polyPrimOpName :: PrimOp a -> Maybe Name
+polyPrimOpName = \case
+  OpShow _ -> Just "show"
+  OpEQ _   -> Just "=="
+  OpNE _   -> Just "/="
+  OpGT _   -> Just ">"
+  OpGE _   -> Just ">="
+  OpLT _   -> Just "<"
+  OpLE _   -> Just "<="
+  --
+  OpListMap{}    -> Just "map"
+  OpListAt{}     -> Just "listAt"
+  OpListAppend{} -> Just "++"
+  OpListLength{} -> Just "length"
+  OpListFoldr{}  -> Just "foldr"
+  OpListFoldl{}  -> Just "foldl"
+  OpListFilter{} -> Just "filter"
+  OpListAll{}    -> Just "all"
+  OpListAny{}    -> Just "any"
+  _              -> Nothing
+
+
 -- | List of all monomorphic primops
 monomorphicPrimops :: [PrimOp a]
 monomorphicPrimops =

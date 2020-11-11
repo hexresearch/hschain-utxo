@@ -19,7 +19,6 @@ import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Compile (compile)
 import Hschain.Utxo.Repl.Monad
 import Hschain.Utxo.Lang.Exec    (runExec)
@@ -116,8 +115,9 @@ defaultInputEnv = InputEnv
 evalBind :: VarName -> Lang -> Repl ()
 evalBind var lang = do
   closure <- fmap replEnv'closure get
-  withTypeCheck (closure lang) $ \expr -> do
-    modify' $ \st -> st { replEnv'closure = closure . (\next -> singleLet noLoc var expr next)
+  modify' $ \st -> st { replEnv'closure = (\x -> trace ("CLOS: " <> (show $ fmap fst x)) x) $ tail $ insertClosure var lang closure }
+  withTypeCheck lang $ \_ -> do
+    modify' $ \st -> st { replEnv'closure = insertClosure var lang $ replEnv'closure st
                         , replEnv'words   = varName'name var : replEnv'words st
                         }
 

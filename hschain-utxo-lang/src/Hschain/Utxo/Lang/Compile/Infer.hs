@@ -194,3 +194,4 @@ libTypeContext = (H.Context $ M.fromList
       ]
 
     toTagContext (H.Context m) = H.Context $ M.map (fmap VarTag) $ M.mapKeys VarTag m
+

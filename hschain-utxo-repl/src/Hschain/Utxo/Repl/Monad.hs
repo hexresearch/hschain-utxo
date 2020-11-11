@@ -15,6 +15,8 @@ module Hschain.Utxo.Repl.Monad(
   , checkType
   , hasType
   , getClosureExpr
+  , insertClosure
+  , closureToExpr
 ) where
 
 import Control.Monad.Except
@@ -22,6 +24,7 @@ import Control.Monad.State.Strict
 
 import Data.Default
 import Data.Either
+import Data.Fix
 import Data.Text (Text)
 
 import System.Console.Repline
@@ -31,12 +34,14 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Desugar (simpleBind, singleLet)
 import Hschain.Utxo.Repl.Imports
 import Hschain.Utxo.Lang.Exec.Module (appendExecCtx)
 
 import Debug.Trace (trace)
 import Hschain.Utxo.Lang.Pretty
 import qualified Data.Text as T
+import qualified Data.List as L
 
 -- | Parse user input in the repl
 data ParseRes
@@ -54,7 +59,7 @@ data ReplEnv = ReplEnv
   -- ^ Arguments to execute transaction
   , replEnv'imports        :: Imports
   -- ^ modules imported to the REPL session
-  , replEnv'closure        :: Lang -> Lang
+  , replEnv'closure        :: [(VarName, Lang)]
   -- ^ Local variables or bindings
   -- defined by the user so far.
   , replEnv'words          :: ![Text]
@@ -62,6 +67,7 @@ data ReplEnv = ReplEnv
   , replEnv'txFile         :: Maybe FilePath
   -- ^ File with the transaction to execute script
   }
+
 
 
 -- | REPL monad.
@@ -78,16 +84,29 @@ runReplM tx (ReplM app) = evalStateT app defEnv
       ReplEnv
         { replEnv'tx            = tx
         , replEnv'imports       = def
-        , replEnv'closure       = id
+        , replEnv'closure       = []
         , replEnv'words         = mempty
         , replEnv'txFile        = Nothing
         }
 
 getClosureExpr :: Lang -> Repl Lang
 getClosureExpr expr = do
-  closure <- fmap replEnv'closure get
+  closure <- fmap (closureToExpr . replEnv'closure) get
   ctx <- getExecCtx
   return $ (\x -> trace (T.unpack $ renderText x) x) $ appendExecCtx ctx $ closure expr
+
+closureToExpr :: [(VarName, Lang)] -> Lang -> Lang
+closureToExpr defs body =
+  foldr (\(name, dfn) res -> singleLet noLoc name dfn res) body (L.reverse defs)
+  -- Fix $ Let noLoc (L.reverse $ fmap (uncurry simpleBind) defs) body
+
+insertClosure :: VarName -> Lang -> [(VarName, Lang)] -> [(VarName, Lang)]
+insertClosure var lang defs = ((var, lang) : ) $
+  case post of
+    []     -> pre
+    _:rest -> rest
+  where
+    (pre, post) = L.break ((== var) . fst) defs
 
 -- | Get context for execution. Bindings defined in local moduules and base library.
 getExecCtx :: Repl ExecCtx
@@ -125,8 +144,8 @@ getTxFile = fmap replEnv'txFile get
 checkType :: Lang -> Repl (Either Error Type)
 checkType expr = do
   ctx <- getInferCtx
-  closure <- fmap replEnv'closure get
-  return $ (\x -> trace (show x) x) $ runInferM $ inferExpr ctx $ closure expr
+  closure <- fmap (closureToExpr . replEnv'closure) get
+  return $ (\x -> trace ((T.unpack $ renderText $ closure expr) <> "\n" <> show x) x) $ runInferM $ inferExpr ctx $ closure expr
 
 -- | Check that expression has correct type
 hasType :: Lang -> Repl Bool

@@ -78,7 +78,6 @@ baseFuns =
   , lengthBytes
   , showInt
   , showBool
-  , showScript
   , plus
   , times
   , minus
@@ -147,9 +146,7 @@ baseNames =
   , "lengthText"
   , "lengthBytes"
   , "showInt"
-  , "showDouble"
   , "showBool"
-  , "showScript"
   , "+"
   , "*"
   , "-"
@@ -226,9 +223,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "lengthText" (monoT $ textT ~> intT)
   , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
   , assumpType "showInt" (monoT $ intT ~> textT)
-  , assumpType "showDouble" (monoT $ intT ~> textT)
   , assumpType "showBool" (monoT $ boolT ~> textT)
-  , assumpType "showScript" (monoT $ scriptT ~> textT)
   , assumpType "not" (monoT $ boolT ~> boolT)
   , assumpType "&&" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
@@ -370,9 +365,6 @@ showInt = bind "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE n
 
 showBool :: Bind Lang
 showBool = bind "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc BoolToText)) (Fix $ Var noLoc "x"))
-
-showScript :: Bind Lang
-showScript = bind "showScript" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) (Fix $ Var noLoc "x"))
 
 lengthVec :: Bind Lang
 lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))

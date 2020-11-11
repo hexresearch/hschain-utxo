@@ -2,6 +2,7 @@
 module Language.HM.Infer(
     Context(..)
   , insertContext
+  , lookupCtx
   , inferType
   , inferTerm
   , subtypeOf
@@ -55,6 +56,8 @@ instance CanApply Context where
 insertCtx :: Ord v => v -> Signature loc v ->  Context loc v -> Context loc v
 insertCtx v sign (Context ctx) = Context $ M.insert v sign ctx
 
+lookupCtx :: Ord v => v -> Context loc v -> Maybe (Signature loc v)
+lookupCtx v (Context ctx) = M.lookup v ctx
 
 -- | We leave in the context only terms that are truly needed.
 -- To check the term we need only variables that are free in the term.

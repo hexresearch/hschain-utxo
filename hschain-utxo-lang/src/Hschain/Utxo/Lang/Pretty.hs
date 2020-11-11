@@ -24,7 +24,10 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
 import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
+import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam)
+import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr)
 import qualified Hschain.Utxo.Lang.Core.Types as Core
+import Language.Haskell.Exts.Pretty (prettyPrint)
 
 import qualified Data.Vector as V
 
@@ -339,3 +342,7 @@ instance Pretty EvalErr where
   pretty = \case
     TypeMismatch    -> "Error: Type mismatch"
     EvalErr msg     -> pretty msg
+
+instance Pretty TypedExprLam where
+  pretty = pretty . prettyPrint . toHaskExpr
+
