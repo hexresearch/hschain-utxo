@@ -35,7 +35,7 @@ data TermF prim loc v r
     | Prim loc prim                   -- ^ Primitives.
     | App loc r r                     -- ^ Applications.
     | Lam loc v r                     -- ^ Abstractions.
-    | Let loc [Bind loc v r] r        -- ^ Let bindings.
+    | Let loc (Bind loc v r) r        -- ^ Let bindings.
     | LetRec loc [Bind loc v r] r     -- ^ Recursive  let bindings
     | AssertType loc r (Type loc v)   -- ^ Assert type.
     | Case loc r [CaseAlt loc v r]    -- ^ case alternatives
@@ -86,7 +86,7 @@ instance Functor (Term prim loc) where
         Prim loc p   -> Fix $ Prim loc p
         App loc a b  -> Fix $ App loc a b
         Lam loc v a  -> Fix $ Lam loc (f v) a
-        Let loc vs a -> Fix $ Let loc (fmap (\b ->  b { bind'lhs = f $ bind'lhs b }) vs) a
+        Let loc v a  -> Fix $ Let loc (v { bind'lhs = f $ bind'lhs v }) a
         LetRec loc vs a -> Fix $ LetRec loc (fmap (\b ->  b { bind'lhs = f $ bind'lhs b }) vs) a
         AssertType loc r sig -> Fix $ AssertType loc r (fmap f sig)
         Case loc a alts -> Fix $ Case loc a $ fmap (mapAlt f) alts
@@ -118,8 +118,8 @@ lamE loc x (Term e) = Term $ Fix $ Lam loc x e
 
 -- | 'letE' @loc binds e@ constructs a binding of @binds@ in @e@ with source code at @loc@.
 -- No recursive bindings.
-letE :: loc -> [Bind loc v (Term prim loc v)] -> Term prim loc v -> Term prim loc v
-letE loc binds (Term e) = Term $ Fix $ Let loc (fmap (fmap unTerm) binds) e
+letE :: loc -> Bind loc v (Term prim loc v) -> Term prim loc v -> Term prim loc v
+letE loc bind (Term e) = Term $ Fix $ Let loc (fmap unTerm bind) e
 
 -- | 'letRecE' @loc binds e@ constructs a recursive binding of @binds@ in @e@ with source code at @loc@.
 letRecE :: loc -> [Bind loc v (Term prim loc v)] -> Term prim loc v -> Term prim loc v
@@ -166,7 +166,7 @@ instance LocFunctor (Term prim) where
         Prim loc p   -> Fix $ Prim (f loc) p
         App loc a b  -> Fix $ App (f loc) a b
         Lam loc v a  -> Fix $ Lam (f loc) v a
-        Let loc vs a -> Fix $ Let (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
+        Let loc v a  -> Fix $ Let (f loc) (v { bind'loc = f $ bind'loc v }) a
         LetRec loc vs a -> Fix $ LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> Fix $ AssertType (f loc) r (mapLoc f sig)
         Constr loc ty v arity -> Fix $ Constr (f loc) (mapLoc f ty) v arity
@@ -190,8 +190,8 @@ freeVars = cata go . unTerm
       Prim   _ _          -> mempty
       App    _ a b        -> mappend a b
       Lam    _ v a        -> S.delete v a
-      Let    _ binds body -> let lhs = S.fromList $ fmap bind'lhs binds
-                             in  mappend (freeBinds binds)
+      Let    _ bind body  -> let lhs = S.singleton $ bind'lhs bind
+                             in  mappend (bind'rhs bind)
                                          (body `S.difference` lhs)
       LetRec _ binds body -> let lhs = S.fromList $ fmap bind'lhs binds
                              in  (mappend (freeBinds binds) body) `S.difference` lhs

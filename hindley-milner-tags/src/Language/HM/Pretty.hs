@@ -157,7 +157,7 @@ instance (HasPrefix v, PrintCons v, Pretty v, Pretty prim) => Pretty (Term prim 
         Prim _ p           -> pretty p
         App _ a b          -> parens $ hsep [a, b]
         Lam _ v a          -> parens $ hsep [hcat ["\\", pretty v], "->", a]
-        Let _ vs a         -> onLet vs a
+        Let _ v a          -> onLet [v] a
         LetRec _ vs a      -> onLet vs a
         AssertType _ r sig -> parens $ hsep [r, "::", pretty sig]
         Constr _ _ tag _   -> pretty tag

@@ -147,7 +147,7 @@ infer ctx (Term (Fix x)) = case x of
   Prim loc p          -> inferPrim loc p
   App loc a b         -> inferApp ctx loc (Term a) (Term b)
   Lam loc v r         -> inferLam ctx loc v (Term r)
-  Let loc vs a        -> inferLet ctx loc (fmap (fmap Term) vs) (Term a)
+  Let loc v a         -> inferLet ctx loc (fmap Term v) (Term a)
   LetRec loc vs a     -> inferLetRec ctx loc (fmap (fmap Term) vs) (Term a)
   AssertType loc a ty -> inferAssertType ctx loc (Term a) ty
   Constr loc ty tag n -> inferConstr loc ty tag n
@@ -207,17 +207,18 @@ inferLam ctx loc x body = do
 inferLet :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
   => Context' loc v
   -> Origin loc
-  -> [Bind' loc v (Term' prim loc v)]
+  -> Bind' loc v (Term' prim loc v)
   -> Term' prim loc v
   -> InferM loc v (Out prim loc v)
-inferLet ctx loc vs body = do
-  (phi, rhsTyTerms) <- inferTerms ctx $ fmap bind'rhs vs
-  let (tBinds, termBinds) = unzip rhsTyTerms
-  ctx1 <- addDecls (zipWith (\a t -> fmap (const t) a) vs tBinds) (apply phi ctx)
+inferLet ctx loc v body = do
+  (phi, rhsTyTerm) <- infer ctx $ bind'rhs v
+  let tBind = termType rhsTyTerm
+  ctx1 <- addDecls [fmap (const tBind) v] (apply phi ctx)
   (subst, bodyTerm) <- infer ctx1 body
-  let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
+--  let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
+  let tyBind = v { bind'rhs = rhsTyTerm }
   return ( subst <> phi
-         , tyLetE (termType bodyTerm) loc tyBinds bodyTerm
+         , tyLetE (termType bodyTerm) loc tyBind bodyTerm
          )
 
 inferLetRec :: forall prim loc v . (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)

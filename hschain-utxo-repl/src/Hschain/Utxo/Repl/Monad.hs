@@ -95,8 +95,6 @@ getClosureExpr expr = do
 closureToExpr :: [(VarName, Lang)] -> Lang -> Lang
 closureToExpr defs body =
   foldr (\(name, dfn) res -> singleLet noLoc name dfn res) body (L.reverse defs)
--- TODO investigate this case (causes bug for type-checker)
--- Fix $ Let noLoc (L.reverse $ fmap (uncurry simpleBind) defs) body
 
 insertClosure :: VarName -> Lang -> [(VarName, Lang)] -> [(VarName, Lang)]
 insertClosure var lang defs = ((var, lang) : ) $

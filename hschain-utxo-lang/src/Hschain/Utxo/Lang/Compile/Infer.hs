@@ -102,7 +102,7 @@ annotateTypes =
       EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
       EBottom loc     -> H.bottomE loc
       EConstr loc ty tag arity -> H.constrE loc (eraseWith loc ty) (ConstrTag tag) arity
-      ELet loc bs e   -> foldr (\b rhs -> H.letE loc [fromBind loc b] rhs) e bs
+      ELet loc bs e   -> foldr (\b rhs -> H.letE loc (fromBind loc b) rhs) e bs
       EAssertType loc e ty -> H.assertTypeE loc e (eraseWith loc ty)
       ECase loc e alts -> H.caseE loc e (fmap fromAlt alts)
 
@@ -136,7 +136,7 @@ annotateTypes =
         H.Bottom loc -> pure $ EBottom loc
         H.AssertType _ (Fix (Ann _ a)) _ -> pure $ a
         H.Let loc bs e -> toLet loc bs e
-        H.LetRec loc bs e -> toLet loc bs e
+        H.LetRec loc bs e -> toLetRec loc bs e
         H.Case loc e alts -> fmap (ECase loc e) (mapM toAlt alts)
         H.Constr loc conTy tag n ->
           case tag of
@@ -156,7 +156,8 @@ annotateTypes =
         other -> throwError $ InternalError $ NonIntegerConstrTag (fromTag other)
 
 
-    toLet loc binds body = pure $ ELet loc (fmap toBind binds) body
+    toLet loc bind body = pure $ ELet loc [toBind bind] body
+    toLetRec loc binds body = pure $ ELet loc (fmap toBind binds) body
 
     toBind b = (Typed (fromTag $ H.bind'lhs b) (getType rhs), rhs)
       where
