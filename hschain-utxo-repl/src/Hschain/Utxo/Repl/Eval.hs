@@ -31,6 +31,7 @@ import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
+import qualified Language.Haskell.Exts.SrcLoc as P
 
 noTypeCheck :: Lang -> (Lang -> Repl ()) -> Repl ()
 noTypeCheck expr cont = cont expr
@@ -124,16 +125,14 @@ evalBind var lang = do
                         }
 
 parseExpr :: String -> Either String ParseRes
-parseExpr input = fromParseResult $ fmap ParseExpr $ P.parseExp (Just "<repl>") input
+parseExpr input = case P.parseExp (Just "<repl>") input of
+  P.ParseOk a           -> Right $ ParseExpr a
+  P.ParseFailed loc msg | msg == "Parse error: =" -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
+  P.ParseFailed loc msg -> Right $ ParseErr (P.toSrcInfo loc [] loc) (T.pack msg)
 
 parseBind :: String -> Either String ParseRes
 parseBind input =
   case P.parseBind (Just "<repl>") input of
     P.ParseOk (var, expr) -> Right $ ParseBind var expr
     P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
-
-fromParseResult :: P.ParseResult a -> Either String a
-fromParseResult = \case
-  P.ParseOk a             -> Right a
-  P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
 
