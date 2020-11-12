@@ -215,7 +215,6 @@ inferLet ctx loc v body = do
   let tBind = termType rhsTyTerm
   ctx1 <- addDecls [fmap (const tBind) v] (apply phi ctx)
   (subst, bodyTerm) <- infer ctx1 body
---  let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
   let tyBind = v { bind'rhs = rhsTyTerm }
   return ( subst <> phi
          , tyLetE (termType bodyTerm) loc tyBind bodyTerm
