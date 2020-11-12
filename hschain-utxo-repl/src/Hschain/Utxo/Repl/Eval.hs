@@ -136,8 +136,3 @@ parseBind input =
     P.ParseOk (var, expr) -> Right $ ParseBind var expr
     P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
 
-fromParseResult :: P.ParseResult a -> Either String a
-fromParseResult = \case
-  P.ParseOk a             -> Right a
-  P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
-
