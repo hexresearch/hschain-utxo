@@ -37,7 +37,6 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Desugar (singleLet)
 import Hschain.Utxo.Repl.Imports
 import Hschain.Utxo.Lang.Exec.Module (appendExecCtx)
-
 import qualified Data.List as L
 
 -- | Parse user input in the repl
@@ -45,6 +44,7 @@ data ParseRes
   = ParseExpr Lang           -- ^ user input is expression
   | ParseBind VarName Lang   -- ^ user input is binding value to a variable
   | ParseCmd  CmdName Arg    -- ^ user input is special command
+  | ParseErr Loc Text
   deriving (Show, Eq)
 
 type CmdName = String

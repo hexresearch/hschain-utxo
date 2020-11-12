@@ -18,6 +18,7 @@ tests = testGroup "repl"
   , testReplOk   "text ops" textOps
   , testReplOk   "boolean ops"  boolOps
   , testReplOk   "sigma ops"  sigmaOps
+  , testReplOk   "bytestring literals" bytesLiterals
   , testReplFail "add num and string" addNumAndText
   , testReplFail "var not in scope" varNotInScope
   ]
@@ -55,6 +56,12 @@ tests = testGroup "repl"
     sigmaOps =
       [ "sigmaAnd (toSigma True) (toSigma False)"
       , "sigmaOr (toSigma True) (toSigma False)"
+      ]
+
+    bytesLiterals =
+      [ "q = bytes \"asdf\""
+      , "sha256 q"
+      , "lengthBytes q"
       ]
 
 testReplOk :: String -> [String] -> TestTree

@@ -33,6 +33,7 @@ module Hschain.Utxo.Lang.Const(
   , serialiseBytes
   , deserialiseBytes
   , sha256
+  , bytesFromText
   -- * bitcoin style signatures
   , checkSig
   , checkMultiSig
@@ -116,6 +117,9 @@ deserialiseBytes typeName = "deserialise" <> typeName
 
 sha256 :: Text
 sha256 = "sha256"
+
+bytesFromText :: Text
+bytesFromText = "toBytes"
 
 main :: Text
 main = "main"

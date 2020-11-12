@@ -9,13 +9,16 @@ import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
+import Data.Text (Text)
 
 import Hschain.Utxo.Lang
+import Hschain.Utxo.Lang.Error
 
 import System.Console.Repline hiding (options)
 import System.Process
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import HSChain.Crypto (hash)
 import Hschain.Utxo.Repl.Cmd
 import Hschain.Utxo.Repl.Eval
@@ -32,6 +35,10 @@ evalInput = \case
   ParseExpr expr     -> evalExpr expr
   ParseBind var expr -> evalBind var expr
   ParseCmd cmd args  -> evalCmd cmd args
+  ParseErr loc err   -> showParseError loc err
+
+showParseError :: Loc -> Text -> Repl ()
+showParseError loc err = liftIO $ T.putStrLn $ renderText $ ParseError loc err
 
 parseInput :: String -> Either String ParseRes
 parseInput input =
