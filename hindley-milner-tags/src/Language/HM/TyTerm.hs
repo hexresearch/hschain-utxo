@@ -60,8 +60,8 @@ tyLamE ty loc x (TyTerm e) = tyTerm ty $ Lam loc x e
 
 -- | 'letE' @loc binds e@ constructs a binding of @binds@ in @e@ with source code at @loc@.
 -- No recursive bindings.
-tyLetE :: Type loc v -> loc -> [Bind loc v (TyTerm prim loc v)] -> TyTerm prim loc v -> TyTerm prim loc v
-tyLetE ty loc binds (TyTerm e) = tyTerm ty $ Let loc (fmap (fmap unTyTerm) binds) e
+tyLetE :: Type loc v -> loc -> Bind loc v (TyTerm prim loc v) -> TyTerm prim loc v -> TyTerm prim loc v
+tyLetE ty loc bind (TyTerm e) = tyTerm ty $ Let loc (fmap unTyTerm bind) e
 
 -- | 'letRecE' @loc binds e@ constructs a recursive binding of @binds@ in @e@ with source code at @loc@.
 tyLetRecE :: Type loc v -> loc -> [Bind loc v (TyTerm prim loc v)] -> TyTerm prim loc v -> TyTerm prim loc v
@@ -91,7 +91,7 @@ instance LocFunctor (TyTerm prim) where
         Prim loc p   -> Prim (f loc) p
         App loc a b  -> App (f loc) a b
         Lam loc v a  -> Lam (f loc) v a
-        Let loc vs a -> Let (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
+        Let loc v a  -> Let (f loc) (v { bind'loc = f $ bind'loc v }) a
         LetRec loc vs a -> LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> AssertType (f loc) r (mapLoc f sig)
         Constr loc ty v arity -> Constr (f loc) (mapLoc f ty) v arity

@@ -127,7 +127,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       args <- orderRecordFieldsFromContext ctx cons fields
       fmap (fromCons loc cons) $ mapM rec args
 
-    fromLet loc binds e = fmap (\bs -> H.letE loc bs e) $ mapM toBind (sortBindGroups binds)
+    fromLet loc binds e = fmap (\bs -> foldr (H.letE loc) e bs) $ mapM toBind (sortBindGroups binds)
       where
         toBind Bind{..} = do
           rhs <- rec =<< altGroupToExpr bind'alts
@@ -137,7 +137,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
             , H.bind'rhs = rhs
             }
 
-    fromPrimLet loc primBinds e = fmap (\bs -> H.letE loc bs e) $ mapM toBind primBinds
+    fromPrimLet loc primBinds e = fmap (\bs -> foldr (H.letE loc) e bs) $ mapM toBind primBinds
       where
         toBind (name, rhs) = do
           rhs' <- rec rhs
