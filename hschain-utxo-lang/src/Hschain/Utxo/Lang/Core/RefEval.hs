@@ -99,8 +99,15 @@ evalProg env prog =
     con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
     con2list _ _                    = Nothing
 
+-- | Monad for evaluation of core expressions
 newtype Eval a = Eval (StateT EvalEnv (Either EvalErr) a)
   deriving newtype (Functor, Applicative, Monad, MonadState EvalEnv, MonadError EvalErr)
+
+-- | Evaluator internal state
+data EvalEnv = EvalEnv
+  { evalEnv'reductions :: !Int  -- ^ counter for amount of evaluated reductions so far
+  }
+  deriving (Show, Eq)
 
 joinErr :: Either EvalErr Val -> Val
 joinErr = either ValBottom id
@@ -113,11 +120,6 @@ getReductionCount = fmap evalEnv'reductions get
 
 bumpReductionCount :: Eval ()
 bumpReductionCount = modify' $ \st -> st { evalEnv'reductions = succ $ evalEnv'reductions st }
-
-data EvalEnv = EvalEnv
-  { evalEnv'reductions :: !Int
-  }
-  deriving (Show, Eq)
 
 evalExpr :: InputEnv -> LEnv -> ExprCore -> Eval Val
 evalExpr inpEnv = recur
