@@ -64,7 +64,7 @@ optionManager = do
   pure $ do
     mngr <- newManager defaultManagerSettings
     pure $ mkClientEnv mngr (BaseUrl Http "localhost" 8080 "")
-  
+
 
 parseBalance :: Parser (IO ())
 parseBalance = do
@@ -107,6 +107,7 @@ parseSend = do
                   , box'args   = mempty
                   }
               ]
+          , tx'dataInputs = V.empty
           }
     print =<< runClientM (mempoolPostTxSync callMempoolRestAPI tx) env
     return ()
@@ -120,11 +121,11 @@ toBalance pair@(_boxId, Box{..})
     Just script = coreProgFromScript box'script
     boxset      = BoxSet box'value (Seq.singleton pair)
 
-  
+
 
 
 data BoxSet = BoxSet
-  { boxSetSum   :: !Int64 
+  { boxSetSum   :: !Int64
   , boxSetBoxes :: Seq.Seq (BoxId,Box)
   }
   deriving stock (Show, Generic)
@@ -164,7 +165,7 @@ UtxoRestAPI
   { utxoMempoolAPI = (let mempoolTy :: a -> MempoolRestAPI (UTXOBlock ()) (AsClientT ClientM)
                           mempoolTy = undefined
                        in fromServant `asTypeOf` mempoolTy) ->
-     callMempoolRestAPI 
+     callMempoolRestAPI
 --  , endpointGetBox = callEndpointGetBox
 --  , debugGetState = callDebugGetState
   } = genericClient
