@@ -188,8 +188,9 @@ instance Default (GTx i o) where
 type Tx    = GTx Proof Box
 
 data TxSizes = TxSizes
-  { txSizes'inputs  :: !Int
-  , txSizes'outputs :: !Int
+  { txSizes'inputs     :: !Int
+  , txSizes'outputs    :: !Int
+  , txSizes'dataInputs :: !Int
   } deriving (Show, Eq)
 
 instance Bifunctor GTx where
@@ -216,14 +217,16 @@ instance Semigroup (GTx ins outs) where
       shiftMask sizes x = appendSigMask (aSizes, prefix) (sizes, x)
         where
           prefix = SigMask
-            { sigMask'inputs  = V.replicate (txSizes'inputs  aSizes) False
-            , sigMask'outputs = V.replicate (txSizes'outputs aSizes) False
+            { sigMask'inputs     = V.replicate (txSizes'inputs  aSizes) False
+            , sigMask'outputs    = V.replicate (txSizes'outputs aSizes) False
+            , sigMask'dataInputs = V.replicate (txSizes'dataInputs aSizes) False
             }
 
 getTxSizes :: GTx ins outs -> TxSizes
 getTxSizes Tx{..} = TxSizes
-  { txSizes'inputs  = V.length tx'inputs
-  , txSizes'outputs = V.length tx'outputs
+  { txSizes'inputs     = V.length tx'inputs
+  , txSizes'outputs    = V.length tx'outputs
+  , txSizes'dataInputs = V.length tx'dataInputs
   }
 
 -- | Input is an unspent Box that exists in blockchain.
@@ -249,8 +252,9 @@ data BoxInputRef a = BoxInputRef
 --
 -- Empty SigMask means sign all inputs and outputs.
 data SigMask = SigMask
-  { sigMask'inputs   :: Vector Bool
-  , sigMask'outputs  :: Vector Bool
+  { sigMask'inputs     :: Vector Bool
+  , sigMask'outputs    :: Vector Bool
+  , sigMask'dataInputs :: Vector Bool
   } -- ^ Specify what inputs and outputs to sign
   | SigAll
   -- ^ Signs whole transaction (all inputs and outputs)
@@ -262,13 +266,14 @@ appendSigMask (aSizes, a) (bSizes , b) = case (a, b) of
   (SigAll, SigAll)      -> SigAll
   (SigAll, SigMask{..}) -> appendSigMask (aSizes, signAll aSizes) (bSizes, b)
   (SigMask{..}, SigAll) -> appendSigMask (aSizes, a) (bSizes, signAll bSizes)
-  (SigMask aIns aOuts, SigMask bIns bOuts) -> SigMask (aIns <> bIns) (aOuts <> bOuts)
+  (SigMask aIns aOuts aDataIns, SigMask bIns bOuts bDataIns) -> SigMask (aIns <> bIns) (aOuts <> bOuts) (aDataIns <> bDataIns)
 
 signAll :: TxSizes -> SigMask
 signAll TxSizes{..} =
   SigMask
     { sigMask'inputs  = V.replicate txSizes'inputs  True
     , sigMask'outputs = V.replicate txSizes'outputs True
+    , sigMask'dataInputs = V.replicate txSizes'dataInputs True
     }
 
 computeTxId :: GTx a Box -> TxId
@@ -291,15 +296,17 @@ getSigMessage mask Tx{..}
    $ hashStep (UserType hashDomain "Tx")
   <> hashStepFoldableWith stepIn  (filterIns  tx'inputs)
   <> hashStepFoldableWith stepOut (filterOuts tx'outputs)
+  <> hashStepFoldableWith stepDataIn (filterDataIns tx'dataInputs)
   where
-    (filterIns, filterOuts) = case mask of
-      SigMask{..} -> (filterMask sigMask'inputs, filterMask sigMask'outputs)
-      SigAll      -> (id, id)
+    (filterIns, filterOuts, filterDataIns) = case mask of
+      SigMask{..} -> (filterMask sigMask'inputs, filterMask sigMask'outputs, filterMask sigMask'dataInputs)
+      SigAll      -> (id, id, id)
 
     stepIn BoxInputRef{..}  = hashStep boxInputRef'id
                            <> hashStep boxInputRef'args
                            <> hashStep boxInputRef'sigMask
     stepOut = hashStep
+    stepDataIn = hashStep
 
 filterMask :: Vector Bool -> Vector a -> Vector a
 filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
