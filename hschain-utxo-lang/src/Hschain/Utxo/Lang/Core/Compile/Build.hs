@@ -22,6 +22,7 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , getBoxBoolArgs
   , getInputs
   , getOutputs
+  , getDataInputs
   , getSelf
   , getHeight
   , getIntArgs
@@ -103,15 +104,16 @@ getBoxTextArgs = EAp (EPrimOp $ OpGetBoxArgs TextArg)
 getBoxByteArgs = EAp (EPrimOp $ OpGetBoxArgs BytesArg)
 getBoxBoolArgs = EAp (EPrimOp $ OpGetBoxArgs BoolArg)
 
-getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
-getInputs   = EPrimOp OpEnvGetInputs
-getOutputs  = EPrimOp OpEnvGetOutputs
-getSelf     = EPrimOp OpEnvGetSelf
-getHeight   = EPrimOp OpEnvGetHeight
-getIntArgs  = EPrimOp $ OpArgs IntArg
-getTextArgs = EPrimOp $ OpArgs TextArg
-getByteArgs = EPrimOp $ OpArgs BytesArg
-getBoolArgs = EPrimOp $ OpArgs BoolArg
+getInputs, getOutputs, getDataInputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: ExprCore
+getInputs      = EPrimOp OpEnvGetInputs
+getOutputs     = EPrimOp OpEnvGetOutputs
+getSelf        = EPrimOp OpEnvGetSelf
+getDataInputs  = EPrimOp OpEnvGetDataInputs
+getHeight      = EPrimOp OpEnvGetHeight
+getIntArgs     = EPrimOp $ OpArgs IntArg
+getTextArgs    = EPrimOp $ OpArgs TextArg
+getByteArgs    = EPrimOp $ OpArgs BytesArg
+getBoolArgs    = EPrimOp $ OpArgs BoolArg
 
 checkSig :: ExprCore -> ExprCore -> ExprCore
 checkSig pk ix = ap (EPrimOp OpCheckSig) [pk, ix]

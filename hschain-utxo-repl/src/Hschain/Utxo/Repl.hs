@@ -78,8 +78,9 @@ runReplApp = runRepl defaultTxArg $ evalRepl (pure " > ") (lift . eval) options 
 
 defaultTxArg :: TxArg
 defaultTxArg = TxArg
-  { txArg'inputs  = mempty
-  , txArg'outputs = mempty
-  , txArg'env     = Env 0
-  , txArg'id      = TxId (hash ())
+  { txArg'inputs     = mempty
+  , txArg'outputs    = mempty
+  , txArg'dataInputs = mempty
+  , txArg'env        = Env 0
+  , txArg'id         = TxId (hash ())
   }

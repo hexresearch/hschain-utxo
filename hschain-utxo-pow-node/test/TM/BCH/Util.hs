@@ -83,6 +83,7 @@ genesis = Block
   where
     coinbase = Tx { tx'inputs  = mempty
                   , tx'outputs = mempty
+                  , tx'dataInputs = mempty
                   }
 
 ----------------------------------------------------------------
@@ -169,6 +170,7 @@ mineBlockE mpk mFee txs = Mine $ do
                       , boxInputRef'sigMask = SigAll
                       }
                     , tx'outputs = V.fromList [coinbaseBox]
+                    , tx'dataInputs = []
                     }
       txId  = computeTxId coinbase
       boxId = computeBoxId txId 0

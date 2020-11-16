@@ -230,13 +230,14 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
     fromTrace loc msg a = app2 loc traceVar msg a
 
     fromGetEnv _ = \case
-      Height loc    -> varE loc heightVar
-      Input loc  a  -> app1 loc inputVar a
-      Output loc a  -> app1 loc outputVar a
-      Self loc      -> varE loc selfVar
-      Inputs loc    -> varE loc inputsVar
-      Outputs loc   -> varE loc outputsVar
-      GetVar loc ty -> varE loc (getEnvVarName ty)
+      Height loc     -> varE loc heightVar
+      Input loc  a   -> app1 loc inputVar a
+      Output loc a   -> app1 loc outputVar a
+      Self loc       -> varE loc selfVar
+      Inputs loc     -> varE loc inputsVar
+      Outputs loc    -> varE loc outputsVar
+      DataInputs loc -> varE loc dataInputsVar
+      GetVar loc ty  -> varE loc (getEnvVarName ty)
 
     app1 loc var a = appE loc (varE loc var) a
     app2 loc var a b = appE loc (appE loc (varE loc var) a) b
@@ -309,6 +310,7 @@ defaultContext = H.Context $ M.fromList $
   , (selfVar, monoT boxT)
   , (inputsVar, monoT $ listT boxT)
   , (outputsVar, monoT $ listT boxT)
+  , (dataInputsVar, monoT $ listT boxT)
   , (getVarVar, forA $ monoT $ intT `arr` a)
   , (altVar, forA $ monoT $ a `arr` (a `arr` a))
   , (failCaseVar, forA $ monoT a)
@@ -471,7 +473,7 @@ undefVar = secretVar "undefined"
 traceVar :: Text
 traceVar = secretVar "trace"
 
-heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, getVarVar :: Text
+heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, dataInputsVar, getVarVar :: Text
 
 heightVar = secretVar "height"
 inputVar = secretVar "input"
@@ -479,6 +481,7 @@ outputVar = secretVar "output"
 selfVar = secretVar "self"
 inputsVar = secretVar "inputs"
 outputsVar = secretVar "outputs"
+dataInputsVar = secretVar "dataInputs"
 getVarVar = secretVar "getVar"
 
 altVar, failCaseVar :: Text

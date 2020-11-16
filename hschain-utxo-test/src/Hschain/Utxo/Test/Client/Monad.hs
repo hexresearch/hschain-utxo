@@ -212,8 +212,9 @@ initGenesis secret = ([tx], masterBoxId)
     masterBoxId = computeBoxId txId 0
     txId        = computeTxId tx
     tx = Tx
-      { tx'inputs  = []
-      , tx'outputs = [box]
+      { tx'inputs     = []
+      , tx'outputs    = [box]
+      , tx'dataInputs = []
       }
 
     publicKey = getPublicKey secret
