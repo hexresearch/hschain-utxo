@@ -11,14 +11,17 @@ module Hschain.Utxo.Lang.Core.RefEval
 import Codec.Serialise (Serialise,serialise,deserialiseOrFail)
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Except
 import Control.Monad.State.Strict
 import Data.Int
 import Data.Bits       (xor)
 import Data.ByteString (ByteString)
 import Data.Bool
+import Data.String
 import Data.Text       (Text)
 import Data.Typeable
 import Data.Fix
+import Data.Foldable (foldrM)
 import Data.Either.Extra
 import qualified Data.Vector     as V
 import qualified Data.Text       as T
@@ -34,16 +37,17 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
 
+import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 -- | Value hanled by evaluator
 data Val
-  = ValP !Prim                       -- ^ Primitive value
-  | ValBottom !EvalErr               -- ^ Bottom. Always terminate evaluation
-  | ValF  (Val -> Val)               -- ^ Unary function
-  | Val2F (Val -> Val -> Val)        -- ^ Binary function. Added in order to make defining primops easier
-  | Val3F (Val -> Val -> Val -> Val) -- ^ Ternary function. Added in order to make defining primops easier
-  | ValCon Int [Val]                 -- ^ Constructor cell
+  = ValP !Prim                            -- ^ Primitive value
+  | ValBottom !EvalErr                    -- ^ Bottom. Always terminate evaluation
+  | ValF  (Val -> Eval Val)               -- ^ Unary function
+  | Val2F (Val -> Val -> Eval Val)        -- ^ Binary function. Added in order to make defining primops easier
+  | Val3F (Val -> Val -> Val -> Eval Val) -- ^ Ternary function. Added in order to make defining primops easier
+  | ValCon Int [Val]                      -- ^ Constructor cell
 
 instance Show Val where
   showsPrec n v
@@ -73,13 +77,16 @@ data EvalErr
   | EvalErr String  -- ^ Some other error
   deriving (Show, Eq)
 
+instance IsString EvalErr where
+  fromString = EvalErr
+
 -- | Local evaluation environment. Map from variable bindings to values
 type LEnv = Map.Map Name Val
 
 -- | Evaluate program
 evalProg :: InputEnv -> ExprCore -> EvalResult
 evalProg env prog =
-  case runEval (evalExpr env mempty prog) of
+  case joinErr $ runEval (evalExpr env mempty prog) of
     ValP p      -> EvalPrim p
     ValBottom e -> EvalFail e
     ValF{}      -> EvalFail $ EvalErr "Returning function"
@@ -92,14 +99,14 @@ evalProg env prog =
     con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
     con2list _ _                    = Nothing
 
-evalReductionLimit :: Int
-evalReductionLimit = 10000
+newtype Eval a = Eval (StateT EvalEnv (Either EvalErr) a)
+  deriving newtype (Functor, Applicative, Monad, MonadState EvalEnv, MonadError EvalErr)
 
-newtype Eval a = Eval (State EvalEnv a)
-  deriving newtype (Functor, Applicative, Monad, MonadState EvalEnv)
+joinErr :: Either EvalErr Val -> Val
+joinErr = either ValBottom id
 
-runEval :: Eval a -> a
-runEval (Eval st) = evalState st EvalEnv{ evalEnv'reductions = 0 }
+runEval :: Eval a -> Either EvalErr a
+runEval (Eval st) = evalStateT st EvalEnv{ evalEnv'reductions = 0 }
 
 getReductionCount :: Eval Int
 getReductionCount = fmap evalEnv'reductions get
@@ -123,7 +130,7 @@ evalExpr inpEnv = recur
     recur lenv expr = do
       bumpReductionCount
       evalCount <- getReductionCount
-      if evalCount > evalReductionLimit
+      if evalCount > Const.evalReductionLimit
         then pure $ ValBottom $ EvalErr "Exceeds evaluation limit"
         else
           case expr of
@@ -131,39 +138,42 @@ evalExpr inpEnv = recur
             EPrim p      -> pure $ ValP p
             EPrimOp op   -> pure $ evalPrimOp inpEnv op
             EAp f x -> do
-              valF <- fmap match $ recur lenv f
+              valF :: (Val -> Eval Val) <- match =<< recur lenv f
               valX <- recur lenv x
-              return $ inj $ fmap ($ valX) valF
-            ELam nm _ body -> do
-              valBody <- recur (Map.insert nm x lenv) body
-              pure $ ValF $ \x -> valBody
-            EIf e a b -> case recur lenv e of
-              ValP (PrimBool f) -> recur lenv $ if f then a else b
-              ValBottom err     -> ValBottom err
-              _                 -> ValBottom TypeMismatch
-            ELet nm bind body ->
-              let lenv' = MapL.insert nm (recur lenv bind) lenv
-              in recur lenv' body
+              fmap inj $ valF valX
+            ELam nm _ body -> pure $ ValF $ \x -> recur (Map.insert nm x lenv) body
+            EIf e a b -> do
+              valCond <- recur lenv e
+              case valCond of
+                ValP (PrimBool f) -> recur lenv $ if f then a else b
+                ValBottom err     -> pure $ ValBottom err
+                _                 -> pure $ ValBottom TypeMismatch
+            ELet nm bind body -> do
+              valBind <- recur lenv bind
+              let lenv' = MapL.insert nm valBind lenv
+              recur lenv' body
             --
-            ECase e alts -> case recur lenv e of
-              ValCon tag fields -> matchCase alts
-                where
-                  matchCase (CaseAlt{..} : cs)
-                    | tag == caseAlt'tag = recur (bindParams fields caseAlt'args lenv) caseAlt'rhs
-                    | otherwise          = matchCase cs
-                  matchCase [] = ValBottom $ EvalErr "No match in case"
-                  --
-                  bindParams []     []     = id
-                  bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
-                  bindParams _      _      = error "Type error in case"
-              ValBottom err -> ValBottom err
-              _             -> ValBottom TypeMismatch
-            EConstr (TupleT ts) 0 -> constr 0 (length ts)
-            EConstr (ListT  _ ) 0 -> constr 0 0
-            EConstr (ListT  _ ) 1 -> constr 1 2
-            EConstr _           _ -> ValBottom $ EvalErr "Invalid constructor"
+            ECase e alts -> do
+              valE <- recur lenv e
+              case valE of
+                ValCon tag fields -> matchCase alts
+                  where
+                    matchCase (CaseAlt{..} : cs)
+                      | tag == caseAlt'tag = recur (bindParams fields caseAlt'args lenv) caseAlt'rhs
+                      | otherwise          = matchCase cs
+                    matchCase [] = pure $ ValBottom $ EvalErr "No match in case"
+                    --
+                    bindParams []     []     = id
+                    bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
+                    bindParams _      _      = error "Type error in case"
+                ValBottom err -> pure $ ValBottom err
+                _             -> pure $ ValBottom TypeMismatch
+            EConstr (TupleT ts) 0 -> pure $ constr 0 (length ts)
+            EConstr (ListT  _ ) 0 -> pure $ constr 0 0
+            EConstr (ListT  _ ) 1 -> pure $ constr 1 2
+            EConstr _           _ -> pure $ ValBottom $ EvalErr "Invalid constructor"
             --
-            EBottom{} -> ValBottom $ EvalErr "Bottom encountered"
+            EBottom{} -> pure $ ValBottom $ EvalErr "Bottom encountered"
 
 -- Generate constructor
 constr :: Int -> Int -> Val
@@ -177,7 +187,7 @@ build :: (Val -> a -> a) -> (a -> Val) -> a -> Int -> Val
 build step fini = go
   where
     go a 0 = fini a
-    go a i = ValF $ \v -> go (step v a) (i-1)
+    go a i = ValF $ \v -> pure $ go (step v a) (i-1)
 
 
 ----------------------------------------------------------------
@@ -203,14 +213,14 @@ evalPrimOp env = \case
   OpSigPK   -> lift1 $ \t   -> fmap (Fix . SigmaPk) $ parsePublicKey t
   OpSigListAnd   -> lift1 $ Fix . SigmaAnd
   OpSigListOr    -> lift1 $ Fix . SigmaOr
-  OpSigListAll _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- match @(Val -> Val) valF
+  OpSigListAll _ -> Val2F $ \valF valXS -> fmap inj $ do
+    f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val]        valXS
-    Fix . SigmaAnd <$> mapM (match . f) xs
-  OpSigListAny _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- match @(Val -> Val) valF
+    fmap (Fix . SigmaAnd) $ mapM (match <=< f) xs
+  OpSigListAny _ -> Val2F $ \valF valXS -> fmap inj $ do
+    f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val]        valXS
-    Fix . SigmaOr <$> mapM (match . f) xs
+    fmap (Fix . SigmaAnd) $ mapM (match <=< f) xs
   --
   OpCheckSig -> lift2 $ \bs sigIndex -> do
     pk  <- parsePublicKey bs
@@ -268,7 +278,7 @@ evalPrimOp env = \case
   OpGetBoxValue -> lift1 $ \case
     ValCon 0 [_,_,i,_,_] -> i
     x                    -> ValBottom $ EvalErr $ "Box expected, got" ++ show x
-  OpGetBoxArgs t -> ValF $ \case
+  OpGetBoxArgs t -> ValF $ \x -> pure $ case x of
     ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools, bytes],_] -> case t of
       IntArg   -> ints
       TextArg  -> txts
@@ -284,49 +294,47 @@ evalPrimOp env = \case
   OpEnvGetInputs  -> inj $ inputEnv'inputs  env
   OpEnvGetOutputs -> inj $ inputEnv'outputs env
   --
-  OpListMap _ _  -> lift2 (fmap :: (Val -> Val) -> [Val] -> [Val])
+  OpListMap _ _  -> evalLift2 (mapM :: (Val -> Eval Val) -> [Val] -> Eval [Val])
   OpListAt  _    -> lift2 lookAt
   OpListAppend _ -> lift2 ((<>) @[Val])
   OpListLength _ -> lift1 (fromIntegral @_ @Int64 . length @[] @Val)
-  OpListFoldr{}  -> ValF $ \valF -> ValF $ \valZ -> ValF $ \valXS -> inj $ do
+  OpListFoldr{}  -> ValF $ \valF -> pure $ ValF $ \valZ -> pure $ ValF $ \valXS -> fmap inj $ do
     xs <- match @[Val] valXS
-    f1 <- match @(Val -> Val) valF
-    let step :: Val -> Val -> Val
-        step a b = case match (f1 a) of
-          Right f2 -> f2 b
-          Left  e  -> ValBottom e
-    return $ foldr step valZ xs
-  OpListFoldl{}  -> ValF $ \valF -> ValF $ \valZ -> ValF $ \valXS -> inj $ do
+    f1 <- match @(Val -> Eval Val) valF
+    let step :: Val -> Val -> Eval Val
+        step a b = do
+          f2 <- match =<< f1 a
+          f2 b
+    foldrM step valZ xs
+  OpListFoldl{}  -> ValF $ \valF -> pure $ ValF $ \valZ -> pure $ ValF $ \valXS -> fmap inj $ do
     xs <- match @[Val] valXS
-    f1 <- match @(Val -> Val) valF
-    let step :: Val -> Val -> Val
-        step a b = case match (f1 a) of
-          Right f2 -> f2 b
-          Left  e  -> ValBottom e
-    return $ foldl step valZ xs
-  OpListFilter _ -> Val2F $ \valF valXS -> inj $ do
+    f  <- match @(Val -> Eval Val) valF
+    let step :: Val -> Val -> Eval Val
+        step a b = do
+          f2 <- match =<< f a
+          f2 b
+    foldM step valZ xs
+  OpListFilter _ -> Val2F $ \valF valXS -> fmap inj $ do
     xs <- match @[Val]        valXS
-    p  <- match @(Val -> Val) valF
-    return $ filterM (match . p) xs
+    p  <- match @(Val -> Eval Val) valF
+    filterM (match <=< p) xs
   OpListSum   -> lift1 (sum @[] @Int64)
   OpListAnd   -> lift1 (and @[])
   OpListOr    -> lift1 (or  @[])
-  OpListAll _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- match @(Val -> Val) valF
+  OpListAll _ -> Val2F $ \valF valXS -> do
+    f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val] valXS
-    let step []                 = inj True
-        step (Right True  : as) = step as
-        step (Right False : _ ) = inj False
-        step (Left e      : _ ) = ValBottom e
-    return $ step $ map (match . f) xs
-  OpListAny _ -> Val2F $ \valF valXS -> inj $ do
-    f  <- match @(Val -> Val) valF
+    let step []           = inj True
+        step (True  : as) = step as
+        step (False : _ ) = inj False
+    fmap step $ mapM (match <=< f) xs
+  OpListAny _ -> Val2F $ \valF valXS -> do
+    f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val] valXS
-    let step []                 = inj False
-        step (Right True  : _ ) = inj True
-        step (Right False : as) = step as
-        step (Left e      : _ ) = ValBottom e
-    return $ step $ map (match . f) xs
+    let step []           = inj False
+        step (True  : _ ) = inj True
+        step (False : as) = step as
+    fmap step $ mapM (match <=< f) xs
   where
     decode :: Serialise a => LB.ByteString -> Either EvalErr a
     decode bs = case deserialiseOrFail bs of
@@ -364,52 +372,52 @@ readSig InputEnv{..} index = maybeToEither err (inputEnv'sigs V.!? fromIntegral 
 -- Lifting of functions
 ----------------------------------------------------------------
 
-match :: MatchPrim a => Val -> Either EvalErr a
-match (ValBottom e) = Left e
+match :: MatchPrim a => Val -> Eval a
+match (ValBottom e) = throwError e
 match v             = matchVal v
 
 class MatchPrim a where
-  matchVal :: Val -> Either EvalErr a
+  matchVal :: Val -> Eval a
 
 class InjPrim a where
   inj :: a -> Val
 
 instance MatchPrim Val where
-  matchVal = Right
+  matchVal = pure
 instance MatchPrim Prim where
-  matchVal (ValP p) = Right p
-  matchVal _        = Left $ EvalErr "Expecting primitive"
+  matchVal (ValP p) = pure p
+  matchVal _        = throwError "Expecting primitive"
 instance MatchPrim Int64 where
-  matchVal (ValP (PrimInt a)) = Right a
-  matchVal _                  = Left $ EvalErr "Expecting Int"
+  matchVal (ValP (PrimInt a)) = pure a
+  matchVal _                  = throwError "Expecting Int"
 instance MatchPrim Bool where
-  matchVal (ValP (PrimBool a)) = Right a
-  matchVal _                   = Left $ EvalErr "Expecting Bool"
+  matchVal (ValP (PrimBool a)) = pure a
+  matchVal _                   = throwError "Expecting Bool"
 instance MatchPrim Text where
-  matchVal (ValP (PrimText a))  = Right a
-  matchVal _                    = Left $ EvalErr "Expecting Text"
+  matchVal (ValP (PrimText a))  = pure a
+  matchVal _                    = throwError "Expecting Text"
 instance MatchPrim ByteString where
-  matchVal (ValP (PrimBytes a)) = Right a
-  matchVal _                    = Left $ EvalErr "Expecting Bytes"
+  matchVal (ValP (PrimBytes a)) = pure a
+  matchVal _                    = throwError "Expecting Bytes"
 instance MatchPrim LB.ByteString where
-  matchVal (ValP (PrimBytes a)) = Right $ LB.fromStrict a
-  matchVal _                    = Left $ EvalErr "Expecting Bytes"
+  matchVal (ValP (PrimBytes a)) = pure $ LB.fromStrict a
+  matchVal _                    = throwError "Expecting Bytes"
 
 instance k ~ PublicKey => MatchPrim (Sigma k) where
-  matchVal (ValP (PrimSigma a)) = Right a
-  matchVal _                    = Left $ EvalErr "Expecting Sigma"
+  matchVal (ValP (PrimSigma a)) = pure a
+  matchVal _                    = throwError "Expecting Sigma"
 
-instance MatchPrim (Val -> Val) where
+instance MatchPrim (Val -> Eval Val) where
   matchVal = \case
-    ValF      f -> Right f
-    Val2F     f -> Right $ ValF . f
-    Val3F     f -> Right $ Val2F . f
-    v           -> Left $ EvalErr $ "Expecting function, got " ++ conName v
+    ValF      f -> pure f
+    Val2F     f -> pure $ pure . ValF . f
+    Val3F     f -> pure $ pure . Val2F . f
+    v           -> throwError $ EvalErr $ "Expecting function, got " ++ conName v
 
 instance (Typeable a, MatchPrim a) => MatchPrim [a] where
-  matchVal (ValCon 0 [])     = Right []
+  matchVal (ValCon 0 [])     = pure []
   matchVal (ValCon 1 [x,xs]) = liftA2 (:) (match x) (match xs)
-  matchVal p = Left $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
+  matchVal p = throwError $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
 
 instance InjPrim Val           where inj = id
 instance InjPrim Int64         where inj = ValP . PrimInt
@@ -461,19 +469,24 @@ instance InjPrim Args where
     ]
 
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
-lift1 f = ValF go
+lift1 f = ValF $ go
   where
-    go a = inj $ f <$> match a
+    go a = inj . f <$> match a
 
 lift2 :: (MatchPrim a, MatchPrim b, InjPrim c) => (a -> b -> c) -> Val
-lift2 f = Val2F go
+lift2 f = Val2F $ \a b -> go a b
   where
-    go a b = inj $ f <$> match a <*> match b
+    go a b = fmap inj $ f <$> match a <*> match b
+
+evalLift2 :: (MatchPrim a, MatchPrim b, InjPrim c) => (a -> b -> Eval c) -> Val
+evalLift2 f = Val2F $ \a b -> go a b
+  where
+    go a b = fmap inj $ join $ f <$> match a <*> match b
 
 lift3 :: (MatchPrim a, MatchPrim b, MatchPrim c, InjPrim d) => (a -> b -> c -> d) -> Val
-lift3 f = Val3F go
+lift3 f = Val3F $ \a b c -> go a b c
   where
-    go a b c = inj $ f <$> match a <*> match b <*>  match c
+    go a b c = fmap inj $ f <$> match a <*> match b <*>  match c
 
 conName :: Val -> String
 conName = \case

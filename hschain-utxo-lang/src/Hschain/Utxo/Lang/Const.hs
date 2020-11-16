@@ -36,6 +36,8 @@ module Hschain.Utxo.Lang.Const(
   -- * bitcoin style signatures
   , checkSig
   , checkMultiSig
+  -- * Evaluation constants
+  , evalReductionLimit
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length)
@@ -127,6 +129,12 @@ checkSig, checkMultiSig :: Text
 
 checkSig = "checkSig"
 checkMultiSig = "checkMultiSig"
+
+---------------------------------------------------------
+-- Evaluation constants
+
+evalReductionLimit :: Int
+evalReductionLimit = 10000
 
 
 
