@@ -19,7 +19,7 @@ module Hschain.Utxo.Lang.Build(
   , getHeight
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList, getBoxPostHeight
-  , getInputs, getOutputs
+  , getInputs, getOutputs, getDataInputs
   , getIntVars, getBoolVars, getTextVars, getBytesVars
   , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
   , andSigma, orSigma
@@ -240,6 +240,9 @@ getInputs = Expr $ Fix $ GetEnv noLoc (Inputs noLoc)
 
 getOutputs :: Expr (Vector Box)
 getOutputs = Expr $ Fix $ GetEnv noLoc (Outputs noLoc)
+
+getDataInputs :: Expr (Vector Box)
+getDataInputs = Expr $ Fix $ GetEnv noLoc (DataInputs noLoc)
 
 fromVec :: Vector (Expr a) -> Expr (Vector a)
 fromVec vs = Expr $ Fix $ VecE noLoc $ NewVec noLoc $ fmap (\(Expr a) -> a) vs

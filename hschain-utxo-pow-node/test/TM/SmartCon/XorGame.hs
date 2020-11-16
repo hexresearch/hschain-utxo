@@ -56,6 +56,7 @@ xorGame aliceGuess bobGuess = do
             , box'args   = mempty
             }
         ]
+    , tx'dataInputs = []
     }
   let aliceGameBid = computeBoxId (computeTxId txAlice) 0
   _ <- mineBlock Nothing [ txAlice ]
@@ -75,6 +76,7 @@ xorGame aliceGuess bobGuess = do
                                      <> byteArgs [encodeToBS pkBob]
                          }
                    ]
+    , tx'dataInputs = []
     }
   let bobGameBid = computeBoxId (computeTxId txBob) 0
   _ <- mineBlock Nothing [ txBob ]
@@ -89,6 +91,7 @@ xorGame aliceGuess bobGuess = do
                         }
             ]
         , tx'outputs = [ burnBox 200 ]
+        , tx'dataInputs = []
         }
       bobWin = Tx
         { tx'inputs  = [
@@ -100,6 +103,7 @@ xorGame aliceGuess bobGuess = do
                         }
             ]
         , tx'outputs = [ burnBox 200 ]
+        , tx'dataInputs = []
         }
   case aliceGuess == bobGuess of
     -- Alice wins

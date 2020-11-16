@@ -64,8 +64,9 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
     message = getSigMessage SigAll preTx
 
     getPreTx aliceProof bobProof = Tx
-      { tx'inputs   = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
-      , tx'outputs  = [commonBox, singleSpendBox aliceChange alicePk, singleSpendBox bobChange bobPk]
+      { tx'inputs     = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
+      , tx'outputs    = [commonBox, singleSpendBox aliceChange alicePk, singleSpendBox bobChange bobPk]
+      , tx'dataInputs = []
       }
 
     inputBox boxId proof = BoxInputRef
@@ -110,8 +111,9 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
         boxId n = computeBoxId (computeTxId tx) n
 
     getPreTx proof = Tx
-      { tx'inputs  = [commonInput proof]
-      , tx'outputs = [aliceBox, bobBox]
+      { tx'inputs     = [commonInput proof]
+      , tx'outputs    = [aliceBox, bobBox]
+      , tx'dataInputs = []
       }
 
     preTx = getPreTx Nothing
@@ -154,8 +156,9 @@ simpleSpendToTx wallet fromId toPubKey value =
   newProofTxOrFail (getProofEnv wallet) preTx
   where
     preTx = Tx
-      { tx'inputs  = [inputRef]
-      , tx'outputs = [singleSpendBox value toPubKey]
+      { tx'inputs     = [inputRef]
+      , tx'outputs    = [singleSpendBox value toPubKey]
+      , tx'dataInputs = []
       }
 
     inputRef = BoxInputRef
