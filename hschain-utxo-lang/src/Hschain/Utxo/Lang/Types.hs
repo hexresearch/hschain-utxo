@@ -37,7 +37,7 @@ module Hschain.Utxo.Lang.Types
     -- * Helperes
   , singleOwnerInput
     -- * Lenses
-  , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL
+  , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL, txArg'dataInputsL
   , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
   , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
   , box'argsL, box'scriptL, box'valueL
@@ -54,6 +54,7 @@ import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
 import Data.Bifunctor
 import Data.Coerce
+import Data.Default
 import Data.Fix
 import Data.Int
 import Data.Text (Text)
@@ -169,10 +170,19 @@ data GTx i o = Tx
     -- ^ List of inputs
   , tx'outputs :: !(Vector o)
     -- ^ List of outputs
+  , tx'dataInputs :: !(Vector BoxId)
+    -- ^ List of inputs that we do not spend and use as constants in scope
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
   deriving Monoid via GenericSemigroupMonoid (GTx i o)
+
+instance Default (GTx i o) where
+  def = Tx
+          { tx'inputs = mempty
+          , tx'outputs = mempty
+          , tx'dataInputs = mempty
+          }
 
 -- | Transaction which is part of block and which are exchanged between clients
 type Tx    = GTx Proof Box
@@ -191,6 +201,7 @@ instance Semigroup (GTx ins outs) where
   (<>) a b = Tx
     { tx'inputs  = appendInputs (tx'inputs a) (tx'inputs b)
     , tx'outputs = tx'outputs a <> tx'outputs b
+    , tx'dataInputs = tx'dataInputs a <> tx'dataInputs b
     }
     where
       appendInputs aIns bIns = aIns <> fmap (shiftRefMask bSizes) bIns
@@ -266,10 +277,13 @@ computeTxId Tx{..}
   $ hashStep (UserType hashDomain "Tx")
  <> hashStepFoldableWith stepIn  tx'inputs
  <> hashStepFoldableWith stepOut tx'outputs
+ <> hashStepFoldableWith stepDataIn tx'dataInputs
   where
     stepIn BoxInputRef{..}  = hashStep boxInputRef'id
                            <> hashStep boxInputRef'args
     stepOut = hashStep
+
+    stepDataIn = hashStep
 
 getSigMessage :: SigMask -> GTx a Box -> SigMessage
 getSigMessage mask Tx{..}
@@ -296,6 +310,7 @@ filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
 data TxArg = TxArg
   { txArg'inputs       :: !(Vector BoxInput)
   , txArg'outputs      :: !(Vector BoxOutput)
+  , txArg'dataInputs   :: !(Vector BoxOutput)
   , txArg'env          :: !Env
   , txArg'id           :: !TxId
   }
@@ -338,12 +353,18 @@ buildTxArg lookupBox env tx@Tx{..} = do
                   , boxInput'sigMask = boxInputRef'sigMask
                   , boxInput'sigMsg  = getSigMessage boxInputRef'sigMask tx
                   }
-  pure TxArg { txArg'inputs   = inputs
-             , txArg'outputs  = V.imap (\i b -> let boxId = computeBoxId txId (fromIntegral i)
-                                                in  BoxOutput (PostBox b height) boxId
-                                       ) tx'outputs
-             , txArg'env      = env
-             , txArg'id       = txId
+  dataInputs <- forM tx'dataInputs $ \boxId -> do
+    box <- lookupBox boxId
+    pure BoxOutput { boxOutput'box = box
+                   , boxOutput'id  = boxId
+                   }
+  pure TxArg { txArg'inputs     = inputs
+             , txArg'outputs    = V.imap (\i b -> let boxId = computeBoxId txId (fromIntegral i)
+                                                  in  BoxOutput (PostBox b height) boxId
+                                         ) tx'outputs
+             , txArg'dataInputs = dataInputs
+             , txArg'env        = env
+             , txArg'id         = txId
              }
   where
     txId = computeTxId tx
@@ -435,6 +456,7 @@ newProofTx proofEnv tx = liftIO $ do
   return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = tx'outputs tx
+    , tx'dataInputs = tx'dataInputs tx
     }
 
 -- | If we now the expected sigma expressions for the inputs
@@ -449,6 +471,7 @@ newProofTxOrFail proofEnv tx = liftIO $ do
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
     , tx'outputs = tx'outputs tx
+    , tx'dataInputs = tx'dataInputs tx
     }) eInputs
 
 --------------------------------------------
