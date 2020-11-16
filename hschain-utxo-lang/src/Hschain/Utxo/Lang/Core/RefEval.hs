@@ -11,6 +11,7 @@ module Hschain.Utxo.Lang.Core.RefEval
 import Codec.Serialise (Serialise,serialise,deserialiseOrFail)
 import Control.Applicative
 import Control.Monad
+import Control.Monad.State.Strict
 import Data.Int
 import Data.Bits       (xor)
 import Data.ByteString (ByteString)
@@ -78,7 +79,7 @@ type LEnv = Map.Map Name Val
 -- | Evaluate program
 evalProg :: InputEnv -> ExprCore -> EvalResult
 evalProg env prog =
-  case evalExpr env mempty prog of
+  case runEval (evalExpr env mempty prog) of
     ValP p      -> EvalPrim p
     ValBottom e -> EvalFail e
     ValF{}      -> EvalFail $ EvalErr "Returning function"
@@ -91,47 +92,78 @@ evalProg env prog =
     con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
     con2list _ _                    = Nothing
 
-evalExpr :: InputEnv -> LEnv -> ExprCore -> Val
+evalReductionLimit :: Int
+evalReductionLimit = 10000
+
+newtype Eval a = Eval (State EvalEnv a)
+  deriving newtype (Functor, Applicative, Monad, MonadState EvalEnv)
+
+runEval :: Eval a -> a
+runEval (Eval st) = evalState st EvalEnv{ evalEnv'reductions = 0 }
+
+getReductionCount :: Eval Int
+getReductionCount = fmap evalEnv'reductions get
+
+bumpReductionCount :: Eval ()
+bumpReductionCount = modify' $ \st -> st { evalEnv'reductions = succ $ evalEnv'reductions st }
+
+data EvalEnv = EvalEnv
+  { evalEnv'reductions :: !Int
+  }
+  deriving (Show, Eq)
+
+evalExpr :: InputEnv -> LEnv -> ExprCore -> Eval Val
 evalExpr inpEnv = recur
   where
     evalVar lenv x
       | Just v <- x `Map.lookup` lenv = v
       | otherwise = ValBottom $ EvalErr $ "Unknown variable: " ++ show x
-    recur lenv = \case
-      EVar     x   -> evalVar lenv x
-      EPrim p      -> ValP p
-      EPrimOp op   -> evalPrimOp inpEnv op
-      EAp f x -> inj $ do
-        valF <- match $ recur lenv f
-        return (valF $ recur lenv x :: Val)
-      ELam nm _ body -> ValF $ \x -> recur (Map.insert nm x lenv) body
-      EIf e a b -> case recur lenv e of
-        ValP (PrimBool f) -> recur lenv $ if f then a else b
-        ValBottom err     -> ValBottom err
-        _                 -> ValBottom TypeMismatch
-      ELet nm bind body ->
-        let lenv' = MapL.insert nm (recur lenv bind) lenv
-        in recur lenv' body
-      --
-      ECase e alts -> case recur lenv e of
-        ValCon tag fields -> matchCase alts
-          where
-            matchCase (CaseAlt{..} : cs)
-              | tag == caseAlt'tag = recur (bindParams fields caseAlt'args lenv) caseAlt'rhs
-              | otherwise          = matchCase cs
-            matchCase [] = ValBottom $ EvalErr "No match in case"
+
+    recur :: LEnv -> ExprCore -> Eval Val
+    recur lenv expr = do
+      bumpReductionCount
+      evalCount <- getReductionCount
+      if evalCount > evalReductionLimit
+        then pure $ ValBottom $ EvalErr "Exceeds evaluation limit"
+        else
+          case expr of
+            EVar     x   -> pure $ evalVar lenv x
+            EPrim p      -> pure $ ValP p
+            EPrimOp op   -> pure $ evalPrimOp inpEnv op
+            EAp f x -> do
+              valF <- fmap match $ recur lenv f
+              valX <- recur lenv x
+              return $ inj $ fmap ($ valX) valF
+            ELam nm _ body -> do
+              valBody <- recur (Map.insert nm x lenv) body
+              pure $ ValF $ \x -> valBody
+            EIf e a b -> case recur lenv e of
+              ValP (PrimBool f) -> recur lenv $ if f then a else b
+              ValBottom err     -> ValBottom err
+              _                 -> ValBottom TypeMismatch
+            ELet nm bind body ->
+              let lenv' = MapL.insert nm (recur lenv bind) lenv
+              in recur lenv' body
             --
-            bindParams []     []     = id
-            bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
-            bindParams _      _      = error "Type error in case"
-        ValBottom err -> ValBottom err
-        _             -> ValBottom TypeMismatch
-      EConstr (TupleT ts) 0 -> constr 0 (length ts)
-      EConstr (ListT  _ ) 0 -> constr 0 0
-      EConstr (ListT  _ ) 1 -> constr 1 2
-      EConstr _           _ -> ValBottom $ EvalErr "Invalid constructor"
-      --
-      EBottom{} -> ValBottom $ EvalErr "Bottom encountered"
+            ECase e alts -> case recur lenv e of
+              ValCon tag fields -> matchCase alts
+                where
+                  matchCase (CaseAlt{..} : cs)
+                    | tag == caseAlt'tag = recur (bindParams fields caseAlt'args lenv) caseAlt'rhs
+                    | otherwise          = matchCase cs
+                  matchCase [] = ValBottom $ EvalErr "No match in case"
+                  --
+                  bindParams []     []     = id
+                  bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
+                  bindParams _      _      = error "Type error in case"
+              ValBottom err -> ValBottom err
+              _             -> ValBottom TypeMismatch
+            EConstr (TupleT ts) 0 -> constr 0 (length ts)
+            EConstr (ListT  _ ) 0 -> constr 0 0
+            EConstr (ListT  _ ) 1 -> constr 1 2
+            EConstr _           _ -> ValBottom $ EvalErr "Invalid constructor"
+            --
+            EBottom{} -> ValBottom $ EvalErr "Bottom encountered"
 
 -- Generate constructor
 constr :: Int -> Int -> Val
