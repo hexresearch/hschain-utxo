@@ -378,25 +378,27 @@ data Env = Env
 -- | Input environment contains all data that have to be used
 -- during execution of the script.
 data InputEnv = InputEnv
-  { inputEnv'height  :: !Int64
-  , inputEnv'self    :: !BoxInput
-  , inputEnv'inputs  :: !(Vector BoxInput)
-  , inputEnv'outputs :: !(Vector BoxOutput)
-  , inputEnv'args    :: !Args
-  , inputEnv'sigs    :: !(Vector Signature)
-  , inputEnv'sigMsg  :: !SigMessage
+  { inputEnv'height     :: !Int64
+  , inputEnv'self       :: !BoxInput
+  , inputEnv'inputs     :: !(Vector BoxInput)
+  , inputEnv'outputs    :: !(Vector BoxOutput)
+  , inputEnv'dataInputs :: !(Vector BoxOutput)
+  , inputEnv'args       :: !Args
+  , inputEnv'sigs       :: !(Vector Signature)
+  , inputEnv'sigMsg     :: !SigMessage
   }
   deriving (Show, Eq)
 
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
-  { inputEnv'self    = input
-  , inputEnv'height  = env'height txArg'env
-  , inputEnv'inputs  = txArg'inputs
-  , inputEnv'outputs = txArg'outputs
-  , inputEnv'args    = boxInput'args input
-  , inputEnv'sigs    = boxInput'sigs input
-  , inputEnv'sigMsg  = boxInput'sigMsg input
+  { inputEnv'self       = input
+  , inputEnv'height     = env'height txArg'env
+  , inputEnv'inputs     = txArg'inputs
+  , inputEnv'outputs    = txArg'outputs
+  , inputEnv'dataInputs = txArg'dataInputs
+  , inputEnv'args       = boxInput'args input
+  , inputEnv'sigs       = boxInput'sigs input
+  , inputEnv'sigMsg     = boxInput'sigMsg input
   }
 
 txPreservesValue :: TxArg -> Bool

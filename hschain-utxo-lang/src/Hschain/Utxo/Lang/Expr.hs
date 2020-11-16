@@ -903,10 +903,11 @@ monoPrimopName = \case
   OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
   OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
   --
-  OpEnvGetHeight  -> Just "getHeight"
-  OpEnvGetSelf    -> Just "getSelf"
-  OpEnvGetInputs  -> Just "getInputs"
-  OpEnvGetOutputs -> Just "getOutputs"
+  OpEnvGetHeight  -> Just Const.getHeight
+  OpEnvGetSelf    -> Just Const.getSelf
+  OpEnvGetInputs  -> Just Const.getInputs
+  OpEnvGetOutputs -> Just Const.getOutputs
+  OpEnvGetDataInputs -> Just Const.getDataInputs
   -- Polymorphic functions
   OpShow _ -> Nothing
   OpEQ _   -> Nothing
