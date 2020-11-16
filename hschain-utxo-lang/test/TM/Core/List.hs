@@ -36,8 +36,13 @@ tests = testGroup "core-lists"
     , testProgram     "All list"               (progAllList 2) [PrimBool False]
     , testProgram     "All sigma list"         progSigmaAllList
       [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)]))]
+    , testProgramFail "Too many reductions"     (progBigListReduce bigSize)
+    , testProgram    "Ok amount of reductions" (progBigListReduce okSize) [PrimInt (sum ([0 .. okSize] :: [Int64]))]
     ]
   ]
+  where
+    bigSize = 1000000
+    okSize  = 1000
 
 testProgram :: String -> ExprCore -> [Prim] -> TestTree
 testProgram nm prog res = testProgramBy nm prog (Right res)
@@ -77,6 +82,10 @@ listConsts
     zs = xs ++ ys
     bs = [True, False, True]
 
+
+withBigList :: Int64 -> ExprCore -> ExprCore
+withBigList size =
+  ELet "hugeList" (listToExpr IntT $ fmap (EPrim . PrimInt) [0 .. size])
 
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
@@ -125,3 +134,6 @@ progSigmaAllList :: ExprCore
 progSigmaAllList
   = listConsts
   $ ap (EPrimOp (OpSigListAll BoolT)) [EPrimOp OpSigBool, "bs"]
+
+progBigListReduce :: Int64 -> ExprCore
+progBigListReduce size = withBigList size $ ap (EPrimOp OpListSum)  ["hugeList"]
