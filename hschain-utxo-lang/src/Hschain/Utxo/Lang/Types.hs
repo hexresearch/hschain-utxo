@@ -269,7 +269,6 @@ computeTxId Tx{..}
   where
     stepIn BoxInputRef{..}  = hashStep boxInputRef'id
                            <> hashStep boxInputRef'args
-                           <> hashStep boxInputRef'sigMask
     stepOut = hashStep
 
 getSigMessage :: SigMask -> GTx a Box -> SigMessage
