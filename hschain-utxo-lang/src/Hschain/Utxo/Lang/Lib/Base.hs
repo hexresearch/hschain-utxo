@@ -68,6 +68,7 @@ baseFuns =
   , getInput
   , getOutputs
   , getInputs
+  , getDataInputs
   , getBoxId
   , getBoxValue
   , getBoxScript
@@ -135,6 +136,7 @@ baseNames =
   , "getInput"
   , "getOutputs"
   , "getInputs"
+  , "getDataInputs"
   , "getBoxId"
   , "getBoxValue"
   , "getBoxScript"
@@ -213,6 +215,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "getInput"  (monoT $ intT ~> boxT)
   , assumpType "getOutputs" (monoT $ listT boxT)
   , assumpType "getInputs" (monoT $ listT boxT)
+  , assumpType "getDataInputs" (monoT $ listT boxT)
   , assumpType "getBoxId" (monoT $ boxT ~> textT)
   , assumpType "getBoxValue" (monoT $ boxT ~> intT)
   , assumpType "getBoxPostHeight" (monoT $ boxT ~> intT)
@@ -338,6 +341,9 @@ getOutputs = bind "getOutputs" (Fix $ GetEnv noLoc $ Outputs noLoc)
 
 getInputs :: Bind Lang
 getInputs = bind "getInputs" (Fix $ GetEnv noLoc $ Inputs noLoc)
+
+getDataInputs :: Bind Lang
+getDataInputs = bind "getDataInputs" (Fix $ GetEnv noLoc $ DataInputs noLoc)
 
 getBoxId :: Bind Lang
 getBoxId = bind "getBoxId" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldId)

@@ -196,13 +196,14 @@ exprToExtendedLC typeCtx = cataM $ \case
           GreaterThanEquals    -> ">="
 
     fromGetEnv _ envId = pure $ case envId of
-      Height loc    -> var loc Const.getHeight
-      Input loc a   -> ap2 loc (var loc "listAt") (var loc Const.getInputs) a
-      Output loc a  -> ap2 loc (var loc "listAt") (var loc Const.getOutputs) a
-      Self loc      -> var loc Const.getSelf
-      Inputs loc    -> var loc Const.getInputs
-      Outputs loc   -> var loc Const.getOutputs
-      GetVar loc ty -> var loc (getEnvVarName ty)
+      Height loc     -> var loc Const.getHeight
+      Input loc a    -> ap2 loc (var loc "listAt") (var loc Const.getInputs) a
+      Output loc a   -> ap2 loc (var loc "listAt") (var loc Const.getOutputs) a
+      Self loc       -> var loc Const.getSelf
+      Inputs loc     -> var loc Const.getInputs
+      Outputs loc    -> var loc Const.getOutputs
+      DataInputs loc -> var loc Const.getDataInputs
+      GetVar loc ty  -> var loc (getEnvVarName ty)
 
     fromVecExpr _ expr = pure $ case expr of
       NewVec loc args     -> newVec loc args

@@ -218,6 +218,7 @@ prettyId = \case
     Output _ a       -> prettyVec "output" a
     Inputs _         -> "INPUTS"
     Outputs _        -> "OUTPUTS"
+    DataInputs _     -> "DATA-INPUTS"
     Self _           -> hcat ["SELF"]
     GetVar _ ty      -> pretty $ getEnvVarName ty
 

@@ -580,6 +580,8 @@ data EnvId a
   -- ^ Get list of all input boxes
   | Outputs Loc
   -- ^ Get list of all output boxes
+  | DataInputs Loc
+  -- ^ Get list of all data-input boxes
   | GetVar Loc ArgType
   -- ^ Get argument of the transaction by name
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -960,7 +962,7 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpCheckSig, OpCheckMultiSig
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
-  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
+  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs, OpEnvGetDataInputs
   , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpGetBoxPostHeight
   , OpListSum
   , OpListAnd
