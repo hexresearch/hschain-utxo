@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Types
   ( -- * Transaction types
     Tx
   , GTx(..)
+  , emptyTx
   , TxId(..)
   , Box(..)
   , BoxId(..)
@@ -54,7 +55,6 @@ import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
 import Data.Bifunctor
 import Data.Coerce
-import Data.Default
 import Data.Fix
 import Data.Int
 import Data.Text (Text)
@@ -177,12 +177,12 @@ data GTx i o = Tx
   deriving anyclass (Serialise, NFData)
   deriving Monoid via GenericSemigroupMonoid (GTx i o)
 
-instance Default (GTx i o) where
-  def = Tx
-          { tx'inputs = mempty
-          , tx'outputs = mempty
-          , tx'dataInputs = mempty
-          }
+emptyTx :: GTx ins outs
+emptyTx = Tx
+  { tx'inputs = mempty
+  , tx'outputs = mempty
+  , tx'dataInputs = mempty
+  }
 
 -- | Transaction which is part of block and which are exchanged between clients
 type Tx    = GTx Proof Box
