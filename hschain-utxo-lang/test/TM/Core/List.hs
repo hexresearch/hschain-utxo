@@ -12,14 +12,12 @@ import Data.Fix
 import Data.Int
 
 import Test.Tasty
-import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Core.RefEval
-import TM.Core.Common (env)
+import TM.Core.Common (testProgramBy, testProgramFail)
 
 tests :: TestTree
 tests = testGroup "core-lists"
@@ -46,21 +44,6 @@ tests = testGroup "core-lists"
 
 testProgram :: String -> ExprCore -> [Prim] -> TestTree
 testProgram nm prog res = testProgramBy nm prog (Right res)
-
-testProgramFail :: String -> ExprCore -> TestTree
-testProgramFail nm prog = testProgramBy nm prog (Left ())
-
-testProgramBy :: String -> ExprCore -> Either e [Prim] -> TestTree
-testProgramBy nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple" $ case res of
-      Left  _   -> return ()
-      Right [r] -> EvalPrim r @=? evalProg env prog
-      Right r   -> EvalList r @=? evalProg env prog
-  ]
-
 
 listToExpr :: TypeCore -> [ExprCore] -> ExprCore
 listToExpr ty = foldr cons nil
