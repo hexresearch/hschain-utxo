@@ -318,17 +318,23 @@ evalPrimOp env = \case
   OpListAll _ -> pure $ Val2F $ \valF valXS -> do
     f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val] valXS
-    let step []           = inj True
-        step (True  : as) = step as
-        step (False : _ ) = inj False
-    fmap step $ mapM (match <=< f) xs
+    let step []       = pure $ inj True
+        step (a : as) = do
+          resBool <- match =<< f a
+          case resBool of
+            True  -> step as
+            False -> pure $ inj False
+    step xs
   OpListAny _ -> pure $ Val2F $ \valF valXS -> do
     f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val] valXS
-    let step []           = inj False
-        step (True  : _ ) = inj True
-        step (False : as) = step as
-    fmap step $ mapM (match <=< f) xs
+    let step []       = pure $ inj False
+        step (a : as) = do
+          resBool <- match =<< f a
+          case resBool of
+            True  -> pure $ inj True
+            False -> step as
+    step xs
   where
     decode :: Serialise a => LB.ByteString -> Eval a
     decode bs = case deserialiseOrFail bs of
