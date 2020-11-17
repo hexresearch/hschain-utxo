@@ -283,10 +283,11 @@ evalPrimOp env = \case
     ValCon 0 [_,_,_,_,b] -> pure $ b
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
   --
-  OpEnvGetHeight  -> pure $ ValP $ PrimInt $ inputEnv'height env
-  OpEnvGetSelf    -> pure $ inj $ inputEnv'self env
-  OpEnvGetInputs  -> pure $ inj $ inputEnv'inputs  env
-  OpEnvGetOutputs -> pure $ inj $ inputEnv'outputs env
+  OpEnvGetHeight     -> pure $ ValP $ PrimInt $ inputEnv'height env
+  OpEnvGetSelf       -> pure $ inj $ inputEnv'self env
+  OpEnvGetInputs     -> pure $ inj $ inputEnv'inputs  env
+  OpEnvGetOutputs    -> pure $ inj $ inputEnv'outputs env
+  OpEnvGetDataInputs -> pure $ inj $ inputEnv'dataInputs env
   --
   OpListMap _ _  -> pure $ evalLift2 (mapM :: (Val -> Eval Val) -> [Val] -> Eval [Val])
   OpListAt  _    -> pure $ evalLift2 lookAt
