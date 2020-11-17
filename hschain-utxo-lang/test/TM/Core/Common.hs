@@ -2,6 +2,8 @@
 module TM.Core.Common
   ( env
   , testProgram
+  , testProgramBy
+  , testProgramFail
   , mkBoxInput
   , mkBoxOutput
   ) where
@@ -64,3 +66,17 @@ testProgram nm prog res = testGroup nm
       Right _ -> pure ()
   , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
   ]
+
+testProgramBy :: String -> ExprCore -> Either e [Prim] -> TestTree
+testProgramBy nm prog res = testGroup nm
+  [ testCase "typecheck" $ case typeCheck prog of
+      Left  e -> assertFailure $ show e
+      Right _ -> pure ()
+  , testCase "simple" $ case res of
+      Left  _   -> return ()
+      Right [r] -> EvalPrim r @=? evalProg env prog
+      Right r   -> EvalList r @=? evalProg env prog
+  ]
+
+testProgramFail :: String -> ExprCore -> TestTree
+testProgramFail nm prog = testProgramBy nm prog (Left ())

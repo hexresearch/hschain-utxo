@@ -12,14 +12,12 @@ import Data.Fix
 import Data.Int
 
 import Test.Tasty
-import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Core.RefEval
-import TM.Core.Common (env)
+import TM.Core.Common (testProgramBy, testProgramFail)
 
 tests :: TestTree
 tests = testGroup "core-lists"
@@ -36,26 +34,16 @@ tests = testGroup "core-lists"
     , testProgram     "All list"               (progAllList 2) [PrimBool False]
     , testProgram     "All sigma list"         progSigmaAllList
       [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)]))]
+    , testProgramFail "Too many reductions"     (progBigListReduce bigSize)
+    , testProgram    "Ok amount of reductions" (progBigListReduce okSize) [PrimInt (sum ([0 .. okSize] :: [Int64]))]
     ]
   ]
+  where
+    bigSize = 1000000
+    okSize  = 1000
 
 testProgram :: String -> ExprCore -> [Prim] -> TestTree
 testProgram nm prog res = testProgramBy nm prog (Right res)
-
-testProgramFail :: String -> ExprCore -> TestTree
-testProgramFail nm prog = testProgramBy nm prog (Left ())
-
-testProgramBy :: String -> ExprCore -> Either e [Prim] -> TestTree
-testProgramBy nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple" $ case res of
-      Left  _   -> return ()
-      Right [r] -> EvalPrim r @=? evalProg env prog
-      Right r   -> EvalList r @=? evalProg env prog
-  ]
-
 
 listToExpr :: TypeCore -> [ExprCore] -> ExprCore
 listToExpr ty = foldr cons nil
@@ -77,6 +65,10 @@ listConsts
     zs = xs ++ ys
     bs = [True, False, True]
 
+
+withBigList :: Int64 -> ExprCore -> ExprCore
+withBigList size =
+  ELet "hugeList" (listToExpr IntT $ fmap (EPrim . PrimInt) [0 .. size])
 
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
@@ -125,3 +117,6 @@ progSigmaAllList :: ExprCore
 progSigmaAllList
   = listConsts
   $ ap (EPrimOp (OpSigListAll BoolT)) [EPrimOp OpSigBool, "bs"]
+
+progBigListReduce :: Int64 -> ExprCore
+progBigListReduce size = withBigList size $ ap (EPrimOp OpListSum)  ["hugeList"]

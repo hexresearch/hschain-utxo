@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Core.Compile.Build(
     ap
   , ap2
+  , primOp
   , int
   , bool
   , text
@@ -48,6 +49,9 @@ import qualified Data.List as L
 
 ap :: ExprCore -> [ExprCore] -> ExprCore
 ap f args = L.foldl' (\op a -> EAp op a) f args
+
+primOp :: PrimOp TypeCore -> [ExprCore] -> ExprCore
+primOp op args = ap (EPrimOp op) args
 
 -- | Application of function to two arguments
 ap2 :: ExprCore -> ExprCore -> ExprCore -> ExprCore
