@@ -55,6 +55,7 @@ import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
 import Data.Bifunctor
 import Data.Coerce
+import Data.Data
 import Data.Fix
 import Data.Int
 import Data.Text (Text)
@@ -124,7 +125,7 @@ instance FromText BoxId where
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
   deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
-  deriving stock    (Generic)
+  deriving stock    (Generic, Data)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
 
