@@ -17,8 +17,9 @@ singleOwnerGenesis :: IO [Tx]
 singleOwnerGenesis = fmap withSecret newSecret
   where
     withSecret secret = return $ Tx
-      { tx'inputs  = V.empty
-      , tx'outputs = V.fromList [box]
+      { tx'inputs     = V.empty
+      , tx'outputs    = V.fromList [box]
+      , tx'dataInputs = V.empty
       }
       where
         publicKey = getPublicKey secret

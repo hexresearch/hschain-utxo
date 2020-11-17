@@ -232,10 +232,12 @@ primopToType = \case
   -- FIXME: Function is in fact partial
   OpFromBytes tag -> pure $ BytesT :-> (tagToType tag)
   --
-  OpEnvGetHeight  -> pure IntT
-  OpEnvGetSelf    -> pure BoxT
-  OpEnvGetInputs  -> pure $ ListT BoxT
-  OpEnvGetOutputs -> pure $ ListT BoxT
+  OpEnvGetHeight     -> pure IntT
+  OpEnvGetSelf       -> pure BoxT
+  OpEnvGetInputs     -> pure $ ListT BoxT
+  OpEnvGetOutputs    -> pure $ ListT BoxT
+  OpEnvGetDataInputs -> pure $ ListT BoxT
+
   --
   OpListMap    a b -> pure $ (a :-> b) :-> ListT a :-> ListT b
   OpListAt     a   -> pure $ ListT a :-> IntT    :-> a

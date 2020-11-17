@@ -26,8 +26,9 @@ type Balance = (Money, Money)
 -- | Funding TX
 fundingTx :: MonadIO io => Wallet -> (Money, Money) -> [BoxId] -> PublicKey -> io Tx
 fundingTx wallet (value, change) inputIds otherPubKey = newProofTx  (getProofEnv wallet) $ Tx
-  { tx'inputs  = V.fromList $ fmap (singleOwnerBoxRef wallet) inputIds
-  , tx'outputs = V.fromList $ catMaybes [Just fundBox, changeBox]
+  { tx'inputs     = V.fromList $ fmap (singleOwnerBoxRef wallet) inputIds
+  , tx'outputs    = V.fromList $ catMaybes [Just fundBox, changeBox]
+  , tx'dataInputs = []
   }
   where
     fundBox = Box
@@ -52,8 +53,9 @@ getSharedBoxId tx = computeBoxId (computeTxId tx) 0
 commitmentTx :: PublicKey -> BoxId -> Balance -> PublicKey -> Int64 -> ByteString -> [Htlc] -> Tx
 commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHash htlcs =
   Tx
-    { tx'inputs  = [commonInput commonBoxId]
-    , tx'outputs = V.fromList $ [myBox, otherBox] ++ fmap fromHtlc htlcs
+    { tx'inputs     = [commonInput commonBoxId]
+    , tx'outputs    = V.fromList $ [myBox, otherBox] ++ fmap fromHtlc htlcs
+    , tx'dataInputs = []
     }
   where
     myBox = Box
@@ -83,8 +85,9 @@ commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHas
 closeChanTx :: BoxId -> Balance -> (PublicKey, PublicKey) -> Tx
 closeChanTx commonBoxId (valA, valB) (pkA, pkB) =
   Tx
-    { tx'inputs  = [commonInput commonBoxId]
-    , tx'outputs = [singleSpendBox valA pkA, singleSpendBox valB pkB]
+    { tx'inputs     = [commonInput commonBoxId]
+    , tx'outputs    = [singleSpendBox valA pkA, singleSpendBox valB pkB]
+    , tx'dataInputs = []
     }
 
 commonInput :: BoxId -> BoxInputRef a

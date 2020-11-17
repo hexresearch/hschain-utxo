@@ -163,8 +163,9 @@ xorGameRound Scene{..} game@Game{..} = do
             }
 
           preTx = Tx
-            { tx'inputs  = [inputBox]
-            , tx'outputs = V.fromList $ catMaybes [restBox, gameBox]
+            { tx'inputs     = [inputBox]
+            , tx'outputs    = V.fromList $ catMaybes [restBox, gameBox]
+            , tx'dataInputs = []
             }
 
       fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
@@ -189,6 +190,7 @@ xorGameRound Scene{..} game@Game{..} = do
                     , BoxInputRef scriptBox mempty Nothing mempty SigAll
                     ]
                 , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
+                , tx'dataInputs = []
                 }
           tx <- newProofTx (getProofEnv wallet) preTx
           let (gameBoxId, mChangeBoxId) = extractOutputs tx
@@ -233,8 +235,9 @@ xorGameRound Scene{..} game@Game{..} = do
       return (tx, extractWinAddr tx)
       where
         preTx = Tx
-            { tx'inputs  = V.fromList [BoxInputRef gameBox args (Just $ singleOwnerSigmaExpr wallet) mempty SigAll]
-            , tx'outputs = V.fromList [outBox]
+            { tx'inputs     = V.fromList [BoxInputRef gameBox args (Just $ singleOwnerSigmaExpr wallet) mempty SigAll]
+            , tx'outputs    = V.fromList [outBox]
+            , tx'dataInputs = []
             }
 
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]

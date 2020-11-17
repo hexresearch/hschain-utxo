@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Const(
   , getSelf
   , getInputs
   , getOutputs
+  , getDataInputs
   , getArgs
   -- * Boxes
   , getBoxArgs
@@ -55,12 +56,13 @@ import Data.Text (Text)
 ---------------------------------------------------------------
 -- names for functions that read environment
 
-getHeight, getSelf, getInputs, getOutputs :: Text
+getHeight, getSelf, getInputs, getOutputs, getDataInputs :: Text
 
 getHeight  = "getHeight"
 getSelf    = "getSelf"
 getInputs  = "getInputs"
 getOutputs = "getOutputs"
+getDataInputs = "getDataInputs"
 
 getArgs :: Text -> Text
 getArgs typeName = mconcat ["get", typeName, "Args"]

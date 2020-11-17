@@ -91,12 +91,14 @@ instance Pretty Tx where
   pretty Tx{..} = prettyRecord "Tx"
     [ ("inputs", brackets $ hsep $ punctuate comma $ V.toList $ fmap pretty tx'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList tx'outputs )
+    , ("dataInputs", vsep $ fmap pretty $ V.toList tx'dataInputs)
     ]
 
 instance Pretty TxArg where
   pretty TxArg{..} = prettyRecord "TxArg"
     [ ("inputs",  vsep $ fmap pretty $ V.toList txArg'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList txArg'outputs )
+    , ("dataInputs", vsep $ fmap pretty $ V.toList txArg'dataInputs )
     ]
 
 instance Pretty BoxInput where
@@ -138,6 +140,7 @@ instance Pretty SigMask where
   pretty SigMask{..} = prettyRecord "SigMask"
     [ ("inputs",  prettyBits sigMask'inputs)
     , ("outputs", prettyBits sigMask'outputs)
+    , ("dataInputs", prettyBits sigMask'dataInputs)
     ]
     where
       prettyBits bits = hcat $ fmap (bool "0" "1") $ V.toList bits
@@ -218,6 +221,7 @@ prettyId = \case
     Output _ a       -> prettyVec "output" a
     Inputs _         -> "INPUTS"
     Outputs _        -> "OUTPUTS"
+    DataInputs _     -> "DATA-INPUTS"
     Self _           -> hcat ["SELF"]
     GetVar _ ty      -> pretty $ getEnvVarName ty
 

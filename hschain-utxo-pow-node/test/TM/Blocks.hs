@@ -45,6 +45,7 @@ noDoubleTx = do
   txAlice <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
     , tx'outputs = [ burnBox 100 ]
+    , tx'dataInputs = []
     }
   _ <- mineBlock Nothing [txAlice]
   -- Same transaction now should be rejected
@@ -74,13 +75,15 @@ simpleTransfers = do
   --
   -- Bob can't spend output
   badTx sigmaEnv $ Tx
-    { tx'inputs  = [ simpleInputRef bidAlice pkBob ]
-    , tx'outputs = [ burnBox 100 ]
+    { tx'inputs     = [ simpleInputRef bidAlice pkBob ]
+    , tx'outputs    = [ burnBox 100 ]
+    , tx'dataInputs = []
     }
   -- Alice can't create more money
   badTx sigmaEnv $ Tx
-    { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
-    , tx'outputs = [ burnBox 101 ]
+    { tx'inputs     = [ simpleInputRef bidAlice pkAlice ]
+    , tx'outputs    = [ burnBox 101 ]
+    , tx'dataInputs = []
     }
   -- Now Alice may spend mined block and pay 10 coin in fees
   txAlice <- newProofTx sigmaEnv $ Tx
@@ -95,6 +98,7 @@ simpleTransfers = do
             , box'args   = mempty
             }
       ]
+    , tx'dataInputs = []
     }
   bidBob <- mineBlock (Just pkBob) [txAlice]
   ----------------------------------------
@@ -104,15 +108,18 @@ simpleTransfers = do
   txBob1 <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidBob pkBob ]
     , tx'outputs = [ burnBox 110 ]
+    , tx'dataInputs = []
     }
   --  * Bob and Charlie burn money received from Alice
   txBob2 <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef (computeBoxId (computeTxId txAlice) 0) pkBob ]
     , tx'outputs = [ burnBox 60 ]
+    , tx'dataInputs = []
     }
   txCharlie <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef (computeBoxId (computeTxId txAlice) 1) pkCharlie ]
     , tx'outputs = [ burnBox 30 ]
+    , tx'dataInputs = []
     }
   _ <- mineBlock Nothing [ txBob1, txBob2, txCharlie ]
   pure ()
@@ -146,6 +153,7 @@ payforCoffee isBob = do
             , box'args   = intArgs [ 4 ]
             }
       ]
+    , tx'dataInputs = []
     }
   _ <- mineBlock Nothing [ txToBob ]
   let coffeeBoxId = computeBoxId (computeTxId txToBob) 0
@@ -156,6 +164,7 @@ payforCoffee isBob = do
       txBob <- newProofTx sigmaEnv $ Tx
         { tx'inputs  = [ simpleInputRef coffeeBoxId pkBob ]
         , tx'outputs = [ burnBox 100 ]
+        , tx'dataInputs = []
         }
       badBlock [ txBob ]
       -- H=3,4. Just skip some
@@ -170,6 +179,7 @@ payforCoffee isBob = do
       txAlice <- newProofTx sigmaEnv $ Tx
         { tx'inputs  = [ simpleInputRef coffeeBoxId pkAlice ]
         , tx'outputs = [ burnBox 100 ]
+        , tx'dataInputs = []
         }
       _ <- mineBlock Nothing [txAlice]
       pure ()

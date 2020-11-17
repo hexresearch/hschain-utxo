@@ -105,13 +105,14 @@ toHaskExp (Fix expr) = case expr of
         op2' name a b = op2 loc name a b
 
     fromEnv _ = \case
-      Height loc    -> toVar loc (VarName loc "getHeight")
-      Input loc a   -> ap (VarName loc "getInput") a
-      Output loc a  -> ap (VarName loc "getOutput") a
-      Self loc      -> toVar loc (VarName loc "getSelf")
-      Inputs loc    -> toVar loc (VarName loc "getInputs")
-      Outputs loc   -> toVar loc (VarName loc "getOutputs")
-      GetVar loc ty -> toVar loc (VarName loc $ getEnvVarName ty)
+      Height loc     -> toVar loc (VarName loc Const.getHeight)
+      Input loc a    -> ap (VarName loc "getInput") a
+      Output loc a   -> ap (VarName loc "getOutput") a
+      Self loc       -> toVar loc (VarName loc Const.getSelf)
+      Inputs loc     -> toVar loc (VarName loc Const.getInputs)
+      Outputs loc    -> toVar loc (VarName loc Const.getOutputs)
+      DataInputs loc -> toVar loc (VarName loc Const.getDataInputs)
+      GetVar loc ty  -> toVar loc (VarName loc $ getEnvVarName ty)
 
     fromSigma _ = \case
       Pk loc a        -> ap (VarName loc "pk") a

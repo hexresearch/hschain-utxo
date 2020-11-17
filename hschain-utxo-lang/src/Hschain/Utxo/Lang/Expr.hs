@@ -580,6 +580,8 @@ data EnvId a
   -- ^ Get list of all input boxes
   | Outputs Loc
   -- ^ Get list of all output boxes
+  | DataInputs Loc
+  -- ^ Get list of all data-input boxes
   | GetVar Loc ArgType
   -- ^ Get argument of the transaction by name
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -903,10 +905,11 @@ monoPrimopName = \case
   OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
   OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
   --
-  OpEnvGetHeight  -> Just "getHeight"
-  OpEnvGetSelf    -> Just "getSelf"
-  OpEnvGetInputs  -> Just "getInputs"
-  OpEnvGetOutputs -> Just "getOutputs"
+  OpEnvGetHeight  -> Just Const.getHeight
+  OpEnvGetSelf    -> Just Const.getSelf
+  OpEnvGetInputs  -> Just Const.getInputs
+  OpEnvGetOutputs -> Just Const.getOutputs
+  OpEnvGetDataInputs -> Just Const.getDataInputs
   -- Polymorphic functions
   OpShow _ -> Nothing
   OpEQ _   -> Nothing
@@ -959,7 +962,7 @@ monomorphicPrimops =
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpCheckSig, OpCheckMultiSig
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
-  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
+  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs, OpEnvGetDataInputs
   , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpGetBoxPostHeight
   , OpListSum
   , OpListAnd

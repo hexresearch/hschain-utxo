@@ -413,8 +413,9 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
     }
   where
     preTx = Tx
-      { tx'inputs  = [inputRef Nothing]
-      , tx'outputs = [myBox, partnerBox]
+      { tx'inputs     = [inputRef Nothing]
+      , tx'outputs    = [myBox, partnerBox]
+      , tx'dataInputs = []
       }
 
     inputRef proof = BoxInputRef
@@ -454,8 +455,9 @@ getRevoceTx wallet RevoceBox{..} =
     appendBoxId tx@Tx{..} = (tx, computeBoxId (computeTxId tx) 0)
 
     preTx = Tx
-      { tx'inputs  = [inputRef]
-      , tx'outputs = [singleSpendBox revoceBox'value pubKey ]
+      { tx'inputs     = [inputRef]
+      , tx'outputs    = [singleSpendBox revoceBox'value pubKey ]
+      , tx'dataInputs = []
       }
 
     inputRef = BoxInputRef

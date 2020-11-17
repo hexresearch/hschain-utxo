@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Types
   ( -- * Transaction types
     Tx
   , GTx(..)
+  , emptyTx
   , TxId(..)
   , Box(..)
   , BoxId(..)
@@ -37,7 +38,7 @@ module Hschain.Utxo.Lang.Types
     -- * Helperes
   , singleOwnerInput
     -- * Lenses
-  , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL
+  , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL, txArg'dataInputsL
   , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
   , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
   , box'argsL, box'scriptL, box'valueL
@@ -169,17 +170,27 @@ data GTx i o = Tx
     -- ^ List of inputs
   , tx'outputs :: !(Vector o)
     -- ^ List of outputs
+  , tx'dataInputs :: !(Vector BoxId)
+    -- ^ List of inputs that we do not spend and use as constants in scope
   }
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
   deriving Monoid via GenericSemigroupMonoid (GTx i o)
 
+emptyTx :: GTx ins outs
+emptyTx = Tx
+  { tx'inputs = mempty
+  , tx'outputs = mempty
+  , tx'dataInputs = mempty
+  }
+
 -- | Transaction which is part of block and which are exchanged between clients
 type Tx    = GTx Proof Box
 
 data TxSizes = TxSizes
-  { txSizes'inputs  :: !Int
-  , txSizes'outputs :: !Int
+  { txSizes'inputs     :: !Int
+  , txSizes'outputs    :: !Int
+  , txSizes'dataInputs :: !Int
   } deriving (Show, Eq)
 
 instance Bifunctor GTx where
@@ -191,6 +202,7 @@ instance Semigroup (GTx ins outs) where
   (<>) a b = Tx
     { tx'inputs  = appendInputs (tx'inputs a) (tx'inputs b)
     , tx'outputs = tx'outputs a <> tx'outputs b
+    , tx'dataInputs = tx'dataInputs a <> tx'dataInputs b
     }
     where
       appendInputs aIns bIns = aIns <> fmap (shiftRefMask bSizes) bIns
@@ -205,14 +217,16 @@ instance Semigroup (GTx ins outs) where
       shiftMask sizes x = appendSigMask (aSizes, prefix) (sizes, x)
         where
           prefix = SigMask
-            { sigMask'inputs  = V.replicate (txSizes'inputs  aSizes) False
-            , sigMask'outputs = V.replicate (txSizes'outputs aSizes) False
+            { sigMask'inputs     = V.replicate (txSizes'inputs  aSizes) False
+            , sigMask'outputs    = V.replicate (txSizes'outputs aSizes) False
+            , sigMask'dataInputs = V.replicate (txSizes'dataInputs aSizes) False
             }
 
 getTxSizes :: GTx ins outs -> TxSizes
 getTxSizes Tx{..} = TxSizes
-  { txSizes'inputs  = V.length tx'inputs
-  , txSizes'outputs = V.length tx'outputs
+  { txSizes'inputs     = V.length tx'inputs
+  , txSizes'outputs    = V.length tx'outputs
+  , txSizes'dataInputs = V.length tx'dataInputs
   }
 
 -- | Input is an unspent Box that exists in blockchain.
@@ -238,8 +252,9 @@ data BoxInputRef a = BoxInputRef
 --
 -- Empty SigMask means sign all inputs and outputs.
 data SigMask = SigMask
-  { sigMask'inputs   :: Vector Bool
-  , sigMask'outputs  :: Vector Bool
+  { sigMask'inputs     :: Vector Bool
+  , sigMask'outputs    :: Vector Bool
+  , sigMask'dataInputs :: Vector Bool
   } -- ^ Specify what inputs and outputs to sign
   | SigAll
   -- ^ Signs whole transaction (all inputs and outputs)
@@ -251,13 +266,14 @@ appendSigMask (aSizes, a) (bSizes , b) = case (a, b) of
   (SigAll, SigAll)      -> SigAll
   (SigAll, SigMask{..}) -> appendSigMask (aSizes, signAll aSizes) (bSizes, b)
   (SigMask{..}, SigAll) -> appendSigMask (aSizes, a) (bSizes, signAll bSizes)
-  (SigMask aIns aOuts, SigMask bIns bOuts) -> SigMask (aIns <> bIns) (aOuts <> bOuts)
+  (SigMask aIns aOuts aDataIns, SigMask bIns bOuts bDataIns) -> SigMask (aIns <> bIns) (aOuts <> bOuts) (aDataIns <> bDataIns)
 
 signAll :: TxSizes -> SigMask
 signAll TxSizes{..} =
   SigMask
     { sigMask'inputs  = V.replicate txSizes'inputs  True
     , sigMask'outputs = V.replicate txSizes'outputs True
+    , sigMask'dataInputs = V.replicate txSizes'dataInputs True
     }
 
 computeTxId :: GTx a Box -> TxId
@@ -266,11 +282,13 @@ computeTxId Tx{..}
   $ hashStep (UserType hashDomain "Tx")
  <> hashStepFoldableWith stepIn  tx'inputs
  <> hashStepFoldableWith stepOut tx'outputs
+ <> hashStepFoldableWith stepDataIn tx'dataInputs
   where
     stepIn BoxInputRef{..}  = hashStep boxInputRef'id
                            <> hashStep boxInputRef'args
-                           <> hashStep boxInputRef'sigMask
     stepOut = hashStep
+
+    stepDataIn = hashStep
 
 getSigMessage :: SigMask -> GTx a Box -> SigMessage
 getSigMessage mask Tx{..}
@@ -278,15 +296,17 @@ getSigMessage mask Tx{..}
    $ hashStep (UserType hashDomain "Tx")
   <> hashStepFoldableWith stepIn  (filterIns  tx'inputs)
   <> hashStepFoldableWith stepOut (filterOuts tx'outputs)
+  <> hashStepFoldableWith stepDataIn (filterDataIns tx'dataInputs)
   where
-    (filterIns, filterOuts) = case mask of
-      SigMask{..} -> (filterMask sigMask'inputs, filterMask sigMask'outputs)
-      SigAll      -> (id, id)
+    (filterIns, filterOuts, filterDataIns) = case mask of
+      SigMask{..} -> (filterMask sigMask'inputs, filterMask sigMask'outputs, filterMask sigMask'dataInputs)
+      SigAll      -> (id, id, id)
 
     stepIn BoxInputRef{..}  = hashStep boxInputRef'id
                            <> hashStep boxInputRef'args
                            <> hashStep boxInputRef'sigMask
     stepOut = hashStep
+    stepDataIn = hashStep
 
 filterMask :: Vector Bool -> Vector a -> Vector a
 filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
@@ -297,6 +317,7 @@ filterMask mask v = fmap snd $ V.filter fst $ V.zip mask v
 data TxArg = TxArg
   { txArg'inputs       :: !(Vector BoxInput)
   , txArg'outputs      :: !(Vector BoxOutput)
+  , txArg'dataInputs   :: !(Vector BoxOutput)
   , txArg'env          :: !Env
   , txArg'id           :: !TxId
   }
@@ -339,12 +360,18 @@ buildTxArg lookupBox env tx@Tx{..} = do
                   , boxInput'sigMask = boxInputRef'sigMask
                   , boxInput'sigMsg  = getSigMessage boxInputRef'sigMask tx
                   }
-  pure TxArg { txArg'inputs   = inputs
-             , txArg'outputs  = V.imap (\i b -> let boxId = computeBoxId txId (fromIntegral i)
-                                                in  BoxOutput (PostBox b height) boxId
-                                       ) tx'outputs
-             , txArg'env      = env
-             , txArg'id       = txId
+  dataInputs <- forM tx'dataInputs $ \boxId -> do
+    box <- lookupBox boxId
+    pure BoxOutput { boxOutput'box = box
+                   , boxOutput'id  = boxId
+                   }
+  pure TxArg { txArg'inputs     = inputs
+             , txArg'outputs    = V.imap (\i b -> let boxId = computeBoxId txId (fromIntegral i)
+                                                  in  BoxOutput (PostBox b height) boxId
+                                         ) tx'outputs
+             , txArg'dataInputs = dataInputs
+             , txArg'env        = env
+             , txArg'id         = txId
              }
   where
     txId = computeTxId tx
@@ -358,25 +385,27 @@ data Env = Env
 -- | Input environment contains all data that have to be used
 -- during execution of the script.
 data InputEnv = InputEnv
-  { inputEnv'height  :: !Int64
-  , inputEnv'self    :: !BoxInput
-  , inputEnv'inputs  :: !(Vector BoxInput)
-  , inputEnv'outputs :: !(Vector BoxOutput)
-  , inputEnv'args    :: !Args
-  , inputEnv'sigs    :: !(Vector Signature)
-  , inputEnv'sigMsg  :: !SigMessage
+  { inputEnv'height     :: !Int64
+  , inputEnv'self       :: !BoxInput
+  , inputEnv'inputs     :: !(Vector BoxInput)
+  , inputEnv'outputs    :: !(Vector BoxOutput)
+  , inputEnv'dataInputs :: !(Vector BoxOutput)
+  , inputEnv'args       :: !Args
+  , inputEnv'sigs       :: !(Vector Signature)
+  , inputEnv'sigMsg     :: !SigMessage
   }
   deriving (Show, Eq)
 
 getInputEnv :: TxArg -> BoxInput -> InputEnv
 getInputEnv TxArg{..} input = InputEnv
-  { inputEnv'self    = input
-  , inputEnv'height  = env'height txArg'env
-  , inputEnv'inputs  = txArg'inputs
-  , inputEnv'outputs = txArg'outputs
-  , inputEnv'args    = boxInput'args input
-  , inputEnv'sigs    = boxInput'sigs input
-  , inputEnv'sigMsg  = boxInput'sigMsg input
+  { inputEnv'self       = input
+  , inputEnv'height     = env'height txArg'env
+  , inputEnv'inputs     = txArg'inputs
+  , inputEnv'outputs    = txArg'outputs
+  , inputEnv'dataInputs = txArg'dataInputs
+  , inputEnv'args       = boxInput'args input
+  , inputEnv'sigs       = boxInput'sigs input
+  , inputEnv'sigMsg     = boxInput'sigMsg input
   }
 
 txPreservesValue :: TxArg -> Bool
@@ -436,6 +465,7 @@ newProofTx proofEnv tx = liftIO $ do
   return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = tx'outputs tx
+    , tx'dataInputs = tx'dataInputs tx
     }
 
 -- | If we now the expected sigma expressions for the inputs
@@ -450,6 +480,7 @@ newProofTxOrFail proofEnv tx = liftIO $ do
   return $ fmap (\inputs -> Tx
     { tx'inputs  = inputs
     , tx'outputs = tx'outputs tx
+    , tx'dataInputs = tx'dataInputs tx
     }) eInputs
 
 --------------------------------------------

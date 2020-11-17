@@ -86,13 +86,14 @@ inputEnv :: [Secret] -> SigMessage -> IO InputEnv
 inputEnv keys msg = do
   sigs <- mapM (\k -> sign k msg) keys
   return $ InputEnv
-    { inputEnv'height  = 10
-    , inputEnv'self    = in1
-    , inputEnv'inputs  = [in1]
-    , inputEnv'outputs = [out1]
-    , inputEnv'args    = mempty
-    , inputEnv'sigs    = V.fromList sigs
-    , inputEnv'sigMsg  = msg
+    { inputEnv'height     = 10
+    , inputEnv'self       = in1
+    , inputEnv'inputs     = [in1]
+    , inputEnv'outputs    = [out1]
+    , inputEnv'dataInputs = []
+    , inputEnv'args       = mempty
+    , inputEnv'sigs       = V.fromList sigs
+    , inputEnv'sigMsg     = msg
     }
   where
     in1 = mkBoxInput (BoxId $ Hash "box-1") Box

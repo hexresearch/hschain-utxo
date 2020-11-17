@@ -94,11 +94,12 @@ defaultInputEnv = InputEnv
     , boxInput'sigMask = SigAll
     , boxInput'sigMsg  = SigMessage $ hashBlob "SIGNME"
     }
-  , inputEnv'inputs  = mempty
-  , inputEnv'outputs = mempty
-  , inputEnv'sigs    = mempty
-  , inputEnv'args    = mempty
-  , inputEnv'sigMsg  = def
+  , inputEnv'inputs     = mempty
+  , inputEnv'outputs    = mempty
+  , inputEnv'dataInputs = mempty
+  , inputEnv'sigs       = mempty
+  , inputEnv'args       = mempty
+  , inputEnv'sigMsg     = def
   }
   where
     defHeight = 0
