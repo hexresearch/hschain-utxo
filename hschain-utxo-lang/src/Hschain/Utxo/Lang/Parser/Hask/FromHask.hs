@@ -18,6 +18,7 @@ import Language.Haskell.Exts.Parser (
 
 import HSChain.Crypto (decodeBase58)
 
+import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
@@ -33,6 +34,9 @@ import qualified Language.Haskell.Exts.Pretty as H
 
 fromHaskExp :: H.Exp Loc -> ParseResult Lang
 fromHaskExp topExp = case topExp of
+  -- special hack for haskell quasi-quoter
+  H.Paren _ (H.InfixApp _ (H.Var loc qname) (H.QVarOp _ (H.UnQual _ (H.Symbol _ "#"))) (H.Con _ tyName)) | isArgTypeName tyName ->
+    fmap (Fix . AntiQuote loc (toArgTypeName tyName)) $ fromQName qname
   H.Var loc qname -> fmap (Fix . Var loc) $ fromQName qname
   -- special hack-case for bytestring literals
   -- we parse expressions @bytes "string"@ as ByteString decode from Base58
@@ -331,4 +335,26 @@ getStringLiteral :: H.Exp Loc -> Maybe Text
 getStringLiteral = \case
   H.Lit _ (H.String _ val _) -> Just $ T.pack val
   _                          -> Nothing
+
+isArgTypeName :: H.QName Loc -> Bool
+isArgTypeName = \case
+  H.UnQual _ name -> case name of
+    H.Ident _ ty -> elem (T.pack ty) $ fmap argTypeName argTypes
+    _            -> False
+  _ -> False
+
+-- TODO: Use Parse errors instead of exceptions
+toArgTypeName :: H.QName Loc -> ArgType
+toArgTypeName = \case
+  H.UnQual _ name -> case name of
+    H.Ident _ ty -> case ty of
+      "Int"     -> IntArg
+      "Bool"    -> BoolArg
+      "TextArg" -> TextArg
+      "Bytes"   -> BytesArg
+      _         -> err
+    _            -> err
+  _               -> err
+  where
+    err = error "Not an ArgType in quasi-quote"
 

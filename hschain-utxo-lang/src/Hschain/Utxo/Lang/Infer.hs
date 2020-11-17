@@ -113,6 +113,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   -- records
   RecConstr loc cons fields -> fromRecCons loc cons fields
   RecUpdate loc a upds      -> liftA2 (fromRecUpdate loc) (rec a) (mapM (\(field, x) -> fmap (field, ) $ rec x) upds)
+  AntiQuote loc _ _         -> throwError $ ParseError loc "AntiQuote encountered"
   where
     rec = reduceExpr ctx
 

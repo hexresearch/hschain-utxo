@@ -81,6 +81,7 @@ exprToExtendedLC typeCtx = cataM $ \case
   Lam _ _ _               -> failedToEliminate "Single argument Lam"
   RecConstr _ _ _         -> failedToEliminate "RecordConstr"
   RecUpdate _ _ _         -> failedToEliminate "RecUpdate"
+  AntiQuote loc _ _       -> throwError $ ParseError loc "AntiQuote encountered"
   where
     fromVar loc VarName{..} = pure $ Fix $ EVar loc varName'name
 

@@ -29,6 +29,7 @@ import Hschain.Utxo.Lang.Parser.Hask.ToHask
 import Hschain.Utxo.Lang.Parser.Hask.Utils
 
 import qualified Language.Haskell.Exts.Parser as H
+import qualified Language.Haskell.Exts.Extension as H
 
 -- | Parse expression.
 -- First argument is name of the file (if defined) where expression is defined.
@@ -60,7 +61,8 @@ parseBind mFile = withFile mFile (\mode -> getBind <=< H.parseDeclWithMode mode)
 withFile :: Maybe FilePath -> (H.ParseMode -> String -> ParseResult a) -> (String -> ParseResult a)
 withFile mFile parseWith = parseWith (setFile H.defaultParseMode)
   where
-    setFile = maybe id (\file mode -> mode { H.parseFilename = file } ) mFile
+    setFile = maybe id (\file mode -> mode { H.parseFilename = file
+                                           , H.extensions = [H.EnableExtension H.TemplateHaskell, H.EnableExtension H.QuasiQuotes] } ) mFile
 
 
 -- | Pretty-print expression

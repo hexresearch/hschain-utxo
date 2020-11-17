@@ -398,6 +398,8 @@ data E a
   -- debug
   | Trace Loc a a
   -- ^ Trace print for debug of execution (@trace printMessage value@)
+  | AntiQuote Loc ArgType VarName
+  -- ^ reference to external vriables (used in quasi quoting)
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 -- | Built-in unary operators
@@ -735,6 +737,7 @@ instance Show a => H.HasLoc (E a) where
     Trace loc _ _ -> loc
     AltE loc _ _ -> loc
     FailCase loc -> loc
+    AntiQuote loc _ _ -> loc
 
 instance H.HasLoc a => H.HasLoc (Alt a) where
   type Loc (Alt a) = H.Loc a
@@ -802,6 +805,7 @@ freeVars = cata $ \case
   CheckSig _ a b   -> a <> b
   CheckMultiSig _ a b c -> a <> b <> c
   FailCase _       -> Set.empty
+  AntiQuote _ _ v  -> Set.singleton v
   where
     getBgNames :: [Bind a] -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
