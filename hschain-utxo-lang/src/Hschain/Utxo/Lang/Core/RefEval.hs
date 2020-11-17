@@ -196,8 +196,16 @@ evalPrimOp env = \case
   OpDiv -> pure $ lift2 (div @Int64)
   OpNeg -> pure $ lift1 (negate @Int64)
   --
-  OpBoolAnd -> pure $ lift2 (&&)
-  OpBoolOr  -> pure $ lift2 (||)
+  OpBoolAnd -> pure $ ValF $ \x -> pure $ ValF $ \y -> do
+    valX <- match x
+    case valX of
+      True  -> match y
+      False -> pure $ inj False
+  OpBoolOr  -> pure $ ValF $ \x -> pure $ ValF $ \y -> do
+    valX <- match x
+    case valX of
+      True  -> pure $ inj True
+      False -> match y
   OpBoolXor -> pure $ lift2 (xor @Bool)
   OpBoolNot -> pure $ lift1 not
   --
