@@ -328,8 +328,24 @@ evalPrimOp env = \case
     p  <- match @(Val -> Eval Val) valF
     filterM (match <=< p) xs
   OpListSum   -> pure $ lift1 (sum @[] @Int64)
-  OpListAnd   -> pure $ lift1 (and @[])
-  OpListOr    -> pure $ lift1 (or  @[])
+  OpListAnd   -> pure $ ValF $ \valXS -> do
+    xs <- match @[Val] valXS
+    let step []       = pure $ inj True
+        step (a : as) = do
+          resBool <- match a
+          case resBool of
+            True  -> step as
+            False -> pure $ inj False
+    step xs
+  OpListOr    -> pure $ ValF $ \valXS -> do
+    xs <- match @[Val] valXS
+    let step []       = pure $ inj False
+        step (a : as) = do
+          resBool <- match a
+          case resBool of
+            True  -> pure $ inj True
+            False -> step as
+    step xs
   OpListAll _ -> pure $ Val2F $ \valF valXS -> do
     f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val] valXS
