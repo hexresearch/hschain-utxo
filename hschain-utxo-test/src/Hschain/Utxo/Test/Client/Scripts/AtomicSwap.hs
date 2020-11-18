@@ -139,8 +139,9 @@ aliceInitSwapTx aliceKeys inputId spec = do
     swapHash = swapSpec'hash spec
 
     preTx totalValue = Tx
-      { tx'inputs  = singleOwnerInput inputId alicePubKey
-      , tx'outputs = [ swapBox, changeBox totalValue ]
+      { tx'inputs     = singleOwnerInput inputId alicePubKey
+      , tx'outputs    = [ swapBox, changeBox totalValue ]
+      , tx'dataInputs = []
       }
 
     alicePubKey = swapUser'pk $ swapSpec'alice spec
@@ -160,8 +161,9 @@ aliceGrabTx :: ProofEnv -> BoxId -> SwapSpec -> App Tx
 aliceGrabTx aliceKeys inputId spec = newProofTx aliceKeys preTx
   where
     preTx = Tx
-      { tx'inputs  = fmap addSecret $ singleOwnerInput inputId alicePubKey
-      , tx'outputs = [ saveMoney ]
+      { tx'inputs     = fmap addSecret $ singleOwnerInput inputId alicePubKey
+      , tx'outputs    = [ saveMoney ]
+      , tx'dataInputs = []
       }
 
     saveMoney = getChangeBox (fromIntegral aliceValue) alicePubKey
@@ -176,8 +178,9 @@ aliceDoubleSpendTx :: ProofEnv -> BoxId -> SwapSpec -> App Tx
 aliceDoubleSpendTx aliceKeys inputId spec = newProofTx aliceKeys preTx
   where
     preTx = Tx
-      { tx'inputs  = singleOwnerInput inputId alicePubKey
-      , tx'outputs = [ saveMoney ]
+      { tx'inputs     = singleOwnerInput inputId alicePubKey
+      , tx'outputs    = [ saveMoney ]
+      , tx'dataInputs = []
       }
 
     saveMoney = getChangeBox (fromIntegral bobValue) alicePubKey
@@ -210,8 +213,9 @@ bobInitSwapTx bobKeys swapHash inputId spec = do
   newProofTx bobKeys $ preTx totalValue
   where
     preTx totalValue = Tx
-      { tx'inputs   = singleOwnerInput inputId bobPubKey
-      , tx'outputs  = [ swapBox, changeBox totalValue ]
+      { tx'inputs     = singleOwnerInput inputId bobPubKey
+      , tx'outputs    = [ swapBox, changeBox totalValue ]
+      , tx'dataInputs = []
       }
 
     bobPubKey  = swapUser'pk $ swapSpec'bob spec
@@ -229,8 +233,9 @@ bobGrabTx :: ProofEnv -> SwapSecret -> BoxId -> SwapSpec -> App Tx
 bobGrabTx bobKeys aliceSecret inputId spec = newProofTx bobKeys preTx
   where
     preTx = Tx
-      { tx'inputs  = fmap addSecret $ singleOwnerInput inputId bobPubKey
-      , tx'outputs = [ saveMoney ]
+      { tx'inputs     = fmap addSecret $ singleOwnerInput inputId bobPubKey
+      , tx'outputs    = [ saveMoney ]
+      , tx'dataInputs = []
       }
 
     saveMoney = getChangeBox (fromIntegral bobValue) bobPubKey
@@ -389,20 +394,6 @@ dumpState :: App ()
 dumpState = do
   st <- getState
   logTest $ renderText st
-
-postTxSuccess :: Text -> Tx -> App ()
-postTxSuccess = postTxDebug True
-
-postTxFailure :: Text -> Tx -> App ()
-postTxFailure = postTxDebug False
-
-postTxDebug :: Bool -> Text -> Tx -> App ()
-postTxDebug isOk msg tx = do
-  dumpState
-  logTest msg
-  logTest $ renderText tx
-  resp <- postTx tx
-  checkTxResponce isOk msg resp
 
 checkTxResponce :: Bool -> Text -> PostTxResponse -> App ()
 checkTxResponce isOk msg resp = do

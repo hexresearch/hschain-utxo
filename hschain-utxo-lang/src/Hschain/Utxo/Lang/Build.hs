@@ -19,7 +19,7 @@ module Hschain.Utxo.Lang.Build(
   , getHeight
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList, getBoxPostHeight
-  , getInputs, getOutputs
+  , getInputs, getOutputs, getDataInputs
   , getIntVars, getBoolVars, getTextVars, getBytesVars
   , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
   , andSigma, orSigma
@@ -59,11 +59,12 @@ import Data.Vector (Vector)
 import qualified Data.Text   as T
 import qualified Data.Vector as V
 
+import HSChain.Crypto (ByteRepr(..))
 import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Sigma (PublicKey, publicKeyToText)
+import Hschain.Utxo.Lang.Sigma (PublicKey)
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 
@@ -172,9 +173,9 @@ instance Boolean (Expr SigmaBool) where
   (||*) = sigmaOr
 
 pk' :: PublicKey -> Expr SigmaBool
-pk' = pk . text . publicKeyToText
+pk' = pk . bytes . encodeToBS
 
-pk :: Expr Text -> Expr SigmaBool
+pk :: Expr ByteString -> Expr SigmaBool
 pk (Expr key) = Expr $ Fix $ SigmaE noLoc $ Pk noLoc key
 
 sigmaAnd :: Expr SigmaBool -> Expr SigmaBool -> Expr SigmaBool
@@ -239,6 +240,9 @@ getInputs = Expr $ Fix $ GetEnv noLoc (Inputs noLoc)
 
 getOutputs :: Expr (Vector Box)
 getOutputs = Expr $ Fix $ GetEnv noLoc (Outputs noLoc)
+
+getDataInputs :: Expr (Vector Box)
+getDataInputs = Expr $ Fix $ GetEnv noLoc (DataInputs noLoc)
 
 fromVec :: Vector (Expr a) -> Expr (Vector a)
 fromVec vs = Expr $ Fix $ VecE noLoc $ NewVec noLoc $ fmap (\(Expr a) -> a) vs
@@ -319,10 +323,10 @@ instance OrdB (Expr ByteString) where
 -------------------------
 -- btc-like signatures
 
-checkSig :: Expr Text -> Expr Int -> Expr Bool
+checkSig :: Expr ByteString -> Expr Int -> Expr Bool
 checkSig (Expr a) (Expr b) = Expr $ Fix $ CheckSig noLoc a b
 
-checkMultiSig :: Expr Int -> Expr (Vector Text) -> Expr (Vector Int) -> Expr Bool
+checkMultiSig :: Expr Int -> Expr (Vector ByteString) -> Expr (Vector Int) -> Expr Bool
 checkMultiSig (Expr a) (Expr b) (Expr c) = Expr $ Fix $ CheckMultiSig noLoc a b c
 
 --------------------------

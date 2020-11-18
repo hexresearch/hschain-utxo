@@ -10,6 +10,7 @@ import Codec.Serialise (deserialiseOrFail)
 import Hex.Common.Serialise
 
 import Data.Bool
+import Data.Fix
 import Data.String
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -21,13 +22,20 @@ import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
--- import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
-import Hschain.Utxo.Lang.Core.Types        (TypeCoreError(..))
+import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr (Core,BindDB)
+import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
+import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam)
+import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr)
+import qualified Hschain.Utxo.Lang.Core.Types as Core
+import Language.Haskell.Exts.Pretty (prettyPrint)
+
 import qualified Data.Vector as V
 
-import HSChain.Crypto.Classes (encodeBase58)
+import HSChain.Crypto.Classes (encodeToBS, encodeBase58)
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
+import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 import qualified Language.HM as H
 import qualified Language.HM.Pretty as H
@@ -53,9 +61,9 @@ instance Pretty BoxId where
   pretty (BoxId txt) = pretty $ encodeBase58 txt
 
 instance Pretty Script where
-  -- pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
-  --   Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-  --   Right e -> fromString $ show (e :: ExprCore)
+  pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
+    Left  _ -> "Left: " <> pretty (encodeBase58 bs)
+    Right e -> fromString $ show (e :: Core BindDB Int)
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
@@ -84,12 +92,14 @@ instance Pretty Tx where
   pretty Tx{..} = prettyRecord "Tx"
     [ ("inputs", brackets $ hsep $ punctuate comma $ V.toList $ fmap pretty tx'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList tx'outputs )
+    , ("dataInputs", vsep $ fmap pretty $ V.toList tx'dataInputs)
     ]
 
 instance Pretty TxArg where
   pretty TxArg{..} = prettyRecord "TxArg"
     [ ("inputs",  vsep $ fmap pretty $ V.toList txArg'inputs )
     , ("outputs", vsep $ fmap pretty $ V.toList txArg'outputs )
+    , ("dataInputs", vsep $ fmap pretty $ V.toList txArg'dataInputs )
     ]
 
 instance Pretty BoxInput where
@@ -116,17 +126,22 @@ instance Pretty PostBox where
 
 instance Pretty a => Pretty (BoxInputRef a) where
   pretty BoxInputRef{..} = prettyRecord "BoxInputRef"
-    [ ("id",    pretty boxInputRef'id)
-    , ("args",  prettyArgs boxInputRef'args)
-    , ("proof", pretty boxInputRef'proof)
+    [ ("id",      pretty boxInputRef'id)
+    , ("args",    prettyArgs boxInputRef'args)
+    , ("proof",   pretty boxInputRef'proof)
     , ("sigMask", pretty boxInputRef'sigMask)
+    , ("sigs",    pretty $ V.toList boxInputRef'sigs)
     ]
+
+instance Pretty Crypto.Signature where
+  pretty sig = pretty $ encodeBase58 $ encodeToBS sig
 
 instance Pretty SigMask where
   pretty SigAll = "SigAll"
   pretty SigMask{..} = prettyRecord "SigMask"
     [ ("inputs",  prettyBits sigMask'inputs)
     , ("outputs", prettyBits sigMask'outputs)
+    , ("dataInputs", prettyBits sigMask'dataInputs)
     ]
     where
       prettyBits bits = hcat $ fmap (bool "0" "1") $ V.toList bits
@@ -137,13 +152,18 @@ instance Pretty SigMessage where
 instance Pretty Env where
   pretty Env{..} = prettyRecord "Env" [("height", pretty env'height)]
 
--- TODO
 instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof
 
--- TODO
 instance Pretty (S.Sigma S.PublicKey) where
-  pretty = undefined -- (Proof m) = hsep $ punctuate comma $ fmap pretty $ S.toList m
+  pretty = cata $ \case
+      S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
+      S.SigmaAnd as  -> parens $ hsep $ "sigmaAnd" : as
+      S.SigmaOr  as  -> parens $ hsep $ "sigmaOr"  : as
+      S.SigmaBool b  -> "Sigma" <> pretty b
+
+instance Pretty S.PublicKey where
+  pretty = pretty . encodeBase58
 
 op1 :: Doc ann -> Doc ann -> Doc ann
 op1 name a = hcat [name, parens a]
@@ -202,6 +222,7 @@ prettyId = \case
     Output _ a       -> prettyVec "output" a
     Inputs _         -> "INPUTS"
     Outputs _        -> "OUTPUTS"
+    DataInputs _     -> "DATA-INPUTS"
     Self _           -> hcat ["SELF"]
     GetVar _ ty      -> pretty $ getEnvVarName ty
 
@@ -219,12 +240,13 @@ instance Pretty BoxField where
 instance Pretty Error where
   pretty = \case
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
-    ExecError err         -> pretty err
+    ExecError err         -> pretty err    
     TypeError err         -> pretty err
     PatError err          -> pretty err
     InternalError err     -> pretty err
     MonoError err         -> pretty err
     CoreScriptError err   -> pretty err
+    FreeVariable txt      -> "Free variable: " <> pretty txt
 
 instance Pretty ExecError where
   pretty = \case
@@ -307,3 +329,26 @@ instance Pretty Hask.SrcLoc where
 
 instance H.HasPrefix Text where
   getFixity = const Nothing
+
+instance Pretty EvalResult where
+  pretty = \case
+    EvalPrim p   -> pretty p
+    EvalList ps  -> brackets $ hsep $ punctuate comma $ fmap pretty ps
+    EvalFail err -> pretty err
+
+instance Pretty Core.Prim where
+  pretty = \case
+    Core.PrimInt n      -> pretty n
+    Core.PrimText txt   -> dquotes $ pretty txt
+    Core.PrimBytes bs   -> pretty $ encodeBase58 bs
+    Core.PrimBool b     -> pretty b
+    Core.PrimSigma sig  -> pretty sig
+
+instance Pretty EvalErr where
+  pretty = \case
+    TypeMismatch    -> "Error: Type mismatch"
+    EvalErr msg     -> pretty msg
+
+instance Pretty TypedExprLam where
+  pretty = pretty . prettyPrint . toHaskExpr
+

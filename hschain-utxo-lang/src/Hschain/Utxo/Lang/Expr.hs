@@ -392,7 +392,7 @@ data E a
   | BoxE Loc (BoxExpr a)
   -- ^ Box-expression
   | CheckSig Loc a a
-  -- ^ check signature. Arguments are: public key as text and index of boxInput'sigs vector (of signatures)
+  -- ^ check signature. Arguments are: public key as byte string and index of boxInput'sigs vector (of signatures)
   | CheckMultiSig Loc a a a
   -- ^ check multi-signature M out of N. Arguments are: number of signatures o be valid, list of public keys as texts, list of indices to boxInput'sigs vector (of signatures)
   -- debug
@@ -580,6 +580,8 @@ data EnvId a
   -- ^ Get list of all input boxes
   | Outputs Loc
   -- ^ Get list of all output boxes
+  | DataInputs Loc
+  -- ^ Get list of all data-input boxes
   | GetVar Loc ArgType
   -- ^ Get argument of the transaction by name
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -773,7 +775,7 @@ instance Ord ConsName where
 freeVars :: Lang -> Set VarName
 freeVars = cata $ \case
   Var _ v         -> Set.singleton v
-  InfixApply _ a _ b -> a <> b
+  InfixApply _ a v b -> Set.singleton v <> a <> b
   Apply _ a b      -> a <> b
   Lam _ v a        -> a `Set.difference`  freeVarsPat v
   LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)
@@ -903,10 +905,11 @@ monoPrimopName = \case
   OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
   OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
   --
-  OpEnvGetHeight  -> Just "getHeight"
-  OpEnvGetSelf    -> Just "getSelf"
-  OpEnvGetInputs  -> Just "getInputs"
-  OpEnvGetOutputs -> Just "getOutputs"
+  OpEnvGetHeight  -> Just Const.getHeight
+  OpEnvGetSelf    -> Just Const.getSelf
+  OpEnvGetInputs  -> Just Const.getInputs
+  OpEnvGetOutputs -> Just Const.getOutputs
+  OpEnvGetDataInputs -> Just Const.getDataInputs
   -- Polymorphic functions
   OpShow _ -> Nothing
   OpEQ _   -> Nothing
@@ -929,14 +932,37 @@ monoPrimopName = \case
   OpListAll{}    -> Nothing
   OpListAny{}    -> Nothing
 
+polyPrimOpName :: PrimOp a -> Maybe Name
+polyPrimOpName = \case
+  OpShow _ -> Just "show"
+  OpEQ _   -> Just "=="
+  OpNE _   -> Just "/="
+  OpGT _   -> Just ">"
+  OpGE _   -> Just ">="
+  OpLT _   -> Just "<"
+  OpLE _   -> Just "<="
+  --
+  OpListMap{}    -> Just "map"
+  OpListAt{}     -> Just "listAt"
+  OpListAppend{} -> Just "++"
+  OpListLength{} -> Just "length"
+  OpListFoldr{}  -> Just "foldr"
+  OpListFoldl{}  -> Just "foldl"
+  OpListFilter{} -> Just "filter"
+  OpListAll{}    -> Just "all"
+  OpListAny{}    -> Just "any"
+  _              -> Nothing
+
+
 -- | List of all monomorphic primops
 monomorphicPrimops :: [PrimOp a]
 monomorphicPrimops =
   [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
   , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
+  , OpCheckSig, OpCheckMultiSig
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
-  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs
+  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs, OpEnvGetDataInputs
   , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpGetBoxPostHeight
   , OpListSum
   , OpListAnd

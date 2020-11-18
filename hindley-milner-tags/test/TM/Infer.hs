@@ -45,9 +45,9 @@ termK = lamE () "x" $ lamE () "y" $ varE () "x"
 
 termLetChain :: Term NoPrim () Text
 termLetChain = lamE () "x" $ letE ()
-  [ Bind () "a" $ varE () "x"]
+  (Bind () "a" $ varE () "x")
     (letE ()
-      [ Bind () "b" $ varE () "a" ]
+      (Bind () "b" $ varE () "a")
       (varE () "b"))
 
 termLetRecChain :: Term NoPrim () Text

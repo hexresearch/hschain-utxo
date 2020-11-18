@@ -28,11 +28,12 @@ env = InputEnv
       , box'script = Script ""
       , box'args   = mempty
       }
-  , inputEnv'inputs   = mempty
-  , inputEnv'outputs  = mempty
-  , inputEnv'args     = mempty
-  , inputEnv'sigs     = mempty
-  , inputEnv'sigMsg   = def
+  , inputEnv'inputs     = mempty
+  , inputEnv'outputs    = mempty
+  , inputEnv'dataInputs = mempty
+  , inputEnv'args       = mempty
+  , inputEnv'sigs       = mempty
+  , inputEnv'sigMsg     = def
   }
 
 mkBoxInput :: BoxId -> Box -> BoxInput

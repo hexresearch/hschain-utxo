@@ -10,20 +10,21 @@ import Control.Monad
 import Data.Fix
 import qualified Data.Map.Strict       as Map
 
-import Hschain.Utxo.Lang.Expr hiding (Type, TypeContext)
+import Hschain.Utxo.Lang.Expr hiding (Type)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
-import Hschain.Utxo.Lang.Core.Compile.Expr (Core, BindDB, BindName, toDeBrujin, coreProgToScript)
--- import Hschain.Utxo.Lang.Core.Compile.TypeCheck (lookupSignature, TypeContext)
+import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgToScript,toDeBrujin,Core,BindName,BindDB)
+import Hschain.Utxo.Lang.Core.Compile.TypeCheck ()
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
+import qualified Language.HM.Subst as H
 import qualified Language.HM       as H
--- import qualified Language.HM.Subst as H
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
@@ -70,9 +71,11 @@ fromDefs (Def{..}:rest)
 toCoreExpr :: MonadLang m => TypedExprLam -> m (Core BindName Name)
 toCoreExpr = cataM convert
   where
-    convert (Ann _exprTy val) = case val of
-      -- FIXME: specialization of polymorphic variables is completely broken
-      EVar _ name          -> pure $ Core.EVar name
+    convert (Ann exprTy val) = case val of
+      EVar loc name        ->
+        case Map.lookup name monoPrimopNameMap of
+          Just op  -> pure $ Core.EPrimOp op
+          Nothing  -> specifyPolyFun loc typeCtx exprTy name
       EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
       EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
       EAp _  f a           -> pure $ Core.EAp f a
@@ -87,7 +90,7 @@ toCoreExpr = cataM convert
                                  pure $ Core.EConstr (resultType ty) m
       EAssertType _ e _    -> pure e
       EBottom _            -> pure $ Core.EBottom
-    
+
     convertAlt CaseAlt{..} = return Core.CaseAlt
       { caseAlt'rhs = bindN (typed'value <$> caseAlt'args) caseAlt'rhs
       , ..
@@ -98,21 +101,19 @@ toCoreExpr = cataM convert
       ty' <- toCoreType ty
       pure $ Core.ELam ty' (bind1 x e)
 
+    typeCtx = baseLibTypeContext
 
 resultType :: TypeCore -> TypeCore
 resultType (_ :-> b) = resultType b
 resultType  a        = a
 
-{-
--- FIXME: specialization of polymorphic variables is completely broken
-
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
 -- We need to think on more generic rule for substitution like this.
-specifyPolyFun :: MonadLang m => Loc -> Map.Map Name () -> H.Type () Name -> Name -> m ExprCore
+specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m (Core BindName Name)
 specifyPolyFun loc ctx ty name = do
-  case lookupSignature name ctx of
-    Just sig -> fromSignature $ H.monoT $ typeCoreToType sig
+  case H.lookupCtx name ctx of
+    Just sig -> fromSignature $ H.mapLoc (const ()) sig
     Nothing  -> return $ Core.EVar name
   where
     fromSignature sig
@@ -130,7 +131,6 @@ specifyPolyFun loc ctx ty name = do
       case mapM (H.applyToVar subst) argOrder of
         Just _  -> failedToFindMonoType loc name
         Nothing -> failedToFindMonoType loc name
--}
 
 toCoreType :: MonadLang m => H.Type loc Name -> m TypeCore
 toCoreType (H.Type ty) = cataM go ty

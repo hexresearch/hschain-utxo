@@ -5,21 +5,19 @@ import Prelude hiding ((<*))
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Timeout
 
 import Data.ByteString (ByteString)
 import Data.Int
 import Data.Maybe
 import Data.String
-import Data.Text (Text)
 
 import System.Random
 
-import Hschain.Utxo.API.Rest
+import HSChain.Crypto (ByteRepr(..))
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-import Hschain.Utxo.Test.Client.Monad (App, logTest, printTest, testCase, testTitle)
+import Hschain.Utxo.Test.Client.Monad (App, testCase, testTitle)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
@@ -42,8 +40,8 @@ getBobGuess box = listAt (getBoxIntArgList box) bobGuessFieldId
 getBobDeadline :: Expr Box -> Expr Int
 getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineFieldId
 
-getBobPk :: Expr Box -> Expr Text
-getBobPk box = listAt (getBoxTextArgList box) bobPkFieldId
+getBobPk :: Expr Box -> Expr ByteString
+getBobPk box = listAt (getBoxBytesArgList box) bobPkFieldId
 
 getS :: Expr ByteString
 getS = listAt getBytesVars sFieldId
@@ -68,7 +66,7 @@ halfGameScript fullGameScriptHash =
   &&* (bobDeadline >=* getHeight + 30)
   &&* (getBoxValue out >=* 2 * getBoxValue getSelf )
 
-fullGameScript :: Expr ByteString -> Expr Text -> Expr SigmaBool
+fullGameScript :: Expr ByteString -> Expr ByteString -> Expr SigmaBool
 fullGameScript k alice =
   "s"              =: getS                               $ \(s :: Expr ByteString) ->
   "a"              =: getA                               $ \(a :: Expr Int) ->
@@ -115,7 +113,7 @@ xorGameRound Scene{..} game@Game{..} = do
       Just bobBox1   = user'box scene'bob
   mAliceScript <- getAliceScript (guess'alice game'guess) alice aliceBox1
   res <- fmap join $ forM mAliceScript $ \(alicePublicHash, scriptBox, _aliceBox2, aliceSecret) -> do
-    mBobScript <- getBobScript (fromIntegral $ guess'bob game'guess) bob alicePublicHash scriptBox (publicKeyToText $ getWalletPublicKey alice) bobBox1
+    mBobScript <- getBobScript (fromIntegral $ guess'bob game'guess) bob alicePublicHash scriptBox (encodeToBS $ getWalletPublicKey alice) bobBox1
     forM mBobScript $ \(gameBox, _bobBox2) -> do
       aliceRes <- triesToWin (isAliceWin game) "Alice" alice gameBox aliceSecret (fromIntegral $ guess'alice game'guess)
       bobRes   <- triesToWin (isBobWin   game) "Bob"   bob   gameBox aliceSecret (fromIntegral $ guess'alice game'guess)
@@ -127,7 +125,7 @@ xorGameRound Scene{..} game@Game{..} = do
   where
     getAliceScript guess wallet@Wallet{..} box = do
       (k, s) <- makeAliceSecret guess
-      let fullScriptHash = hashScript $ mainScriptUnsafe $ fullGameScript (bytes k) (text $ publicKeyToText $ getWalletPublicKey wallet)
+      let fullScriptHash = hashScript $ mainScriptUnsafe $ fullGameScript (bytes k) (bytes $ encodeToBS $ getWalletPublicKey wallet)
           aliceScript = halfGameScript $ bytes $ fullScriptHash
       (tx, backAddr, gameAddr) <- makeAliceTx game'amount aliceScript wallet box
       eTx <- postTxDebug True "Alice posts half game script" tx
@@ -165,8 +163,9 @@ xorGameRound Scene{..} game@Game{..} = do
             }
 
           preTx = Tx
-            { tx'inputs  = [inputBox]
-            , tx'outputs = V.fromList $ catMaybes [restBox, gameBox]
+            { tx'inputs     = [inputBox]
+            , tx'outputs    = V.fromList $ catMaybes [restBox, gameBox]
+            , tx'dataInputs = []
             }
 
       fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
@@ -191,6 +190,7 @@ xorGameRound Scene{..} game@Game{..} = do
                     , BoxInputRef scriptBox mempty Nothing mempty SigAll
                     ]
                 , tx'outputs = V.fromList $ catMaybes [gameBox total height, restBox total]
+                , tx'dataInputs = []
                 }
           tx <- newProofTx (getProofEnv wallet) preTx
           let (gameBoxId, mChangeBoxId) = extractOutputs tx
@@ -200,7 +200,7 @@ xorGameRound Scene{..} game@Game{..} = do
               | total < game'amount = Nothing
               | otherwise           = Just Box
                   { box'value   = 2 * game'amount
-                  , box'script  = mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (text alicePubKey)
+                  , box'script  = mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (bytes alicePubKey)
                   , box'args    = makeArgs height
                   }
 
@@ -208,11 +208,11 @@ xorGameRound Scene{..} game@Game{..} = do
               | total <= game'amount = Nothing
               | otherwise            = Just Box
                   { box'value  = total - game'amount
-                  , box'script = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
+                  , box'script = mainScriptUnsafe $ pk $ bytes $ encodeToBS $ getWalletPublicKey wallet
                   , box'args   = mempty
                   }
 
-            makeArgs height = intArgs [guess, height + 35] <> textArgs [publicKeyToText $ getWalletPublicKey wallet]
+            makeArgs height = intArgs [guess, height + 35] <> byteArgs [encodeToBS $ getWalletPublicKey wallet]
 
             extractOutputs tx = case tx'outputs tx of
               [_receiver]          -> (toBoxId 0, Nothing)
@@ -235,15 +235,16 @@ xorGameRound Scene{..} game@Game{..} = do
       return (tx, extractWinAddr tx)
       where
         preTx = Tx
-            { tx'inputs  = V.fromList [BoxInputRef gameBox args (Just $ singleOwnerSigmaExpr wallet) mempty SigAll]
-            , tx'outputs = V.fromList [outBox]
+            { tx'inputs     = V.fromList [BoxInputRef gameBox args (Just $ singleOwnerSigmaExpr wallet) mempty SigAll]
+            , tx'outputs    = V.fromList [outBox]
+            , tx'dataInputs = []
             }
 
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
 
         outBox = Box
           { box'value   = 2 * game'amount
-          , box'script  = mainScriptUnsafe $ pk $ text $ publicKeyToText $ getWalletPublicKey wallet
+          , box'script  = mainScriptUnsafe $ pk $ bytes $ encodeToBS $ getWalletPublicKey wallet
           , box'args    = mempty
           }
 
@@ -254,20 +255,4 @@ makeAliceSecret guess = liftIO $ do
   s <- fmap fromString $ sequence $ replicate 64 randomIO
   let k = B.getSha256 $ s <> (B.serialiseInt guess)
   return (k, s)
-
-postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
-postTxDebug isSuccess msg tx = do
-  logTest msg
-  logTest "Going to post TX:"
-  logTest $ renderText tx
-  resp <- M.postTx tx
-  printTest $ postTxResponse'value resp
-  -- logTest $ postTxResponse'debug resp
-  st <- M.getState
-  logTest $ renderText st
-  wait
-  testCase msg $ (isJust $ getTxHash resp) == isSuccess
-  return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
-  where
-    wait = sleep 0.25
 

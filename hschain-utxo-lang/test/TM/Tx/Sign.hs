@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module TM.Tx.Sign(
   tests
 ) where
@@ -52,8 +53,8 @@ testByteReprSignature = do
   return $ decodeFromBS (encodeToBS sig) == Just sig
 
 
-pkExpr :: PublicKey -> ExprCore
-pkExpr = text . publicKeyToText
+pkExpr :: PublicKey -> Core BindName Name
+pkExpr = bytes . encodeToBS
 
 testCheckSig :: IO Bool
 testCheckSig = do
@@ -71,7 +72,7 @@ testCheckMultiSig sigCount = do
   let pubKeys = fmap getPublicKey privKeys
   -- all signatures but first dropCount keys are present, and we duplicate first signature as fill in
   env <- inputEnv (dupFirst $ dropPrivs privKeys) testMsg
-  let script = checkMultiSig (int 2) (listExpr TextT $ fmap pkExpr pubKeys) (listExpr IntT $ fmap int [0, 1, 2])
+  let script = checkMultiSig (int 2) (listExpr BytesT $ fmap pkExpr pubKeys) (listExpr IntT $ fmap int [0, 1, 2])
   return $ evalProg env script == EvalPrim (PrimBool True)
   where
     dropCount = 3 - sigCount
@@ -86,13 +87,14 @@ inputEnv :: [Secret] -> SigMessage -> IO InputEnv
 inputEnv keys msg = do
   sigs <- mapM (\k -> sign k msg) keys
   return $ InputEnv
-    { inputEnv'height  = 10
-    , inputEnv'self    = in1
-    , inputEnv'inputs  = [in1]
-    , inputEnv'outputs = [out1]
-    , inputEnv'args    = mempty
-    , inputEnv'sigs    = V.fromList sigs
-    , inputEnv'sigMsg  = msg
+    { inputEnv'height     = 10
+    , inputEnv'self       = in1
+    , inputEnv'inputs     = [in1]
+    , inputEnv'outputs    = [out1]
+    , inputEnv'dataInputs = []
+    , inputEnv'args       = mempty
+    , inputEnv'sigs       = V.fromList sigs
+    , inputEnv'sigMsg     = msg
     }
   where
     in1 = mkBoxInput (BoxId $ Hash "box-1") Box

@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Core.Compile.Build(
     ap
   , ap2
+  , primOp
   , int
   , bool
   , text
@@ -22,6 +23,7 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , getBoxBoolArgs
   , getInputs
   , getOutputs
+  , getDataInputs
   , getSelf
   , getHeight
   , getIntArgs
@@ -47,6 +49,9 @@ import qualified Data.List as L
 
 ap :: Core b v -> [Core b v] -> Core b v
 ap f args = L.foldl' (\op a -> EAp op a) f args
+
+primOp :: PrimOp TypeCore -> [Core b v] -> Core b v
+primOp op args = ap (EPrimOp op) args
 
 -- | Application of function to two arguments
 ap2 :: Core b v -> Core b v -> Core b v -> Core b v
@@ -103,20 +108,21 @@ getBoxTextArgs = EAp (EPrimOp $ OpGetBoxArgs TextArg)
 getBoxByteArgs = EAp (EPrimOp $ OpGetBoxArgs BytesArg)
 getBoxBoolArgs = EAp (EPrimOp $ OpGetBoxArgs BoolArg)
 
-getInputs, getOutputs, getSelf, getHeight, getIntArgs, getTextArgs, getByteArgs, getBoolArgs :: Core b v
-getInputs   = EPrimOp OpEnvGetInputs
-getOutputs  = EPrimOp OpEnvGetOutputs
-getSelf     = EPrimOp OpEnvGetSelf
-getHeight   = EPrimOp OpEnvGetHeight
-getIntArgs  = EPrimOp $ OpArgs IntArg
-getTextArgs = EPrimOp $ OpArgs TextArg
-getByteArgs = EPrimOp $ OpArgs BytesArg
-getBoolArgs = EPrimOp $ OpArgs BoolArg
+getInputs,getOutputs,getSelf,getDataInputs,getHeight,getIntArgs,getTextArgs,getByteArgs,getBoolArgs :: Core b v
+getInputs     = EPrimOp OpEnvGetInputs
+getOutputs    = EPrimOp OpEnvGetOutputs
+getSelf       = EPrimOp OpEnvGetSelf
+getDataInputs = EPrimOp OpEnvGetDataInputs
+getHeight     = EPrimOp OpEnvGetHeight
+getIntArgs    = EPrimOp $ OpArgs IntArg
+getTextArgs   = EPrimOp $ OpArgs TextArg
+getByteArgs   = EPrimOp $ OpArgs BytesArg
+getBoolArgs   = EPrimOp $ OpArgs BoolArg
 
-checkSig :: Core b v  -> Core b v -> Core b v
+checkSig :: Core b v -> Core b v -> Core b v
 checkSig pk ix = ap (EPrimOp OpCheckSig) [pk, ix]
 
-checkMultiSig :: Core b v -> Core b v -> Core b v  -> Core b v
+checkMultiSig :: Core b v -> Core b v -> Core b v -> Core b v
 checkMultiSig total pks indices = ap (EPrimOp OpCheckMultiSig) [total, pks, indices]
 
 

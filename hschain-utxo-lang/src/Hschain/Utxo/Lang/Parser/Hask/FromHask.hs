@@ -11,9 +11,12 @@ import Control.Applicative
 import Data.Fix
 import Data.Maybe
 import Data.String
+import Data.Text (Text)
 
 import Language.Haskell.Exts.Parser (
     ParseResult(..))
+
+import HSChain.Crypto (decodeBase58)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
@@ -31,6 +34,15 @@ import qualified Language.Haskell.Exts.Pretty as H
 fromHaskExp :: H.Exp Loc -> ParseResult Lang
 fromHaskExp topExp = case topExp of
   H.Var loc qname -> fmap (Fix . Var loc) $ fromQName qname
+  -- special hack-case for bytestring literals
+  -- we parse expressions @bytes "string"@ as ByteString decode from Base58
+  H.App loc (H.Var _ qname) b | isBytesName qname ->
+    case getStringLiteral b of
+      Just txt ->
+        case decodeBase58 txt of
+          Just bs -> return $ Fix $ PrimE loc $ PrimBytes bs
+          Nothing -> parseFailedBy "Failed to decode string as bytes (use Base58 encoding)" b
+      Nothing -> parseFailedBy "Argument of bytes key-word should be string literal" b
   H.App loc a b -> liftA2 (\x y -> Fix $ Apply loc x y) (rec a) (rec b)
   H.Lambda loc ps body -> case ps of
     [p] -> fromLam loc p body
@@ -308,4 +320,15 @@ fromLit x = case x of
   other                -> parseFailedBy "Failed to parse literal" other
   where
     floatsNotSupported = parseFailedBy "floatsNotSupported" x
+
+
+isBytesName :: H.QName Loc -> Bool
+isBytesName = \case
+  H.UnQual _ (H.Ident _ "bytes") -> True
+  _                              -> False
+
+getStringLiteral :: H.Exp Loc -> Maybe Text
+getStringLiteral = \case
+  H.Lit _ (H.String _ val _) -> Just $ T.pack val
+  _                          -> Nothing
 

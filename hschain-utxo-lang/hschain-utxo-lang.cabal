@@ -161,6 +161,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Bytes
                        TM.Core.Cost
                        TM.Core.Common
+                       TM.Core.Int
                        TM.Core.List
                        TM.Tx.Sigma
                        TM.Tx.Sign
@@ -168,7 +169,6 @@ Test-suite hschain-utxo-lang-tests
                        Examples.Simple
   default-extensions:
     RecordWildCards
-    OverloadedLists
     OverloadedStrings
 
 benchmark hschain-utxo-lang-bench

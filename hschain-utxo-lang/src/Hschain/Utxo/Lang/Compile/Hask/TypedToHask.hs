@@ -6,11 +6,13 @@ module Hschain.Utxo.Lang.Compile.Hask.TypedToHask(
   , toHaskExpr
 ) where
 
+import Control.Applicative
+
 import Hex.Common.Text (showt)
 
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Hask.Utils
-import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
+import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..), monoPrimopName, polyPrimOpName)
 import Hschain.Utxo.Lang.Core.Types (Prim(..), Typed(..))
 
 import Data.Fix
@@ -63,8 +65,10 @@ toHaskExpr = cata $ \case
     EConstr loc ty tag arity   -> toConstr loc ty tag arity
     EAssertType loc e ty       -> toAssertType loc e ty
     EBottom loc                -> toBottom loc
-    EPrimOp _ _                -> undefined
+    EPrimOp loc op             -> maybe (errOp op) (toVar loc) $ monoPrimopName op <|> polyPrimOpName op
   where
+    errOp op = error $ "No mono for " <> show op
+
     withSig loc ty e = H.ExpTypeSig loc e (H.toHaskType $ H.mapLoc (const noLoc) ty)
 
     toVar loc name = H.Var loc $ toQName $ VarName loc name

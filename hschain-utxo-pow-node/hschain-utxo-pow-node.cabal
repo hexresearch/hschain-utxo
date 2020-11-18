@@ -139,8 +139,11 @@ Test-suite hschain-utxo-pow-node-tests
                      --
                      , exceptions
                      , stm
+                     , bytestring
+                     , text
                      , Boolean
                      , mtl
+                     , random
                      , data-fix
                      , lens
                      , vector
@@ -151,5 +154,30 @@ Test-suite hschain-utxo-pow-node-tests
   Main-is:             Main.hs
   Other-modules:       TM.Store
                        TM.BCH.Util
+                       TM.SmartCon.XorGame
                        TM.Blocks
 
+  default-extensions:
+    -- Deriving
+    DeriveAnyClass
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    GeneralizedNewtypeDeriving
+    StandaloneDeriving
+    -- Sugar
+    BangPatterns
+    LambdaCase
+    MultiWayIf
+    RecordWildCards
+    OverloadedStrings
+    TypeOperators
+    -- Types
+    ScopedTypeVariables
+    TypeApplications
+    -- Instances
+    FlexibleContexts
+    FlexibleInstances

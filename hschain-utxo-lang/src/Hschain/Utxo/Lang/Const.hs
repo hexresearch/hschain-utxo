@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Const(
   , getSelf
   , getInputs
   , getOutputs
+  , getDataInputs
   , getArgs
   -- * Boxes
   , getBoxArgs
@@ -36,6 +37,8 @@ module Hschain.Utxo.Lang.Const(
   -- * bitcoin style signatures
   , checkSig
   , checkMultiSig
+  -- * Evaluation constants
+  , evalReductionLimit
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length)
@@ -53,12 +56,13 @@ import Data.Text (Text)
 ---------------------------------------------------------------
 -- names for functions that read environment
 
-getHeight, getSelf, getInputs, getOutputs :: Text
+getHeight, getSelf, getInputs, getOutputs, getDataInputs :: Text
 
 getHeight  = "getHeight"
 getSelf    = "getSelf"
 getInputs  = "getInputs"
 getOutputs = "getOutputs"
+getDataInputs = "getDataInputs"
 
 getArgs :: Text -> Text
 getArgs typeName = mconcat ["get", typeName, "Args"]
@@ -94,7 +98,7 @@ orSigma = "orSigma"
 -- text functions
 
 appendText :: Text
-appendText = "appendText"
+appendText = "<>"
 
 lengthText :: Text
 lengthText = "lengthText"
@@ -127,6 +131,12 @@ checkSig, checkMultiSig :: Text
 
 checkSig = "checkSig"
 checkMultiSig = "checkMultiSig"
+
+---------------------------------------------------------
+-- Evaluation constants
+
+evalReductionLimit :: Int
+evalReductionLimit = 10000
 
 
 

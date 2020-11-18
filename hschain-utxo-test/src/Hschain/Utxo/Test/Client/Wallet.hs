@@ -6,6 +6,7 @@ module Hschain.Utxo.Test.Client.Wallet(
   , UserId(..)
   , newWallet
   , getWalletPublicKey
+  , getWalletPrivateKey
   , getBalance
   , getBoxBalance
   , newSendTx
@@ -17,7 +18,9 @@ module Hschain.Utxo.Test.Client.Wallet(
   , newProofOrFail
   , getTxSigmaUnsafe
   , singleOwnerSigmaExpr
+  , singleOwnerBoxRef
   , appendSenderReceiverIds
+  , singleSpendBox
 ) where
 
 import Control.Concurrent.STM
@@ -25,14 +28,15 @@ import Control.Monad.IO.Class
 import Control.Monad.Except
 
 import Data.Fix
+import Data.Int
 import Data.Maybe
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Monad
+
 
 import qualified Data.Vector as V
 
@@ -57,6 +61,10 @@ newWallet userId pubKey = liftIO $ do
 getWalletPublicKey :: Wallet -> PublicKey
 getWalletPublicKey = getPublicKey . wallet'privateKey
 
+-- | Read public key
+getWalletPrivateKey :: Wallet -> Secret
+getWalletPrivateKey = wallet'privateKey
+
 -- | Gets user proof environment or list of keys
 getProofEnv :: Wallet -> ProofEnv
 getProofEnv Wallet{..} = proofEnvFromKeys [getKeyPair wallet'privateKey]
@@ -70,7 +78,7 @@ getBalance Wallet{..} = do
 -- | Create proof for a most simple expression of @pk user-key@
 getOwnerProof :: MonadIO io => Wallet -> Tx -> io (Either Text Proof)
 getOwnerProof w@Wallet{..} tx =
-  liftIO $ newProof env (Fix $ SigmaPk (getWalletPublicKey w)) (getSigMessageTx SigAll tx)
+  liftIO $ newProof env (Fix $ SigmaPk (getWalletPublicKey w)) (getSigMessage SigAll tx)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 
@@ -126,8 +134,9 @@ toSendTx wallet Send{..} SendBack{..} =
   fmap (fmap appendSenderReceiverIds) $ newProofTxOrFail (getProofEnv wallet) preTx
   where
     preTx = Tx
-      { tx'inputs  = V.fromList [inputBox]
-      , tx'outputs = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      { tx'inputs     = V.fromList [inputBox]
+      , tx'outputs    = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      , tx'dataInputs = []
       }
 
     inputBox = BoxInputRef
@@ -141,14 +150,14 @@ toSendTx wallet Send{..} SendBack{..} =
     senderUtxo
       | sendBack'totalAmount > send'amount = Just $ Box
                 { box'value  = sendBack'totalAmount - send'amount
-                , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey wallet)
+                , box'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
                 , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
     receiverUtxo = Box
       { box'value  = send'amount
-      , box'script = mainScriptUnsafe $ pk (text $ publicKeyToText $ getWalletPublicKey send'recepientWallet)
+      , box'script = mainScriptUnsafe $ pk' $ getWalletPublicKey send'recepientWallet
       , box'args   = mempty
       }
 
@@ -166,3 +175,21 @@ extractSenderReceiverIds tx =
   where
     txId    = computeTxId tx
     toBoxId = computeBoxId txId
+
+-- | BoxInputRef for single owner of the input.
+singleOwnerBoxRef :: Wallet -> BoxId -> BoxInputRef (Sigma PublicKey)
+singleOwnerBoxRef wallet boxId = BoxInputRef
+  { boxInputRef'id    = boxId
+  , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
+  , boxInputRef'args  = mempty
+  , boxInputRef'sigs  = mempty
+  , boxInputRef'sigMask = SigAll
+  }
+
+-- | Simple spend all money to pubKey
+singleSpendBox :: Int64 -> PublicKey -> Box
+singleSpendBox value pubKey = Box
+  { box'value  = value
+  , box'script = mainScriptUnsafe $ pk' pubKey
+  , box'args   = mempty
+  }

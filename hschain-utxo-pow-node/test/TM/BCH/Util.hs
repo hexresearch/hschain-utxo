@@ -1,13 +1,5 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE DerivingVia                #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE NumDecimals                #-}
-{-# LANGUAGE OverloadedLists            #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE NumDecimals     #-}
+{-# LANGUAGE OverloadedLists #-}
 -- |
 module TM.BCH.Util
   ( Test
@@ -91,6 +83,7 @@ genesis = Block
   where
     coinbase = Tx { tx'inputs  = mempty
                   , tx'outputs = mempty
+                  , tx'dataInputs = mempty
                   }
 
 ----------------------------------------------------------------
@@ -177,6 +170,7 @@ mineBlockE mpk mFee txs = Mine $ do
                       , boxInputRef'sigMask = SigAll
                       }
                     , tx'outputs = V.fromList [coinbaseBox]
+                    , tx'dataInputs = []
                     }
       txId  = computeTxId coinbase
       boxId = computeBoxId txId 0

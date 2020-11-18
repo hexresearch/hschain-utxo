@@ -30,8 +30,7 @@ immortalProc' :: (MonadIO m, MonadBaseControl IO m) => String -> m () -> m Immor
 immortalProc' label proc = Immortal.createWithLabel label $ const $ Immortal.onFinish echoExit proc
   where
     echoExit x = case x of
-      Left se -> case fromException se of
-        Just ThreadKilled -> return ()
+      Left se | Just ThreadKilled <- fromException se -> return ()
       e ->  liftIO $ do
         putStrLn $ mconcat ["Process ", label, " exits with:"]
         print e

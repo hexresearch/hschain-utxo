@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- |
 module TM.Store where
 
@@ -38,6 +37,7 @@ mineCoin txs mb = Block
     }
   }
   where
-    coinbase = Tx { tx'inputs  = mempty
-                  , tx'outputs = mempty
+    coinbase = Tx { tx'inputs     = mempty
+                  , tx'outputs    = mempty
+                  , tx'dataInputs = mempty
                   }

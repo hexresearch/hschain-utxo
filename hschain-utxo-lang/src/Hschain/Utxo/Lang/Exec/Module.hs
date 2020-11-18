@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Exec.Module(
     evalModule
   , checkMainModule
+  , appendExecCtx
 ) where
 
 import Hex.Common.Text
@@ -134,8 +135,9 @@ checkMainModule types m =
 
 
 appendExecCtx :: ExecCtx -> Lang -> Lang
-appendExecCtx ctx expr =
-  Fix $ Let (H.getLoc expr) binds expr
+appendExecCtx ctx expr
+  | null binds = expr
+  | otherwise  = Fix $ Let (H.getLoc expr) binds expr
   where
     binds = fmap (\(var, rhs) -> simpleBind var rhs) $ M.toList $
       execCtx'vars $ pruneExecCtx expr ctx

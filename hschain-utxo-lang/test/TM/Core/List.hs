@@ -6,6 +6,7 @@ module TM.Core.List(
   , progSumList
   , progOrList
   , listConsts
+  , withBigList
 ) where
 
 import Data.Fix
@@ -20,13 +21,13 @@ import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
 import TM.Core.Common
-import Examples.SKI   (let_)
+import Examples.SKI (let_)
 
 tests :: TestTree
 tests = testGroup "core-lists"
   [ testGroup "list-functions"
-    [ testProgramL    "listAt 0"               (progListAt 0) [PrimInt 1]
-    , testProgramL    "listAt 1"               (progListAt 1) [PrimInt 2]
+    [ testProgram     "listAt 0"               (progListAt 0) (PrimInt 1)
+    , testProgram     "listAt 1"               (progListAt 1) (PrimInt 2)
     , testProgramFail "listAt out of bound"    (progListAt 4)
     , testProgramL    "Typecheck concat lists" progConcatList (fmap PrimInt [1..6])
     , testProgramL    "Typecheck map lists"    progMapList (fmap PrimInt [10, 20, 30])
@@ -37,8 +38,13 @@ tests = testGroup "core-lists"
     , testProgramL    "All list"               (progAllList 2) [PrimBool False]
     , testProgramL    "All sigma list"         progSigmaAllList
       [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)]))]
+    , testProgramFail "Too many reductions"     (progBigListReduce bigSize)
+    , testProgramL    "Ok amount of reductions" (progBigListReduce okSize) [PrimInt (sum ([0 .. okSize] :: [Int64]))]
     ]
   ]
+  where
+    bigSize = 1000000
+    okSize  = 1000
 
 listToExpr :: TypeCore -> [Core BindName Name] -> Core BindName Name
 listToExpr ty = foldr cons nil
@@ -60,6 +66,10 @@ listConsts
     zs = xs ++ ys
     bs = [True, False, True]
 
+
+withBigList :: Int64 -> Core BindName Name -> Core BindName Name
+withBigList size =
+  let_ "hugeList" (listToExpr IntT $ fmap (EPrim . PrimInt) [0 .. size])
 
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
@@ -108,3 +118,6 @@ progSigmaAllList :: Core BindName Name
 progSigmaAllList
   = listConsts
   $ ap (EPrimOp (OpSigListAll BoolT)) [EPrimOp OpSigBool, "bs"]
+
+progBigListReduce :: Int64 -> Core BindName Name
+progBigListReduce size = withBigList size $ ap (EPrimOp OpListSum)  ["hugeList"]

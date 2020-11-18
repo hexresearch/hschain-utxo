@@ -418,6 +418,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
                         , boxInputRef'sigMask = SigAll
                         }
                     , tx'outputs = V.fromList [coinbaseBox]
+                    , tx'dataInputs = V.empty
                     }
   -- Create block!
   return UTXOBlock
@@ -452,6 +453,7 @@ coinbaseTxArg (Just bid) env tx@Tx{..}
                , txArg'outputs  = V.imap
                    (\i b -> BoxOutput (PostBox b h) (computeBoxId txId (fromIntegral i)))
                    tx'outputs
+               , txArg'dataInputs = V.empty
                , txArg'env      = env
                , txArg'id       = txId
                }

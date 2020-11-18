@@ -141,8 +141,9 @@ toSendTxDelayed wallet SendDelayed{..} = do
   fmap appendSenderReceiverIds $ newProofTx (getProofEnv wallet) preTx
   where
     preTx = Tx
-      { tx'inputs   = V.fromList [inputBox]
-      , tx'outputs  = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      { tx'inputs     = V.fromList [inputBox]
+      , tx'outputs    = V.fromList $ catMaybes [senderUtxo, Just receiverUtxo]
+      , tx'dataInputs = []
       }
 
     inputBox = BoxInputRef

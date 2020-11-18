@@ -90,6 +90,7 @@ data PrimOp a
   | OpEnvGetSelf          -- ^ Reference to box being evaluated
   | OpEnvGetInputs        -- ^ Inputs of a current box
   | OpEnvGetOutputs       -- ^ Output of a current box
+  | OpEnvGetDataInputs    -- ^ Data-inputs of a current box
 
   | OpArgs !ArgType
   | OpGetBoxId

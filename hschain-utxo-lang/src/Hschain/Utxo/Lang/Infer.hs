@@ -127,7 +127,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       args <- orderRecordFieldsFromContext ctx cons fields
       fmap (fromCons loc cons) $ mapM rec args
 
-    fromLet loc binds e = fmap (\bs -> H.letE loc bs e) $ mapM toBind (sortBindGroups binds)
+    fromLet loc binds e = fmap (\bs -> foldr (H.letE loc) e bs) $ mapM toBind (sortBindGroups binds)
       where
         toBind Bind{..} = do
           rhs <- rec =<< altGroupToExpr bind'alts
@@ -137,7 +137,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
             , H.bind'rhs = rhs
             }
 
-    fromPrimLet loc primBinds e = fmap (\bs -> H.letE loc bs e) $ mapM toBind primBinds
+    fromPrimLet loc primBinds e = fmap (\bs -> foldr (H.letE loc) e bs) $ mapM toBind primBinds
       where
         toBind (name, rhs) = do
           rhs' <- rec rhs
@@ -230,13 +230,14 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
     fromTrace loc msg a = app2 loc traceVar msg a
 
     fromGetEnv _ = \case
-      Height loc    -> varE loc heightVar
-      Input loc  a  -> app1 loc inputVar a
-      Output loc a  -> app1 loc outputVar a
-      Self loc      -> varE loc selfVar
-      Inputs loc    -> varE loc inputsVar
-      Outputs loc   -> varE loc outputsVar
-      GetVar loc ty -> varE loc (getEnvVarName ty)
+      Height loc     -> varE loc heightVar
+      Input loc  a   -> app1 loc inputVar a
+      Output loc a   -> app1 loc outputVar a
+      Self loc       -> varE loc selfVar
+      Inputs loc     -> varE loc inputsVar
+      Outputs loc    -> varE loc outputsVar
+      DataInputs loc -> varE loc dataInputsVar
+      GetVar loc ty  -> varE loc (getEnvVarName ty)
 
     app1 loc var a = appE loc (varE loc var) a
     app2 loc var a b = appE loc (appE loc (varE loc var) a) b
@@ -262,7 +263,7 @@ defaultContext = H.Context $ M.fromList $
   -- if
   , (ifVar,     forA $ monoT $ boolT `arr` (a `arr` (a `arr` a)))
   -- pk
-  , (pkVar,     monoT $ textT `arr` sigmaT)
+  , (pkVar,     monoT $ bytesT `arr` sigmaT)
   -- operations
   --  unary
   , (notVar,    monoT $ boolT `arr` boolT)
@@ -284,6 +285,9 @@ defaultContext = H.Context $ M.fromList $
   , (sigmaOrVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (toSigmaVar, monoT $ boolT `arr` sigmaT)
+  -- signatures
+  , (checkSigVar, monoT $ bytesT `arr` (intT `arr` boolT))
+  , (checkMultiSigVar, monoT $ intT `arr` (listT bytesT `arr` (listT intT `arr` boolT)))
   -- vec expressions
   , (nilVecVar, forA $ monoT $ listT a)
   , (consVecVar, forA $ monoT $ a `arr` (listT a `arr` listT a))
@@ -306,6 +310,7 @@ defaultContext = H.Context $ M.fromList $
   , (selfVar, monoT boxT)
   , (inputsVar, monoT $ listT boxT)
   , (outputsVar, monoT $ listT boxT)
+  , (dataInputsVar, monoT $ listT boxT)
   , (getVarVar, forA $ monoT $ intT `arr` a)
   , (altVar, forA $ monoT $ a `arr` (a `arr` a))
   , (failCaseVar, forA $ monoT a)
@@ -468,7 +473,7 @@ undefVar = secretVar "undefined"
 traceVar :: Text
 traceVar = secretVar "trace"
 
-heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, getVarVar :: Text
+heightVar, inputVar, outputVar, selfVar, inputsVar, outputsVar, dataInputsVar, getVarVar :: Text
 
 heightVar = secretVar "height"
 inputVar = secretVar "input"
@@ -476,6 +481,7 @@ outputVar = secretVar "output"
 selfVar = secretVar "self"
 inputsVar = secretVar "inputs"
 outputsVar = secretVar "outputs"
+dataInputsVar = secretVar "dataInputs"
 getVarVar = secretVar "getVar"
 
 altVar, failCaseVar :: Text

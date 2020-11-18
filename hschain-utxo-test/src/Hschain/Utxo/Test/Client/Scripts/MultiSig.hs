@@ -7,12 +7,9 @@ module Hschain.Utxo.Test.Client.Scripts.MultiSig(
     multiSigExchange
   , getSharedBoxTx
   , postTxDebug
-  , changeBox
   , spendCommonBoxTx
   , simpleSpendTo
 ) where
-
-import Hex.Common.Delay
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -20,9 +17,7 @@ import Control.Monad.IO.Class
 import Data.Int
 import Data.Text
 import Data.Either.Extra
-import Data.Maybe
 
-import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Test.Client.Wallet
 
 import Hschain.Utxo.Test.Client.Monad
@@ -66,11 +61,12 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
     appendCommonBoxId tx = (tx, computeBoxId (computeTxId tx) 0, commonScript)
 
     preTx = getPreTx Nothing Nothing
-    message = getSigMessageTx SigAll preTx
+    message = getSigMessage SigAll preTx
 
     getPreTx aliceProof bobProof = Tx
-      { tx'inputs   = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
-      , tx'outputs  = [commonBox, changeBox aliceChange alicePk, changeBox bobChange bobPk]
+      { tx'inputs     = [inputBox aliceBox aliceProof, inputBox bobBox bobProof]
+      , tx'outputs    = [commonBox, singleSpendBox aliceChange alicePk, singleSpendBox bobChange bobPk]
+      , tx'dataInputs = []
       }
 
     inputBox boxId proof = BoxInputRef
@@ -115,13 +111,14 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
         boxId n = computeBoxId (computeTxId tx) n
 
     getPreTx proof = Tx
-      { tx'inputs  = [commonInput proof]
-      , tx'outputs = [aliceBox, bobBox]
+      { tx'inputs     = [commonInput proof]
+      , tx'outputs    = [aliceBox, bobBox]
+      , tx'dataInputs = []
       }
 
     preTx = getPreTx Nothing
 
-    message = getSigMessageTx SigAll preTx
+    message = getSigMessage SigAll preTx
 
     commonInput proof = BoxInputRef
       { boxInputRef'id      = commonBoxId
@@ -133,8 +130,8 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
 
     commonScript = sigmaPk alicePk &&* sigmaPk bobPk
 
-    aliceBox = changeBox aliceValue alicePk
-    bobBox   = changeBox bobValue   bobPk
+    aliceBox = singleSpendBox aliceValue alicePk
+    bobBox   = singleSpendBox bobValue   bobPk
 
     alicePk  = getWalletPublicKey alice
     bobPk    = getWalletPublicKey bob
@@ -159,8 +156,9 @@ simpleSpendToTx wallet fromId toPubKey value =
   newProofTxOrFail (getProofEnv wallet) preTx
   where
     preTx = Tx
-      { tx'inputs  = [inputRef]
-      , tx'outputs = [changeBox value toPubKey]
+      { tx'inputs     = [inputRef]
+      , tx'outputs    = [singleSpendBox value toPubKey]
+      , tx'dataInputs = []
       }
 
     inputRef = BoxInputRef
@@ -171,24 +169,3 @@ simpleSpendToTx wallet fromId toPubKey value =
       , boxInputRef'sigMask = SigAll
       }
 
-postTxDebug :: Bool -> Text -> Tx -> App (Either Text TxHash)
-postTxDebug isSuccess msg tx = do
-  logTest msg
-  logTest "Going to post TX:"
-  logTest $ renderText tx
-  resp <- postTx tx
-  printTest $ postTxResponse'value resp
-  st <- getState
-  logTest $ renderText st
-  wait
-  testCase msg $ (isJust $ getTxHash resp) == isSuccess
-  return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
-  where
-    wait = sleep 0.1
-
-changeBox :: Int64 -> PublicKey -> Box
-changeBox value pubKey = Box
-  { box'value  = value
-  , box'script = mainScriptUnsafe $ pk' pubKey
-  , box'args   = mempty
-  }

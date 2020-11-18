@@ -33,7 +33,7 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Chan (BlockChan)
 
 import Hschain.Utxo.Test.Client.Monad hiding (getHeight)
-import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, postTxDebug, changeBox, simpleSpendTo, spendCommonBoxTx)
+import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, simpleSpendTo, spendCommonBoxTx)
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Utils.ByteString
@@ -309,7 +309,7 @@ signOffChainTx (Player me) (Player other) preTx = liftIO $ do
       myKeys = [myPk]
       otherKeys = [otherPk]
       commonScript = playerEnv'commonScript myEnv
-      message = getSigMessageTx SigAll preTx
+      message = getSigMessage SigAll preTx
       myProofEnv = getProofEnv $ playerEnv'wallet myEnv
       otherProofEnv = getProofEnv $ playerEnv'wallet otherEnv
   proof <- fmap eitherToMaybe $ runProve $ do
@@ -413,8 +413,9 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
     }
   where
     preTx = Tx
-      { tx'inputs  = [inputRef Nothing]
-      , tx'outputs = [myBox, partnerBox]
+      { tx'inputs     = [inputRef Nothing]
+      , tx'outputs    = [myBox, partnerBox]
+      , tx'dataInputs = []
       }
 
     inputRef proof = BoxInputRef
@@ -454,8 +455,9 @@ getRevoceTx wallet RevoceBox{..} =
     appendBoxId tx@Tx{..} = (tx, computeBoxId (computeTxId tx) 0)
 
     preTx = Tx
-      { tx'inputs  = [inputRef]
-      , tx'outputs = [changeBox revoceBox'value pubKey ]
+      { tx'inputs     = [inputRef]
+      , tx'outputs    = [singleSpendBox revoceBox'value pubKey ]
+      , tx'dataInputs = []
       }
 
     inputRef = BoxInputRef

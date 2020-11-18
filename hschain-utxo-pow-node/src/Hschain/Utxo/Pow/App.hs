@@ -113,8 +113,9 @@ genesis = POW.Block
     }
   }
   where
-    coinbase = Tx { tx'inputs  = mempty
-                  , tx'outputs = mempty
+    coinbase = Tx { tx'inputs     = mempty
+                  , tx'outputs    = mempty
+                  , tx'dataInputs = mempty
                   }
 
 
