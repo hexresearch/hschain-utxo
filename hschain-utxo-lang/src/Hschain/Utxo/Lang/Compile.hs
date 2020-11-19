@@ -3,6 +3,7 @@
 module Hschain.Utxo.Lang.Compile(
     compile
   , toCoreScript
+  , toCoreScriptUnsafe
 ) where
 
 import Control.Monad
@@ -21,6 +22,7 @@ import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
+import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
 import qualified Language.HM       as H
@@ -29,8 +31,13 @@ import qualified Language.HM.Subst as H
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 import qualified Hschain.Utxo.Lang.Expr as E
 
+import qualified Data.Text as T
+
 toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
+
+toCoreScriptUnsafe :: Module -> Script
+toCoreScriptUnsafe m = either (error . T.unpack . renderText) id $ toCoreScript m
 
 -- | Compilation to Core-lang program from the script-language.
 compile :: MonadLang m => Module -> m ExprCore

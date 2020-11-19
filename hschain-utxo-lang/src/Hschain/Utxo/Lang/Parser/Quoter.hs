@@ -1,19 +1,20 @@
 module Hschain.Utxo.Lang.Parser.Quoter(
-  utxo
+    utxo
 ) where
 
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote
 
 import Data.ByteString (ByteString)
--- import Data.Typeable (cast)
+import Data.Text (Text)
+import Data.Generics
 
 import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Parser.Hask
 import Hschain.Utxo.Lang.Pretty
+import Hschain.Utxo.Lang.Build (mainExprModule)
 
 import qualified Data.Text as T
 import qualified Language.Haskell.Exts.SrcLoc as P
@@ -31,8 +32,12 @@ defQuoteExp :: String -> TH.Q TH.Exp
 defQuoteExp str = do
   pos  <- getPosition
   expr <- parseScript pos str
-  fromModule expr
---  dataToExpQ (fmap fromBS . cast) expr
+  modExpr <- dataToExpQ ( const Nothing
+                `extQ` antiQuoteVar
+                `extQ` (Just . fromBS)
+                `extQ` (Just . fromText)
+             ) expr
+  [|toCoreScriptUnsafe $(pure modExpr)|]
   where
     getPosition = fmap transPos TH.location
       where
@@ -42,17 +47,12 @@ defQuoteExp str = do
 
 parseScript :: (MonadFail m, Monad m) => (String, Int, Int) -> String -> m Module
 parseScript (file, _line, _col) str =
-  case parseModule (Just file) str of
-    ParseOk m           -> pure m
-    ParseFailed loc err -> failBy $ ParseError (P.toSrcInfo loc [] loc) (T.pack err)
-  where
-    failToCompile err = failBy err
-
-toScript :: (MonadFail m) => Module -> m Script
-toScript m = either failToCompile pure $ toCoreScript m
-  where
-    failToCompile err = failBy err
-
+  case parseExp (Just file) str of
+    ParseOk expr -> pure $ mainExprModule $ Expr expr
+    ParseFailed _ _ ->
+      case parseModule (Just file) str of
+        ParseOk m           -> pure m
+        ParseFailed loc err -> failBy $ ParseError (P.toSrcInfo loc [] loc) (T.pack err)
 
 failBy :: MonadFail m => Error -> m a
 failBy err = fail $ T.unpack $ renderText err
@@ -60,21 +60,13 @@ failBy err = fail $ T.unpack $ renderText err
 fromBS :: ByteString -> TH.ExpQ
 fromBS x = TH.litE $ TH.StringL $ C.unpack x
 
-------------------------------------------------
+fromText :: Text -> TH.ExpQ
+fromText txt = TH.litE $ TH.StringL $ T.unpack txt
 
-fromModule :: Module -> TH.ExpQ
-fromModule Module{..} =
-  [| Module  $(fromLoc module'loc) $(fromUserTypeCtx module'userTypes) $(fmap TH.ListE $ mapM fromBind module'binds) |]
-
-fromLoc :: Loc -> TH.ExpQ
-fromLoc = dataToExpQ (const Nothing)
-
-fromUserTypeCtx :: UserTypeCtx -> TH.ExpQ
-fromUserTypeCtx = dataToExpQ (const Nothing)
-
-fromBind :: Bind Lang -> TH.ExpQ
-fromBind = undefined
-
-fromVarName :: VarName -> TH.ExpQ
-fromVarName = dataToExpQ (const Nothing)
+antiQuoteVar :: E Lang -> Maybe TH.ExpQ
+antiQuoteVar = \case
+   AntiQuote loc _ v -> Just $ do
+     nameExpr <- TH.varE (TH.mkName $ T.unpack $ varName'name v)
+     [|toLangExpr $(dataToExpQ (const Nothing) loc) $(pure nameExpr)|]
+   _                 -> Nothing
 

@@ -104,6 +104,7 @@ library
                      , semigroups
                      , prettyprinter
                      , serialise
+                     , syb
                      , strict
                      , template-haskell
                      , text
