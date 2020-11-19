@@ -12,6 +12,7 @@ import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
+import Data.Data
 import Data.Fix
 import Data.Function (on)
 import Data.Foldable
@@ -48,6 +49,10 @@ type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
 
+deriving instance Data (H.Type Loc Text)
+deriving instance Data (H.TypeF Loc Text (Fix (H.TypeF Loc Text)))
+deriving instance Data (H.Signature Loc Text)
+deriving instance Data (H.SignatureF Loc Text (Fix (H.SignatureF Loc Text)))
 
 instance H.DefLoc Hask.SrcSpanInfo where
   defLoc = Hask.noSrcSpan
@@ -63,7 +68,7 @@ data UserTypeCtx = UserTypeCtx
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
   }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Data)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
 
@@ -137,7 +142,7 @@ data UserType = UserType
   { userType'name       :: !VarName                -- ^ Type name
   , userType'args       :: ![VarName]              -- ^ type arguments
   , userType'cases      :: !(Map ConsName ConsDef) -- ^ List of constructors
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data)
 
 getConsTypes :: ConsDef -> Vector Type
 getConsTypes = \case
@@ -148,13 +153,13 @@ getConsTypes = \case
 data ConsDef
   = ConsDef (Vector Type)            -- ^ Simple constructor with collection of type-arguments
   | RecordCons (Vector RecordField)  -- ^ Record-constructor with named fields
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data)
 
 -- | Record named field.
 data RecordField = RecordField
   { recordField'name :: VarName   -- ^ Name of the field
   , recordField'type :: Type      -- ^ Type of the field
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data)
 
 -- | Data for low-level rendering of type constructor
 -- We need to know it's type, arity and integer tag that is unique within
@@ -164,7 +169,7 @@ data ConsInfo = ConsInfo
   , consInfo'tagId :: !Int       -- ^ unique integer identifier (within the type scope)
   , consInfo'arity :: !Int       -- ^ arity of constructor
   , consInfo'def   :: !UserType  -- ^ definition where constructor is defined
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data)
 
 -- | Order of names in the record constructor.
 -- For constructor
@@ -176,7 +181,7 @@ data ConsInfo = ConsInfo
 -- ["name", "age"]
 newtype RecordFieldOrder = RecordFieldOrder
   { unRecordFieldOrder :: [Text]
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data)
 
 -- | Type for expression of our language that has type.
 --
@@ -188,7 +193,7 @@ newtype Expr a = Expr Lang
 data VarName = VarName
   { varName'loc   :: !Loc   -- ^ source code location
   , varName'name  :: !Text  -- ^ variable name
-  } deriving (Show)
+  } deriving (Show, Data)
 
 instance IsString VarName where
   fromString = VarName noLoc . fromString
@@ -197,7 +202,7 @@ instance IsString VarName where
 data ConsName = ConsName
   { consName'loc  :: !Loc   -- ^ source code location
   , consName'name :: !Text  -- ^ constructor name
-  } deriving (Show)
+  } deriving (Show, Data)
 
 instance IsString ConsName where
   fromString = ConsName noLoc . fromString
@@ -544,7 +549,7 @@ data Prim
   -- ^ Text values
   | PrimBool    Bool
   -- ^ Booleans
-  | PrimSigma   (Sigma PublicKey)
+  | PrimSigma   (Sigma ByteString)
   -- ^ Sigma-expressions
   | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData)

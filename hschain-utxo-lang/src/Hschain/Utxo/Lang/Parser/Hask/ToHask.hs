@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
 
 import Hex.Common.Text (showt)
 
+import Data.ByteString (ByteString)
 import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
@@ -178,12 +179,11 @@ toLiteral loc = \case
     toText x = lit $ H.String loc (T.unpack x) (T.unpack x)
     lit = H.Lit loc
 
-    sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
+    sigma :: Loc -> Sigma ByteString -> H.Exp Loc
     sigma src x = cata go x
       where
-        go :: SigmaF PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
-          SigmaPk pkey -> let keyTxt = publicKeyToText pkey
+          SigmaPk pkey -> let keyTxt = encodeBase58 pkey
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
           SigmaAnd as  -> foldl1 (ap2 (VarName src "sigmaAnd")) as
           SigmaOr  as  -> foldl1 (ap2 (VarName src "sigmaOr")) as

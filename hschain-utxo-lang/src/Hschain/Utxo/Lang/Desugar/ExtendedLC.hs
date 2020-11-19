@@ -13,6 +13,8 @@ import Control.Arrow (first)
 import Data.Fix
 import Data.Text (Text)
 
+import HSChain.Crypto (ByteRepr(..), encodeBase58)
+
 import Hschain.Utxo.Lang.Expr hiding (Expr)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
@@ -23,6 +25,7 @@ import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
 import Hschain.Utxo.Lang.Core.Types (Name)
+import Hschain.Utxo.Lang.Sigma (mapPkM)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -139,12 +142,14 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromFailCase loc = pure $ Fix $ EBottom loc
 
-    fromPrim loc p = pure $ Fix $ EPrim loc $ PrimLoc loc $ case p of
-      PrimInt n       -> P.PrimInt n
-      PrimString txt  -> P.PrimText txt
-      PrimBool b      -> P.PrimBool b
-      PrimSigma sigma -> P.PrimSigma sigma
-      PrimBytes bs    -> P.PrimBytes bs
+    fromPrim loc p = fmap (Fix . EPrim loc . PrimLoc loc) $ case p of
+      PrimInt n       -> pure $ P.PrimInt n
+      PrimString txt  -> pure $ P.PrimText txt
+      PrimBool b      -> pure $ P.PrimBool b
+      PrimSigma sigma -> fmap P.PrimSigma $ mapPkM (\bs -> maybe (notKey bs) pure $ decodeFromBS bs) sigma
+      PrimBytes bs    -> pure $ P.PrimBytes bs
+      where
+        notKey bs = throwError $ ParseError loc $ T.unwords ["Failed to decode public key:", encodeBase58 bs]
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 

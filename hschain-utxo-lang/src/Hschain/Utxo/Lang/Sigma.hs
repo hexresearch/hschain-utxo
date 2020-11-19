@@ -13,6 +13,8 @@ module Hschain.Utxo.Lang.Sigma(
   , SigMessage(..)
   , Sigma
   , sigmaPk
+  , mapPk
+  , mapPkM
   , SigmaF(..)
   , newProof
   , verifyProof
@@ -49,6 +51,7 @@ import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.Boolean
 import Data.Bifunctor
+import Data.Data
 import Data.Default
 import Data.Either
 import Data.Fix
@@ -153,6 +156,20 @@ verifyProof proof = Sigma.verifyProof proof . encodeToBS
 
 type Sigma k = Fix (SigmaF k)
 
+mapPk :: (a -> b) -> Sigma a -> Sigma b
+mapPk f = cata $ \case
+  SigmaPk a   -> Fix $ SigmaPk (f a)
+  SigmaAnd as -> Fix $ SigmaAnd as
+  SigmaOr  as -> Fix $ SigmaOr  as
+  SigmaBool b -> Fix $ SigmaBool b
+
+mapPkM :: Monad m => (a -> m b) -> Sigma a -> m (Sigma b)
+mapPkM f = cataM $ \case
+  SigmaPk a   -> fmap (Fix . SigmaPk) (f a)
+  SigmaAnd as -> pure $ Fix $ SigmaAnd as
+  SigmaOr  as -> pure $ Fix $ SigmaOr  as
+  SigmaBool b -> pure $ Fix $ SigmaBool b
+
 instance Boolean (Sigma k) where
   true  = Fix $ SigmaBool True
   false = Fix $ SigmaBool False
@@ -172,7 +189,7 @@ data SigmaF k a =
   | SigmaAnd [a]   -- and-expression
   | SigmaOr  [a]   -- or-expression
   | SigmaBool Bool -- wraps boolean constants
-  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData)
+  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData, Data)
 
 instance Serialise k => Serialise (Sigma k)
 instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
