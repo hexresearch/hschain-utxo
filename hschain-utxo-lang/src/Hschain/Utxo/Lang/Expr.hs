@@ -894,8 +894,8 @@ monoPrimopName = \case
   OpBoolXor     -> Just "^^"
   OpBoolNot     -> Just "not"
   --
-  OpSigAnd       -> Just "&&&"
-  OpSigOr        -> Just "|||"
+  OpSigAnd       -> Just "sigmaAnd"
+  OpSigOr        -> Just "sigmaOr"
   OpSigPK        -> Just "pk"
   OpSigBool      -> Just "toSigma"
   OpSigListAnd   -> Just "andSigma"

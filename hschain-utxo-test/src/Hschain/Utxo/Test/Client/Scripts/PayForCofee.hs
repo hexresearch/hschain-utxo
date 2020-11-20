@@ -8,7 +8,6 @@ import Prelude hiding ((<*))
 import Control.Monad.Except
 import Control.Timeout
 
-import Data.Boolean
 import Data.Int
 import Data.Maybe
 import Data.String
@@ -21,7 +20,6 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build
 
 import qualified Data.Vector as V
 import qualified Hschain.Utxo.Test.Client.Monad as M
@@ -132,6 +130,7 @@ sendTxDelayed from fromBox to delayDiff amount = do
   let sendTx = SendDelayed fromBox amount (totalAmount - amount) (currentHeight + delayDiff) to
   (tx, backBox, toBox) <- toSendTxDelayed from sendTx
   logTest $ renderText tx
+  testCase "TX is valid" =<< M.txIsValid tx
   txResp <- M.postTx tx
   logTest $ fromString $ ppShow txResp
   return $ Right $ SendRes backBox toBox $ getTxHash txResp
@@ -154,8 +153,6 @@ toSendTxDelayed wallet SendDelayed{..} = do
       , boxInputRef'sigMask = SigAll
       }
 
-    spendHeightId = 0
-
     senderPk   = getWalletPublicKey wallet
     receiverPk = getWalletPublicKey sendDelayed'recepientWallet
 
@@ -177,18 +174,6 @@ toSendTxDelayed wallet SendDelayed{..} = do
       , box'args   = mempty
       }
 
-    getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
-
-    -- receiver can get money only hieght is greater than specified limit
-    receiverScript =
-            pk' (getWalletPublicKey sendDelayed'recepientWallet)
-        &&* toSigma (getSpendHeight <* getHeight)
-
-    -- sender can get money back if hieght is less or equals to specified limit
-    refundScript =
-            pk' senderPk
-        &&* toSigma (getSpendHeight >=* getHeight)
-
 cofeeScript :: Int64 -> PublicKey -> PublicKey -> Script
 cofeeScript spendHeight senderPk receiverPk = [utxo|
 
@@ -198,5 +183,4 @@ cofeeScript spendHeight senderPk receiverPk = [utxo|
     main = sigmaOr receiverScript refundScript
 
 |]
-
 
