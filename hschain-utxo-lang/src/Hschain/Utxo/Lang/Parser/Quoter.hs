@@ -1,13 +1,23 @@
 -- | QuasiQuoter for high level language.
--- We use prefix utxo:
 --
--- > script = [utxo|main = 2 + 2|]
+-- With quasi quoter we can create scripts quote easily. We use prefix utxo:
+--
+-- > box'script = [utxo|main = (2 + 2) == 4|]
 --
 --  QuasiQuote is trasformed to value of type Script.
---  It accepts two types of code. Code for expressions then
---  it is treated as if it's module with single main function defined with given expression.
+--  It accepts two types of code. First type is code for expressions.
+--  It is treated as if it's module with single main function defined with given expression.
 --
---  Also it accepts full modules with set of defenitions.
+-- > script = [utxo|lengthText "Hello"|]
+--
+-- It would be converted to script with single main function:
+--
+-- > main = lengthText "Hello"
+--
+--  Also it accepts full modules with set of definitions.
+--
+--  Dependencies: for quasi quoter to work we should import module @Hschain.Utxo.Lang@
+--  and enable extension @OverloadedStrings@.
 --
 -- For interpolation of external haskell values we use single parens around variable:
 --
