@@ -154,28 +154,27 @@ toSendTxDelayed wallet SendDelayed{..} = do
       , boxInputRef'sigMask = SigAll
       }
 
-    height = sendDelayed'height
-
     spendHeightId = 0
 
-    senderPk = pk' $ getWalletPublicKey wallet
+    senderPk   = getWalletPublicKey wallet
+    receiverPk = getWalletPublicKey sendDelayed'recepientWallet
 
     senderUtxo
       | sendDelayed'remain > 0 = Just Box
                 { box'value  = sendDelayed'remain
-                , box'script = mainScriptUnsafe backScript
+                , box'script = backScript
                 , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
     -- sender can get all money back if height is less than equal to limit
     -- or just the rest of it if it's greater than the limit
-    backScript = senderPk
+    backScript = [utxo|pk (senderPk)|]
 
     receiverUtxo = Box
       { box'value  = sendDelayed'amount
-      , box'script = mainScriptUnsafe $ receiverScript ||* refundScript
-      , box'args   = intArgs [height]
+      , box'script = cofeeScript sendDelayed'height senderPk receiverPk
+      , box'args   = mempty
       }
 
     getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
@@ -187,5 +186,17 @@ toSendTxDelayed wallet SendDelayed{..} = do
 
     -- sender can get money back if hieght is less or equals to specified limit
     refundScript =
-            senderPk
+            pk' senderPk
         &&* toSigma (getSpendHeight >=* getHeight)
+
+cofeeScript :: Int64 -> PublicKey -> PublicKey -> Script
+cofeeScript spendHeight senderPk receiverPk = [utxo|
+
+    receiverScript = sigmaAnd (pk (receiverPk)) (toSigma ((spendHeight) < getHeight))
+    refundScript   = sigmaAnd (pk (senderPk))   (toSigma ((spendHeight) >= getHeight))
+
+    main = sigmaOr receiverScript refundScript
+
+|]
+
+

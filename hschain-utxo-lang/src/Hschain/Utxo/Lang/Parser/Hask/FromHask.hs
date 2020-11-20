@@ -35,8 +35,9 @@ import qualified Language.Haskell.Exts.Pretty as H
 fromHaskExp :: H.Exp Loc -> ParseResult Lang
 fromHaskExp topExp = case topExp of
   -- special hack for haskell quasi-quoter
+  H.Paren _ (H.Var loc qname) -> fmap (Fix . AntiQuote loc Nothing) $ fromQName qname
   H.Paren _ (H.InfixApp _ (H.Var loc qname) (H.QVarOp _ (H.UnQual _ (H.Symbol _ "#"))) (H.Con _ tyName)) | isArgTypeName tyName ->
-    fmap (Fix . AntiQuote loc (toArgTypeName tyName)) $ fromQName qname
+    fmap (Fix . AntiQuote loc (Just $ toArgTypeName tyName)) $ fromQName qname
   H.Var loc qname -> fmap (Fix . Var loc) $ fromQName qname
   -- special hack-case for bytestring literals
   -- we parse expressions @bytes "string"@ as ByteString decode from Base58

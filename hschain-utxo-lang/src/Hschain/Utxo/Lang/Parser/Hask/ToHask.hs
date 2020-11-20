@@ -69,7 +69,9 @@ toHaskExp (Fix expr) = case expr of
   CheckSig loc a b -> ap2 (VarName loc Const.checkSig) a b
   CheckMultiSig loc a b c -> ap3 (VarName loc Const.checkMultiSig) a b c
   AltE _ _ _ -> error "Alt is for internal usage"
-  AntiQuote loc ty name -> H.Paren loc $ H.InfixApp loc (toVar loc name) (H.QVarOp loc $ H.UnQual loc $ H.Ident loc "#") (H.Con loc $ fromArgType loc ty)
+  AntiQuote loc mty name -> case mty of
+    Just ty -> H.Paren loc $ H.InfixApp loc (toVar loc name) (H.QVarOp loc $ H.UnQual loc $ H.Ident loc "#") (H.Con loc $ fromArgType loc ty)
+    Nothing -> H.Paren loc (toVar loc name)
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)

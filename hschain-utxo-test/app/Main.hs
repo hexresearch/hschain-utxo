@@ -12,23 +12,23 @@ import Hschain.Utxo.Test.Client.Scripts.Lightning.Example
 
 main :: IO ()
 main = do
-  exchangeTest   <- runTestProc simpleExchange
-  xorTest        <- runTestProc xorGame
+--  exchangeTest   <- runTestProc simpleExchange
+--  xorTest        <- runTestProc xorGame
   payTest1       <- runTestProc payForCofeeAlice
-  payTest2       <- runTestProc payForCofeeBob
-  atomicSwapTest <- runTestProc atomicSwap
-  multiSigTest   <- runTestProc multiSigExchange
-  channelTest1   <- runTestProc channelExchange
-  channelTest2   <- runTestProc channelExchangeUnfair
-  lightningTest  <- runTestProc lightningExample
+--  payTest2       <- runTestProc payForCofeeBob
+--  atomicSwapTest <- runTestProc atomicSwap
+--  multiSigTest   <- runTestProc multiSigExchange
+--  channelTest1   <- runTestProc channelExchange
+--  channelTest2   <- runTestProc channelExchangeUnfair
+--  lightningTest  <- runTestProc lightningExample
   hspec $ do
-    exchangeTest
+--    exchangeTest
     payTest1
-    payTest2
-    xorTest
-    atomicSwapTest
-    multiSigTest
-    channelTest1
-    channelTest2
-    lightningTest
+--    payTest2
+--    xorTest
+--    atomicSwapTest
+--    multiSigTest
+--    channelTest1
+--    channelTest2
+--    lightningTest
 

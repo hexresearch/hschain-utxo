@@ -9,10 +9,12 @@ module Language.HM.Infer(
   , unifyTypes
 ) where
 
+
 import Control.Arrow (second)
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
+import Data.Bifunctor (bimap)
 import Data.Fix
 import Data.Function (on)
 import Data.Map.Strict (Map)
@@ -120,7 +122,7 @@ runInferM (InferM m) = runExcept $ evalStateT m 0
 inferType :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
   => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var)
 inferType ctx term =
-  fmap (normaliseType . mapLoc fromOrigin . (\(_, t) -> termType t)) $
+  bimap normaliseType (normaliseType . mapLoc fromOrigin . (\(_, t) -> termType t)) $
     runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
 
 -- | Infers types for all subexpressions of the given term.
@@ -128,7 +130,7 @@ inferType ctx term =
 inferTerm :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
   => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var, TyTerm prim loc var)
 inferTerm ctx term =
-  fmap ((\(_, tyTerm) -> (toType tyTerm, toTyTerm tyTerm))) $
+  bimap normaliseType ((\(_, tyTerm) -> (toType tyTerm, toTyTerm tyTerm))) $
     runInferM $ infer (markProven $ restrictContext term ctx) (markUserCode term)
   where
     toType   = normaliseType . mapLoc fromOrigin . termType
@@ -508,7 +510,7 @@ addDecl unknowns b ctx = do
 -- pretty letters for variables in the result type
 
 -- | Converts variable names to human-readable format.
-normaliseType :: (IsVar v, Eq loc) => Type loc v -> Type loc v
+normaliseType :: (HasTypeVars m, CanApply m, IsVar v, Eq loc) => m loc v -> m loc v
 normaliseType ty = apply (normaliseSubst ty) ty
 
 normaliseSubst :: (HasTypeVars m, Eq loc, IsVar v) => m loc v -> Subst loc v
@@ -520,7 +522,7 @@ normaliseSubst x =
 --
 
 -- | Checks weather two types unify. If they do it returns substitution that unifies them.
-unifyTypes :: (Show loc, IsVar v) => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
-unifyTypes a b = fmap fromSubstOrigin $ unify mempty (mapLoc Proven a) (mapLoc UserCode b)
+unifyTypes :: (Show loc, IsVar v, Eq loc) => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
+unifyTypes a b = bimap normaliseType fromSubstOrigin $ unify mempty (mapLoc Proven a) (mapLoc UserCode b)
 
 

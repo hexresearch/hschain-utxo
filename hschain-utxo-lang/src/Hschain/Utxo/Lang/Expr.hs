@@ -29,7 +29,7 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes      (ViaBase58(..))
+import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
 import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes )
@@ -403,7 +403,7 @@ data E a
   -- debug
   | Trace Loc a a
   -- ^ Trace print for debug of execution (@trace printMessage value@)
-  | AntiQuote Loc ArgType VarName
+  | AntiQuote Loc (Maybe ArgType) VarName
   -- ^ reference to external vriables (used in quasi quoting)
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
@@ -464,6 +464,13 @@ argTagToType = \case
   TextArg  -> textT
   BoolArg  -> boolT
   BytesArg -> bytesT
+
+argTagToType' :: Loc -> ArgType -> Type
+argTagToType' loc = \case
+  IntArg   -> intT' loc
+  TextArg  -> textT' loc
+  BoolArg  -> boolT' loc
+  BytesArg -> bytesT' loc
 
 getBoxArgVar :: ArgType -> Text
 getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
@@ -1003,6 +1010,9 @@ instance ToLang Text where
 
 instance ToLang ByteString where
   toLang loc bs = toPrim loc $ PrimBytes bs
+
+instance ToLang PublicKey where
+  toLang loc key = toPrim loc $ PrimBytes $ encodeToBS key
 
 instance ToLang Int where
   toLang loc n = toPrim loc $ PrimInt $ fromIntegral n

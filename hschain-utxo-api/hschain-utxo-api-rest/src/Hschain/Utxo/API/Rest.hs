@@ -77,7 +77,7 @@ type ReadBlockchainHeightEndpoint = "read-blockchain-height" :> Summary "Reads c
 
 -- | Result of posted transaction. Contains TX-hash if it was approved.
 data PostTxResponse = PostTxResponse
-  { postTxResponse'value :: !(Maybe TxHash )
+  { postTxResponse'value :: !(Either Text TxHash )
   } deriving (Show, Eq)
 
 -- | Result of execution of TX in the current state of blockchain.

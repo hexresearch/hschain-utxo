@@ -6,6 +6,7 @@ module Language.HM.TypeError where
 import Control.DeepSeq (NFData)
 import GHC.Generics    (Generic)
 import Language.HM.Type
+import Language.HM.Subst
 
 -- | Type errors.
 data TypeError loc var
@@ -24,4 +25,26 @@ instance LocFunctor TypeError where
     SubtypeErr loc tA tB -> SubtypeErr (f loc) (mapLoc f tA) (mapLoc f tB)
     NotInScopeErr loc v  -> NotInScopeErr (f loc) v
     EmptyCaseExpr loc    -> EmptyCaseExpr (f loc)
+
+instance HasTypeVars TypeError where
+  tyVars = \case
+    OccursErr _ ty     -> tyVars ty
+    UnifyErr _ a b     -> tyVars a <> tyVars b
+    SubtypeErr _ a b   -> tyVars a <> tyVars b
+    NotInScopeErr _ _  -> mempty
+    EmptyCaseExpr _    -> mempty
+
+  tyVarsInOrder = \case
+    OccursErr _ ty     -> tyVarsInOrder ty
+    UnifyErr _ a b     -> tyVarsInOrder a <> tyVarsInOrder b
+    SubtypeErr _ a b   -> tyVarsInOrder a <> tyVarsInOrder b
+    NotInScopeErr _ _  -> mempty
+    EmptyCaseExpr _    -> mempty
+
+instance CanApply TypeError where
+  apply f = \case
+    OccursErr loc ty   -> OccursErr loc $ apply f ty
+    UnifyErr loc a b   -> UnifyErr loc (apply f a) (apply f b)
+    SubtypeErr loc a b -> SubtypeErr loc (apply f a) (apply f b)
+    other              -> other
 

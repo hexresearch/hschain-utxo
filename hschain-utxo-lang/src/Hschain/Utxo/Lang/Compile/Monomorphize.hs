@@ -417,10 +417,10 @@ getDefType Def{..} = foldr (\a b -> H.arrowT () a b) rhs args
 getAnnType :: TypedExprLam -> H.Type () Name
 getAnnType (Fix (Ann ty _)) = ty
 
-unify :: Show loc => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name)
+unify :: (Show loc, Eq loc) => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name)
 unify tA tB = fmap fst $ unifySubst tA tB
 
-unifySubst :: Show loc => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name, H.Subst loc Name)
+unifySubst :: (Show loc, Eq loc) => H.Type loc Name -> H.Type loc Name -> Mono (H.Type loc Name, H.Subst loc Name)
 unifySubst tA tB = case H.unifyTypes tA tB of
   Right subst -> return $ (H.apply subst tB, subst)
   Left err    -> throwError $ TypeError $ H.mapLoc (const noLoc) err
