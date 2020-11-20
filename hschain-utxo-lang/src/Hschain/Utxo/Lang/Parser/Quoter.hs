@@ -1,3 +1,52 @@
+-- | QuasiQuoter for high level language.
+-- We use prefix utxo:
+--
+-- > script = [utxo|main = 2 + 2|]
+--
+--  QuasiQuote is trasformed to value of type Script.
+--  It accepts two types of code. Code for expressions then
+--  it is treated as if it's module with single main function defined with given expression.
+--
+--  Also it accepts full modules with set of defenitions.
+--
+-- For interpolation of external haskell values we use single parens around variable:
+--
+-- > [utxo|main = pk (alicePubKey)|]
+--
+-- Value is inlined to code over class @ToLang@. It invokes the method @toLangExpr@ on the value.
+-- Note that in this form inside the code value can have any type. For typechecker
+-- it's treated just like haskell value @undefined@. So if type in the external code is erroneous
+-- program is going to fail at runtime.
+--
+-- It can be usefull to restrict the types of inlined haskell values
+-- to be able to check them at compile-time.
+--
+-- We can do it with special form by supplying the type with operator @#@:
+--
+-- > [utxo|main = pk (alicePubKey :: PublicKey) |]
+--
+--  This expression is going to fail at compile time if @alicePubKey@ has inproper type.
+--
+-- We can inline:
+--
+--    * primitives: Int, Int64, Bool, Text, ByteString, Sigma ByteString, Script (inlined as ByteString),
+--                  PublicKey (inlined as ByteString),
+--
+--    * composites: lists and tuples of inlineable values.
+--
+-- Useful examples:
+--
+--  Simple spends:
+--
+-- > spendScript = [utxo|pk (alicePubKey)|]
+--
+--  Spend with delay time:
+--
+-- > spendDelayed delay alicePk bobPk = [|utxo
+-- >
+-- >    main =   (pk (alicePk) &&* toSigma (getHeight < (delay)))
+-- >         ||* (pk (bobPk)   &&* toSigma (getHeight >= (delay)))
+-- > |]
 module Hschain.Utxo.Lang.Parser.Quoter(
     utxo
 ) where
@@ -17,6 +66,8 @@ import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey)
+import Hschain.Utxo.Lang.Types (ArgType(..), Script)
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base (baseModuleCtx, baseLibTypeContext)
 import Hschain.Utxo.Lang.Parser.Hask
@@ -87,9 +138,11 @@ fromText txt = TH.litE $ TH.StringL $ T.unpack txt
 
 antiQuoteVar :: E Lang -> Maybe TH.ExpQ
 antiQuoteVar = \case
-   AntiQuote loc _ v -> Just $ do
+   AntiQuote loc mty v -> Just $ do
      let nameExpr = TH.mkName $ T.unpack $ varName'name v
-     [|toLangExpr $(dataToExpQ (const Nothing) loc) $(TH.varE nameExpr)|]
+     case mty of
+       Just ty -> [|toLangExpr $(dataToExpQ (const Nothing) loc) ($(TH.varE nameExpr) :: $(quoteToHaskType ty))|]
+       Nothing -> [|toLangExpr $(dataToExpQ (const Nothing) loc) $(TH.varE nameExpr)|]
    _                 -> Nothing
 
 substAntiQuoteExpr :: Lang -> (Lang, TypeContext)
@@ -100,11 +153,35 @@ substAntiQuoteLang lang = cataM go lang
   where
     go = \case
       AntiQuote loc mty v -> do
-        tell $ H.Context $ M.singleton (varName'name v) $ maybe (anyType loc) (H.monoT . argTagToType' loc) mty
+        tell $ H.Context $ M.singleton (varName'name v) $ maybe (anyType loc) (H.monoT . quoteToType loc) mty
         return $ Fix $ Var loc v
       other -> pure $ Fix other
 
     anyType loc = H.forAllT loc "a" $ H.monoT $ H.varT loc "a"
+
+quoteToType :: Loc -> QuoteType -> Type
+quoteToType loc = \case
+  PrimQ ty   -> argTagToType' loc ty
+  SigmaQ     -> sigmaT' loc
+  PublicKeyQ -> bytesT' loc
+  ScriptQ    -> bytesT' loc
+  ListQ t    -> listT' loc $ rec t
+  TupleQ ts  -> tupleT' loc $ fmap rec ts
+  where
+    rec = quoteToType loc
+
+quoteToHaskType :: QuoteType -> TH.TypeQ
+quoteToHaskType = \case
+  PrimQ t -> case t of
+    IntArg   -> [t|Int|]
+    BoolArg  -> [t|Bool|]
+    TextArg  -> [t|Text|]
+    BytesArg -> [t|ByteString|]
+  SigmaQ -> [t|Sigma ByteString|]
+  PublicKeyQ -> [t|PublicKey|]
+  ScriptQ -> [t|Script|]
+  ListQ t -> TH.appT TH.listT $ quoteToHaskType t
+  TupleQ ts -> foldl TH.appT (TH.tupleT (length ts)) $ fmap quoteToHaskType ts
 
 substAntiQuoteModule :: Module -> (Module, TypeContext)
 substAntiQuoteModule m@Module{..} = (m { module'binds = bs }, ctx)

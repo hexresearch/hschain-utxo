@@ -54,8 +54,8 @@ tests = testGroup "repl"
       ]
 
     sigmaOps =
-      [ "sigmaAnd (toSigma True) (toSigma False)"
-      , "sigmaOr (toSigma True) (toSigma False)"
+      [ "toSigma True &&* toSigma False"
+      , "toSigma True ||* toSigma False"
       ]
 
     bytesLiterals =

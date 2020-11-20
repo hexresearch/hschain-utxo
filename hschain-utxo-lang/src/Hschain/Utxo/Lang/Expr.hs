@@ -401,7 +401,7 @@ data E a
   -- debug
   | Trace Loc a a
   -- ^ Trace print for debug of execution (@trace printMessage value@)
-  | AntiQuote Loc (Maybe ArgType) VarName
+  | AntiQuote Loc (Maybe QuoteType) VarName
   -- ^ reference to external vriables (used in quasi quoting)
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
@@ -997,6 +997,16 @@ monoPrimopNameMap = M.fromList
 
 -------------------------------------------------------------------
 
+-- | Types that we can inline to quasi-quoted code
+data QuoteType
+  = PrimQ ArgType
+  | SigmaQ
+  | PublicKeyQ
+  | ScriptQ
+  | ListQ QuoteType
+  | TupleQ [QuoteType]
+  deriving (Show, Eq, Data)
+
 class ToLang a where
   toLang :: Loc -> a -> Lang
 
@@ -1014,6 +1024,12 @@ instance ToLang PublicKey where
 
 instance ToLang Script where
   toLang loc (Script bs) = toPrim loc $ PrimBytes bs
+
+instance ToLang Bool where
+  toLang loc b = toPrim loc $ PrimBool b
+
+instance ToLang (Sigma ByteString) where
+  toLang loc sig = toPrim loc $ PrimSigma sig
 
 instance ToLang Int where
   toLang loc n = toPrim loc $ PrimInt $ fromIntegral n
