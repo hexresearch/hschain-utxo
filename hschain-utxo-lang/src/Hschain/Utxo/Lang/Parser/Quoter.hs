@@ -33,7 +33,7 @@
 --
 -- We can do it with special form by supplying the type with operator @#@:
 --
--- > [utxo|main = pk (alicePubKey :: PublicKey) |]
+-- > [utxo|main = pk (alicePubKey # PublicKey) |]
 --
 --  This expression is going to fail at compile time if @alicePubKey@ has inproper type.
 --
