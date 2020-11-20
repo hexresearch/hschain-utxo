@@ -32,7 +32,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
-import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes )
+import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes, Script(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -894,8 +894,8 @@ monoPrimopName = \case
   OpBoolXor     -> Just "^^"
   OpBoolNot     -> Just "not"
   --
-  OpSigAnd       -> Just "sigmaAnd"
-  OpSigOr        -> Just "sigmaOr"
+  OpSigAnd       -> Just Const.sigmaAnd
+  OpSigOr        -> Just Const.sigmaOr
   OpSigPK        -> Just "pk"
   OpSigBool      -> Just "toSigma"
   OpSigListAnd   -> Just "andSigma"
@@ -1013,6 +1013,9 @@ instance ToLang ByteString where
 
 instance ToLang PublicKey where
   toLang loc key = toPrim loc $ PrimBytes $ encodeToBS key
+
+instance ToLang Script where
+  toLang loc (Script bs) = toPrim loc $ PrimBytes bs
 
 instance ToLang Int where
   toLang loc n = toPrim loc $ PrimInt $ fromIntegral n

@@ -492,8 +492,8 @@ failCaseVar = secretVar "failCase"
 
 sigmaAndVar, sigmaOrVar, toSigmaVar :: Text
 
-sigmaAndVar = "sigmaAnd"
-sigmaOrVar  = "sigmaOr"
+sigmaAndVar = Const.sigmaAnd
+sigmaOrVar  = Const.sigmaOr
 toSigmaVar  = "toSigma"
 
 ---------------------------------------------------------

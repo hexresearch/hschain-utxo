@@ -187,8 +187,8 @@ toLiteral loc = \case
         go = \case
           SigmaPk pkey -> let keyTxt = encodeBase58 pkey
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (ap2 (VarName src "sigmaAnd")) as
-          SigmaOr  as  -> foldl1 (ap2 (VarName src "sigmaOr")) as
+          SigmaAnd as  -> foldl1 (ap2 (VarName src Const.sigmaAnd)) as
+          SigmaOr  as  -> foldl1 (ap2 (VarName src Const.sigmaOr)) as
           SigmaBool b  -> H.Con src $ bool src b
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a

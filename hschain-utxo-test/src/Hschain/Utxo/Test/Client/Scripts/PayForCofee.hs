@@ -170,17 +170,16 @@ toSendTxDelayed wallet SendDelayed{..} = do
 
     receiverUtxo = Box
       { box'value  = sendDelayed'amount
-      , box'script = cofeeScript sendDelayed'height senderPk receiverPk
+      , box'script = coffeeScript sendDelayed'height senderPk receiverPk
       , box'args   = mempty
       }
 
-cofeeScript :: Int64 -> PublicKey -> PublicKey -> Script
-cofeeScript spendHeight senderPk receiverPk = [utxo|
+coffeeScript :: Int64 -> PublicKey -> PublicKey -> Script
+coffeeScript spendHeight senderPk receiverPk = [utxo|
 
-    receiverScript = sigmaAnd (pk (receiverPk)) (toSigma ((spendHeight) < getHeight))
-    refundScript   = sigmaAnd (pk (senderPk))   (toSigma ((spendHeight) >= getHeight))
+    receiverScript = pk (receiverPk) &&* toSigma ((spendHeight) <  getHeight)
+    refundScript   = pk (senderPk)   &&* toSigma ((spendHeight) >= getHeight)
 
-    main = sigmaOr receiverScript refundScript
-
+    main = receiverScript ||* refundScript
 |]
 
