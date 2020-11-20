@@ -49,8 +49,6 @@ type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
 
-deriving instance Data (H.Type Loc Text)
-deriving instance Data (H.TypeF Loc Text (Fix (H.TypeF Loc Text)))
 deriving instance Data (H.Signature Loc Text)
 deriving instance Data (H.SignatureF Loc Text (Fix (H.SignatureF Loc Text)))
 

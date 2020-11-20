@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Error where
 import Control.DeepSeq (NFData)
 import Control.Monad.Except
 
+import Data.Data
 import Data.String
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -24,7 +25,7 @@ data Error
   | InternalError InternalError     -- ^ errors of this type should not happen in production
   | MonoError MonoError             -- ^ errors during monomorphizing
   | CoreScriptError CoreScriptError -- ^ errors of core scripts
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
 
 -- | Execution errors
 -- TODO source locations
@@ -33,7 +34,7 @@ data ExecError
   | UndefinedRecordCons Loc ConsName
   | UndefinedReocrdField Loc ConsName Text
   | FailedToDecodeScript
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
 
 -- | Errors that can arise during transformation of patterns in the bindings
 -- to case-expressions.
@@ -47,24 +48,24 @@ data PatError
   | WrongPatPrimMixture Loc
   | WrongPatConsMixture Loc
   | MissingMain
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
 
 data InternalError
   = FailedToEliminate Text
   | NonIntegerConstrTag Text
   | NonLamType
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
 
 data MonoError
   = FailedToFindMonoType Loc Text
   | CompareForNonPrim Loc
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
 
 data CoreScriptError
   = ResultIsNotSigma
   | TypeCoreError TypeCoreError
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
 
 -- | Errors for core language type-checker.
@@ -79,7 +80,7 @@ data TypeCoreError
   | BadShow     TypeCore                -- ^ Show is used on types that don't support it
   | BadCase
   | BadConstructor
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
 
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a

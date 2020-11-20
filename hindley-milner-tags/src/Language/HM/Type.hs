@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 -- | This module contains the abstract syntax of Hindley-Milner types.
 module Language.HM.Type (
     IsVar(..),
@@ -48,6 +49,7 @@ module Language.HM.Type (
 import Control.DeepSeq (NFData(..))
 import Control.Monad
 
+import Data.Data
 import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Data.Fix
@@ -139,11 +141,11 @@ data TypeF loc var r
     | ArrowT loc r r    -- ^ Special case of ConT that is rendered as ->
     | TupleT loc [r]    -- ^ Special case of ConT that is rendered as (,,,)
     | ListT loc r       -- ^ Special case of ConT that is rendered as [a]
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Data)
 
 -- | Monomorphic types.
 newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic, Data)
 
 instance (NFData loc, NFData var) => NFData (Type loc var) where
   rnf (Type m) = cata go m where

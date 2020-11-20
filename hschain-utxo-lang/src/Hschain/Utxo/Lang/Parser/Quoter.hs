@@ -55,26 +55,26 @@ defQuoteExp str = do
                        , snd (TH.loc_start loc))
 
 parseScript :: (String, Int, Int) -> String -> TH.Q Module
-parseScript (file, _line, _col) str =
+parseScript pos@(file, _, _) str =
   case parseExp (Just file) str of
     ParseOk expr -> fmap (mainExprModule . Expr) $ typeCheckExpr expr
     ParseFailed _ _ ->
       case parseModule (Just file) str of
         ParseOk m           -> typeCheckModule m
-        ParseFailed loc err -> failBy $ ParseError (P.toSrcInfo loc [] loc) (T.pack err)
+        ParseFailed loc err -> failBy $ shiftError pos $ ParseError (P.toSrcInfo loc [] loc) (T.pack err)
   where
     typeCheckExpr e = do
       let (e', externalCtx) = substAntiQuoteExpr e
-      void $ checkError $ runInferM $ inferExpr (moduleCtx'types baseModuleCtx <> InferCtx externalCtx mempty) e'
+      void $ checkError pos $ runInferM $ inferExpr (moduleCtx'types baseModuleCtx <> InferCtx externalCtx mempty) e'
       return e
 
     typeCheckModule m = do
       let (m', externalCtx) = substAntiQuoteModule m
-      void $ checkError $ evalModule (baseLibTypeContext <> externalCtx) m'
+      void $ checkError pos $ evalModule (baseLibTypeContext <> externalCtx) m'
       return m
 
-checkError :: (MonadFail m) => Either Error a -> m a
-checkError = either failBy pure
+checkError :: (MonadFail m) => (String, Int, Int) -> Either Error a -> m a
+checkError pos = either (failBy . shiftError pos) pure
 
 failBy :: MonadFail m => Error -> m a
 failBy err = fail $ T.unpack $ renderText err
@@ -112,4 +112,20 @@ substAntiQuoteModule m@Module{..} = (m { module'binds = bs }, ctx)
     (bs, ctx) = runWriter $ mapM substBind module'binds
 
     substBind b = mapM substAntiQuoteLang b
+
+shiftError :: (String, Int, Int) -> Error -> Error
+shiftError pos = everywhere (mkT (shiftLoc pos))
+
+shiftLoc :: (String, Int, Int) -> Loc -> Loc
+shiftLoc (file, line, _col) loc@P.SrcSpanInfo{..} = loc
+  { P.srcInfoSpan   = shiftSpan $ P.srcInfoSpan loc
+  , P.srcInfoPoints = fmap shiftSpan $ P.srcInfoPoints loc
+  }
+  where
+    shiftSpan x = x
+      { P.srcSpanFilename = file
+      , P.srcSpanStartLine = line - 1 + P.srcSpanStartLine x
+      , P.srcSpanEndLine = line - 1 + P.srcSpanEndLine x
+      }
+
 
