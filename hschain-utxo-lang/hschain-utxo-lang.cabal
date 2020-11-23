@@ -62,6 +62,7 @@ library
       Hschain.Utxo.Lang.Parser.Hask.FromHask
       Hschain.Utxo.Lang.Parser.Hask.ToHask
       Hschain.Utxo.Lang.Parser.Hask.Utils
+      Hschain.Utxo.Lang.Parser.Quoter
       Hschain.Utxo.Lang.Pretty
       Hschain.Utxo.Lang.Sigma
       Hschain.Utxo.Lang.Sigma.EllipticCurve
@@ -103,7 +104,9 @@ library
                      , semigroups
                      , prettyprinter
                      , serialise
+                     , syb
                      , strict
+                     , template-haskell
                      , text
                      , vector
 --  build-tools:         alex, happy
@@ -123,6 +126,7 @@ library
     KindSignatures
     MultiParamTypeClasses
     DeriveAnyClass
+    DeriveDataTypeable
     DeriveFunctor
     DeriveFoldable
     DeriveGeneric

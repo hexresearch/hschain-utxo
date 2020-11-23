@@ -20,6 +20,7 @@ module Language.HM.Term(
 
 import Control.Arrow
 
+import Data.Data
 import Data.Fix
 import Data.Set (Set)
 
@@ -42,7 +43,7 @@ data TermF prim loc v r
     | Constr loc (Type loc v) v !Int  -- ^ constructor with tag and arity, also we should provide the type
                                       --   of constructor as afunction for a type-checker
     | Bottom loc                      -- ^ value of any type that means failed programm.
-    deriving (Show, Eq, Functor, Foldable, Traversable)
+    deriving (Show, Eq, Functor, Foldable, Traversable, Data)
 
 class Show prim => IsPrim prim where
   type PrimLoc prim :: *
@@ -63,7 +64,7 @@ data CaseAlt loc v a = CaseAlt
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative
   }
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Data)
 
 -- | Local variable definition.
 --
@@ -72,11 +73,11 @@ data Bind loc var r = Bind
   { bind'loc :: loc             -- ^ Source code location
   , bind'lhs :: var             -- ^ Variable name
   , bind'rhs :: r               -- ^ Definition (right-hand side)
-  } deriving (Show, Eq, Functor, Foldable, Traversable)
+  } deriving (Show, Eq, Functor, Foldable, Traversable, Data)
 
 -- | The type of terms.
 newtype Term prim loc v = Term { unTerm :: Fix (TermF prim loc v) }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data)
 
 instance Functor (Term prim loc) where
   fmap f (Term x) =  Term $ cata go x

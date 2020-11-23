@@ -32,6 +32,7 @@ import Language.Haskell.Exts.Pretty (prettyPrint)
 import qualified Data.Vector as V
 
 import HSChain.Crypto.Classes (encodeToBS, encodeBase58)
+import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
@@ -157,8 +158,8 @@ instance Pretty Proof where
 instance Pretty (S.Sigma S.PublicKey) where
   pretty = cata $ \case
       S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
-      S.SigmaAnd as  -> parens $ hsep $ "sigmaAnd" : as
-      S.SigmaOr  as  -> parens $ hsep $ "sigmaOr"  : as
+      S.SigmaAnd as  -> parens $ hsep $ Const.sigmaAnd : as
+      S.SigmaOr  as  -> parens $ hsep $ Const.sigmaOr  : as
       S.SigmaBool b  -> "Sigma" <> pretty b
 
 instance Pretty S.PublicKey where

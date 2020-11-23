@@ -13,6 +13,7 @@ module Hschain.Utxo.Lang.Core.Types (
 import Codec.Serialise
 import Control.DeepSeq
 
+import Data.Data
 import Data.Int
 import Data.ByteString (ByteString)
 import Data.Text (Text)
@@ -56,7 +57,7 @@ data TypeCore
   | TupleT [TypeCore]           -- ^ Tuple. Nullary tuple doubles as unit
   | BoxT
     -- ^ Box. 4-tuple of box ID, spend script, value of box, and arguments
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic,Data)
   deriving anyclass (NFData,Serialise)
 infixr 5 :->
 

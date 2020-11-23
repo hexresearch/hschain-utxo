@@ -48,6 +48,7 @@ module Language.HM.Type (
 import Control.DeepSeq (NFData(..))
 import Control.Monad
 
+import Data.Data
 import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Data.Fix
@@ -91,7 +92,7 @@ class (Show v, Ord v) => IsVar v where
 data Typed loc v a = Typed
   { typed'type  :: Type loc v
   , typed'value :: a
-  } deriving (Show, Eq, Functor, Foldable, Traversable)
+  } deriving (Show, Eq, Functor, Foldable, Traversable, Data)
 
 
 stringIntToVar :: IsString a => Int -> a
@@ -139,11 +140,11 @@ data TypeF loc var r
     | ArrowT loc r r    -- ^ Special case of ConT that is rendered as ->
     | TupleT loc [r]    -- ^ Special case of ConT that is rendered as (,,,)
     | ListT loc r       -- ^ Special case of ConT that is rendered as [a]
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Data)
 
 -- | Monomorphic types.
 newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic, Data)
 
 instance (NFData loc, NFData var) => NFData (Type loc var) where
   rnf (Type m) = cata go m where
@@ -181,12 +182,12 @@ listT loc (Type t) = Type $ Fix $ ListT loc t
 data SignatureF loc var r
     = ForAllT loc var r     -- ^ specify schematic variable
     | MonoT (Type loc var)  -- ^ contains the type
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data)
 
 -- | Signaure is a special type that we need for type inference algorithm.
 -- We specify which variables in the type are schematic (non-free).
 newtype Signature loc var = Signature { unSignature :: Fix (SignatureF loc var)
-  } deriving (Show, Eq, Ord)
+  } deriving (Show, Eq, Ord, Data)
 
 instance Functor (Signature loc) where
   fmap f (Signature x) = Signature $ cata go x

@@ -13,6 +13,8 @@ import Control.Arrow (first)
 import Data.Fix
 import Data.Text (Text)
 
+import HSChain.Crypto (ByteRepr(..), encodeBase58)
+
 import Hschain.Utxo.Lang.Expr hiding (Expr)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
@@ -23,6 +25,7 @@ import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
 import Hschain.Utxo.Lang.Core.Types (Name)
+import Hschain.Utxo.Lang.Sigma (mapPkM)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -81,6 +84,7 @@ exprToExtendedLC typeCtx = cataM $ \case
   Lam _ _ _               -> failedToEliminate "Single argument Lam"
   RecConstr _ _ _         -> failedToEliminate "RecordConstr"
   RecUpdate _ _ _         -> failedToEliminate "RecUpdate"
+  AntiQuote loc _ _       -> throwError $ ParseError loc "AntiQuote encountered"
   where
     fromVar loc VarName{..} = pure $ Fix $ EVar loc varName'name
 
@@ -138,19 +142,21 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromFailCase loc = pure $ Fix $ EBottom loc
 
-    fromPrim loc p = pure $ Fix $ EPrim loc $ PrimLoc loc $ case p of
-      PrimInt n       -> P.PrimInt n
-      PrimString txt  -> P.PrimText txt
-      PrimBool b      -> P.PrimBool b
-      PrimSigma sigma -> P.PrimSigma sigma
-      PrimBytes bs    -> P.PrimBytes bs
+    fromPrim loc p = fmap (Fix . EPrim loc . PrimLoc loc) $ case p of
+      PrimInt n       -> pure $ P.PrimInt n
+      PrimString txt  -> pure $ P.PrimText txt
+      PrimBool b      -> pure $ P.PrimBool b
+      PrimSigma sigma -> fmap P.PrimSigma $ mapPkM (\bs -> maybe (notKey bs) pure $ decodeFromBS bs) sigma
+      PrimBytes bs    -> pure $ P.PrimBytes bs
+      where
+        notKey bs = throwError $ ParseError loc $ T.unwords ["Failed to decode public key:", encodeBase58 bs]
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
     fromSigma locA = \case
       Pk locB a        -> pure $ ap1 locA (var locB "pk") a
-      SAnd locB a b    -> pure $ ap2 locA (var locB "&&&") a b
-      SOr  locB a b    -> pure $ ap2 locA (var locB "|||")  a b
+      SAnd locB a b    -> pure $ ap2 locA (var locB Const.sigmaAnd) a b
+      SOr  locB a b    -> pure $ ap2 locA (var locB Const.sigmaOr)  a b
       SPrimBool locB a -> pure $ ap1 locA (var locB "toSigma") a
 
     fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args

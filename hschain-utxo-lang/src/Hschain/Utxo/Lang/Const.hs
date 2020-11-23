@@ -15,6 +15,14 @@ module Hschain.Utxo.Lang.Const(
   , getBoxScript
   , getBoxValue
   , getBoxPostHeight
+  , sigmaOr
+  , sigmaAnd
+  , sigmaGreater
+  , sigmaLess
+  , sigmaGreaterEquals
+  , sigmaLessEquals
+  , sigmaEquals
+  , sigmaNonEquals
   -- * List functions
   , listAt
   , map
@@ -93,6 +101,17 @@ length = "length"
 appendList = "++"
 andSigma = "andSigma"
 orSigma = "orSigma"
+
+sigmaOr, sigmaAnd, sigmaGreater, sigmaLess, sigmaGreaterEquals, sigmaLessEquals, sigmaEquals, sigmaNonEquals :: IsString a => a
+
+sigmaOr = "||*"
+sigmaAnd = "&&*"
+sigmaGreater = ">*"
+sigmaLess = "<*"
+sigmaLessEquals = "<=*"
+sigmaGreaterEquals = ">=*"
+sigmaEquals = "==*"
+sigmaNonEquals = "/=*"
 
 -------------------------------------------------------------------
 -- text functions

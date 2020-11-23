@@ -12,6 +12,7 @@ import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
+import Data.Data
 import Data.Fix
 import Data.Function (on)
 import Data.Foldable
@@ -28,10 +29,10 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes      (ViaBase58(..))
+import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
-import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes )
+import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes, Script(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Language.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -48,7 +49,6 @@ type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
 
-
 instance H.DefLoc Hask.SrcSpanInfo where
   defLoc = Hask.noSrcSpan
 
@@ -63,7 +63,7 @@ data UserTypeCtx = UserTypeCtx
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
   }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Data, Typeable)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
 
@@ -137,7 +137,7 @@ data UserType = UserType
   { userType'name       :: !VarName                -- ^ Type name
   , userType'args       :: ![VarName]              -- ^ type arguments
   , userType'cases      :: !(Map ConsName ConsDef) -- ^ List of constructors
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data, Typeable)
 
 getConsTypes :: ConsDef -> Vector Type
 getConsTypes = \case
@@ -148,13 +148,13 @@ getConsTypes = \case
 data ConsDef
   = ConsDef (Vector Type)            -- ^ Simple constructor with collection of type-arguments
   | RecordCons (Vector RecordField)  -- ^ Record-constructor with named fields
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 -- | Record named field.
 data RecordField = RecordField
   { recordField'name :: VarName   -- ^ Name of the field
   , recordField'type :: Type      -- ^ Type of the field
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data, Typeable)
 
 -- | Data for low-level rendering of type constructor
 -- We need to know it's type, arity and integer tag that is unique within
@@ -164,7 +164,7 @@ data ConsInfo = ConsInfo
   , consInfo'tagId :: !Int       -- ^ unique integer identifier (within the type scope)
   , consInfo'arity :: !Int       -- ^ arity of constructor
   , consInfo'def   :: !UserType  -- ^ definition where constructor is defined
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data, Typeable)
 
 -- | Order of names in the record constructor.
 -- For constructor
@@ -176,7 +176,7 @@ data ConsInfo = ConsInfo
 -- ["name", "age"]
 newtype RecordFieldOrder = RecordFieldOrder
   { unRecordFieldOrder :: [Text]
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Data, Typeable)
 
 -- | Type for expression of our language that has type.
 --
@@ -188,7 +188,7 @@ newtype Expr a = Expr Lang
 data VarName = VarName
   { varName'loc   :: !Loc   -- ^ source code location
   , varName'name  :: !Text  -- ^ variable name
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 instance IsString VarName where
   fromString = VarName noLoc . fromString
@@ -197,7 +197,7 @@ instance IsString VarName where
 data ConsName = ConsName
   { consName'loc  :: !Loc   -- ^ source code location
   , consName'name :: !Text  -- ^ constructor name
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 instance IsString ConsName where
   fromString = ConsName noLoc . fromString
@@ -253,7 +253,7 @@ data Pat
   | PCons Loc ConsName [Pat]  -- ^ concrete constructor with argument patterns
   | PTuple Loc [Pat]          -- ^ tuple with list of arguments
   | PWildCard Loc             -- ^ wildcard (anything matches and value is discarded after match)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Data, Typeable)
 
 instance IsString Pat where
   fromString = PVar noLoc . fromString
@@ -263,7 +263,7 @@ data Module = Module
   { module'loc       :: !Loc          -- ^ source code location
   , module'userTypes :: !UserTypeCtx  -- ^ user-defined types
   , module'binds     :: ![Bind Lang]  -- ^ values (functions)
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 -- | Type context for inference algorithm
 type TypeContext = H.Context Loc Text
@@ -300,26 +300,26 @@ data Alt a = Alt
   { alt'pats  :: [Pat]      -- ^ arguments of the function
   , alt'expr  :: Rhs a      -- ^ right-hand side of the declaration
   , alt'where :: Maybe [Bind a]  -- ^ 'where'-declarations (definitions local to the function)
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 -- | Right-hand side of the function definition.
 data Rhs a
   = UnguardedRhs a         -- ^ No-guards
   | GuardedRhs [Guard a]   -- ^ with guards
-  deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+  deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 -- | Guard for right hand-side. RHs is executed if guard's predicate evaluates to True.
 data Guard a = Guard
   { guard'predicate :: a  -- ^ guard predicate expression
   , guard'rhs       :: a  -- ^ right-hand side expression
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 -- | Value definition
 data Bind a = Bind
   { bind'name  :: VarName          -- ^ name of the value
   , bind'type  :: Maybe Signature  -- ^ user provided type signature
   , bind'alts  :: [Alt a]          -- ^ definitions of the value
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable)
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 -- | Main tpye for expressions
 -- It's defined in fix-point style (See package data-fix).
@@ -398,14 +398,16 @@ data E a
   -- debug
   | Trace Loc a a
   -- ^ Trace print for debug of execution (@trace printMessage value@)
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  | AntiQuote Loc (Maybe QuoteType) VarName
+  -- ^ reference to external vriables (used in quasi quoting)
+  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Built-in unary operators
 data UnOp
   = Not   -- ^ logical not
   | Neg   -- ^ numeric negation
   | TupleAt Int Int  -- ^ tuple field accessor. Arguments: @TupleAt tupleSize, field number@.
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 -- | Built-in binary operators
 data BinOp
@@ -421,7 +423,7 @@ data BinOp
   | GreaterThan          -- ^ @>@
   | LessThanEquals       -- ^ @<=@
   | GreaterThanEquals    -- ^ @>=@
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 -- | Case-alternative expression
 data CaseExpr a
@@ -429,12 +431,12 @@ data CaseExpr a
       { caseExpr'lhs :: Pat  -- ^ pattern to check
       , caseExpr'rhs :: a    -- ^ right-hand side expression
       }
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Expressions that operate on boxes.
 data BoxExpr a
   = BoxAt Loc a BoxField -- ^ Box field getter
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | It defines which values we can get from the box
 data BoxField
@@ -449,14 +451,17 @@ data BoxField
   -- We get the vector of primitive values stored by primitive-value tag.
   | BoxFieldPostHeight
   -- ^ Get time at which box was posted. It's useful to create relative time bounds
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 argTagToType :: ArgType -> Type
-argTagToType = \case
-  IntArg   -> intT
-  TextArg  -> textT
-  BoolArg  -> boolT
-  BytesArg -> bytesT
+argTagToType = argTagToType' H.defLoc
+
+argTagToType' :: Loc -> ArgType -> Type
+argTagToType' loc = \case
+  IntArg   -> intT' loc
+  TextArg  -> textT' loc
+  BoolArg  -> boolT' loc
+  BytesArg -> bytesT' loc
 
 getBoxArgVar :: ArgType -> Text
 getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
@@ -474,7 +479,7 @@ data SigmaExpr a
   | SAnd Loc a a     -- ^ sigma and
   | SOr Loc a a      -- ^ sigma or
   | SPrimBool Loc a  -- ^ constant bool
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Expressions that operate on vectors
 data VecExpr a
@@ -494,7 +499,7 @@ data VecExpr a
   -- ^ and of vector of sigma expressions
   | VecOrSigma Loc
   -- ^ or of vector of sigma expressions
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Tag for values to convert to to text
 data TextTypeTag
@@ -504,7 +509,7 @@ data TextTypeTag
   -- ^ convert boolean to text
   | ScriptToText
   -- ^ convert script to text
-  deriving (Eq, Show)
+  deriving (Eq, Show, Data, Typeable)
 
 -- | Expressions that operate on texts.
 data TextExpr a
@@ -514,7 +519,7 @@ data TextExpr a
   -- ^ Convert some value to text (@showType a@)
   | TextLength Loc
   -- ^ Get textlength (@lengthText a@)
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 data BytesExpr a
   = BytesAppend Loc a a
@@ -527,12 +532,12 @@ data BytesExpr a
   -- ^ deserialise values from bytes
   | BytesHash Loc HashAlgo a
   -- ^ get hash for the given ByteString.
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Hashing algorithm tag
 data HashAlgo
   = Sha256
-  deriving (Eq, Show)
+  deriving (Eq, Show, Data, Typeable)
 
 -- | Primitive values of the language (constants).
 data Prim
@@ -542,10 +547,10 @@ data Prim
   -- ^ Text values
   | PrimBool    Bool
   -- ^ Booleans
-  | PrimSigma   (Sigma PublicKey)
+  | PrimSigma   (Sigma ByteString)
   -- ^ Sigma-expressions
   | PrimBytes ByteString
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData)
+  deriving (Show, Eq, Ord, Generic, Serialise, NFData, Data, Typeable)
 
 -- | Result of the script can be boolean constant or sigma-expression
 -- that user have to prove.
@@ -584,7 +589,7 @@ data EnvId a
   -- ^ Get list of all data-input boxes
   | GetVar Loc ArgType
   -- ^ Get argument of the transaction by name
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Data, Typeable)
 
 getEnvVarName :: ArgType -> Text
 getEnvVarName ty = Const.getArgs $ argTypeName ty
@@ -735,6 +740,7 @@ instance Show a => H.HasLoc (E a) where
     Trace loc _ _ -> loc
     AltE loc _ _ -> loc
     FailCase loc -> loc
+    AntiQuote loc _ _ -> loc
 
 instance H.HasLoc a => H.HasLoc (Alt a) where
   type Loc (Alt a) = H.Loc a
@@ -802,6 +808,7 @@ freeVars = cata $ \case
   CheckSig _ a b   -> a <> b
   CheckMultiSig _ a b c -> a <> b <> c
   FailCase _       -> Set.empty
+  AntiQuote _ _ v  -> Set.singleton v
   where
     getBgNames :: [Bind a] -> Set VarName
     getBgNames bs = Set.fromList $ fmap bind'name bs
@@ -878,8 +885,8 @@ monoPrimopName = \case
   OpBoolXor     -> Just "^^"
   OpBoolNot     -> Just "not"
   --
-  OpSigAnd       -> Just "&&&"
-  OpSigOr        -> Just "|||"
+  OpSigAnd       -> Just Const.sigmaAnd
+  OpSigOr        -> Just Const.sigmaOr
   OpSigPK        -> Just "pk"
   OpSigBool      -> Just "toSigma"
   OpSigListAnd   -> Just "andSigma"
@@ -979,6 +986,64 @@ monoPrimopNameMap = M.fromList
   [ (nm,op) | op      <- monomorphicPrimops
             , Just nm <- [ monoPrimopName op ]
             ]
+
+
+-------------------------------------------------------------------
+
+-- | Types that we can inline to quasi-quoted code
+data QuoteType
+  = PrimQ ArgType
+  | SigmaQ
+  | PublicKeyQ
+  | ScriptQ
+  | ListQ QuoteType
+  | TupleQ [QuoteType]
+  deriving (Show, Eq, Data)
+
+class ToLang a where
+  toLang :: Loc -> a -> Lang
+
+  toLangExpr :: Loc -> a -> E Lang
+  toLangExpr loc a = unFix $ toLang loc a
+
+instance ToLang Text where
+  toLang loc txt = toPrim loc $ PrimString txt
+
+instance ToLang ByteString where
+  toLang loc bs = toPrim loc $ PrimBytes bs
+
+instance ToLang PublicKey where
+  toLang loc key = toPrim loc $ PrimBytes $ encodeToBS key
+
+instance ToLang Script where
+  toLang loc (Script bs) = toPrim loc $ PrimBytes bs
+
+instance ToLang Bool where
+  toLang loc b = toPrim loc $ PrimBool b
+
+instance ToLang (Sigma ByteString) where
+  toLang loc sig = toPrim loc $ PrimSigma sig
+
+instance ToLang Int where
+  toLang loc n = toPrim loc $ PrimInt $ fromIntegral n
+
+instance ToLang Int64 where
+  toLang loc n = toPrim loc $ PrimInt n
+
+instance ToLang a => ToLang [a] where
+  toLang loc vals = Fix $ VecE loc $ NewVec loc $ V.fromList $ fmap (toLang loc) vals
+
+instance (ToLang a, ToLang b) => ToLang (a, b) where
+  toLang loc (a, b) = Fix $ Tuple loc $ V.fromList [toLang loc a, toLang loc b]
+
+instance (ToLang a, ToLang b, ToLang c) => ToLang (a, b, c) where
+  toLang loc (a, b, c) = Fix $ Tuple loc $ V.fromList [toLang loc a, toLang loc b, toLang loc c]
+
+instance (ToLang a, ToLang b, ToLang c, ToLang d) => ToLang (a, b, c, d) where
+  toLang loc (a, b, c, d) = Fix $ Tuple loc $ V.fromList [toLang loc a, toLang loc b, toLang loc c, toLang loc d]
+
+toPrim :: Loc -> Prim -> Lang
+toPrim loc p = Fix $ PrimE loc p
 
 -------------------------------------------------------------------
 
