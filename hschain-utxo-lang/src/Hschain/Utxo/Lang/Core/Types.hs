@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Core.Types (
   , argsTuple
   , Typed(..)
   , Prim(..)
+  , argTypeToCore
     -- * Lens
   , typed'typeL
   , typed'valueL
@@ -21,6 +22,7 @@ import GHC.Generics (Generic)
 
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Types (ArgType(..))
 
 
 -- | Type tags for values
@@ -69,7 +71,12 @@ argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 
 $(makeLensesWithL ''Typed)
 
-
+argTypeToCore :: ArgType -> TypeCore
+argTypeToCore = \case
+  IntArg -> IntT
+  BoolArg -> BoolT
+  TextArg -> TextT
+  BytesArg -> BytesT
 
 ----------------------------------------------------------------
 -- Pretty-printing
