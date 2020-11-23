@@ -38,6 +38,7 @@ module Hschain.Utxo.Lang.Types
     -- * Helperes
   , singleOwnerInput
     -- * Lenses
+  , tx'inputsL, tx'outputsL, tx'dataInputsL
   , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL, txArg'dataInputsL
   , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
   , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
@@ -565,6 +566,7 @@ instance ToJSON Args where
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
 
+$(makeLensesWithL ''GTx)
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
 $(makeLensesWithL ''Box)
