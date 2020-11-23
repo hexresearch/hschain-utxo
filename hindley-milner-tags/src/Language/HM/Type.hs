@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 -- | This module contains the abstract syntax of Hindley-Milner types.
 module Language.HM.Type (
     IsVar(..),
@@ -93,7 +92,7 @@ class (Show v, Ord v) => IsVar v where
 data Typed loc v a = Typed
   { typed'type  :: Type loc v
   , typed'value :: a
-  } deriving (Show, Eq, Functor, Foldable, Traversable)
+  } deriving (Show, Eq, Functor, Foldable, Traversable, Data)
 
 
 stringIntToVar :: IsString a => Int -> a
@@ -183,12 +182,12 @@ listT loc (Type t) = Type $ Fix $ ListT loc t
 data SignatureF loc var r
     = ForAllT loc var r     -- ^ specify schematic variable
     | MonoT (Type loc var)  -- ^ contains the type
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data)
 
 -- | Signaure is a special type that we need for type inference algorithm.
 -- We specify which variables in the type are schematic (non-free).
 newtype Signature loc var = Signature { unSignature :: Fix (SignatureF loc var)
-  } deriving (Show, Eq, Ord)
+  } deriving (Show, Eq, Ord, Data)
 
 instance Functor (Signature loc) where
   fmap f (Signature x) = Signature $ cata go x

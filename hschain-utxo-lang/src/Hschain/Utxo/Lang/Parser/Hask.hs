@@ -62,7 +62,7 @@ withFile :: Maybe FilePath -> (H.ParseMode -> String -> ParseResult a) -> (Strin
 withFile mFile parseWith = parseWith (setFile H.defaultParseMode)
   where
     setFile = maybe id (\file mode -> mode { H.parseFilename = file
-                                           , H.extensions = [H.EnableExtension H.TemplateHaskell, H.EnableExtension H.QuasiQuotes] } ) mFile
+                                           , H.extensions = [H.EnableExtension H.TemplateHaskell] } ) mFile
 
 
 -- | Pretty-print expression

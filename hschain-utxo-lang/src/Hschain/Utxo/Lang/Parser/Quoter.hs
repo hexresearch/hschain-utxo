@@ -93,10 +93,12 @@ import qualified Data.ByteString.Char8 as C
 utxo :: QuasiQuoter
 utxo = QuasiQuoter
   { quoteExp  = defQuoteExp
-  , quotePat  = undefined
-  , quoteType = undefined
-  , quoteDec  = undefined
+  , quotePat  = err "patterns"
+  , quoteType = err "types"
+  , quoteDec  = err "declarations"
   }
+  where
+    err x = error $ "Quasi-quoting is not defined for " <> x
 
 defQuoteExp :: String -> TH.Q TH.Exp
 defQuoteExp str = do

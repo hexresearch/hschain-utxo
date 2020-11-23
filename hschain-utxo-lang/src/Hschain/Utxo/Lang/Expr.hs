@@ -49,9 +49,6 @@ type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
 
-deriving instance Data (H.Signature Loc Text)
-deriving instance Data (H.SignatureF Loc Text (Fix (H.SignatureF Loc Text)))
-
 instance H.DefLoc Hask.SrcSpanInfo where
   defLoc = Hask.noSrcSpan
 
@@ -457,11 +454,7 @@ data BoxField
   deriving (Show, Eq, Data, Typeable)
 
 argTagToType :: ArgType -> Type
-argTagToType = \case
-  IntArg   -> intT
-  TextArg  -> textT
-  BoolArg  -> boolT
-  BytesArg -> bytesT
+argTagToType = argTagToType' H.defLoc
 
 argTagToType' :: Loc -> ArgType -> Type
 argTagToType' loc = \case
