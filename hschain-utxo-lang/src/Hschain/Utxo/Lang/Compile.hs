@@ -44,8 +44,8 @@ compile :: MonadLang m => Module -> m ExprCore
 compile
   =  return . substPrimOp
  <=< toCoreProg
- -- <=< makeMonomorphic
  <=< specifyCompareOps
+ <=< pure . inlinePolys
  <=< annotateTypes
  <=< toExtendedLC
 
