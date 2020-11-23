@@ -512,6 +512,9 @@ validateTransactionContextFree Tx{..} = do
  -- Inputs and outputs are not null
  when (null tx'inputs)  $ Left $ InternalErr "Empty input list"
  when (null tx'outputs) $ Left $ InternalErr "Empty output list"
+ -- No zero outputs
+ when (any ((<=0) . box'value) tx'outputs)
+   $ Left $ InternalErr "Box with nonpositive output"
  -- No duplicate inputs
  checkDuplicates $ toList tx'inputs
  where
