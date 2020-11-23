@@ -19,9 +19,9 @@
 --  Dependencies: for quasi quoter to work we should import module @Hschain.Utxo.Lang@
 --  and enable extension @OverloadedStrings@.
 --
--- For interpolation of external haskell values we use single parens around variable:
+-- For interpolation of external haskell values we use dollar sign with single parens around the variable:
 --
--- > [utxo|main = pk (alicePubKey)|]
+-- > [utxo|main = pk $(alicePubKey)|]
 --
 -- Value is inlined to code over class @ToLang@. It invokes the method @toLangExpr@ on the value.
 -- Note that in this form inside the code value can have any type. For typechecker
@@ -31,9 +31,9 @@
 -- It can be usefull to restrict the types of inlined haskell values
 -- to be able to check them at compile-time.
 --
--- We can do it with special form by supplying the type with operator @#@:
+-- We can do it with explicit type declaration::
 --
--- > [utxo|main = pk (alicePubKey # PublicKey) |]
+-- > [utxo|main = pk ($(alicePubKey) :: PublicKey) |]
 --
 --  This expression is going to fail at compile time if @alicePubKey@ has inproper type.
 --
@@ -48,7 +48,7 @@
 --
 --  Simple spends:
 --
--- > spendScript = [utxo|pk (alicePubKey)|]
+-- > spendScript = [utxo|pk $(alicePubKey)|]
 --
 --  Spend with delay time:
 --

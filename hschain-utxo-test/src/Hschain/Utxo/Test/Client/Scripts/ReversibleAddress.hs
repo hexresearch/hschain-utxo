@@ -12,7 +12,7 @@ withdrawScript carol = [utxo|
   bobDeadline = listAt (getBoxIntArgs getSelf) 0
 
   main =  (pk bob &&* toSigma (getHeight > bobDeadline))
-      ||* (pk (carol) &&* toSigma (getHeight <= bobDeadline))
+      ||* (pk $(carol) &&* toSigma (getHeight <= bobDeadline))
 
 |]
 
@@ -22,13 +22,13 @@ reversibleAddressScript blocksIn24h alice carol feeProposition maxFee = [utxo|
   getBobDeadline box = listAt (getBoxIntArgs box) 0
 
   isChange   out = getBoxScript out == getBoxScript getSelf
-  isWithdraw out = getBobDeadline out >= (getHeight + (blocksIn24h))
-                 && getBoxScript out == (withdrawProg)
-  isFee out = getBoxScript out == (feeProposition)
+  isWithdraw out = getBobDeadline out >= (getHeight + $(blocksIn24h))
+                 && getBoxScript out == $(withdrawProg)
+  isFee out = getBoxScript out == $(feeProposition)
   isValid out = isChange out || isWithdraw out || isFee out
   totalFee = foldl (\x b -> if (isFee b) then (x + getBoxValue b) else x) 0 getOutputs
 
-  main = pk (alice) &&* toSigma (all isValid getOutputs) &&* toSigma (totalFee < (maxFee))
+  main = pk $(alice) &&* toSigma (all isValid getOutputs) &&* toSigma (totalFee < $(maxFee))
 
 |]
   where

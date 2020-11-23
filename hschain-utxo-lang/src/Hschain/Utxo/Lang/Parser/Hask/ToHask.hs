@@ -70,8 +70,8 @@ toHaskExp (Fix expr) = case expr of
   CheckMultiSig loc a b c -> ap3 (VarName loc Const.checkMultiSig) a b c
   AltE _ _ _ -> error "Alt is for internal usage"
   AntiQuote loc mty name -> case mty of
-    Just ty -> H.Paren loc $ H.InfixApp loc (toVar loc name) (H.QVarOp loc $ H.UnQual loc $ H.Ident loc "#") (fromQuoteType loc ty)
-    Nothing -> H.Paren loc (toVar loc name)
+    Just ty -> H.ExpTypeSig loc (H.SpliceExp loc (H.ParenSplice loc (toVar loc name))) (fromQuoteType loc ty)
+    Nothing -> H.SpliceExp loc (H.ParenSplice loc (toVar loc name))
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
@@ -302,14 +302,14 @@ toVar loc name = H.Var loc (toQName name)
 fromArgType :: Loc -> ArgType -> H.QName Loc
 fromArgType loc ty = H.UnQual loc $ H.Ident loc $ T.unpack $ argTypeName ty
 
-fromQuoteType :: Loc -> QuoteType -> H.Exp Loc
+fromQuoteType :: Loc -> QuoteType -> H.Type Loc
 fromQuoteType loc = \case
-  PrimQ ty   -> H.Con loc $ fromArgType loc ty
+  PrimQ ty   -> H.TyCon loc $ fromArgType loc ty
   SigmaQ     -> primQ "Sigma"
   ScriptQ    -> primQ "Script"
   PublicKeyQ -> primQ "PublicKey"
-  ListQ ty   -> H.List loc [fromQuoteType loc ty]
-  TupleQ ts  -> H.Tuple loc H.Boxed $ fmap (fromQuoteType loc) ts
+  ListQ ty   -> H.TyList loc (fromQuoteType loc ty)
+  TupleQ ts  -> H.TyTuple loc H.Boxed $ fmap (fromQuoteType loc) ts
   where
-    primQ name = H.Con loc $ H.UnQual loc $ H.Ident loc name
+    primQ name = H.TyCon loc $ H.UnQual loc $ H.Ident loc name
 

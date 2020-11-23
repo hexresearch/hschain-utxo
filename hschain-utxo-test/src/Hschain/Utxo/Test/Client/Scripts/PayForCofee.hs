@@ -166,7 +166,7 @@ toSendTxDelayed wallet SendDelayed{..} = do
 
     -- sender can get all money back if height is less than equal to limit
     -- or just the rest of it if it's greater than the limit
-    backScript = [utxo|pk (senderPk)|]
+    backScript = [utxo|pk $(senderPk)|]
 
     receiverUtxo = Box
       { box'value  = sendDelayed'amount
@@ -177,8 +177,8 @@ toSendTxDelayed wallet SendDelayed{..} = do
 coffeeScript :: Int64 -> PublicKey -> PublicKey -> Script
 coffeeScript spendHeight senderPk receiverPk = [utxo|
 
-    receiverScript = pk (receiverPk) &&* toSigma ((spendHeight) <  getHeight)
-    refundScript   = pk (senderPk)   &&* toSigma ((spendHeight) >= getHeight)
+    receiverScript = pk $(receiverPk) &&* toSigma ($(spendHeight) <  getHeight)
+    refundScript   = pk $(senderPk)   &&* toSigma ($(spendHeight) >= getHeight)
 
     main = receiverScript ||* refundScript
 |]

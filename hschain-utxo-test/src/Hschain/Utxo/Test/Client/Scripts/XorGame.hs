@@ -57,13 +57,13 @@ halfGameScript :: ByteString -> Script
 halfGameScript fullGameScriptHash = [utxo|
 
   out           = listAt getOutputs 0
-  b             = listAt (getBoxIntArgs out) (bobGuessFieldId)
-  bobDeadline   = listAt (getBoxIntArgs out) (bobDeadlineFieldId)
+  b             = listAt (getBoxIntArgs out) $(bobGuessFieldId)
+  bobDeadline   = listAt (getBoxIntArgs out) $(bobDeadlineFieldId)
   validBobInput = b == 0 || b == 1
 
   main = toSigma (and
     [ validBobInput
-    , sha256 (getBoxScript out) == (fullGameScriptHash)
+    , sha256 (getBoxScript out) == $(fullGameScriptHash)
     , (length getOutputs == 1) || (length getOutputs == 2)
     , bobDeadline >= (getHeight + 30)
     , getBoxValue out >= (2 * getBoxValue getSelf)
@@ -88,16 +88,16 @@ halfGameScript' fullGameScriptHash =
 fullGameScript :: ByteString -> ByteString -> Script
 fullGameScript k alice = [utxo|
 
-  s           = listAt getBytesArgs (sFieldId)
-  a           = listAt getIntArgs (aFieldId)
-  b           = listAt (getBoxIntArgs getSelf) (bobGuessFieldId)
-  bob         = listAt (getBoxBytesArgs getSelf) (bobPkFieldId)
-  bobDeadline = listAt (getBoxIntArgs getSelf) (bobDeadlineFieldId)
+  s           = listAt getBytesArgs $(sFieldId)
+  a           = listAt getIntArgs $(aFieldId)
+  b           = listAt (getBoxIntArgs getSelf) $(bobGuessFieldId)
+  bob         = listAt (getBoxBytesArgs getSelf) $(bobPkFieldId)
+  bobDeadline = listAt (getBoxIntArgs getSelf) $(bobDeadlineFieldId)
 
   main = (pk bob &&* toSigma (getHeight > bobDeadline))
-     ||* ((toSigma (sha256 (appendBytes s (serialiseInt a)) == (k)))
-          &&* (   pk (alice) &&* (toSigma (a == b))
-              ||* pk bob     &&* (toSigma (a /= b))))
+     ||* ((toSigma (sha256 (appendBytes s (serialiseInt a)) == $(k)))
+          &&* (   pk $(alice) &&* (toSigma (a == b))
+              ||* pk bob      &&* (toSigma (a /= b))))
 
 |]
 
@@ -189,7 +189,7 @@ xorGameRound Scene{..} game@Game{..} = do
             | total <= amount = Nothing
             | otherwise       = Just Box
                 { box'value  = total - amount
-                , box'script = [utxo|pk (alicePk)|]
+                , box'script = [utxo|pk $(alicePk)|]
                 , box'args   = mempty
                 }
 
@@ -286,7 +286,7 @@ xorGameRound Scene{..} game@Game{..} = do
 
         outBox = Box
           { box'value   = 2 * game'amount
-          , box'script  = [utxo|pk (pubKey)|]
+          , box'script  = [utxo|pk $(pubKey)|]
           , box'args    = mempty
           }
 
