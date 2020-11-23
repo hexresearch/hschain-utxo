@@ -13,6 +13,7 @@ import Data.Fix
 import Data.Map.Strict (Map)
 import Data.Maybe
 
+import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.Expr      (PrimOp(..))
@@ -83,12 +84,12 @@ specifyCompareOps = liftTypedLamProg $ cataM $ \case
 
 newtype InlineCtx = InlineCtx (Map Name TypedExprLam)
 
-type Inline a = State InlineCtx a
+type Inline a = StateT InlineCtx (Either Error) a
 
 -- | Inlines all polymorphic functions
-inlinePolys :: TypedLamProg -> TypedLamProg
-inlinePolys (AnnLamProg ps) =
-  evalState (fmap AnnLamProg $ fmap reverse $ foldM inlineDef [] ps) (InlineCtx M.empty)
+inlinePolys :: MonadLang m => TypedLamProg -> m TypedLamProg
+inlinePolys (AnnLamProg ps) = liftEither $
+  evalStateT (fmap AnnLamProg $ fmap reverse $ foldM inlineDef [] ps) (InlineCtx M.empty)
 
 inlineDef :: [TypedDef] -> TypedDef -> Inline [TypedDef]
 inlineDef res def = do
@@ -136,11 +137,11 @@ inlineExpr = cataM $ \topVal@(Ann ty val) -> case val of
 getSubst :: H.Type () Name -> Name -> Inline (Maybe TypedExprLam)
 getSubst ty name = do
   mExpr <- fmap (\(InlineCtx m) -> M.lookup name m) get
-  return $ fmap specType mExpr
+  mapM specType mExpr
   where
     specType expr = case ty `H.subtypeOf` (ann'note $ unFix expr) of
-      Right subst -> mapType (H.apply subst) expr
-      Left err    -> error $ "unexpected happened " <> show err
+      Right subst -> pure $ mapType (H.apply subst) expr
+      Left _      -> inlineError H.defLoc $ renderText expr
 
 local :: (a -> Inline b) -> a -> Inline b
 local f a = do

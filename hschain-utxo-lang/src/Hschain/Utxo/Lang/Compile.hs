@@ -45,7 +45,7 @@ compile
   =  return . substPrimOp
  <=< toCoreProg
  <=< specifyCompareOps
- <=< pure . inlinePolys
+ <=< inlinePolys
  <=< annotateTypes
  <=< toExtendedLC
 

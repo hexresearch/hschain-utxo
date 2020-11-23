@@ -60,6 +60,7 @@ data InternalError
 data MonoError
   = FailedToFindMonoType Loc Text
   | CompareForNonPrim Loc
+  | InlineError Loc Text
   deriving stock    (Show,Eq,Generic,Data)
 
 data CoreScriptError
@@ -129,3 +130,7 @@ compareForNonPrim = throwError . MonoError . CompareForNonPrim
 
 failedToFindMonoType :: MonadError Error m => Loc -> Text -> m a
 failedToFindMonoType loc name = throwError $ MonoError $ FailedToFindMonoType loc name
+
+inlineError :: MonadError Error m => Loc -> Text -> m a
+inlineError loc name = throwError $ MonoError $ InlineError loc name
+
