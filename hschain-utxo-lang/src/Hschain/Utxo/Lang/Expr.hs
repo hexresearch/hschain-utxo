@@ -815,21 +815,23 @@ freeVars = cata $ \case
   FailCase _       -> Set.empty
   AntiQuote _ _ v  -> Set.singleton v
   where
-    getBgNames :: [Bind a] -> Set VarName
-    getBgNames bs = Set.fromList $ fmap bind'name bs
-
     getPrimBgNames :: [(VarName, a)] -> Set VarName
     getPrimBgNames bs = Set.fromList $ fmap fst bs
 
-    freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+    freeCaseExpr CaseExpr{..} = caseExpr'rhs `Set.difference` (freeVarsPat caseExpr'lhs)
 
+    freeVarsPrimBg = foldMap snd
+
+freeVarsBg :: [Bind (Set VarName)] -> Set VarName
+freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+  where
     localFreeVarsAlt Alt{..} =
       (freeVarsRhs alt'expr <> foldMap getBgNames alt'where)
       `Set.difference` (foldMap freeVarsPat alt'pats)
 
-    freeVarsPrimBg = foldMap snd
+getBgNames :: [Bind a] -> Set VarName
+getBgNames bs = Set.fromList $ fmap bind'name bs
 
-    freeCaseExpr CaseExpr{..} = caseExpr'rhs `Set.difference` (freeVarsPat caseExpr'lhs)
 
 freeVarsRhs :: Rhs (Set VarName) -> Set VarName
 freeVarsRhs = \case

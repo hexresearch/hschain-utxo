@@ -177,8 +177,8 @@ toSendTxDelayed wallet SendDelayed{..} = do
 coffeeScript :: Int64 -> PublicKey -> PublicKey -> Script
 coffeeScript spendHeight senderPk receiverPk = [utxo|
 
-    receiverScript = pk $(receiverPk) &&* toSigma ($(spendHeight) <  getHeight)
-    refundScript   = pk $(senderPk)   &&* toSigma ($(spendHeight) >= getHeight)
+    receiverScript = pk $(receiverPk) &&* ($(spendHeight) <*  getHeight)
+    refundScript   = pk $(senderPk)   &&* ($(spendHeight) >=* getHeight)
 
     main = receiverScript ||* refundScript
 |]

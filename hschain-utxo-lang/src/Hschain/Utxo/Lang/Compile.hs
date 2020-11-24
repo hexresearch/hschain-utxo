@@ -26,7 +26,8 @@ import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore, coreProgToScript)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext, baseFuns)
+import Hschain.Utxo.Lang.Exec.Module (trimModuleByMain)
 
 import qualified Language.HM       as H
 import qualified Language.HM.Subst as H
@@ -52,12 +53,16 @@ compile
  <=< inlinePolys
  <=< annotateTypes
  <=< toExtendedLC
+ <=< appendPrelude
+
+appendPrelude :: MonadLang m => Module -> m Module
+appendPrelude m = trimModuleByMain $ m { module'binds = baseFuns ++ module'binds m }
 
 inlineModule :: Module -> TypedLamProg
-inlineModule m = either (error . T.unpack . renderText) id $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC) m
+inlineModule m = either (error . T.unpack . renderText) id $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC <=< appendPrelude) m
 
 inferModule :: Module -> TypedLamProg
-inferModule m = either (error . T.unpack . renderText) id $ runInferM $ (annotateTypes <=< toExtendedLC) m
+inferModule m = either (error . T.unpack . renderText) id $ runInferM $ (annotateTypes <=< toExtendedLC <=< appendPrelude) m
 
 -- | Perform sunbstiturion of primops
 substPrimOp :: ExprCore -> ExprCore

@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Lib.Base(
   , baseLibTypeContext
   , langTypeContext
   , baseModuleCtx
+  , baseFuns
 ) where
 
 import qualified Prelude as P

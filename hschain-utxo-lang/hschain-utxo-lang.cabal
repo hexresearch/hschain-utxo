@@ -167,6 +167,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Common
                        TM.Core.Int
                        TM.Core.List
+                       TM.Lang.Monomorphic
                        TM.Tx.Sigma
                        TM.Tx.Sign
                        Examples.SKI
@@ -175,6 +176,7 @@ Test-suite hschain-utxo-lang-tests
     RecordWildCards
     OverloadedLists
     OverloadedStrings
+    QuasiQuotes
 
 benchmark hschain-utxo-lang-bench
   type:             exitcode-stdio-1.0
