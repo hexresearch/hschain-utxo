@@ -1,6 +1,6 @@
 -- | Turns polymorphic programs to monomorphic ones
 module Hschain.Utxo.Lang.Compile.Monomorphize(
-    specifyCompareOps
+    specifyOps
   , inlinePolys
 ) where
 
@@ -30,8 +30,8 @@ import qualified Language.HM.Subst as H
 -- information to what operator we should specify.
 -- If it still remains polymorphic we throw an error
 -- that we have failed to specify the types.
-specifyCompareOps :: MonadLang m => TypedLamProg -> m TypedLamProg
-specifyCompareOps = liftTypedLamProg $ cataM $ \case
+specifyOps :: MonadLang m => TypedLamProg -> m TypedLamProg
+specifyOps = liftTypedLamProg $ cataM $ \case
   Ann ty expr -> fmap (Fix . Ann ty) $ case expr of
     EVar loc name | Just op <- specPolyOp name ty -> pure $ EPrimOp loc op
     other -> pure other
@@ -88,8 +88,16 @@ type Inline a = StateT InlineCtx (Either Error) a
 
 -- | Inlines all polymorphic functions
 inlinePolys :: MonadLang m => TypedLamProg -> m TypedLamProg
-inlinePolys (AnnLamProg ps) = liftEither $
-  evalStateT (fmap AnnLamProg $ fmap reverse $ foldM inlineDef [] ps) (InlineCtx M.empty)
+inlinePolys (AnnLamProg ps) =
+  runInline (fmap AnnLamProg $ fmap reverse $ foldM inlineDef [] ps)
+
+runInline :: MonadLang m => Inline TypedLamProg -> m TypedLamProg
+runInline inl = case runStateT inl (InlineCtx M.empty) of
+  Right (AnnLamProg prog, InlineCtx ctx) ->
+    if (null prog && (not $ M.null ctx))
+      then throwError $ ErrorList $ fmap (\(name, expr) -> MonoError $ FailedToFindMonoType (H.getLoc expr) name) $ M.toList ctx
+      else return $ AnnLamProg prog
+  Left err -> throwError err
 
 inlineDef :: [TypedDef] -> TypedDef -> Inline [TypedDef]
 inlineDef res def = do

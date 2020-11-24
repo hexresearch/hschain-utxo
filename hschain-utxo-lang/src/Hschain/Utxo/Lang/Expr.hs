@@ -49,6 +49,9 @@ type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
 
+fromParserLoc :: Hask.SrcLoc -> Loc
+fromParserLoc loc = Hask.toSrcInfo loc [] loc
+
 instance H.DefLoc Hask.SrcSpanInfo where
   defLoc = Hask.noSrcSpan
 

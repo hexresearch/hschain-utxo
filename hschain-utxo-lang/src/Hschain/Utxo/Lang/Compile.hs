@@ -12,7 +12,6 @@ module Hschain.Utxo.Lang.Compile(
 import Control.Monad
 
 import Data.Fix
-import Data.Either
 import qualified Data.Map.Strict       as Map
 import qualified Data.Functor.Foldable as RS
 
@@ -49,16 +48,16 @@ compile :: MonadLang m => Module -> m ExprCore
 compile
   =  return . substPrimOp
  <=< toCoreProg
- <=< specifyCompareOps
+ <=< specifyOps
  <=< inlinePolys
  <=< annotateTypes
  <=< toExtendedLC
 
 inlineModule :: Module -> TypedLamProg
-inlineModule m = fromRight undefined $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC) m
+inlineModule m = either (error . T.unpack . renderText) id $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC) m
 
 inferModule :: Module -> TypedLamProg
-inferModule m = fromRight undefined $ runInferM $ (annotateTypes <=< toExtendedLC) m
+inferModule m = either (error . T.unpack . renderText) id $ runInferM $ (annotateTypes <=< toExtendedLC) m
 
 -- | Perform sunbstiturion of primops
 substPrimOp :: ExprCore -> ExprCore

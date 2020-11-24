@@ -130,6 +130,10 @@ data PrimLoc = PrimLoc
   , primLoc'value :: !Prim  -- ^ primitive value
   } deriving (Show, Eq)
 
+instance H.HasLoc TypedExprLam where
+  type Loc TypedExprLam = Loc
+  getLoc (Fix x) = H.getLoc $ ann'value x
+
 instance H.HasLoc (ExprLam bind) where
   type Loc (ExprLam bind) = Loc
   getLoc (Fix expr) = H.getLoc expr
@@ -171,4 +175,5 @@ liftTypedLamProg f (AnnLamProg combs) =  fmap AnnLamProg $ mapM liftComb combs
     liftComb def = do
       body <- f $ def'body def
       return $ def { def'body = body }
+
 

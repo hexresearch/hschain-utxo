@@ -252,6 +252,7 @@ instance Pretty Error where
     InternalError err     -> pretty err
     MonoError err         -> pretty err
     CoreScriptError err   -> pretty err
+    ErrorList es          -> vcat $ fmap pretty es
 
 instance Pretty ExecError where
   pretty = \case

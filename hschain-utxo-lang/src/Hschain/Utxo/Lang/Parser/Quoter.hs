@@ -140,7 +140,7 @@ parseScript pos@(file, _, _) str =
     ParseFailed _ _ ->
       case parseModule (Just file) str of
         ParseOk m           -> typeCheckModule m
-        ParseFailed loc err -> failBy $ shiftError pos $ ParseError (P.toSrcInfo loc [] loc) (T.pack err)
+        ParseFailed loc err -> failBy $ shiftError pos $ ParseError (fromParserLoc loc) (T.pack err)
   where
     typeCheckExpr e = do
       let (e', externalCtx) = substAntiQuoteExpr e

@@ -25,6 +25,7 @@ data Error
   | InternalError InternalError     -- ^ errors of this type should not happen in production
   | MonoError MonoError             -- ^ errors during monomorphizing
   | CoreScriptError CoreScriptError -- ^ errors of core scripts
+  | ErrorList [Error]               -- ^ reports several errors
   deriving stock    (Show,Eq,Generic,Data)
 
 -- | Execution errors
