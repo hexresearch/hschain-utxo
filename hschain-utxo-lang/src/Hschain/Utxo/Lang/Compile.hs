@@ -4,11 +4,14 @@ module Hschain.Utxo.Lang.Compile(
     compile
   , toCoreScript
   , toCoreScriptUnsafe
+  , inline
+  , infer
 ) where
 
 import Control.Monad
 
 import Data.Fix
+import Data.Either
 import qualified Data.Map.Strict       as Map
 import qualified Data.Functor.Foldable as RS
 
@@ -33,6 +36,7 @@ import qualified Hschain.Utxo.Lang.Expr as E
 
 import qualified Data.Text as T
 
+
 toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
@@ -48,6 +52,13 @@ compile
  <=< inlinePolys
  <=< annotateTypes
  <=< toExtendedLC
+
+-- | Compilation to Core-lang program from the script-language.
+inline :: Module -> TypedLamProg
+inline m = fromRight undefined $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC) m
+
+infer :: Module -> TypedLamProg
+infer m = fromRight undefined $ runInferM $ (annotateTypes <=< toExtendedLC) m
 
 -- | Perform sunbstiturion of primops
 substPrimOp :: ExprCore -> ExprCore

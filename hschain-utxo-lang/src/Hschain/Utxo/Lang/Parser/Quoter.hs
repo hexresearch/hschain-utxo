@@ -59,6 +59,7 @@
 -- > |]
 module Hschain.Utxo.Lang.Parser.Quoter(
     utxo
+  , utxoModule
 ) where
 
 import Control.Monad.Writer.Strict
@@ -90,32 +91,47 @@ import qualified Language.Haskell.Exts.SrcLoc as P
 import qualified Language.HM as H
 import qualified Data.ByteString.Char8 as C
 
+-- | Creates values of type Script from quasi-quoted code
 utxo :: QuasiQuoter
 utxo = QuasiQuoter
-  { quoteExp  = defQuoteExp
-  , quotePat  = err "patterns"
-  , quoteType = err "types"
-  , quoteDec  = err "declarations"
+  { quoteExp  = defQuoteScript
+  , quotePat  = noDef "patterns"
+  , quoteType = noDef "types"
+  , quoteDec  = noDef "declarations"
   }
-  where
-    err x = error $ "Quasi-quoting is not defined for " <> x
 
-defQuoteExp :: String -> TH.Q TH.Exp
-defQuoteExp str = do
-  pos  <- getPosition
+utxoModule :: QuasiQuoter
+utxoModule = QuasiQuoter
+  { quoteExp  = defQuoteModule
+  , quotePat  = noDef "patterns"
+  , quoteType = noDef "types"
+  , quoteDec  = noDef "declarations"
+  }
+
+noDef :: String -> a
+noDef x = error $ "Quasi-quoting is not defined for " <> x
+
+defQuoteScript :: String -> TH.Q TH.Exp
+defQuoteScript str = do
+  modExpr <- defQuoteModule str
+  [|toCoreScriptUnsafe $(pure modExpr)|]
+
+defQuoteModule :: String -> TH.ExpQ
+defQuoteModule str = do
+  pos <- getPosition
   expr <- parseScript pos str
   modExpr <- dataToExpQ ( const Nothing
                 `extQ` antiQuoteVar
                 `extQ` (Just . fromBS)
                 `extQ` (Just . fromText)
              ) expr
-  [|toCoreScriptUnsafe $(pure modExpr)|]
+  return modExpr
   where
     getPosition = fmap transPos TH.location
       where
         transPos loc = ( TH.loc_filename loc
-                       , fst (TH.loc_start loc)
-                       , snd (TH.loc_start loc))
+                        , fst (TH.loc_start loc)
+                        , snd (TH.loc_start loc))
 
 parseScript :: (String, Int, Int) -> String -> TH.Q Module
 parseScript pos@(file, _, _) str =
