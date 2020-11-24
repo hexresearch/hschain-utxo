@@ -4,8 +4,9 @@ module Hschain.Utxo.Lang.Compile(
     compile
   , toCoreScript
   , toCoreScriptUnsafe
-  , inline
-  , infer
+  -- * Functions for debug
+  , inlineModule
+  , inferModule
 ) where
 
 import Control.Monad
@@ -53,12 +54,11 @@ compile
  <=< annotateTypes
  <=< toExtendedLC
 
--- | Compilation to Core-lang program from the script-language.
-inline :: Module -> TypedLamProg
-inline m = fromRight undefined $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC) m
+inlineModule :: Module -> TypedLamProg
+inlineModule m = fromRight undefined $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC) m
 
-infer :: Module -> TypedLamProg
-infer m = fromRight undefined $ runInferM $ (annotateTypes <=< toExtendedLC) m
+inferModule :: Module -> TypedLamProg
+inferModule m = fromRight undefined $ runInferM $ (annotateTypes <=< toExtendedLC) m
 
 -- | Perform sunbstiturion of primops
 substPrimOp :: ExprCore -> ExprCore
