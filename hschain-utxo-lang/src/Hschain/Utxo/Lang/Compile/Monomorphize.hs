@@ -25,6 +25,8 @@ import qualified Data.Map.Strict as M
 import qualified Language.HM as H
 import qualified Language.HM.Subst as H
 
+import qualified Hschain.Utxo.Lang.Const as Const
+
 -- | Substitutes polymorphic comparison operators to
 -- monomorphic ones. After type checking we have precise
 -- information to what operator we should specify.
@@ -36,24 +38,28 @@ specifyOps = liftTypedLamProg $ cataM $ \case
     EVar loc name | Just op <- specPolyOp name ty -> pure $ EPrimOp loc op
     other -> pure other
   where
-    specPolyOp name ty = case name of
-      "listAt" -> OpListAt            <$> getLParam1 ty
-      "length" -> OpListLength        <$> getLParam1 ty
-      "++"     -> OpListAppend        <$> getLParam1 ty
-      "any"    -> OpListAny           <$> (getArrowParam1 =<< getArrowParam1 ty)
-      "all"    -> OpListAll           <$> (getArrowParam1 =<< getArrowParam1 ty)
-      "map"    -> uncurry OpListMap   <$> (getArrowParam =<< getArrowParam1 ty)
-      "filter" -> OpListFilter        <$> (getArrowParam1 =<< getArrowParam1 ty)
-      "foldl"  -> uncurry OpListFoldl <$> foldlParam ty
-      "foldr"  -> uncurry OpListFoldr <$> foldrParam ty
-      "show"   -> OpShow              <$> getArrowParam1 ty
-      "=="     -> OpEQ                <$> cmpParam ty
-      "/="     -> OpNE                <$> cmpParam ty
-      "<"      -> OpLT                <$> cmpParam ty
-      "<="     -> OpLE                <$> cmpParam ty
-      ">"      -> OpGT                <$> cmpParam ty
-      ">="     -> OpGE                <$> cmpParam ty
-      _        -> Nothing
+    specPolyOp name ty
+      | is Const.listAt        = OpListAt            <$> getLParam1 ty
+      | is Const.length        = OpListLength        <$> getLParam1 ty
+      | is Const.appendList    = OpListAppend        <$> getLParam1 ty
+      | is Const.any           = OpListAny           <$> (getArrowParam1 =<< getArrowParam1 ty)
+      | is Const.all           = OpListAll           <$> (getArrowParam1 =<< getArrowParam1 ty)
+      | is Const.map           = uncurry OpListMap   <$> (getArrowParam =<< getArrowParam1 ty)
+      | is Const.filter        = OpListFilter        <$> (getArrowParam1 =<< getArrowParam1 ty)
+      | is Const.foldl         = uncurry OpListFoldl <$> foldlParam ty
+      | is Const.foldr         = uncurry OpListFoldr <$> foldrParam ty
+      | is Const.show          = OpShow              <$> getArrowParam1 ty
+      | is Const.equals        = OpEQ                <$> cmpParam ty
+      | is Const.nonEquals     = OpNE                <$> cmpParam ty
+      | is Const.less          = OpLT                <$> cmpParam ty
+      | is Const.lessEquals    = OpLE                <$> cmpParam ty
+      | is Const.greater       = OpGT                <$> cmpParam ty
+      | is Const.greaterEquals = OpGE                <$> cmpParam ty
+      | is Const.allSigma      = OpSigListAll        <$> (getArrowParam1 =<< getArrowParam1 ty)
+      | is Const.anySigma      = OpSigListAny        <$> (getArrowParam1 =<< getArrowParam1 ty)
+      | otherwise              = Nothing
+      where
+        is = (name == )
 
     cmpParam = getArrowParam1
 

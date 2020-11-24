@@ -482,6 +482,8 @@ data SigmaExpr a
   | SAnd Loc a a     -- ^ sigma and
   | SOr Loc a a      -- ^ sigma or
   | SPrimBool Loc a  -- ^ constant bool
+  | SAll Loc a a     -- ^ all of sigmas
+  | SAny Loc a a     -- ^ any of sigmas
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Expressions that operate on vectors
