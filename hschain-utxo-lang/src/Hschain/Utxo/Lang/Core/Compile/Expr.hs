@@ -117,21 +117,21 @@ data PrimOp a
 -- | Expressions of the Core-language
 data Core b a
   = EVar !a
-  -- ^ variables
+  -- ^ Variable in expression
   | EPrim !Prim
-  -- ^ constant primitive
+  -- ^ Literal expression
   | EPrimOp !(PrimOp TypeCore)
   -- ^ Primitive operation
   | ELam !TypeCore (Scope b 'One a)
   -- ^ Lambda abstraction
   | EAp  (Core b a) (Core b a)
-  -- ^ application
+  -- ^ Function application
   | ELet (Core b a) (Scope b 'One a)
-  -- ^ Let bindings
+  -- ^ Nonrecursive let bindings
   | EIf (Core b a) (Core b a) (Core b a)
-  -- ^ if expressions
+  -- ^ If expressions
   | ECase !(Core b a) [CaseAlt b a]
-  -- ^ case alternatives
+  -- ^ Case expression
   | EConstr TypeCore !Int
   -- ^ Constructor of ADT. First field is a type of value being
   --   constructed. For example both constructors of @ListT IntT@ will
