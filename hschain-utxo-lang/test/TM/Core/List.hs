@@ -13,13 +13,11 @@ import Data.Fix
 import Data.Int
 
 import Test.Tasty
-import Test.Tasty.HUnit
 
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Core.RefEval
 import TM.Core.Common
 import Examples.SKI (let_)
 
