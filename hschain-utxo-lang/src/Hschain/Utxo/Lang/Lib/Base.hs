@@ -2,6 +2,7 @@ module Hschain.Utxo.Lang.Lib.Base(
     importBase
   , baseNames
   , baseLibTypeContext
+  , baseLibExecContext
   , langTypeContext
   , baseModuleCtx
   , baseFuns
@@ -192,10 +193,12 @@ baseNames =
   , Const.checkSig
   , Const.checkMultiSig
   ] P.++ getVarNames
+    P.++ getBoxArgNames
     P.++ serialiseNames
     P.++ deserialiseNames
   where
     getVarNames = fmap getEnvVarName argTypes
+    getBoxArgNames = fmap (Const.getBoxArgs . argTypeName) argTypes
     serialiseNames = fmap (Const.serialiseBytes . argTypeName) argTypes
     deserialiseNames = fmap (Const.deserialiseBytes . argTypeName) argTypes
 

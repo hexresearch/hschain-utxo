@@ -20,12 +20,14 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Monad
+import Hschain.Utxo.Lang.Lib.Base (baseNames)
 
 import qualified Language.HM as H
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Sequence as Seq
+
 
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
@@ -164,6 +166,7 @@ pruneExecCtx expr (ExecCtx ctx) =
 --------------------------------------------
 --
 
+-- | Removes all bindings that are not reachable from main function.
 trimModuleByMain :: MonadLang m => Module -> m Module
 trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fromList [VarName noLoc "main"])
   where
@@ -174,10 +177,16 @@ trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fro
       name :< rest -> case M.lookup (varName'name name) res of
         Nothing -> case M.lookup (varName'name name) ctx of
                       Just bind -> go (M.insert (varName'name name) bind res) (getFreeVars bind <> rest)
-                      Nothing   -> throwError $ ExecError $ UnboundVariables [name]
-        Just _     -> go res rest
+                      Nothing   ->
+                        if isPreludeFun name
+                          then go res rest
+                          else throwError $ ExecError $ UnboundVariables [name]
+        Just _  -> go res rest
 
     getFreeVars :: Bind Lang -> Seq.Seq VarName
     getFreeVars  = Seq.fromList . S.toList . freeVarsBg . fmap (fmap freeVars) . pure
+
+    baseNamesSet = S.fromList baseNames
+    isPreludeFun v = S.member (varName'name v) baseNamesSet
 
 

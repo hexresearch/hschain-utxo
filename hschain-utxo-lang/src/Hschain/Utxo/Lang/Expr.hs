@@ -3,7 +3,6 @@
 module Hschain.Utxo.Lang.Expr where
 
 import Hex.Common.Aeson
-import Hex.Common.Text
 
 import Control.Applicative
 import Control.DeepSeq (NFData)
@@ -467,7 +466,7 @@ argTagToType' loc = \case
   BytesArg -> bytesT' loc
 
 getBoxArgVar :: ArgType -> Text
-getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
+getBoxArgVar = Const.getBoxArgs . argTypeName
 
 -- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
 secretVar :: Text -> Text

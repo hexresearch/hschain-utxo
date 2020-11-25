@@ -1,6 +1,7 @@
 -- | Module defines main execution monad of the language.
 module Hschain.Utxo.Lang.Monad(
     MonadLang
+  , mapBinds
   , liftToModule
   , liftToModuleWithCtx
   , module X
@@ -17,6 +18,9 @@ import Hschain.Utxo.Lang.Expr
 -- To execute language we have to be able to allocate fresh variable names
 -- and report errors.
 class (MonadFreshVar m, MonadError Error m) => MonadLang m where
+
+mapBinds :: (Lang -> Lang) -> Module -> Module
+mapBinds f m = m { module'binds = fmap (fmap f) $ module'binds m }
 
 liftToModule :: MonadLang m => (Lang -> m Lang) -> Module -> m Module
 liftToModule f m = do
