@@ -163,7 +163,6 @@ Test-suite hschain-utxo-lang-tests
   Other-modules:       TM.Core
                        TM.Core.Box
                        TM.Core.Bytes
-                       TM.Core.Cost
                        TM.Core.Common
                        TM.Core.Int
                        TM.Core.List
