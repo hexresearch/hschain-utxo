@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Exec.Module(
     evalModule
   , checkMainModule
   , appendExecCtx
+  , trimModuleByMain
 ) where
 
 import Hex.Common.Text
@@ -12,17 +13,21 @@ import Control.Monad.State.Strict
 import Data.Either
 import Data.Fix
 import Data.Maybe
+import Data.Sequence (ViewL(..))
 
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Monad
+import Hschain.Utxo.Lang.Lib.Base (baseNames)
 
 import qualified Language.HM as H
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
+import qualified Data.Sequence as Seq
+
 
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
@@ -157,4 +162,31 @@ pruneExecCtx expr (ExecCtx ctx) =
       where
         next = foldMap (\var -> maybe S.empty freeVars $ M.lookup var m) cur
         curMap = varsToMap cur
+
+--------------------------------------------
+--
+
+-- | Removes all bindings that are not reachable from main function.
+trimModuleByMain :: MonadLang m => Module -> m Module
+trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fromList [VarName noLoc "main"])
+  where
+    ctx = M.fromList $ fmap (\b -> (varName'name $ bind'name b, b)) $ module'binds m
+
+    go res names = case Seq.viewl names of
+      EmptyL       -> pure $ M.elems res
+      name :< rest -> case M.lookup (varName'name name) res of
+        Nothing -> case M.lookup (varName'name name) ctx of
+                      Just bind -> go (M.insert (varName'name name) bind res) (getFreeVars bind <> rest)
+                      Nothing   ->
+                        if isPreludeFun name
+                          then go res rest
+                          else throwError $ ExecError $ UnboundVariables [name]
+        Just _  -> go res rest
+
+    getFreeVars :: Bind Lang -> Seq.Seq VarName
+    getFreeVars  = Seq.fromList . S.toList . freeVarsBg . fmap (fmap freeVars) . pure
+
+    baseNamesSet = S.fromList baseNames
+    isPreludeFun v = S.member (varName'name v) baseNamesSet
+
 

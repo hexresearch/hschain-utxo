@@ -2,8 +2,10 @@ module Hschain.Utxo.Lang.Lib.Base(
     importBase
   , baseNames
   , baseLibTypeContext
+  , baseLibExecContext
   , langTypeContext
   , baseModuleCtx
+  , baseFuns
 ) where
 
 import qualified Prelude as P
@@ -98,6 +100,8 @@ baseFuns =
   , sigmaGreaterEquals
   , sigmaEquals
   , sigmaNonEquals
+  , allSigma
+  , anySigma
   , atVec
   , andB
   , orB
@@ -123,12 +127,12 @@ baseFuns =
 
 baseNames :: [Text]
 baseNames =
-  [ "all"
-  , "any"
+  [ Const.all
+  , Const.any
   , "and"
   , "or"
-  , "andSigma"
-  , "orSigma"
+  , Const.andSigma
+  , Const.orSigma
   , "sum"
   , "product"
   , "id"
@@ -159,23 +163,23 @@ baseNames =
   , "/"
   , "<>"
   , Const.appendBytes
-  , "++"
-  , "map"
-  , "length"
-  , "pk"
-  , "toSigma"
+  , Const.appendList
+  , Const.map
+  , Const.length
+  , Const.pk
+  , Const.toSigma
   , Const.sigmaAnd
   , Const.sigmaOr
   , Const.listAt
   , "&&"
   , "||"
   , "not"
-  , "=="
-  , "/="
-  , "<"
-  , ">"
-  , "<="
-  , ">="
+  , Const.equals
+  , Const.nonEquals
+  , Const.less
+  , Const.greater
+  , Const.lessEquals
+  , Const.greaterEquals
   , "fst"
   , "snd"
   , Const.sigmaGreater
@@ -189,10 +193,12 @@ baseNames =
   , Const.checkSig
   , Const.checkMultiSig
   ] P.++ getVarNames
+    P.++ getBoxArgNames
     P.++ serialiseNames
     P.++ deserialiseNames
   where
     getVarNames = fmap getEnvVarName argTypes
+    getBoxArgNames = fmap (Const.getBoxArgs . argTypeName) argTypes
     serialiseNames = fmap (Const.serialiseBytes . argTypeName) argTypes
     deserialiseNames = fmap (Const.deserialiseBytes . argTypeName) argTypes
 
@@ -211,8 +217,10 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "or" (monoT $ listT boolT ~> boolT)
   , assumpType "andSigma" (monoT $ listT sigmaT ~> sigmaT)
   , assumpType "orSigma" (monoT $ listT sigmaT ~> sigmaT)
-  , assumpType "all" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
-  , assumpType "any" (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumpType Const.allSigma (forA $ (aT ~> sigmaT) ~> listT aT ~> sigmaT)
+  , assumpType Const.anySigma (forA $ (aT ~> sigmaT) ~> listT aT ~> sigmaT)
+  , assumpType Const.all (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumpType Const.any (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
   , assumpType "sum"      (monoT $ listT intT ~> intT)
   , assumpType "product"  (monoT $ listT intT ~> intT)
   , assumpType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
@@ -476,20 +484,26 @@ sigmaAnd = bind Const.sigmaAnd (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE no
 sigmaOr :: Bind Lang
 sigmaOr = bind Const.sigmaOr (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SOr noLoc x y)
 
+allSigma :: Bind Lang
+allSigma = bind Const.allSigma (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAll noLoc x y)
+
+anySigma :: Bind Lang
+anySigma = bind Const.anySigma (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAny noLoc x y)
+
 toSigma :: Bind Lang
 toSigma = bind "toSigma" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ SPrimBool noLoc x)
 
 pk :: Bind Lang
-pk = bind "pk" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ Pk noLoc x)
+pk = bind Const.pk (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ Pk noLoc x)
 
 mapVec :: Bind Lang
-mapVec = bind "map" (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
+mapVec = bind Const.map (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
 
 foldVec :: Bind Lang
 foldVec = bind Const.foldl (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) f x y)
 
 appendVec :: Bind Lang
-appendVec = bind "++" (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)
+appendVec = bind Const.appendList (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)
 
 checkSig :: Bind Lang
 checkSig = bind Const.checkSig (Fix $ LamList noLoc ["pubKey", "sigIndex"] $ Fix $ CheckSig noLoc (var' "pubKey") (var' "sigIndex"))
@@ -498,7 +512,7 @@ checkMultiSig :: Bind Lang
 checkMultiSig = bind Const.checkMultiSig (Fix $ LamList noLoc ["total", "pubKeys", "sigIndices"] $ Fix $ CheckMultiSig noLoc (var' "total") (var' "pubKeys") (var' "sigIndices"))
 
 appendText :: Bind Lang
-appendText = bind "<>" (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
+appendText = bind Const.appendText (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
 
 appendBytes :: Bind Lang
 appendBytes = bind Const.appendBytes (Fix $ LamList noLoc ["x", "y"] $ Fix $ BytesE noLoc $ BytesAppend noLoc x y)

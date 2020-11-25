@@ -3,7 +3,6 @@
 module Hschain.Utxo.Lang.Expr where
 
 import Hex.Common.Aeson
-import Hex.Common.Text
 
 import Control.Applicative
 import Control.DeepSeq (NFData)
@@ -48,6 +47,9 @@ type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
 type Signature = H.Signature Loc Text
+
+fromParserLoc :: Hask.SrcLoc -> Loc
+fromParserLoc loc = Hask.toSrcInfo loc [] loc
 
 instance H.DefLoc Hask.SrcSpanInfo where
   defLoc = Hask.noSrcSpan
@@ -464,7 +466,7 @@ argTagToType' loc = \case
   BytesArg -> bytesT' loc
 
 getBoxArgVar :: ArgType -> Text
-getBoxArgVar ty = mconcat ["getBox", showt ty, "s"]
+getBoxArgVar = Const.getBoxArgs . argTypeName
 
 -- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
 secretVar :: Text -> Text
@@ -479,6 +481,8 @@ data SigmaExpr a
   | SAnd Loc a a     -- ^ sigma and
   | SOr Loc a a      -- ^ sigma or
   | SPrimBool Loc a  -- ^ constant bool
+  | SAll Loc a a     -- ^ all of sigmas
+  | SAny Loc a a     -- ^ any of sigmas
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Expressions that operate on vectors
@@ -810,21 +814,23 @@ freeVars = cata $ \case
   FailCase _       -> Set.empty
   AntiQuote _ _ v  -> Set.singleton v
   where
-    getBgNames :: [Bind a] -> Set VarName
-    getBgNames bs = Set.fromList $ fmap bind'name bs
-
     getPrimBgNames :: [(VarName, a)] -> Set VarName
     getPrimBgNames bs = Set.fromList $ fmap fst bs
 
-    freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+    freeCaseExpr CaseExpr{..} = caseExpr'rhs `Set.difference` (freeVarsPat caseExpr'lhs)
 
+    freeVarsPrimBg = foldMap snd
+
+freeVarsBg :: [Bind (Set VarName)] -> Set VarName
+freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+  where
     localFreeVarsAlt Alt{..} =
       (freeVarsRhs alt'expr <> foldMap getBgNames alt'where)
       `Set.difference` (foldMap freeVarsPat alt'pats)
 
-    freeVarsPrimBg = foldMap snd
+getBgNames :: [Bind a] -> Set VarName
+getBgNames bs = Set.fromList $ fmap bind'name bs
 
-    freeCaseExpr CaseExpr{..} = caseExpr'rhs `Set.difference` (freeVarsPat caseExpr'lhs)
 
 freeVarsRhs :: Rhs (Set VarName) -> Set VarName
 freeVarsRhs = \case

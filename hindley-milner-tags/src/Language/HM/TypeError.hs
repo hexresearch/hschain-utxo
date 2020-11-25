@@ -6,9 +6,12 @@ module Language.HM.TypeError where
 
 import Control.DeepSeq (NFData)
 import Data.Data
+import Data.Function (on)
 import GHC.Generics    (Generic)
 import Language.HM.Type
 import Language.HM.Subst
+
+import qualified Data.List as L
 
 -- | Type errors.
 data TypeError loc var
@@ -36,7 +39,7 @@ instance HasTypeVars TypeError where
     NotInScopeErr _ _  -> mempty
     EmptyCaseExpr _    -> mempty
 
-  tyVarsInOrder = \case
+  tyVarsInOrder err = L.nubBy ((==) `on` fst) $ case err of
     OccursErr _ ty     -> tyVarsInOrder ty
     UnifyErr _ a b     -> tyVarsInOrder a <> tyVarsInOrder b
     SubtypeErr _ a b   -> tyVarsInOrder a <> tyVarsInOrder b

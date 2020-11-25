@@ -109,7 +109,6 @@ library
                      , template-haskell
                      , text
                      , vector
---  build-tools:         alex, happy
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
@@ -141,6 +140,7 @@ library
     TypeFamilies
     UndecidableInstances
     QuantifiedConstraints
+    QuasiQuotes
 
 Test-suite hschain-utxo-lang-tests
   Type:                exitcode-stdio-1.0
@@ -167,6 +167,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Common
                        TM.Core.Int
                        TM.Core.List
+                       TM.Lang.Scripts
                        TM.Tx.Sigma
                        TM.Tx.Sign
                        Examples.SKI
@@ -175,6 +176,7 @@ Test-suite hschain-utxo-lang-tests
     RecordWildCards
     OverloadedLists
     OverloadedStrings
+    QuasiQuotes
 
 benchmark hschain-utxo-lang-bench
   type:             exitcode-stdio-1.0

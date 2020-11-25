@@ -120,10 +120,12 @@ toHaskExp (Fix expr) = case expr of
       GetVar loc ty  -> toVar loc (VarName loc $ getEnvVarName ty)
 
     fromSigma _ = \case
-      Pk loc a        -> ap (VarName loc "pk") a
-      SOr loc a b     -> op2 loc "|||" a b
-      SAnd loc a b    -> op2 loc "&&&" a b
-      SPrimBool loc a -> ap (VarName loc "toSigma") a
+      Pk loc a        -> ap (VarName loc Const.pk) a
+      SOr loc a b     -> op2 loc Const.sigmaOr a b
+      SAnd loc a b    -> op2 loc Const.sigmaAnd a b
+      SPrimBool loc a -> ap (VarName loc Const.toSigma) a
+      SAny loc a b    -> op2 loc Const.anySigma a b
+      SAll loc a b    -> op2 loc Const.allSigma a b
 
 
     fromVec _ = \case

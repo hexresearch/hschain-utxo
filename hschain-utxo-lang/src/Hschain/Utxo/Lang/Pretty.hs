@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Pretty(
     renderDoc
   , renderText
   , prettyRecord
+  , pprint
 ) where
 
 import Codec.Serialise (deserialiseOrFail)
@@ -24,8 +25,9 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
 import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
-import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam)
-import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr)
+import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam, TypedLamProg)
+import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr, toHaskProg)
+import Hschain.Utxo.Lang.Parser.Hask.ToHask (toHaskModule)
 import qualified Hschain.Utxo.Lang.Core.Types as Core
 import Language.Haskell.Exts.Pretty (prettyPrint)
 
@@ -42,10 +44,14 @@ import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
+import qualified Data.Text.IO as T
 
 -- | Convenience function to render pretty-printable value to text.
 renderText :: Pretty a => a -> Text
 renderText = renderDoc . pretty
+
+pprint :: Pretty a => a -> IO ()
+pprint = T.putStrLn . renderText
 
 -- | Convenience function to render pretty-printed value to text.
 renderDoc :: Doc ann -> Text
@@ -246,6 +252,7 @@ instance Pretty Error where
     InternalError err     -> pretty err
     MonoError err         -> pretty err
     CoreScriptError err   -> pretty err
+    ErrorList es          -> vcat $ fmap pretty es
 
 instance Pretty ExecError where
   pretty = \case
@@ -308,6 +315,7 @@ instance Pretty MonoError where
   pretty = \case
     FailedToFindMonoType loc name -> err loc $ hsep ["Failed to find monomorphic type for", pretty name]
     CompareForNonPrim loc         -> err loc "Compare operator expects primitive type as input."
+    InlineError loc name          -> err loc $ hsep ["Failed to inline", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
 
@@ -350,4 +358,10 @@ instance Pretty EvalErr where
 
 instance Pretty TypedExprLam where
   pretty = pretty . prettyPrint . toHaskExpr
+
+instance Pretty Module where
+  pretty = pretty . prettyPrint . toHaskModule
+
+instance Pretty TypedLamProg where
+  pretty = pretty . prettyPrint . toHaskProg
 

@@ -11,8 +11,8 @@ withdrawScript carol = [utxo|
   bob         = listAt (getBoxBytesArgs getSelf) 0
   bobDeadline = listAt (getBoxIntArgs getSelf) 0
 
-  main =  (pk bob &&* toSigma (getHeight > bobDeadline))
-      ||* (pk $(carol) &&* toSigma (getHeight <= bobDeadline))
+  main =  (pk bob &&* (getHeight >* bobDeadline))
+      ||* (pk $(carol) &&* (getHeight <=* bobDeadline))
 
 |]
 
@@ -28,7 +28,7 @@ reversibleAddressScript blocksIn24h alice carol feeProposition maxFee = [utxo|
   isValid out = isChange out || isWithdraw out || isFee out
   totalFee = foldl (\x b -> if (isFee b) then (x + getBoxValue b) else x) 0 getOutputs
 
-  main = pk $(alice) &&* toSigma (all isValid getOutputs) &&* toSigma (totalFee < $(maxFee))
+  main = pk $(alice) &&* toSigma (all isValid getOutputs) &&* (totalFee <* $(maxFee))
 
 |]
   where

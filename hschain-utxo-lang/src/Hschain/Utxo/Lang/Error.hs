@@ -25,6 +25,7 @@ data Error
   | InternalError InternalError     -- ^ errors of this type should not happen in production
   | MonoError MonoError             -- ^ errors during monomorphizing
   | CoreScriptError CoreScriptError -- ^ errors of core scripts
+  | ErrorList [Error]               -- ^ reports several errors
   deriving stock    (Show,Eq,Generic,Data)
 
 -- | Execution errors
@@ -60,6 +61,7 @@ data InternalError
 data MonoError
   = FailedToFindMonoType Loc Text
   | CompareForNonPrim Loc
+  | InlineError Loc Text
   deriving stock    (Show,Eq,Generic,Data)
 
 data CoreScriptError
@@ -129,3 +131,7 @@ compareForNonPrim = throwError . MonoError . CompareForNonPrim
 
 failedToFindMonoType :: MonadError Error m => Loc -> Text -> m a
 failedToFindMonoType loc name = throwError $ MonoError $ FailedToFindMonoType loc name
+
+inlineError :: MonadError Error m => Loc -> Text -> m a
+inlineError loc name = throwError $ MonoError $ InlineError loc name
+

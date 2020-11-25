@@ -32,6 +32,9 @@ import qualified Data.List as L
 {-
 import Debug.Trace
 import Text.Show.Pretty
+
+ppShow' :: (Show (f () v), LocFunctor f) => f b v -> String
+ppShow' = ppShow . mapLoc (const ())
 -}
 
 -- Synonims to simplify typing
@@ -182,7 +185,7 @@ inferApp :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ Pri
   -> Term' prim loc v
   -> Term' prim loc v
   -> InferM loc v (Out prim loc v)
-inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow f, ppShow a]) $ -} do
+inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow' f, ppShow' a]) $ -} do
   tvn <- fmap (varT loc) $ freshVar
   res <- inferTerms ctx [f, a]
   case res of
