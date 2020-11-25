@@ -164,6 +164,9 @@ baseNames =
   , "<>"
   , Const.appendBytes
   , Const.appendList
+  , Const.foldl
+  , Const.foldr
+  , Const.filter
   , Const.map
   , Const.length
   , Const.pk
