@@ -76,9 +76,9 @@ instance IsString EvalErr where
   fromString = EvalErr
 
 -- | Evaluate program
-evalProg :: Context b v => InputEnv -> Core b v -> EvalResult
+evalProg :: InputEnv -> Core f v -> EvalResult
 evalProg env prog =
-  case runEval (evalExpr env emptyContext prog) of
+  case runEval (evalExpr env [] prog) of
     Right val -> case val of
                     ValP p      -> EvalPrim p
                     ValF{}      -> EvalFail $ EvalErr "Returning function"
@@ -111,18 +111,17 @@ getReductionCount = fmap evalEnv'reductions get
 bumpReductionCount :: Eval ()
 bumpReductionCount = modify' $ \st -> st { evalEnv'reductions = succ $ evalEnv'reductions st }
 
-evalExpr :: Context b v => InputEnv -> Ctx b v Val -> Core b v -> Eval Val
+evalExpr :: InputEnv -> [Val] -> Core f v -> Eval Val
 evalExpr inpEnv = recur
   where
     evalVar lenv x
       | Just v <- lookupVar lenv x = pure v
       | otherwise = throwError $ EvalErr "Unknown variable"
-    evalScope1 lenv val (Scope b expr) =
-      recur (bindOne b val lenv) expr
-    evalScopeN lenv vals (Scope b expr) =
-      case bindMany b vals lenv of
-        Left  _     -> throwError TypeMismatch
-        Right lenv' -> recur lenv' expr
+    evalScope1 lenv val  (Scope1 _   expr)
+      = recur (val : lenv) expr
+    evalScopeN lenv vals (ScopeN n _ expr)
+      | length vals /= n = throwError TypeMismatch
+      | otherwise        = recur (vals <> lenv) expr
     --
     recur lenv expr = do
       bumpReductionCount
@@ -131,9 +130,10 @@ evalExpr inpEnv = recur
         then throwError "Exceeds evaluation limit"
         else
           case expr of
-            EVar     x   -> evalVar lenv x
-            EPrim p      -> pure $ ValP p
-            EPrimOp op   -> evalPrimOp inpEnv op
+            EVar _     -> throwError "Free variable"
+            BVar i     -> evalVar lenv i
+            EPrim p    -> pure $ ValP p
+            EPrimOp op -> evalPrimOp inpEnv op
             EAp f x -> do
               valF :: (Val -> Eval Val) <- match =<< recur lenv f
               valX <- recur lenv x

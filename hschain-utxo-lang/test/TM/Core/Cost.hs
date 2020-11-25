@@ -7,7 +7,7 @@ import Data.Maybe
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Hschain.Utxo.Lang.Core.Cost
+-- import Hschain.Utxo.Lang.Core.Cost
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
 
@@ -17,8 +17,8 @@ tests = testGroup "test-cost"
   ]
 
 
-progEquality :: Prim -> Core BindName Name
-progEquality p = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
-  where
-    ty = primToType p
+-- progEquality :: Prim -> Core BindName Name
+-- progEquality p = (EPrimOp (OpEQ ty) `EAp` EPrim p) `EAp` EPrim p
+--   where
+--     ty = primToType p
 

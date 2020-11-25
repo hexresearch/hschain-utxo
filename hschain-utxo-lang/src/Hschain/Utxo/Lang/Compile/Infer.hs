@@ -15,7 +15,6 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr      (BindName)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, funT, listT
                               , arrowT, intT, boolT, bytesT, sigmaT
@@ -192,7 +191,7 @@ libTypeContext = (H.Context $ M.fromList
     fromPrimOps = H.Context $ M.fromList
       [ (VarTag nm, H.monoT $ typeCoreToType ty)
       | (nm,op) <- M.toList monoPrimopNameMap
-      , let Right ty = runCheck @BindName @Name $ primopToType op
+      , let Right ty = runCheck $ primopToType op
       ]
 
     toTagContext (H.Context m) = H.Context $ M.map (fmap VarTag) $ M.mapKeys VarTag m

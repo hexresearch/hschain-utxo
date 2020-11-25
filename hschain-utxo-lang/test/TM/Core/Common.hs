@@ -59,37 +59,30 @@ mkBoxOutput height bid box = BoxOutput
                         }
   }
 
-testProgram :: String -> Core BindName Name -> Prim -> TestTree
+testProgram :: String -> Core Identity Name -> Prim -> TestTree
 testProgram nm prog r = testProgramBy nm prog (Right [r])
 
-testProgramL :: String -> Core BindName Name -> [Prim] -> TestTree
+testProgramL :: String -> Core Identity Name -> [Prim] -> TestTree
 testProgramL nm prog r = testProgramBy nm prog (Right r)
 
-testProgramFail :: String -> Core BindName Name -> TestTree
+testProgramFail :: String -> Core Identity Name -> TestTree
 testProgramFail nm prog = testProgramBy nm prog (Left ())
 
-testProgramBy :: String -> Core BindName Name -> Either e [Prim] -> TestTree
+testProgramBy :: String -> Core Identity Name -> Either e [Prim] -> TestTree
 testProgramBy nm prog res
   = testGroup nm
   $ testTypecheck
  ++ testEval
   where
     testTypecheck =
-      [ testCase "typecheck" $ case typeCheck prog of
-          Left  e -> assertFailure $ show e
-          Right _ -> pure ()
-      , testCase "typeCheck dB" $ case toDeBrujin prog of
-          Left  e     -> assertFailure $ "Failed conversion: " ++ show e
-          Right prog' -> case typeCheck prog' of
+      [ testCase "typeCheck dB" $ case typeCheck $ toDeBrujin prog of
             Left  e -> assertFailure $ show e
             Right _ -> pure ()
       ]
     --
     testEval = case res of
       Left  _   -> []
-      Right [r] -> [ testCase "simple"    $ EvalPrim r  @=? evalProg env prog
-                   , testCase "simple dB" $ Right (EvalPrim r) @=? (evalProg env <$> toDeBrujin prog)
+      Right [r] -> [ testCase "simple dB" $ EvalPrim r @=? evalProg env (toDeBrujin prog)
                    ]
-      Right r   -> [ testCase "simple"    $ EvalList r  @=? evalProg env prog
-                   , testCase "simple dB" $ Right (EvalList r) @=? (evalProg env <$> toDeBrujin prog)
+      Right r   -> [ testCase "simple dB" $ EvalList r @=? evalProg env (toDeBrujin prog)
                    ]

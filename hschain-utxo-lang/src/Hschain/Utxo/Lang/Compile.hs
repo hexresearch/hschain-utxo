@@ -8,6 +8,9 @@ module Hschain.Utxo.Lang.Compile(
 import Control.Monad
 
 import Data.Fix
+import Data.Proxy
+import Data.Functor.Identity
+import Data.Void
 import qualified Data.Map.Strict       as Map
 
 import Hschain.Utxo.Lang.Expr hiding (Type)
@@ -17,7 +20,7 @@ import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
-import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgToScript,toDeBrujin,Core,BindName,BindDB)
+import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgToScript,Core)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck ()
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
@@ -32,32 +35,35 @@ toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
 -- | Compilation to Core-lang program from the script-language.
-compile :: MonadLang m => Module -> m (Core BindDB Int) 
+compile :: MonadLang m => Module -> m (Core Proxy Void) 
 compile
-  =  (either (throwError . FreeVariable) pure . toDeBrujin)
- <=< (pure . substPrimOp)
+  =  pure . Core.eraseCoreLabels
+ <=< (either (throwError . FreeVariable) pure . Core.isClosed)
+ <=< pure . Core.toDeBrujin
+ <=< pure . substPrimOp
  <=< toCoreProg
 -- <=< makeMonomorphic
  <=< specifyCompareOps
  <=< annotateTypes
  <=< toExtendedLC
 
+
 -- | Perform sunbstiturion of primops
-substPrimOp :: Core BindName Name -> Core BindName Name
+substPrimOp :: Core f Name -> Core f Name
 substPrimOp = Core.substVar $ \v -> Core.EPrimOp <$> Map.lookup v monoPrimopNameMap
 
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
-toCoreProg :: MonadLang m => TypedLamProg -> m (Core BindName Name)
+toCoreProg :: MonadLang m => TypedLamProg -> m (Core Identity Name)
 toCoreProg = fromDefs . unAnnLamProg
 
-bind1 :: a -> Core.Core Core.BindName a -> Core.Scope Core.BindName 'Core.One a
-bind1 nm = Core.Scope (Core.BindName1 nm)
+bind1 :: Name -> Core.Core Identity Name -> Core.Scope1 Identity Name
+bind1 nm = Core.Scope1 (Identity nm)
 
-bindN :: [a] -> Core.Core Core.BindName a -> Core.Scope Core.BindName 'Core.Many a
-bindN nm = Core.Scope (Core.BindNameN nm)
+bindN :: [Name] -> Core.Core Identity Name -> Core.ScopeN Identity Name
+bindN nm = Core.ScopeN (length nm) (Identity nm)
 
-fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m (Core BindName Name)
+fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m (Core Identity Name)
 fromDefs [] = throwError $ PatError MissingMain
 fromDefs (Def{..}:rest)
   | def'name == "main" = body
@@ -68,7 +74,7 @@ fromDefs (Def{..}:rest)
         go []                   = toCoreExpr def'body
         go (Typed nm ty : args) = Core.ELam <$> toCoreType ty <*> (bind1 nm <$> go args)
 
-toCoreExpr :: MonadLang m => TypedExprLam -> m (Core BindName Name)
+toCoreExpr :: MonadLang m => TypedExprLam -> m (Core Identity Name)
 toCoreExpr = cataM convert
   where
     convert (Ann exprTy val) = case val of
@@ -110,7 +116,7 @@ resultType  a        = a
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
 -- We need to think on more generic rule for substitution like this.
-specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m (Core BindName Name)
+specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m (Core Identity Name)
 specifyPolyFun loc ctx ty name = do
   case H.lookupCtx name ctx of
     Just sig -> fromSignature $ H.mapLoc (const ()) sig

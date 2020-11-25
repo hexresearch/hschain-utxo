@@ -4,6 +4,7 @@
 -- SKI calculus examples
 module Examples.SKI where
 
+import Data.Functor.Identity
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
 
@@ -12,15 +13,15 @@ import Hschain.Utxo.Lang.Core.Types
 -- Combinators
 ----------------------------------------------------------------
 
-lam  nm ty  = ELam ty . Scope (BindName1 nm)
-let_ nm e   = ELet e  . Scope (BindName1 nm)
-alt i names = CaseAlt i . Scope (BindNameN names)
+lam  nm ty  = ELam ty . Scope1 (Identity nm)
+let_ nm e   = ELet e  . Scope1 (Identity nm)
+alt i names = CaseAlt i . ScopeN (length names) (Identity names)
 
 -- | I Combinator. We should use monomorphic types as arguments.
 --
 -- > I :: a -> a
 -- > I x = x
-skiI :: TypeCore -> Core BindName Name
+skiI :: TypeCore -> Core Identity Name
 skiI ty
   = lam  "x" ty
   $ EVar "x"
@@ -29,7 +30,7 @@ skiI ty
 --
 -- > K :: a -> b -> a
 -- > K x y = x
-skiK :: TypeCore -> TypeCore -> Core BindName Name
+skiK :: TypeCore -> TypeCore -> Core Identity Name
 skiK tyX tyY
   = lam  "x" tyX
   $ lam  "y" tyY
@@ -39,7 +40,7 @@ skiK tyX tyY
 --
 -- > S :: (a -> b -> c) -> (a -> b) -> a -> c
 -- > S x y z = x z (y z)
-skiS :: TypeCore -> TypeCore -> TypeCore -> Core BindName Name
+skiS :: TypeCore -> TypeCore -> TypeCore -> Core Identity Name
 skiS tyA tyB tyC
   = lam  "x" tyX
   $ lam  "y" tyY
@@ -58,7 +59,7 @@ skiS tyA tyB tyC
 -- | Example of program
 --
 -- > S K K 3
-exampleSKK3 :: Core BindName Name
+exampleSKK3 :: Core Identity Name
 exampleSKK3
   = let_ "K_intT" (skiK IntT IntT)
   $ let_ "K_funT" (skiK IntT (IntT :-> IntT))

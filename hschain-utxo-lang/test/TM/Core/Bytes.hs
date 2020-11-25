@@ -26,33 +26,33 @@ tests = testGroup "core-bytes"
   where
     val = "hello bytes"
 
-sha256V :: Core BindName Name -> Core BindName Name
+sha256V :: Core Identity Name -> Core Identity Name
 sha256V = EAp "sha256"
 
-serialiseIntV :: Core BindName Name -> Core BindName Name
+serialiseIntV :: Core Identity Name -> Core Identity Name
 serialiseIntV = EAp "serialiseInt"
 
-deserialiseIntV :: Core BindName Name -> Core BindName Name
+deserialiseIntV :: Core Identity Name -> Core Identity Name
 deserialiseIntV = EAp "deserialiseInt"
 
-appendBytesV :: Core BindName Name -> Core BindName Name -> Core BindName Name
+appendBytesV :: Core Identity Name -> Core Identity Name -> Core Identity Name
 appendBytesV a b = ap name [a, b]
   where
     name = EVar $ Const.appendBytes
 
-progHash :: ByteString -> Core BindName Name
+progHash :: ByteString -> Core Identity Name
 progHash bs = equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs)
 
-progHashAppend :: ByteString -> Int64 -> Core BindName Name
+progHashAppend :: ByteString -> Int64 -> Core Identity Name
 progHashAppend bs n
   = equals BytesT
     (sha256V $ appendBytesV (bytes bs) (serialiseIntV $ int n))
     (bytes $ getSha256 $ bs <> serialiseInt n)
 
-progConvertIdInt :: Int64 -> Core BindName Name
+progConvertIdInt :: Int64 -> Core Identity Name
 progConvertIdInt n
   = equals IntT (deserialiseIntV $ serialiseIntV $ int n) (int n)
 
-progConvertIdText :: Text -> Core BindName Name
+progConvertIdText :: Text -> Core Identity Name
 progConvertIdText n
   = equals TextT (deserialiseIntV $ serialiseIntV $ text n) (text n)

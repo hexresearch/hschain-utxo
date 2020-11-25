@@ -11,6 +11,7 @@ import Hex.Common.Serialise
 
 import Data.Bool
 import Data.Fix
+import Data.Proxy
 import Data.String
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -23,7 +24,7 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr (Core,BindDB)
+import Hschain.Utxo.Lang.Core.Compile.Expr (Core)
 import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
 import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam)
 import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr)
@@ -63,7 +64,7 @@ instance Pretty BoxId where
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    Right e -> fromString $ show (e :: Core BindDB Int)
+    Right e -> fromString $ show (e :: Core Proxy Int)
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"

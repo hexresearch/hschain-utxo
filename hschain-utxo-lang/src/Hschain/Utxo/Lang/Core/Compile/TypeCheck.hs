@@ -24,7 +24,7 @@ data MonoType
   = MonoType TypeCore  -- ^ Simple case when we know the type
   | AnyType            -- ^ Type that can be anything we use it for bottoms
 
-unifyMonoType :: MonoType -> MonoType -> Check b v MonoType
+unifyMonoType :: MonoType -> MonoType -> Check v MonoType
 unifyMonoType a b = case (a, b) of
   (MonoType ta, MonoType tb)
     | ta == tb  -> return a
@@ -33,7 +33,7 @@ unifyMonoType a b = case (a, b) of
   (ta, AnyType) -> return ta
 
 -- | Check the types for core program.
-typeCheck :: Context b v => Core b v -> Either TypeCoreError TypeCore
+typeCheck :: Core f v -> Either TypeCoreError TypeCore
 typeCheck prog
   = runCheck
   $ inferExpr prog >>= \case
@@ -42,23 +42,24 @@ typeCheck prog
 
 
 -- | Monad for the type inference.
-newtype Check b v a = Check (ReaderT (Ctx b v TypeCore) (Either TypeCoreError) a)
+newtype Check v a = Check (ReaderT [TypeCore] (Either TypeCoreError) a)
   deriving newtype ( Functor, Applicative, Monad
-                   , MonadReader (Ctx b v TypeCore)
+                   , MonadReader [TypeCore]
                    , MonadError TypeCoreError
                    )
 
-runCheck :: Context b v => Check b v x -> Either TypeCoreError x
-runCheck (Check m) = runReaderT m emptyContext
+runCheck :: Check v x -> Either TypeCoreError x
+runCheck (Check m) = runReaderT m []
 
-getSignature :: Context b v => v -> Check b v TypeCore
+getSignature :: Int -> Check v TypeCore
 getSignature v = maybe err pure =<< asks (flip lookupVar v)
   where
     err = throwError $ VarIsNotDefined "NAME"
 
-inferExpr :: Context b v => Core b v -> Check b v MonoType
+inferExpr :: Core f v -> Check v MonoType
 inferExpr = \case
-    EVar  var      -> MonoType <$> getSignature var
+    EVar  _        -> throwError $ VarIsNotDefined "Free variable without type"
+    BVar  i        -> MonoType <$> getSignature i
     EPrim prim     -> pure $ MonoType $ primToType prim
     EPrimOp op     -> MonoType <$> primopToType op
     EAp  f a       -> inferAp f a
@@ -75,17 +76,18 @@ inferExpr = \case
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
-inferScope1 :: Context b v => TypeCore -> Scope b 'One v -> Check b v MonoType
-inferScope1 ty (Scope b expr)
-  = local (bindOne b ty) $ inferExpr expr
+inferScope1 :: TypeCore -> Scope1 b v -> Check v MonoType
+inferScope1 ty (Scope1 _ expr)
+  = local (ty:) $ inferExpr expr
 
-inferScopeN :: Context b v => [TypeCore] -> Scope b 'Many v -> Check b v MonoType
-inferScopeN types (Scope b expr) = do
-  ctx' <- bindMany b types =<< ask
-  local (const ctx') $ inferExpr expr
+inferScopeN :: [TypeCore] -> ScopeN b v -> Check v MonoType
+inferScopeN types (ScopeN n _ expr) = do
+  when (n /= length types) $ do
+    throwError BadCase
+  local (types <>) $ inferExpr expr
 
 
-inferAp :: Context b v => Core b v -> Core b v -> Check b v MonoType
+inferAp :: Core f v -> Core f v -> Check v MonoType
 inferAp f a = do
   funTy <- inferExpr f
   aTy   <- inferExpr a
@@ -99,14 +101,14 @@ inferAp f a = do
     (AnyType   , MonoType _) -> pure AnyType
     (AnyType   , AnyType   ) -> pure AnyType
 
-inferLet :: Context b v => Core b v -> Scope b 'One v -> Check b v MonoType
+inferLet :: Core f v -> Scope1 f v -> Check v MonoType
 inferLet expr body = do
   ty <- inferExpr expr >>= \case
     MonoType ty -> pure ty
     AnyType     -> throwError PolymorphicLet
   inferScope1 ty body
 
-inferCase :: Context b v => Core b v -> [CaseAlt b v] -> Check b v MonoType
+inferCase :: Core f v -> [CaseAlt f v] -> Check v MonoType
 inferCase expr alts = inferExpr expr >>= \case
   -- Tuple
   MonoType (TupleT ts) -> case alts of
@@ -129,7 +131,7 @@ inferCase expr alts = inferExpr expr >>= \case
       t:ts -> foldM unifyMonoType t ts
 
 
-inferIf :: Context b v => Core b v -> Core b v -> Core b v -> Check b v MonoType
+inferIf :: Core f v -> Core f v -> Core f v -> Check v MonoType
 inferIf c t e = do
   inferExpr c >>= \case
     AnyType        -> pure ()
@@ -151,7 +153,7 @@ primToType = \case
   PrimSigma _ -> SigmaT
   PrimBytes _ -> BytesT
 
-primopToType :: PrimOp TypeCore -> Check b v TypeCore
+primopToType :: PrimOp TypeCore -> Check v TypeCore
 primopToType = \case
   OpAdd -> pure $ IntT :-> IntT :-> IntT
   OpSub -> pure $ IntT :-> IntT :-> IntT
@@ -227,7 +229,7 @@ primopToType = \case
       TextArg  -> TextT
       BytesArg -> BytesT
 
-compareType :: TypeCore -> Check b v TypeCore
+compareType :: TypeCore -> Check v TypeCore
 compareType ty = case ty of
   IntT      -> pure r
   TextT     -> pure r
@@ -237,7 +239,7 @@ compareType ty = case ty of
   where
     r = ty :-> ty :-> BoolT
 
-showType :: TypeCore -> Check b v TypeCore
+showType :: TypeCore -> Check v TypeCore
 showType ty = case ty of
   IntT      -> pure r
   BoolT     -> pure r
