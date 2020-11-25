@@ -35,7 +35,6 @@ import Control.Monad.Catch hiding (Handler)
 import Control.Monad.Error.Class
 import Control.Monad.Except
 import Control.Monad.Morph (hoist)
-import Control.Monad.Trans.Except (except)
 
 import Data.Coerce
 import Data.ByteString         (ByteString)
@@ -49,6 +48,7 @@ import qualified Data.Aeson           as JSON
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text            as T
 import qualified Data.Map.Strict      as Map
+import qualified Data.Set             as Set
 import qualified Data.Vector          as V
 
 import qualified Database.SQLite.Simple           as SQL
@@ -185,13 +185,12 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
     where
       POW.Time t = POW.blockTime header
 
-  validateBlock = const $ return $ Right ()
-
+  validateBlock         = pure . validateBlockContextFree
   validateTxContextFree = validateTransactionContextFree
 
   blockWork b = POW.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
-                              $ POW.targetInteger $ ubTarget
-                              $ POW.blockData b
+                         $ POW.targetInteger $ ubTarget
+                         $ POW.blockData b
 
   blockTargetThreshold b = POW.Target $ POW.targetInteger $ ubTarget $ POW.blockData b
 
@@ -268,7 +267,7 @@ initializeStateView
   -> q (POW.StateView m (UTXOBlock t))
 initializeStateView genesis bIdx = do
   retrieveCurrentStateBlock >>= \case
-    Just bid -> do let Just bh = {-Debug.trace ("looking up bid "++show bid) $ -}POW.lookupIdx bid bIdx
+    Just bid -> do let Just bh = POW.lookupIdx bid bIdx
                    return $ makeStateView bIdx (emptyOverlay bh)
     -- We need to initialize state table
     Nothing  -> do
@@ -323,17 +322,11 @@ applyUtxoBlock
   -> POW.BlockIndex (UTXOBlock t)
   -> POW.BH (UTXOBlock t)
   -> POW.GBlock (UTXOBlock t) Identity
-  -> m (Either (POW.BlockException (UTXOBlock t)) (POW.StateView m (UTXOBlock t)))
+  -> m (Either UtxoException (POW.StateView m (UTXOBlock t)))
 applyUtxoBlock overlay bIdx bh b = runExceptT $ do
-  when (null txList) $ throwError EmptyBlock
   -- Consistency checks
   unless (POW.bhPrevious bh ==      Just bh0) $ throwError $ InternalErr "BH mismatich"
   unless (POW.bhBID bh      == POW.blockID b) $ throwError $ InternalErr "BH don't match block"
-  -- Perform context free validation of all transactions in block
-  --
-  -- FIXME: We're doing nothing here so far
-  () <- except
-      $ mapM_ (POW.validateTxContextFree @(UTXOBlock t)) txList
   -- Now we need to fully verify each transaction and build new
   -- overlay for database
   overlay' <- hoist mustQueryRW $ do
@@ -433,7 +426,7 @@ createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
 -- | Create TxArg for coinbase transaction. It's treated differently
 --   so we couldn't use 'buildTxArg'
 coinbaseTxArg
-  :: (MonadError (POW.BlockException (UTXOBlock t)) m)
+  :: (MonadError UtxoException m)
   => Maybe (POW.BlockID (UTXOBlock t)) -> Env -> Tx -> m TxArg
 coinbaseTxArg Nothing    _   _  = throwError $ InternalErr "No previous block"
 coinbaseTxArg (Just bid) env tx@Tx{..}
@@ -468,7 +461,7 @@ coinbaseTxArg _ _ _ = throwError $ InternalErr "Invalid coinbase"
 --   leave part of value as reward for miners. So transactions do
 --   not preserve value while whole block should
 checkBalance
-  :: (MonadError (POW.BlockException (UTXOBlock t)) m)
+  :: (MonadError UtxoException m)
   => [TxArg] -> m ()
 -- FIXME: Overflows
 checkBalance []                = throwError $ InternalErr "Empty block"
@@ -491,9 +484,9 @@ sumTxOutputs = sumOf (txArg'outputsL . each . to boxOutput'box . to postBox'cont
 processTX
   :: ActiveOverlay t
   -> TxArg
-  -> ExceptT (POW.BlockException (UTXOBlock t)) (Query rw) (ActiveOverlay t)
+  -> ExceptT UtxoException (Query rw) (ActiveOverlay t)
 processTX overlay0 TxArg{..} = do
-  overlay1 <- foldM spendBox  overlay0 txArg'inputs
+  overlay1 <- foldM spendBox overlay0 txArg'inputs
   pure $ foldl' createBox overlay1 txArg'outputs
   where
     -- We must ensure that we won't spend same input twice
@@ -514,27 +507,36 @@ processTX overlay0 TxArg{..} = do
 -- | Context free TX validation for transactions. This function
 --   performs all checks that could be done having only transaction at
 --   hand.
-validateTransactionContextFree :: Tx -> Either (POW.BlockException (UTXOBlock t)) ()
-validateTransactionContextFree (Tx{}) = do
-  return ()
---  -- Inputs and outputs are not null
---  when (null txInputs)  $ Left $ CoinError "Empty input list"
---  when (null txOutputs) $ Left $ CoinError "Empty output list"
---  -- No duplicate inputs
---  when (nub txInputs /= txInputs) $ Left $ CoinError "Duplicate inputs"
---  -- Outputs are all positive
---  forM_ txOutputs $ \(Unspent _ n) ->
---    unless (n > 0) $ Left $ CoinError "Negative output"
---  -- Signature must be valid.
---  unless (verifySignatureHashed pubK txSend sig)
---    $ Left $ CoinError "Invalid signature"
+validateTransactionContextFree :: Tx -> Either UtxoException ()
+validateTransactionContextFree Tx{..} = do
+ -- Inputs and outputs are not null
+ when (null tx'inputs)  $ Left $ InternalErr "Empty input list"
+ when (null tx'outputs) $ Left $ InternalErr "Empty output list"
+ -- No zero outputs
+ when (any ((<=0) . box'value) tx'outputs)
+   $ Left $ InternalErr "Box with nonpositive output"
+ -- No duplicate inputs
+ checkDuplicates $ toList tx'inputs
+ where
+   checkDuplicates = go Set.empty
+     where
+       go boxes (BoxInputRef{boxInputRef'id = boxId} : ins)
+         | boxId `Set.member` boxes = Left $ InternalErr "Duplicate input"
+         | otherwise                = go (Set.insert boxId boxes) ins
+       go _ [] = Right ()
+
+-- | Simply validate every TX in block
+validateBlockContextFree :: forall t. POW.Block (UTXOBlock t) -> Either UtxoException ()
+validateBlockContextFree POW.Block{..} = do
+  mapM_ validateTransactionContextFree $ ubData blockData
 
 
+
+-- | Lookup box in database using deltas for current state.
 getDatabaseBox
-  :: ()
-  => POW.BlockIndexPath (ID (POW.Block (UTXOBlock t)))
+  :: POW.BlockIndexPath (ID (POW.Block (UTXOBlock t)))
   -> BoxId
-  -> ExceptT (POW.BlockException (UTXOBlock t)) (Query rw) PostBox
+  -> ExceptT UtxoException (Query rw) PostBox
 -- Check whether output was created in the block
 getDatabaseBox (POW.ApplyBlock i path) boxId = do
   isSpentAtBlock i boxId >>= \case

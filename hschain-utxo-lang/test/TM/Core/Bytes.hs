@@ -4,41 +4,38 @@ module TM.Core.Bytes(
 
 import Data.ByteString (ByteString)
 import Data.Int
-import Data.Text (Text)
 
 import Test.Tasty
 
+import Hschain.Utxo.Lang.Types (ArgType(..))
 import Hschain.Utxo.Lang.Utils.ByteString
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
-import qualified Hschain.Utxo.Lang.Const as Const
 import TM.Core.Common
 
 
 tests :: TestTree
 tests = testGroup "core-bytes"
-  [ testProgram "hash"               (progHash val)            (PrimBool True)
-  , testProgram "hash append"        (progHashAppend val 2)    (PrimBool True)
-  , testProgram "ser/deser id"       (progConvertIdInt 100)    (PrimBool True)
-  , testProgram "ser/deser id"       (progConvertIdText "100") (PrimBool True)
+  [ testProgram "hash"               (progHash val)                     (PrimBool True)
+  , testProgram "hash append"        (progHashAppend val 2)             (PrimBool True)
+  , testProgram "ser/deser id int"   (progConvertId int IntArg 100)     (PrimBool True)
+  , testProgram "ser/deser id text"  (progConvertId text TextArg "100") (PrimBool True)
   ]
   where
     val = "hello bytes"
 
 sha256V :: Core Identity Name -> Core Identity Name
-sha256V = EAp "sha256"
+sha256V a = primOp OpSHA256 [a]
 
-serialiseIntV :: Core Identity Name -> Core Identity Name
-serialiseIntV = EAp "serialiseInt"
+serialise :: ArgType -> ExprCore -> ExprCore
+serialise ty a = primOp (OpToBytes ty) [a]
 
-deserialiseIntV :: Core Identity Name -> Core Identity Name
-deserialiseIntV = EAp "deserialiseInt"
+deserialise :: ArgType -> ExprCore -> ExprCore
+deserialise ty a = primOp (OpFromBytes ty) [a]
 
-appendBytesV :: Core Identity Name -> Core Identity Name -> Core Identity Name
-appendBytesV a b = ap name [a, b]
-  where
-    name = EVar $ Const.appendBytes
+appendBytes :: ExprCore -> ExprCore -> ExprCore
+appendBytes a b = primOp OpBytesAppend [a, b]
 
 progHash :: ByteString -> Core Identity Name
 progHash bs = equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs)
@@ -46,13 +43,10 @@ progHash bs = equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs)
 progHashAppend :: ByteString -> Int64 -> Core Identity Name
 progHashAppend bs n
   = equals BytesT
-    (sha256V $ appendBytesV (bytes bs) (serialiseIntV $ int n))
+    (sha256V $ appendBytes (bytes bs) (serialise IntArg $ int n))
     (bytes $ getSha256 $ bs <> serialiseInt n)
 
-progConvertIdInt :: Int64 -> Core Identity Name
-progConvertIdInt n
-  = equals IntT (deserialiseIntV $ serialiseIntV $ int n) (int n)
+progConvertId :: (a -> ExprCore) -> ArgType -> a -> ExprCore
+progConvertId con ty n
+  = equals (argTypeToCore ty) (deserialise ty $ serialise ty $ con n) (con n)
 
-progConvertIdText :: Text -> Core Identity Name
-progConvertIdText n
-  = equals TextT (deserialiseIntV $ serialiseIntV $ text n) (text n)

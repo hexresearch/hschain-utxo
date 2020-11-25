@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Pretty(
     renderDoc
   , renderText
   , prettyRecord
+  , pprint
 ) where
 
 import Codec.Serialise (deserialiseOrFail)
@@ -13,6 +14,7 @@ import Data.Bool
 import Data.Fix
 import Data.Proxy
 import Data.String
+import Data.Void
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
@@ -26,14 +28,16 @@ import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr (Core)
 import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
-import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam)
-import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr)
+import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam, TypedLamProg)
+import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr, toHaskProg)
+import Hschain.Utxo.Lang.Parser.Hask.ToHask (toHaskModule)
 import qualified Hschain.Utxo.Lang.Core.Types as Core
 import Language.Haskell.Exts.Pretty (prettyPrint)
 
 import qualified Data.Vector as V
 
 import HSChain.Crypto.Classes (encodeToBS, encodeBase58)
+import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
@@ -43,10 +47,14 @@ import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
+import qualified Data.Text.IO as T
 
 -- | Convenience function to render pretty-printable value to text.
 renderText :: Pretty a => a -> Text
 renderText = renderDoc . pretty
+
+pprint :: Pretty a => a -> IO ()
+pprint = T.putStrLn . renderText
 
 -- | Convenience function to render pretty-printed value to text.
 renderDoc :: Doc ann -> Text
@@ -64,7 +72,12 @@ instance Pretty BoxId where
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    Right e -> fromString $ show (e :: Core Proxy Int)
+    -- FIXME: Use pretty instance when it's fixed
+    Right e -> pretty $ show (e :: Core Proxy Void)
+
+-- FIXME: broken
+-- instance Pretty ExprCore where
+--   pretty = pretty . prettyPrint . toHaskExprCore
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"
@@ -159,8 +172,8 @@ instance Pretty Proof where
 instance Pretty (S.Sigma S.PublicKey) where
   pretty = cata $ \case
       S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
-      S.SigmaAnd as  -> parens $ hsep $ "sigmaAnd" : as
-      S.SigmaOr  as  -> parens $ hsep $ "sigmaOr"  : as
+      S.SigmaAnd as  -> parens $ hsep $ Const.sigmaAnd : as
+      S.SigmaOr  as  -> parens $ hsep $ Const.sigmaOr  : as
       S.SigmaBool b  -> "Sigma" <> pretty b
 
 instance Pretty S.PublicKey where
@@ -241,13 +254,14 @@ instance Pretty BoxField where
 instance Pretty Error where
   pretty = \case
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
-    ExecError err         -> pretty err    
+    ExecError err         -> pretty err
     TypeError err         -> pretty err
     PatError err          -> pretty err
     InternalError err     -> pretty err
     MonoError err         -> pretty err
     CoreScriptError err   -> pretty err
     FreeVariable txt      -> "Free variable: " <> pretty txt
+    ErrorList es          -> vcat $ fmap pretty es
 
 instance Pretty ExecError where
   pretty = \case
@@ -310,6 +324,7 @@ instance Pretty MonoError where
   pretty = \case
     FailedToFindMonoType loc name -> err loc $ hsep ["Failed to find monomorphic type for", pretty name]
     CompareForNonPrim loc         -> err loc "Compare operator expects primitive type as input."
+    InlineError loc name          -> err loc $ hsep ["Failed to inline", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
 
@@ -352,4 +367,10 @@ instance Pretty EvalErr where
 
 instance Pretty TypedExprLam where
   pretty = pretty . prettyPrint . toHaskExpr
+
+instance Pretty Module where
+  pretty = pretty . prettyPrint . toHaskModule
+
+instance Pretty TypedLamProg where
+  pretty = pretty . prettyPrint . toHaskProg
 

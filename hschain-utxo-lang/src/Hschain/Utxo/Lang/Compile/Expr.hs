@@ -21,27 +21,31 @@ module Hschain.Utxo.Lang.Compile.Expr(
   , CaseAlt(..)
   , PrimLoc(..)
   , TypedDef
+  , TypedName
   , TypedLamProg
   , TypedExprLam
   , getTypedDefType
+  , defBodyToLam
   , liftTypedLamProg
 ) where
 
 import Data.Fix
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
-import Hschain.Utxo.Lang.Expr (Loc, VarName)
+import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
 
 import qualified Language.HM as H
 
 -- | Programms annotated with types
-type TypedLamProg = AnnLamProg (H.Type () Name) (Typed (H.Type () Name) Name)
+type TypedLamProg = AnnLamProg (H.Type () Name) TypedName
 
 -- | Typed definitions of functions
-type TypedDef = AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)
+type TypedDef = AnnComb (H.Type () Name) TypedName
 
 -- | Typed expressions
-type TypedExprLam = AnnExprLam (H.Type () Name) (Typed (H.Type () Name) Name)
+type TypedExprLam = AnnExprLam (H.Type () Name) TypedName
+
+type TypedName = Typed (H.Type () Name) Name
 
 -- | Annotation of the type with some additional information
 data Ann ann f a = Ann
@@ -126,6 +130,10 @@ data PrimLoc = PrimLoc
   , primLoc'value :: !Prim  -- ^ primitive value
   } deriving (Show, Eq)
 
+instance H.HasLoc TypedExprLam where
+  type Loc TypedExprLam = Loc
+  getLoc (Fix x) = H.getLoc $ ann'value x
+
 instance H.HasLoc (ExprLam bind) where
   type Loc (ExprLam bind) = Loc
   getLoc (Fix expr) = H.getLoc expr
@@ -153,10 +161,19 @@ getTypedDefType Def{..} = foldr (H.arrowT ()) res args
     args = fmap typed'type def'args
     res  = ann'note $ unFix def'body
 
+defBodyToLam :: TypedDef -> TypedExprLam
+defBodyToLam def@Def{..}
+  | null def'args = def'body
+  | otherwise     = Fix $ Ann
+      { ann'note  = getTypedDefType def
+      , ann'value = ELam (varName'loc def'name) def'args def'body
+      }
+
 liftTypedLamProg :: Monad m => (TypedExprLam -> m TypedExprLam) -> TypedLamProg -> m TypedLamProg
 liftTypedLamProg f (AnnLamProg combs) =  fmap AnnLamProg $ mapM liftComb combs
   where
     liftComb def = do
       body <- f $ def'body def
       return $ def { def'body = body }
+
 

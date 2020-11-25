@@ -18,6 +18,7 @@ import Language.Haskell.Exts.Parser (
 
 import HSChain.Crypto (decodeBase58)
 
+import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
@@ -33,6 +34,12 @@ import qualified Language.Haskell.Exts.Pretty as H
 
 fromHaskExp :: H.Exp Loc -> ParseResult Lang
 fromHaskExp topExp = case topExp of
+  -- special hack for haskell quasi-quoter
+  -- we parse $(a) as anti-quote to inline external haskell values
+  H.SpliceExp _ (H.ParenSplice _ (H.Var loc qname)) -> fmap (Fix . AntiQuote loc Nothing) $ fromQName qname
+  H.ExpTypeSig _ (H.SpliceExp _ (H.ParenSplice _ (H.Var loc qname))) tyExpr | Just ty <- toArgTypeName tyExpr ->
+    fmap (Fix . AntiQuote loc (Just ty)) $ fromQName qname
+  ---
   H.Var loc qname -> fmap (Fix . Var loc) $ fromQName qname
   -- special hack-case for bytestring literals
   -- we parse expressions @bytes "string"@ as ByteString decode from Base58
@@ -332,3 +339,22 @@ getStringLiteral = \case
   H.Lit _ (H.String _ val _) -> Just $ T.pack val
   _                          -> Nothing
 
+toArgTypeName :: H.Type Loc -> Maybe QuoteType
+toArgTypeName expr =
+  case expr of
+    H.TyCon _ tyName -> case tyName of
+      H.UnQual _ (H.Ident _ name) -> case name of
+        "Int"       -> Just $ PrimQ IntArg
+        "Bool"      -> Just $ PrimQ BoolArg
+        "Text"      -> Just $ PrimQ TextArg
+        "Bytes"     -> Just $ PrimQ BytesArg
+        "Sigma"     -> Just SigmaQ
+        "Script"    -> Just ScriptQ
+        "PublicKey" -> Just PublicKeyQ
+        _           -> err
+      _ -> err
+    H.TyList _ t     -> fmap ListQ $ toArgTypeName t
+    H.TyTuple _ _ ts -> fmap TupleQ $ mapM toArgTypeName ts
+    _                -> err
+  where
+    err = Nothing

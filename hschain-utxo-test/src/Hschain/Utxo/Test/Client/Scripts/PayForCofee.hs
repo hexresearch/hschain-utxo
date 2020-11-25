@@ -8,7 +8,6 @@ import Prelude hiding ((<*))
 import Control.Monad.Except
 import Control.Timeout
 
-import Data.Boolean
 import Data.Int
 import Data.Maybe
 import Data.String
@@ -21,7 +20,6 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build
 
 import qualified Data.Vector as V
 import qualified Hschain.Utxo.Test.Client.Monad as M
@@ -132,6 +130,7 @@ sendTxDelayed from fromBox to delayDiff amount = do
   let sendTx = SendDelayed fromBox amount (totalAmount - amount) (currentHeight + delayDiff) to
   (tx, backBox, toBox) <- toSendTxDelayed from sendTx
   logTest $ renderText tx
+  testCase "TX is valid" =<< M.txIsValid tx
   txResp <- M.postTx tx
   logTest $ fromString $ ppShow txResp
   return $ Right $ SendRes backBox toBox $ getTxHash txResp
@@ -154,38 +153,33 @@ toSendTxDelayed wallet SendDelayed{..} = do
       , boxInputRef'sigMask = SigAll
       }
 
-    height = sendDelayed'height
-
-    spendHeightId = 0
-
-    senderPk = pk' $ getWalletPublicKey wallet
+    senderPk   = getWalletPublicKey wallet
+    receiverPk = getWalletPublicKey sendDelayed'recepientWallet
 
     senderUtxo
       | sendDelayed'remain > 0 = Just Box
                 { box'value  = sendDelayed'remain
-                , box'script = mainScriptUnsafe backScript
+                , box'script = backScript
                 , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
     -- sender can get all money back if height is less than equal to limit
     -- or just the rest of it if it's greater than the limit
-    backScript = senderPk
+    backScript = [utxo|pk $(senderPk)|]
 
     receiverUtxo = Box
       { box'value  = sendDelayed'amount
-      , box'script = mainScriptUnsafe $ receiverScript ||* refundScript
-      , box'args   = intArgs [height]
+      , box'script = coffeeScript sendDelayed'height senderPk receiverPk
+      , box'args   = mempty
       }
 
-    getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int spendHeightId)
+coffeeScript :: Int64 -> PublicKey -> PublicKey -> Script
+coffeeScript spendHeight senderPk receiverPk = [utxo|
 
-    -- receiver can get money only hieght is greater than specified limit
-    receiverScript =
-            pk' (getWalletPublicKey sendDelayed'recepientWallet)
-        &&* toSigma (getSpendHeight <* getHeight)
+    receiverScript = pk $(receiverPk) &&* ($(spendHeight) <*  getHeight)
+    refundScript   = pk $(senderPk)   &&* ($(spendHeight) >=* getHeight)
 
-    -- sender can get money back if hieght is less or equals to specified limit
-    refundScript =
-            senderPk
-        &&* toSigma (getSpendHeight >=* getHeight)
+    main = receiverScript ||* refundScript
+|]
+

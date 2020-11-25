@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Error where
 import Control.DeepSeq (NFData)
 import Control.Monad.Except
 
+import Data.Data
 import Data.String
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -25,7 +26,8 @@ data Error
   | MonoError MonoError             -- ^ errors during monomorphizing
   | CoreScriptError CoreScriptError -- ^ errors of core scripts
   | FreeVariable Text
-  deriving stock    (Show,Eq,Generic)
+  | ErrorList [Error]               -- ^ reports several errors
+  deriving stock    (Show,Eq,Generic,Data)
 
 -- | Execution errors
 -- TODO source locations
@@ -34,7 +36,7 @@ data ExecError
   | UndefinedRecordCons Loc ConsName
   | UndefinedReocrdField Loc ConsName Text
   | FailedToDecodeScript
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
 
 -- | Errors that can arise during transformation of patterns in the bindings
 -- to case-expressions.
@@ -48,24 +50,25 @@ data PatError
   | WrongPatPrimMixture Loc
   | WrongPatConsMixture Loc
   | MissingMain
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
 
 data InternalError
   = FailedToEliminate Text
   | NonIntegerConstrTag Text
   | NonLamType
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
 
 data MonoError
   = FailedToFindMonoType Loc Text
   | CompareForNonPrim Loc
-  deriving stock    (Show,Eq,Generic)
+  | InlineError Loc Text
+  deriving stock    (Show,Eq,Generic,Data)
 
 data CoreScriptError
   = ResultIsNotSigma
   | TypeCoreError TypeCoreError
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
 
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
@@ -114,3 +117,7 @@ compareForNonPrim = throwError . MonoError . CompareForNonPrim
 
 failedToFindMonoType :: MonadError Error m => Loc -> Text -> m a
 failedToFindMonoType loc name = throwError $ MonoError $ FailedToFindMonoType loc name
+
+inlineError :: MonadError Error m => Loc -> Text -> m a
+inlineError loc name = throwError $ MonoError $ InlineError loc name
+

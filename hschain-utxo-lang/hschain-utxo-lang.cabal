@@ -35,6 +35,7 @@ library
       Hschain.Utxo.Lang.Core.Compile.Build
       Hschain.Utxo.Lang.Core.Compile.Expr
       Hschain.Utxo.Lang.Core.Compile.TypeCheck
+      Hschain.Utxo.Lang.Core.ToHask
       Hschain.Utxo.Lang.Core.Types
       Hschain.Utxo.Lang.Core.Eval
       Hschain.Utxo.Lang.Core.RefEval
@@ -61,6 +62,7 @@ library
       Hschain.Utxo.Lang.Parser.Hask.FromHask
       Hschain.Utxo.Lang.Parser.Hask.ToHask
       Hschain.Utxo.Lang.Parser.Hask.Utils
+      Hschain.Utxo.Lang.Parser.Quoter
       Hschain.Utxo.Lang.Pretty
       Hschain.Utxo.Lang.Sigma
       Hschain.Utxo.Lang.Sigma.EllipticCurve
@@ -102,10 +104,11 @@ library
                      , semigroups
                      , prettyprinter
                      , serialise
+                     , syb
                      , strict
+                     , template-haskell
                      , text
                      , vector
---  build-tools:         alex, happy
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
@@ -122,6 +125,7 @@ library
     KindSignatures
     MultiParamTypeClasses
     DeriveAnyClass
+    DeriveDataTypeable
     DeriveFunctor
     DeriveFoldable
     DeriveGeneric
@@ -136,6 +140,7 @@ library
     TypeFamilies
     UndecidableInstances
     QuantifiedConstraints
+    QuasiQuotes
 
 Test-suite hschain-utxo-lang-tests
   Type:                exitcode-stdio-1.0
@@ -162,6 +167,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Common
                        TM.Core.Int
                        TM.Core.List
+                       TM.Lang.Scripts
                        TM.Tx.Sigma
                        TM.Tx.Sign
                        Examples.SKI
@@ -169,6 +175,7 @@ Test-suite hschain-utxo-lang-tests
   default-extensions:
     RecordWildCards
     OverloadedStrings
+    QuasiQuotes
 
 benchmark hschain-utxo-lang-bench
   type:             exitcode-stdio-1.0

@@ -15,6 +15,25 @@ module Hschain.Utxo.Lang.Const(
   , getBoxScript
   , getBoxValue
   , getBoxPostHeight
+  , pk
+  , toSigma
+  , sigmaOr
+  , sigmaAnd
+  , allSigma
+  , anySigma
+  , sigmaGreater
+  , sigmaLess
+  , sigmaGreaterEquals
+  , sigmaLessEquals
+  , sigmaEquals
+  , sigmaNonEquals
+  -- * Comparisons
+  , greater
+  , less
+  , lessEquals
+  , greaterEquals
+  , equals
+  , nonEquals
   -- * List functions
   , listAt
   , map
@@ -25,9 +44,12 @@ module Hschain.Utxo.Lang.Const(
   , appendList
   , andSigma
   , orSigma
+  , all
+  , any
   -- * Text functions
   , appendText
   , lengthText
+  , show
   -- * Bytes functions
   , appendBytes
   , lengthBytes
@@ -41,7 +63,7 @@ module Hschain.Utxo.Lang.Const(
   , evalReductionLimit
 ) where
 
-import Prelude hiding (map, filter, foldr, foldl, length)
+import Prelude hiding (map, filter, foldr, foldl, length, show, all, any)
 import Data.String
 import Data.Text (Text)
 
@@ -82,7 +104,7 @@ getBoxPostHeight = "getBoxPostHeight"
 -------------------------------------------------------------------
 -- list functions
 
-listAt, map, filter, foldr, foldl, length, appendList, andSigma, orSigma :: IsString a => a
+listAt, map, filter, foldr, foldl, length, appendList, andSigma, orSigma, all, any :: IsString a => a
 
 listAt = "listAt"
 map    = "map"
@@ -93,6 +115,31 @@ length = "length"
 appendList = "++"
 andSigma = "andSigma"
 orSigma = "orSigma"
+all = "all"
+any = "any"
+
+pk, toSigma, sigmaOr, sigmaAnd, allSigma, anySigma, sigmaGreater, sigmaLess, sigmaGreaterEquals, sigmaLessEquals, sigmaEquals, sigmaNonEquals :: IsString a => a
+
+pk = "pk"
+toSigma = "toSigma"
+sigmaOr = "||*"
+sigmaAnd = "&&*"
+allSigma = "allSigma"
+anySigma = "anySigma"
+sigmaGreater = ">*"
+sigmaLess = "<*"
+sigmaLessEquals = "<=*"
+sigmaGreaterEquals = ">=*"
+sigmaEquals = "==*"
+sigmaNonEquals = "/=*"
+
+greater, less, lessEquals, greaterEquals, equals, nonEquals :: Text
+greater = ">"
+less = "<"
+lessEquals = "<="
+greaterEquals = ">="
+equals = "=="
+nonEquals = "/="
 
 -------------------------------------------------------------------
 -- text functions
@@ -102,6 +149,9 @@ appendText = "<>"
 
 lengthText :: Text
 lengthText = "lengthText"
+
+show :: Text
+show = "show"
 
 -------------------------------------------------------------------
 -- bytes functions

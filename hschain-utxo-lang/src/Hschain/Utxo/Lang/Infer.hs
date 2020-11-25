@@ -113,6 +113,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
   -- records
   RecConstr loc cons fields -> fromRecCons loc cons fields
   RecUpdate loc a upds      -> liftA2 (fromRecUpdate loc) (rec a) (mapM (\(field, x) -> fmap (field, ) $ rec x) upds)
+  AntiQuote loc _ _         -> throwError $ ParseError loc "AntiQuote encountered"
   where
     rec = reduceExpr ctx
 
@@ -194,6 +195,8 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       SAnd loc a b     -> app2 loc sigmaAndVar a b
       SOr loc a b      -> app2 loc sigmaOrVar a b
       SPrimBool loc a  -> app1 loc toSigmaVar a
+      SAll loc a b     -> app2 loc allSigmaVar a b
+      SAny loc a b     -> app2 loc anySigmaVar a b
 
     fromVec _ = \case
       NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
@@ -284,6 +287,8 @@ defaultContext = H.Context $ M.fromList $
   -- sigma expressions
   , (sigmaOrVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
+  , (allSigmaVar, forA $ monoT $ (a `arr` sigmaT) `arr` (listT a `arr` sigmaT))
+  , (anySigmaVar, forA $ monoT $ (a `arr` sigmaT) `arr` (listT a `arr` sigmaT))
   , (toSigmaVar, monoT $ boolT `arr` sigmaT)
   -- signatures
   , (checkSigVar, monoT $ bytesT `arr` (intT `arr` boolT))
@@ -489,11 +494,13 @@ altVar, failCaseVar :: Text
 altVar = secretVar "altCases"
 failCaseVar = secretVar "failCase"
 
-sigmaAndVar, sigmaOrVar, toSigmaVar :: Text
+sigmaAndVar, sigmaOrVar, toSigmaVar, allSigmaVar, anySigmaVar :: Text
 
-sigmaAndVar = "sigmaAnd"
-sigmaOrVar  = "sigmaOr"
-toSigmaVar  = "toSigma"
+sigmaAndVar = secretVar Const.sigmaAnd
+sigmaOrVar  = secretVar Const.sigmaOr
+toSigmaVar  = secretVar Const.toSigma
+allSigmaVar = secretVar Const.allSigma
+anySigmaVar = secretVar Const.anySigma
 
 ---------------------------------------------------------
 

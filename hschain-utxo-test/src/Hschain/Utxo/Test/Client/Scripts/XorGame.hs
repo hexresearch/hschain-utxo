@@ -17,7 +17,7 @@ import HSChain.Crypto (ByteRepr(..))
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
 
-import Hschain.Utxo.Test.Client.Monad (App, testCase, testTitle)
+import Hschain.Utxo.Test.Client.Monad (App, testCase, testTitle, txIsValid)
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Utils
 
@@ -28,33 +28,51 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Utils.ByteString as B
 
-bobGuessFieldId, bobDeadlineFieldId, bobPkFieldId :: Expr Int
+bobGuessFieldId, bobDeadlineFieldId, bobPkFieldId :: Int
 
-bobGuessFieldId = int 0
-bobDeadlineFieldId = int 1
-bobPkFieldId = int 0
+bobGuessFieldId = 0
+bobDeadlineFieldId = 1
+bobPkFieldId = 0
 
 getBobGuess :: Expr Box -> Expr Int
-getBobGuess box = listAt (getBoxIntArgList box) bobGuessFieldId
+getBobGuess box = listAt (getBoxIntArgList box) (int bobGuessFieldId)
 
 getBobDeadline :: Expr Box -> Expr Int
-getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineFieldId
+getBobDeadline box = listAt (getBoxIntArgList box) (int bobDeadlineFieldId)
 
 getBobPk :: Expr Box -> Expr ByteString
-getBobPk box = listAt (getBoxBytesArgList box) bobPkFieldId
+getBobPk box = listAt (getBoxBytesArgList box) (int bobPkFieldId)
 
 getS :: Expr ByteString
-getS = listAt getBytesVars sFieldId
+getS = listAt getBytesVars (int sFieldId)
 
 getA :: Expr Int
-getA = listAt getIntVars aFieldId
+getA = listAt getIntVars (int aFieldId)
 
-sFieldId, aFieldId :: Expr Int
-sFieldId = int 0
-aFieldId = int 0
+sFieldId, aFieldId :: Int
+sFieldId = 0
+aFieldId = 0
 
-halfGameScript :: Expr ByteString -> Expr SigmaBool
-halfGameScript fullGameScriptHash =
+halfGameScript :: ByteString -> Script
+halfGameScript fullGameScriptHash = [utxo|
+
+  out           = listAt getOutputs 0
+  b             = listAt (getBoxIntArgs out) $(bobGuessFieldId)
+  bobDeadline   = listAt (getBoxIntArgs out) $(bobDeadlineFieldId)
+  validBobInput = b == 0 || b == 1
+
+  main = toSigma (and
+    [ validBobInput
+    , sha256 (getBoxScript out) == $(fullGameScriptHash)
+    , (length getOutputs == 1) || (length getOutputs == 2)
+    , bobDeadline >= (getHeight + 30)
+    , getBoxValue out >= (2 * getBoxValue getSelf)
+    ])
+|]
+
+{-
+halfGameScript' :: Expr ByteString -> Expr SigmaBool
+halfGameScript' fullGameScriptHash =
   "out"            =: getOutput 0                      $ \out ->
   "b"              =: getBobGuess out                  $ \(b :: Expr Int) ->
   "bobDeadline"    =: getBobDeadline out               $ \bobDeadline ->
@@ -65,18 +83,37 @@ halfGameScript fullGameScriptHash =
   &&* (lengthVec getOutputs ==* 1 ||* lengthVec getOutputs ==* 2)
   &&* (bobDeadline >=* getHeight + 30)
   &&* (getBoxValue out >=* 2 * getBoxValue getSelf )
+-}
 
-fullGameScript :: Expr ByteString -> Expr ByteString -> Expr SigmaBool
-fullGameScript k alice =
+fullGameScript :: ByteString -> ByteString -> Script
+fullGameScript k alice = [utxo|
+
+  s           = listAt getBytesArgs $(sFieldId)
+  a           = listAt getIntArgs $(aFieldId)
+  b           = listAt (getBoxIntArgs getSelf) $(bobGuessFieldId)
+  bob         = listAt (getBoxBytesArgs getSelf) $(bobPkFieldId)
+  bobDeadline = listAt (getBoxIntArgs getSelf) $(bobDeadlineFieldId)
+
+  main = (pk bob &&* toSigma (getHeight > bobDeadline))
+     ||* ((toSigma (sha256 (appendBytes s (serialiseInt a)) == $(k)))
+          &&* (   pk $(alice) &&* (toSigma (a == b))
+              ||* pk bob      &&* (toSigma (a /= b))))
+
+|]
+
+{-
+fullGameScript' :: Expr ByteString -> Expr ByteString -> Expr SigmaBool
+fullGameScript' k alice =
   "s"              =: getS                               $ \(s :: Expr ByteString) ->
   "a"              =: getA                               $ \(a :: Expr Int) ->
   "b"              =: getBobGuess getSelf                $ \(b :: Expr Int) ->
   "bob"            =: getBobPk getSelf                   $ \bob ->
   "bobDeadline"    =: getBobDeadline getSelf             $ \bobDeadline ->
       (pk bob &&* (toSigma $ getHeight >* bobDeadline))
-  ||* (toSigma (sha256 (s <> serialiseInt a) ==* k))
+  ||* ((toSigma (sha256 (s <> serialiseInt a) ==* k))
         &&* (     pk alice &&* (toSigma (a ==* b))
-              ||* pk bob   &&* (toSigma (a /=* b )))
+              ||* pk bob   &&* (toSigma (a /=* b ))))
+-}
 
 data Game = Game
   { game'guess   :: !Guess
@@ -125,8 +162,8 @@ xorGameRound Scene{..} game@Game{..} = do
   where
     getAliceScript guess wallet@Wallet{..} box = do
       (k, s) <- makeAliceSecret guess
-      let fullScriptHash = hashScript $ mainScriptUnsafe $ fullGameScript (bytes k) (bytes $ encodeToBS $ getWalletPublicKey wallet)
-          aliceScript = halfGameScript $ bytes $ fullScriptHash
+      let fullScriptHash = hashScript $ fullGameScript k (encodeToBS $ getWalletPublicKey wallet)
+          aliceScript = halfGameScript $ fullScriptHash
       (tx, backAddr, gameAddr) <- makeAliceTx game'amount aliceScript wallet box
       eTx <- postTxDebug True "Alice posts half game script" tx
       case eTx of
@@ -138,11 +175,13 @@ xorGameRound Scene{..} game@Game{..} = do
     makeAliceTx amount script wallet inBox = do
       total <- fmap (fromMaybe 0) $ getBoxBalance inBox
 
+      let alicePk = getWalletPublicKey wallet
+
       let gameBox = if (amount > total)
             then Nothing
             else Just Box
               { box'value  = amount
-              , box'script = mainScriptUnsafe script
+              , box'script = script
               , box'args   = mempty
               }
 
@@ -150,7 +189,7 @@ xorGameRound Scene{..} game@Game{..} = do
             | total <= amount = Nothing
             | otherwise       = Just Box
                 { box'value  = total - amount
-                , box'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
+                , box'script = [utxo|pk $(alicePk)|]
                 , box'args   = mempty
                 }
 
@@ -200,7 +239,7 @@ xorGameRound Scene{..} game@Game{..} = do
               | total < game'amount = Nothing
               | otherwise           = Just Box
                   { box'value   = 2 * game'amount
-                  , box'script  = mainScriptUnsafe $ fullGameScript (bytes alicePublicHash) (bytes alicePubKey)
+                  , box'script  = fullGameScript alicePublicHash alicePubKey
                   , box'args    = makeArgs height
                   }
 
@@ -226,6 +265,7 @@ xorGameRound Scene{..} game@Game{..} = do
       (tx, _) <- winTx gameBox wallet aliceSecret aliceGuess
       _eSigma <- M.getTxSigma tx
       eTxHash <- postTxDebug isSuccess (winMsg name) tx
+      void $ txIsValid tx
       return $ either (const False) (const True) eTxHash
       where
         winMsg str = mconcat [str, " tries to win."]
@@ -242,9 +282,11 @@ xorGameRound Scene{..} game@Game{..} = do
 
         args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
 
+        pubKey = getWalletPublicKey wallet
+
         outBox = Box
           { box'value   = 2 * game'amount
-          , box'script  = mainScriptUnsafe $ pk $ bytes $ encodeToBS $ getWalletPublicKey wallet
+          , box'script  = [utxo|pk $(pubKey)|]
           , box'args    = mempty
           }
 

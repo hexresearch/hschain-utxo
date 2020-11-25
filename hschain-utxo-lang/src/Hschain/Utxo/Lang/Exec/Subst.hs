@@ -48,6 +48,7 @@ subst (Fix body) varName sub = case body of
   RecUpdate loc a upds                     -> Fix $ RecUpdate loc (rec a) (fmap (second rec) upds)
   CheckSig loc a b                         -> Fix $ CheckSig loc (rec a) (rec b)
   CheckMultiSig loc a b c                  -> Fix $ CheckMultiSig loc (rec a) (rec b) (rec c)
+  AntiQuote loc ty v                       -> Fix $ AntiQuote loc ty v
   where
     subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)
 

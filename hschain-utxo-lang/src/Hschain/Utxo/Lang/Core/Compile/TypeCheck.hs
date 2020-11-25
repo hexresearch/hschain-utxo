@@ -17,7 +17,6 @@ import Control.Monad.Except
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Types (ArgType(..))
 
 
 data MonoType
@@ -191,17 +190,17 @@ primopToType = \case
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
   --
-  OpArgs tag     -> pure $ ListT (tagToType tag)
+  OpArgs tag     -> pure $ ListT (argTypeToCore tag)
   OpGetBoxId     -> pure $ BoxT :-> BytesT
   OpGetBoxScript -> pure $ BoxT :-> BytesT
   OpGetBoxValue  -> pure $ BoxT :-> IntT
-  OpGetBoxArgs t -> pure $ BoxT :-> ListT (tagToType t)
+  OpGetBoxArgs t -> pure $ BoxT :-> ListT (argTypeToCore t)
   OpGetBoxPostHeight -> pure $ BoxT :-> IntT
   --
   OpShow      ty  -> showType ty
-  OpToBytes   tag -> pure $ tagToType tag :-> BytesT
+  OpToBytes   tag -> pure $ argTypeToCore tag :-> BytesT
   -- FIXME: Function is in fact partial
-  OpFromBytes tag -> pure $ BytesT :-> (tagToType tag)
+  OpFromBytes tag -> pure $ BytesT :-> (argTypeToCore tag)
   --
   OpEnvGetHeight     -> pure IntT
   OpEnvGetSelf       -> pure BoxT
@@ -222,12 +221,6 @@ primopToType = \case
   OpListOr         -> pure $ ListT BoolT :-> BoolT
   OpListAll    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
   OpListAny    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT
-  where
-    tagToType = \case
-      IntArg   -> IntT
-      BoolArg  -> BoolT
-      TextArg  -> TextT
-      BytesArg -> BytesT
 
 compareType :: TypeCore -> Check v TypeCore
 compareType ty = case ty of

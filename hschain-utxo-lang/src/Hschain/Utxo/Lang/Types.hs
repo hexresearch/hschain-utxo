@@ -38,6 +38,7 @@ module Hschain.Utxo.Lang.Types
     -- * Helperes
   , singleOwnerInput
     -- * Lenses
+  , tx'inputsL, tx'outputsL, tx'dataInputsL
   , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL, txArg'dataInputsL
   , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
   , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
@@ -55,6 +56,7 @@ import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
 import Data.Bifunctor
 import Data.Coerce
+import Data.Data
 import Data.Fix
 import Data.Int
 import Data.Text (Text)
@@ -92,7 +94,7 @@ data Args = Args
 -- | Types that we can store as arguments in transactions.
 -- We store lists of them.
 data ArgType = IntArg | TextArg | BoolArg | BytesArg
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic, Data, Typeable)
   deriving anyclass (NFData, Serialise)
 
 argTypes :: [ArgType]
@@ -124,7 +126,7 @@ instance FromText BoxId where
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
   deriving newtype  (Show, Eq, Ord, NFData, ByteRepr)
-  deriving stock    (Generic)
+  deriving stock    (Generic, Data, Typeable)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Script" ByteString)
 
@@ -564,6 +566,7 @@ instance ToJSON Args where
     , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
     ]
 
+$(makeLensesWithL ''GTx)
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
 $(makeLensesWithL ''Box)

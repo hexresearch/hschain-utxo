@@ -7,10 +7,12 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
 
 import Hex.Common.Text (showt)
 
+import Data.ByteString (ByteString)
 import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Types
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -67,6 +69,9 @@ toHaskExp (Fix expr) = case expr of
   CheckSig loc a b -> ap2 (VarName loc Const.checkSig) a b
   CheckMultiSig loc a b c -> ap3 (VarName loc Const.checkMultiSig) a b c
   AltE _ _ _ -> error "Alt is for internal usage"
+  AntiQuote loc mty name -> case mty of
+    Just ty -> H.ExpTypeSig loc (H.SpliceExp loc (H.ParenSplice loc (toVar loc name))) (fromQuoteType loc ty)
+    Nothing -> H.SpliceExp loc (H.ParenSplice loc (toVar loc name))
   where
     rec = toHaskExp
     ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
@@ -115,10 +120,12 @@ toHaskExp (Fix expr) = case expr of
       GetVar loc ty  -> toVar loc (VarName loc $ getEnvVarName ty)
 
     fromSigma _ = \case
-      Pk loc a        -> ap (VarName loc "pk") a
-      SOr loc a b     -> op2 loc "|||" a b
-      SAnd loc a b    -> op2 loc "&&&" a b
-      SPrimBool loc a -> ap (VarName loc "toSigma") a
+      Pk loc a        -> ap (VarName loc Const.pk) a
+      SOr loc a b     -> op2 loc Const.sigmaOr a b
+      SAnd loc a b    -> op2 loc Const.sigmaAnd a b
+      SPrimBool loc a -> ap (VarName loc Const.toSigma) a
+      SAny loc a b    -> op2 loc Const.anySigma a b
+      SAll loc a b    -> op2 loc Const.allSigma a b
 
 
     fromVec _ = \case
@@ -176,15 +183,14 @@ toLiteral loc = \case
     toText x = lit $ H.String loc (T.unpack x) (T.unpack x)
     lit = H.Lit loc
 
-    sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
+    sigma :: Loc -> Sigma ByteString -> H.Exp Loc
     sigma src x = cata go x
       where
-        go :: SigmaF PublicKey (H.Exp Loc) -> H.Exp Loc
         go = \case
-          SigmaPk pkey -> let keyTxt = publicKeyToText pkey
+          SigmaPk pkey -> let keyTxt = encodeBase58 pkey
                             in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (ap2 (VarName src "sigmaAnd")) as
-          SigmaOr  as  -> foldl1 (ap2 (VarName src "sigmaOr")) as
+          SigmaAnd as  -> foldl1 (ap2 (VarName src Const.sigmaAnd)) as
+          SigmaOr  as  -> foldl1 (ap2 (VarName src Const.sigmaOr)) as
           SigmaBool b  -> H.Con src $ bool src b
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
@@ -294,4 +300,18 @@ toSymbolQName x@(VarName loc _) = H.UnQual loc $ toSymbolName x
 
 toVar :: Loc -> VarName -> H.Exp Loc
 toVar loc name = H.Var loc (toQName name)
+
+fromArgType :: Loc -> ArgType -> H.QName Loc
+fromArgType loc ty = H.UnQual loc $ H.Ident loc $ T.unpack $ argTypeName ty
+
+fromQuoteType :: Loc -> QuoteType -> H.Type Loc
+fromQuoteType loc = \case
+  PrimQ ty   -> H.TyCon loc $ fromArgType loc ty
+  SigmaQ     -> primQ "Sigma"
+  ScriptQ    -> primQ "Script"
+  PublicKeyQ -> primQ "PublicKey"
+  ListQ ty   -> H.TyList loc (fromQuoteType loc ty)
+  TupleQ ts  -> H.TyTuple loc H.Boxed $ fmap (fromQuoteType loc) ts
+  where
+    primQ name = H.TyCon loc $ H.UnQual loc $ H.Ident loc name
 

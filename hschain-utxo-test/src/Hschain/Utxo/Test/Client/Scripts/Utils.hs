@@ -134,6 +134,7 @@ postTxDebug isSuccess msg tx = do
   st <- getState
   logTest $ renderText st
   wait
+  void $ txIsValid tx
   testCase msg $ (isJust $ getTxHash resp) == isSuccess
   return $ maybe  (Left "Error postTxDebug") Right $ postTxResponse'value resp
   where

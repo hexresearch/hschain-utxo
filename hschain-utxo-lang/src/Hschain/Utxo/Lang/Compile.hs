@@ -3,6 +3,11 @@
 module Hschain.Utxo.Lang.Compile(
     compile
   , toCoreScript
+  , toCoreScriptUnsafe
+  -- * Functions for debug
+  , inlineModule
+  , inferModule
+  , inlinePrelude
 ) where
 
 import Control.Monad
@@ -11,8 +16,10 @@ import Data.Fix
 import Data.Proxy
 import Data.Functor.Identity
 import Data.Void
-import qualified Data.Map.Strict       as Map
+import qualified Data.Map.Strict as Map
+import qualified Data.Text       as T
 
+import Hschain.Utxo.Lang.Exec.Subst (subst)
 import Hschain.Utxo.Lang.Expr hiding (Type)
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
 import Hschain.Utxo.Lang.Compile.Expr
@@ -20,33 +27,69 @@ import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
-import Hschain.Utxo.Lang.Core.Compile.Expr (coreProgToScript,Core)
-import Hschain.Utxo.Lang.Core.Compile.TypeCheck ()
+import Hschain.Utxo.Lang.Core.Compile.Expr (Core,coreProgToScript)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
-import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext,baseLibExecContext)
+import Hschain.Utxo.Lang.Exec.Module (trimModuleByMain)
+import Hschain.Utxo.Lang.Pretty (renderText)
 
-import qualified Language.HM.Subst as H
 import qualified Language.HM       as H
+import qualified Language.HM.Subst as H
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
 toCoreScript :: Module -> Either Error Script
 toCoreScript m = fmap coreProgToScript $ runInferM $ compile m
 
+toCoreScriptUnsafe :: Module -> Script
+toCoreScriptUnsafe m = either (error . T.unpack . renderText) id $ toCoreScript m
+
 -- | Compilation to Core-lang program from the script-language.
-compile :: MonadLang m => Module -> m (Core Proxy Void) 
+compile :: MonadLang m => Module -> m (Core Proxy Void)
 compile
   =  pure . Core.eraseCoreLabels
  <=< (either (throwError . FreeVariable) pure . Core.isClosed)
  <=< pure . Core.toDeBrujin
  <=< pure . substPrimOp
  <=< toCoreProg
--- <=< makeMonomorphic
- <=< specifyCompareOps
+ <=< specifyOps
+ <=< inlinePolys
  <=< annotateTypes
  <=< toExtendedLC
+ <=< pure . inlinePrelude
+ <=< trimModuleByMain
 
+-- | Inlines all prelude functions
+inlinePrelude :: Module -> Module
+inlinePrelude = inlineExecCtx baseLibExecContext
+
+-- | Reduces all simple applications:
+--
+-- > (\x -> e) a ==> e[x/a]
+simplifyLamApp :: Lang -> Lang
+simplifyLamApp = cata $ \case
+  Apply _ (Fix (Lam _ (PVar _ v) body)) expr -> subst body v expr
+  Apply _ (Fix (LamList loc ((PVar _ v) : rest) body)) expr -> case rest of
+    [] -> subst body v expr
+    vs -> Fix $ LamList loc vs (subst body v expr)
+  other -> Fix other
+
+inlineExecCtx :: ExecCtx -> Module -> Module
+inlineExecCtx (ExecCtx funs) = mapBinds (simplifyLamApp . inlineLang)
+  where
+    inlineLang = cata $ \case
+      Var _ v              | Just expr <- Map.lookup v funs -> inlineLang expr
+      InfixApply loc a v b | Just expr <- Map.lookup v funs -> Fix $ Apply loc (Fix $ Apply loc (inlineLang expr) a) b
+      other                                  -> Fix other
+
+-- | Function for debug. It compiles module up to inlining of polymorphic functions.
+inlineModule :: Module -> TypedLamProg
+inlineModule m = either (error . T.unpack . renderText) id $ runInferM $ (inlinePolys <=< annotateTypes <=< toExtendedLC <=< pure . inlinePrelude) m
+
+-- | Function for debug. It compiles module up to type inference of all subterms.
+inferModule :: Module -> TypedLamProg
+inferModule m = either (error . T.unpack . renderText) id $ runInferM $ (annotateTypes <=< toExtendedLC <=< pure . inlinePrelude) m
 
 -- | Perform sunbstiturion of primops
 substPrimOp :: Core f Name -> Core f Name
@@ -130,13 +173,14 @@ specifyPolyFun loc ctx ty name = do
 
     fromPolyType genTy argOrder =
       case ty `H.subtypeOf` genTy of
-        Right subst -> toPolyVar subst argOrder
-        Left err    -> throwError $ TypeError $ H.setLoc loc err
+        Right sub  -> toPolyVar sub argOrder
+        Left err   -> throwError $ TypeError $ H.setLoc loc err
     -- FIXME: what to do with polymorphic expressions?
-    toPolyVar subst argOrder =
-      case mapM (H.applyToVar subst) argOrder of
+    toPolyVar sub argOrder =
+      case mapM (H.applyToVar sub) argOrder of
         Just _  -> failedToFindMonoType loc name
         Nothing -> failedToFindMonoType loc name
+
 
 toCoreType :: MonadLang m => H.Type loc Name -> m TypeCore
 toCoreType (H.Type ty) = cataM go ty

@@ -6,6 +6,7 @@ module Hschain.Utxo.Lang.Core.Types (
   , Typed(..)
   , Prim(..)
   , TypeCoreError(..)
+  , argTypeToCore
     -- * Lens
   , typed'typeL
   , typed'valueL
@@ -14,6 +15,7 @@ module Hschain.Utxo.Lang.Core.Types (
 import Codec.Serialise
 import Control.DeepSeq
 
+import Data.Data
 import Data.Int
 import Data.ByteString (ByteString)
 import Data.Text (Text)
@@ -22,6 +24,7 @@ import GHC.Generics (Generic)
 
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Types (ArgType(..))
 
 
 -- | Errors for core language type-checker.
@@ -36,7 +39,7 @@ data TypeCoreError
   | BadShow     TypeCore                -- ^ Show is used on types that don't support it
   | BadCase
   | BadConstructor
-  deriving stock    (Show,Eq,Generic)
+  deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
 
 -- | Type tags for values
@@ -72,7 +75,7 @@ data TypeCore
   | TupleT [TypeCore]           -- ^ Tuple. Nullary tuple doubles as unit
   | BoxT
     -- ^ Box. 4-tuple of box ID, spend script, value of box, and arguments
-  deriving stock    (Show, Eq, Generic)
+  deriving stock    (Show, Eq, Generic,Data)
   deriving anyclass (NFData,Serialise)
 infixr 5 :->
 
@@ -85,7 +88,12 @@ argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 
 $(makeLensesWithL ''Typed)
 
-
+argTypeToCore :: ArgType -> TypeCore
+argTypeToCore = \case
+  IntArg -> IntT
+  BoolArg -> BoolT
+  TextArg -> TextT
+  BytesArg -> BytesT
 
 ----------------------------------------------------------------
 -- Pretty-printing
