@@ -92,8 +92,8 @@ genesis = Block
 
 -- | Monad for manual creation of blocks. It tracks blockchain head
 -- and able to create new block on request.
-newtype Mine a = Mine (ReaderT ( Src (BH Blk, StateView (HSChainT IO) Blk)
-                               , PoW (HSChainT IO) Blk
+newtype Mine a = Mine (ReaderT ( Src (BH Blk, UtxoState (HSChainT IO) Test)
+                               , PoW (UtxoState (HSChainT IO) Test)
                                , BlockDB (HSChainT IO) Blk
                                )
                         (StateT (BH (UTXOBlock Test))
