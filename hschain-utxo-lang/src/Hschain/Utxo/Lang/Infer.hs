@@ -195,8 +195,6 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       SAnd loc a b     -> app2 loc sigmaAndVar a b
       SOr loc a b      -> app2 loc sigmaOrVar a b
       SPrimBool loc a  -> app1 loc toSigmaVar a
-      SAll loc a b     -> app2 loc allSigmaVar a b
-      SAny loc a b     -> app2 loc anySigmaVar a b
 
     fromVec _ = \case
       NewVec loc vs      -> V.foldr (consVec loc) (nilVec loc) vs
@@ -204,9 +202,20 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       VecAt loc a n      -> app2 loc vecAtVar a n
       VecLength loc      -> varE loc lengthVecVar
       VecMap loc         -> varE loc mapVecVar
-      VecFold loc        -> varE loc foldVecVar
+      VecFoldl loc       -> varE loc foldlVecVar
+      VecFoldr loc       -> varE loc foldrVecVar
+      VecFilter loc      -> varE loc filterVecVar
+      VecAnd loc         -> varE loc andVecVar
+      VecOr loc          -> varE loc orVecVar
+      VecSum loc         -> varE loc sumVecVar
+      VecProduct loc     -> varE loc productVecVar
       VecAndSigma loc    -> varE loc andSigmaVecVar
       VecOrSigma loc     -> varE loc orSigmaVecVar
+      VecAny loc         -> varE loc anyVecVar
+      VecAll loc         -> varE loc allVecVar
+      VecAnySigma loc    -> varE loc anySigmaVecVar
+      VecAllSigma loc    -> varE loc allSigmaVecVar
+
 
     fromText _ = \case
       TextAppend loc a b            -> app2 loc appendTextVar a b
@@ -287,8 +296,8 @@ defaultContext = H.Context $ M.fromList $
   -- sigma expressions
   , (sigmaOrVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
   , (sigmaAndVar, monoT $ sigmaT `arr` (sigmaT `arr` sigmaT))
-  , (allSigmaVar, forA $ monoT $ (a `arr` sigmaT) `arr` (listT a `arr` sigmaT))
-  , (anySigmaVar, forA $ monoT $ (a `arr` sigmaT) `arr` (listT a `arr` sigmaT))
+  , (allSigmaVecVar, forA $ monoT $ (a `arr` sigmaT) `arr` (listT a `arr` sigmaT))
+  , (anySigmaVecVar, forA $ monoT $ (a `arr` sigmaT) `arr` (listT a `arr` sigmaT))
   , (toSigmaVar, monoT $ boolT `arr` sigmaT)
   -- signatures
   , (checkSigVar, monoT $ bytesT `arr` (intT `arr` boolT))
@@ -300,7 +309,15 @@ defaultContext = H.Context $ M.fromList $
   , (vecAtVar, forA $ monoT $ listT a `arr` (intT `arr` a))
   , (lengthVecVar, forA $ monoT $ listT a `arr` intT)
   , (mapVecVar, forAB $ monoT $ (a `arr` b) `arr` (listT a `arr` listT b))
-  , (foldVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (listT a `arr` b)))
+  , (filterVecVar, forAB $ monoT $ (a `arr` boolT) `arr` (listT a `arr` listT a))
+  , (foldlVecVar, forAB $ monoT $ (b `arr` (a `arr` b)) `arr` (b `arr` (listT a `arr` b)))
+  , (foldrVecVar, forAB $ monoT $ (a `arr` (b `arr` b)) `arr` (b `arr` (listT a `arr` b)))
+  , (sumVecVar, monoT $ listT intT `arr` intT)
+  , (productVecVar, monoT $ listT intT `arr` intT)
+  , (andVecVar, monoT $ listT boolT `arr` boolT)
+  , (orVecVar, monoT $ listT boolT `arr` boolT)
+  , (allVecVar, forA $ monoT $ (a `arr` boolT) `arr` (listT a `arr` boolT))
+  , (anyVecVar, forA $ monoT $ (a `arr` boolT) `arr` (listT a `arr` boolT))
   , (andSigmaVecVar, monoT $ listT sigmaT `arr` sigmaT)
   , (orSigmaVecVar, monoT $ listT sigmaT `arr` sigmaT)
   , (getBoxIdVar, monoT $ boxT `arr` textT)
@@ -425,17 +442,29 @@ greaterThanVar = secretVar "greaterThan"
 lessThanEqualsVar = secretVar "lessThanEquals"
 greaterThanEqualsVar = secretVar "greaterThanEquals"
 
-nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldVecVar, andSigmaVecVar, orSigmaVecVar :: Text
+nilVecVar, consVecVar, appendVecVar, vecAtVar, lengthVecVar, mapVecVar, foldlVecVar, foldrVecVar, filterVecVar,
+  andSigmaVecVar, orSigmaVecVar, sumVecVar, productVecVar, andVecVar, orVecVar, allVecVar, anyVecVar,
+  allSigmaVecVar, anySigmaVecVar :: Text
 
 nilVecVar = secretVar "nilVec"
 consVecVar = secretVar "consVec"
 appendVecVar = secretVar "appendVec"
 vecAtVar = secretVar "vecAt"
-lengthVecVar = secretVar "lengthVec"
-mapVecVar = secretVar "mapVec"
-foldVecVar = secretVar "foldVec"
-andSigmaVecVar = secretVar "andSigma"
-orSigmaVecVar = secretVar "orSigma"
+lengthVecVar = secretVar Const.length
+mapVecVar = secretVar Const.map
+foldlVecVar = secretVar Const.foldl
+foldrVecVar = secretVar Const.foldr
+andSigmaVecVar = secretVar Const.andSigma
+orSigmaVecVar = secretVar Const.orSigma
+sumVecVar = secretVar Const.sum
+productVecVar = secretVar Const.product
+orVecVar = secretVar Const.or
+andVecVar = secretVar Const.and
+filterVecVar = secretVar Const.filter
+allVecVar = secretVar Const.all
+anyVecVar = secretVar Const.any
+allSigmaVecVar = secretVar Const.allSigma
+anySigmaVecVar = secretVar Const.anySigma
 
 checkSigVar, checkMultiSigVar :: Text
 
@@ -494,13 +523,11 @@ altVar, failCaseVar :: Text
 altVar = secretVar "altCases"
 failCaseVar = secretVar "failCase"
 
-sigmaAndVar, sigmaOrVar, toSigmaVar, allSigmaVar, anySigmaVar :: Text
+sigmaAndVar, sigmaOrVar, toSigmaVar :: Text
 
 sigmaAndVar = secretVar Const.sigmaAnd
 sigmaOrVar  = secretVar Const.sigmaOr
 toSigmaVar  = secretVar Const.toSigma
-allSigmaVar = secretVar Const.allSigma
-anySigmaVar = secretVar Const.anySigma
 
 ---------------------------------------------------------
 

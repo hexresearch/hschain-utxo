@@ -124,19 +124,27 @@ toHaskExp (Fix expr) = case expr of
       SOr loc a b     -> op2 loc Const.sigmaOr a b
       SAnd loc a b    -> op2 loc Const.sigmaAnd a b
       SPrimBool loc a -> ap (VarName loc Const.toSigma) a
-      SAny loc a b    -> op2 loc Const.anySigma a b
-      SAll loc a b    -> op2 loc Const.allSigma a b
-
 
     fromVec _ = \case
       NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
       VecAppend loc a b -> op2 loc "++" a b
       VecAt loc a b     -> op2 loc "!" a b
-      VecLength loc     -> toVar loc (VarName loc "length")
-      VecMap loc        -> toVar loc (VarName loc "map")
-      VecFold loc       -> toVar loc (VarName loc Const.foldl)
-      VecAndSigma loc   -> toVar loc (VarName loc "andSigma")
-      VecOrSigma loc    -> toVar loc (VarName loc "orSigma")
+      VecLength loc     -> toVar loc (VarName loc Const.length)
+      VecMap loc        -> toVar loc (VarName loc Const.map)
+      VecFoldl loc      -> toVar loc (VarName loc Const.foldl)
+      VecFoldr loc      -> toVar loc (VarName loc Const.foldr)
+      VecFilter loc     -> toVar loc (VarName loc Const.filter)
+      VecAndSigma loc   -> toVar loc (VarName loc Const.andSigma)
+      VecOrSigma loc    -> toVar loc (VarName loc Const.orSigma)
+      VecAnd loc        -> toVar loc (VarName loc Const.and)
+      VecOr loc         -> toVar loc (VarName loc Const.or)
+      VecAnySigma loc   -> toVar loc (VarName loc Const.anySigma)
+      VecAllSigma loc   -> toVar loc (VarName loc Const.allSigma)
+      VecAny loc        -> toVar loc (VarName loc Const.any)
+      VecAll loc        -> toVar loc (VarName loc Const.all)
+      VecSum loc        -> toVar loc (VarName loc Const.sum)
+      VecProduct loc    -> toVar loc (VarName loc Const.product)
+
 
     fromText _ = \case
       TextAppend loc a b    -> op2 loc "<>" a b

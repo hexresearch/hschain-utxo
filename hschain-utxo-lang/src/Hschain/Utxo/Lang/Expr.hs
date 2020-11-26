@@ -481,8 +481,6 @@ data SigmaExpr a
   | SAnd Loc a a     -- ^ sigma and
   | SOr Loc a a      -- ^ sigma or
   | SPrimBool Loc a  -- ^ constant bool
-  | SAll Loc a a     -- ^ all of sigmas
-  | SAny Loc a a     -- ^ any of sigmas
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Expressions that operate on vectors
@@ -497,12 +495,32 @@ data VecExpr a
   -- ^ Get length of the vector (@length as@)
   | VecMap Loc
   -- ^ map vector with the function (@map f as@)
-  | VecFold Loc
+  | VecFoldl Loc
   -- ^ Left-fold vector with function and accumulator (@foldl f z as@)
+  | VecFoldr Loc
+  -- ^ Right-fold vector with function and accumulator (@foldr f z as@)
+  | VecFilter Loc
+  -- ^ filter vector with function and accumulator (@filter f z as@)
+  | VecAnd Loc
+  -- ^ and of vector of boolean expressions
+  | VecOr Loc
+  -- ^ or of vector of boolean expressions
   | VecAndSigma Loc
   -- ^ and of vector of sigma expressions
   | VecOrSigma Loc
   -- ^ or of vector of sigma expressions
+  | VecAny Loc
+  -- ^ any of vector of boolean expressions
+  | VecAll Loc
+  -- ^ all of vector of boolean expressions
+  | VecAnySigma Loc
+  -- ^ any of vector of sigma expressions
+  | VecAllSigma Loc
+  -- ^ or of vector of sigma expressions
+  | VecSum Loc
+  -- ^ sum of list of integers
+  | VecProduct Loc
+  -- ^ product of list of integers
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
 -- | Tag for values to convert to to text
@@ -940,6 +958,7 @@ monoPrimopName = \case
   OpListFoldl{}  -> Nothing
   OpListFilter{} -> Nothing
   OpListSum      -> Just "sum"
+  OpListProduct  -> Just "product"
   OpListAnd      -> Just "and"
   OpListOr       -> Just "or"
   OpListAll{}    -> Nothing
@@ -978,6 +997,7 @@ monomorphicPrimops =
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs, OpEnvGetDataInputs
   , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpGetBoxPostHeight
   , OpListSum
+  , OpListProduct
   , OpListAnd
   , OpListOr
   ]

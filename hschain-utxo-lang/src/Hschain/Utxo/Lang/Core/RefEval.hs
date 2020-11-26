@@ -327,8 +327,9 @@ evalPrimOp env = \case
     xs <- match @[Val]        valXS
     p  <- match @(Val -> Eval Val) valF
     filterM (match <=< p) xs
-  OpListSum   -> pure $ lift1 (sum @[] @Int64)
-  OpListAnd   -> pure $ ValF $ \valXS -> do
+  OpListSum     -> pure $ lift1 (sum @[] @Int64)
+  OpListProduct -> pure $ lift1 (product @[] @Int64)
+  OpListAnd     -> pure $ ValF $ \valXS -> do
     xs <- match @[Val] valXS
     let step []       = pure $ inj True
         step (a : as) = do

@@ -158,8 +158,6 @@ exprToExtendedLC typeCtx = cataM $ \case
       SAnd locB a b    -> pure $ ap2 locA (var locB Const.sigmaAnd) a b
       SOr  locB a b    -> pure $ ap2 locA (var locB Const.sigmaOr)  a b
       SPrimBool locB a -> pure $ ap1 locA (var locB Const.toSigma) a
-      SAll locB a b    -> pure $ ap2 locA (var locB Const.allSigma) a b
-      SAny locB a b    -> pure $ ap2 locA (var locB Const.anySigma) a b
 
     fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args
       where
@@ -219,9 +217,19 @@ exprToExtendedLC typeCtx = cataM $ \case
       VecAt loc a b       -> ap2 loc (var loc Const.listAt) a b
       VecLength loc       -> var loc Const.length
       VecMap loc          -> var loc Const.map
-      VecFold loc         -> var loc Const.foldl
+      VecFoldl loc        -> var loc Const.foldl
+      VecFoldr loc        -> var loc Const.foldr
+      VecFilter loc       -> var loc Const.filter
       VecAndSigma loc     -> var loc Const.andSigma
       VecOrSigma loc      -> var loc Const.orSigma
+      VecSum loc          -> var loc Const.sum
+      VecProduct loc      -> var loc Const.product
+      VecAnd loc          -> var loc Const.and
+      VecOr loc           -> var loc Const.or
+      VecAny loc          -> var loc Const.any
+      VecAll loc          -> var loc Const.all
+      VecAnySigma loc     -> var loc Const.anySigma
+      VecAllSigma loc     -> var loc Const.allSigma
       where
         newVec loc args = V.foldr (cons loc) (nil loc) args
 
