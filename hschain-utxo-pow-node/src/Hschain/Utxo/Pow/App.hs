@@ -57,11 +57,12 @@ import qualified HSChain.PoW.Node       as POW
 import qualified HSChain.PoW.Types      as POW
 import qualified HSChain.POW            as POW
 
-import Hschain.Utxo.Lang hiding (Height)
+import Hschain.Utxo.Lang.Core.Compile.Expr
+import Hschain.Utxo.Lang.Core.Types
+import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Pow.App.Options (Command(..), readCommandOptions)
 import Hschain.Utxo.Pow.App.Types
-
-
+ 
 -------------------------------------------------------------------------------
 -- Executable part.
 
@@ -151,7 +152,12 @@ runNode genesisBlk POW.Cfg{..} maybePrivK = do
           Warp.run port $ Servant.genericServeT run $ utxoRestServer (POW.mempoolAPI pow)
       case maybePrivK of
         Just _privk -> do
-          HControl.cforkLinked $ POW.genericMiningLoop pow
+          -- FIXME: add sensible spend script
+          let script = coreProgToScript $ EPrim (PrimBool True)
+              mine st bh t txs = do
+                bData <- createUtxoCandidate st bh script txs
+                pure $ POW.createCandidateBlock bh t bData
+          HControl.cforkLinked $ POW.genericMiningLoop mine pow
         Nothing -> return ()
       -- Wait forever
       liftIO $ forever $ threadDelay maxBound
@@ -176,7 +182,7 @@ data UtxoRestAPI route = UtxoRestAPI
 
 utxoRestServer
   :: (MonadIO m, MonadReadDB m)
-  => POW.MempoolAPI m (UTXOBlock TestNet) -> UtxoRestAPI (Servant.AsServerT m)
+  => POW.MempoolAPI (UtxoState m TestNet) -> UtxoRestAPI (Servant.AsServerT m)
 utxoRestServer mempool = UtxoRestAPI
   { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
   , endpointGetBox = endpointGetBoxImpl
