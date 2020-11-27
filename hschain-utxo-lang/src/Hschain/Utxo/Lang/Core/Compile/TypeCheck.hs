@@ -191,7 +191,6 @@ primopToType = \case
   --
   OpBoolAnd -> pure $ BoolT :-> BoolT :-> BoolT
   OpBoolOr  -> pure $ BoolT :-> BoolT :-> BoolT
-  OpBoolXor -> pure $ BoolT :-> BoolT :-> BoolT
   OpBoolNot -> pure $ BoolT :-> BoolT
   --
   OpSigPK        -> pure $ BytesT :-> SigmaT

@@ -897,7 +897,6 @@ monoPrimopName = \case
   --
   OpBoolAnd     -> Just "&&"
   OpBoolOr      -> Just "||"
-  OpBoolXor     -> Just "^^"
   OpBoolNot     -> Just "not"
   --
   OpSigAnd       -> Just Const.sigmaAnd
@@ -981,7 +980,7 @@ polyPrimOpName = \case
 monomorphicPrimops :: [PrimOp a]
 monomorphicPrimops =
   [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
-  , OpBoolAnd, OpBoolOr, OpBoolXor, OpBoolNot
+  , OpBoolAnd, OpBoolOr, OpBoolNot
   , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
   , OpCheckSig, OpCheckMultiSig
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend

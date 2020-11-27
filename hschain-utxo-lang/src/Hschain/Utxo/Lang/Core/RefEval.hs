@@ -13,7 +13,6 @@ import Control.Monad
 import Control.Monad.Except
 import Control.Monad.State.Strict
 import Data.Int
-import Data.Bits       (xor)
 import Data.ByteString (ByteString)
 import Data.Bool
 import Data.String
@@ -212,7 +211,6 @@ evalPrimOp env = \case
     case valX of
       True  -> pure $ inj True
       False -> match y
-  OpBoolXor -> pure $ lift2 (xor @Bool)
   OpBoolNot -> pure $ lift1 not
   --
   OpSigBool -> pure $ lift1 $ Fix . SigmaBool

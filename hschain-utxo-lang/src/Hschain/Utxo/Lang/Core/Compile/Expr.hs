@@ -38,7 +38,6 @@ data PrimOp a
 
   | OpBoolAnd             -- ^ Boolean AND
   | OpBoolOr              -- ^ Boolean OR
-  | OpBoolXor             -- ^ Boolean XOR
   | OpBoolNot             -- ^ Boolean negation
 
   | OpSigAnd              -- ^ AND for sigma expressions
