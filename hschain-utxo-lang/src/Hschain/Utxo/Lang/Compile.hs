@@ -29,7 +29,8 @@ import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
 import Hschain.Utxo.Lang.Core.Compile.Expr (Core,coreProgToScript)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
-import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext,baseLibExecContext)
+import Hschain.Utxo.Lang.Pretty
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext, baseLibExecCtx)
 import Hschain.Utxo.Lang.Exec.Module (trimModuleByMain)
 import Hschain.Utxo.Lang.Pretty (renderText)
 
@@ -57,7 +58,7 @@ compile
 
 -- | Inlines all prelude functions
 inlinePrelude :: Module -> Module
-inlinePrelude = inlineExecCtx baseLibExecContext
+inlinePrelude = inlineExecCtx baseLibExecCtx
 
 -- | Reduces all simple applications:
 --

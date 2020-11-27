@@ -176,9 +176,6 @@ instance Pretty (S.Sigma S.PublicKey) where
 instance Pretty S.PublicKey where
   pretty = pretty . encodeBase58
 
-op1 :: Doc ann -> Doc ann -> Doc ann
-op1 name a = hcat [name, parens a]
-
 instance Pretty (Expr a) where
   pretty (Expr a) = pretty a
 
@@ -193,27 +190,6 @@ instance Pretty Pat where
     PCons _ name args -> parens $ hsep [pretty name, hsep $ fmap pretty args]
     PTuple _ args -> parens $ hsep $ punctuate comma $ fmap pretty args
     -- PLit _ p    -> pretty p
-
-instance Pretty UnOp where
-  pretty = \case
-    Not -> "not"
-    Neg -> "negate"
-    TupleAt size n -> op1 (pretty $ mconcat ["tuple", show size, "-at"]) (pretty n)
-
-instance Pretty BinOp where
-  pretty = \case
-    And       -> "&&"
-    Or        -> "||"
-    Plus      -> "+"
-    Minus     -> "-"
-    Times     -> "*"
-    Div       -> "/"
-    Equals    -> "=="
-    NotEquals -> "/="
-    LessThan  -> "<"
-    GreaterThan -> ">"
-    LessThanEquals -> "<="
-    GreaterThanEquals -> ">="
 
 instance Pretty Prim where
   pretty = \case

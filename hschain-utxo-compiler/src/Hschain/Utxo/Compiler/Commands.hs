@@ -63,7 +63,7 @@ compile input output = do
         Left  e      -> Left $ CoreScriptError $ TypeCoreError e
 
 checkType :: Module -> Maybe Error
-checkType = checkMainModule langTypeContext
+checkType = checkMainModule baseLibTypeContext
 
 ----------------------------------------
 -- generate secret

@@ -162,7 +162,6 @@ primopToType = \case
   --
   OpBoolAnd -> pure $ BoolT :-> BoolT :-> BoolT
   OpBoolOr  -> pure $ BoolT :-> BoolT :-> BoolT
-  OpBoolXor -> pure $ BoolT :-> BoolT :-> BoolT
   OpBoolNot -> pure $ BoolT :-> BoolT
   --
   OpSigPK        -> pure $ BytesT :-> SigmaT
@@ -217,6 +216,7 @@ primopToType = \case
   OpListFoldl  a b -> pure $ (b :-> a :-> b) :-> b :-> ListT a :-> b
   OpListFilter a   -> pure $ (a :-> BoolT) :-> ListT a :-> ListT a
   OpListSum        -> pure $ ListT IntT  :-> IntT
+  OpListProduct    -> pure $ ListT IntT  :-> IntT
   OpListAnd        -> pure $ ListT BoolT :-> BoolT
   OpListOr         -> pure $ ListT BoolT :-> BoolT
   OpListAll    a   -> pure $ (a :-> BoolT) :-> ListT a :-> BoolT

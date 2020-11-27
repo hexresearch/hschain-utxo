@@ -1,209 +1,84 @@
 module Hschain.Utxo.Lang.Lib.Base(
-    importBase
-  , baseNames
+    baseNames
   , baseLibTypeContext
-  , baseLibExecContext
+  , baseLibExecCtx
+  , baseLibInferCtx
+{-    importBase
   , langTypeContext
   , baseModuleCtx
   , baseFuns
+-}
 ) where
 
+import Prelude ((.), fmap, ($), Monoid(..))
 import qualified Prelude as P
-import Prelude ((.))
-import Prelude (($))
-
-import Data.Either
-import Data.Text (Text)
 
 import Data.Fix hiding ((~>))
-import Hschain.Utxo.Lang.Desugar
+import Data.Text (Text)
+
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Types (ArgType(..),argTypes)
-import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Infer
-
+import Hschain.Utxo.Lang.Types (argTypes)
 import Language.HM (monoT, forAllT)
-import qualified Language.HM as H
-
-import qualified Data.Map as M
 
 import qualified Hschain.Utxo.Lang.Const as Const
+import qualified Data.Map as M
+import qualified Language.HM as H
 
 infixr 6 ~>
 
-baseModuleCtx :: ModuleCtx
-baseModuleCtx = ModuleCtx
-  { moduleCtx'types = InferCtx baseLibTypeContext P.mempty
-  , moduleCtx'exprs = baseLibExecContext
+-- | Defines prelude functions.
+-- Note that we only need to define those functions that are combinations of primitive functions.
+-- The primitive functions are substituted for primOps on later stage of compilation.
+baseLibExecCtx :: ExecCtx
+baseLibExecCtx = ExecCtx
+  { execCtx'vars = M.fromList $
+      [ bind "id"           (lam' ["x"] vx)
+      , bind "const"        (lam' ["x", "y"] $ vx)
+      , bind "."            (lam' ["f", "g", "x"] (ap1 "f" (ap1 "g" (var' "x"))))
+      , bind "getInput"     (lam' ["x"] $ ap2 Const.listAt (var' Const.getInputs) vx)
+      , bind "getOutput"    (lam' ["x"] $ ap2 Const.listAt (var' Const.getOutputs) vx)
+      , bind "getDataInput" (lam' ["x"] $ ap2 Const.listAt (var' Const.getDataInputs) vx)
+      , bind "otherwise"    (Fix $ PrimE noLoc $ PrimBool P.True)
+      , bind "fst"          (lamPair $ var' "a")
+      , bind "snd"          (lamPair $ var' "b")
+      ] P.++ sigCmps
+  }
+  where
+    sigCmps = fmap (\(a, b) -> bind a (lam' ["x", "y"] $ toSig $ op2 b vx vy))
+      [ (Const.sigmaEquals, Const.equals)
+      , (Const.sigmaNonEquals, Const.nonEquals)
+      , (Const.sigmaLess, Const.less)
+      , (Const.sigmaGreater, Const.greater)
+      , (Const.sigmaLessEquals, Const.lessEquals)
+      , (Const.sigmaGreaterEquals, Const.greaterEquals)
+      ]
+
+    lamPair e = Fix $ Lam noLoc (PTuple noLoc [PVar noLoc "a", PVar noLoc "b"]) e
+
+    toSig = ap1 "toSigma"
+    ap1 name e = Fix $ Apply noLoc (var' name) e
+    ap2 name a b = Fix $ Apply noLoc (ap1 name a) b
+    op2 name a b = Fix $ InfixApply noLoc a (VarName noLoc name) b
+    var' name = Fix $ Var noLoc (VarName noLoc name)
+
+    vx = var' "x"
+    vy = var' "y"
+
+    lam' names expr = case names of
+      []     -> expr
+      [name] -> Fix $ Lam noLoc (PVar noLoc $ VarName noLoc name) expr
+      _      -> Fix $ LamList noLoc (fmap (PVar noLoc . VarName noLoc) names) expr
+
+    bind var body = (VarName noLoc var, body)
+
+baseLibInferCtx :: InferCtx
+baseLibInferCtx = InferCtx
+  { inferCtx'binds = baseLibTypeContext
+  , inferCtx'types = mempty
   }
 
-langTypeContext :: TypeContext
-langTypeContext = baseLibTypeContext
-
--- | Prelude functions
-importBase :: Lang -> Lang
-importBase = bindGroupToLet baseFuns
-
-baseLibExecContext :: ExecCtx
-baseLibExecContext =
-  fromRight err $ runInferM $ fmap ((\vars -> ExecCtx vars) . M.fromList) $ P.mapM fromBindToExec baseFuns
-  where
-    fromBindToExec Bind{..} = fmap (bind'name, ) $ altGroupToExpr bind'alts
-    err = P.error "Failed to load base module"
-
-baseFuns :: [Bind Lang]
-baseFuns =
-  [ all
-  , any
-  , andSigma
-  , orSigma
-  , and
-  , or
-  , sum
-  , product
-  , id
-  , const
-  , compose
-  , getHeight
-  , getSelf
-  , getOutput
-  , getInput
-  , getOutputs
-  , getInputs
-  , getDataInputs
-  , getBoxId
-  , getBoxValue
-  , getBoxScript
-  , getBoxPostHeight
-  , sha256
-  , lengthVec
-  , lengthText
-  , lengthBytes
-  , showInt
-  , showBool
-  , plus
-  , times
-  , minus
-  , division
-  , appendText
-  , appendBytes
-  , appendVec
-  , mapVec
-  , foldVec
-  , pk
-  , toSigma
-  , sigmaAnd
-  , sigmaOr
-  , sigmaLess
-  , sigmaLessEquals
-  , sigmaGreater
-  , sigmaGreaterEquals
-  , sigmaEquals
-  , sigmaNonEquals
-  , allSigma
-  , anySigma
-  , atVec
-  , andB
-  , orB
-  , notB
-  , eq
-  , neq
-  , lt
-  , gt
-  , lteq
-  , gteq
-  , fst
-  , snd
-  , otherwise
-  , undefined
-  , checkSig
-  , checkMultiSig
-  ] P.++ getBoxArgListFuns P.++ getVars P.++ serialiseVars P.++ deserialiseVars
-  where
-    getBoxArgListFuns = fmap getBoxArgList argTypes
-    getVars = fmap getVarBy argTypes
-    serialiseVars = fmap serialiseVarBy argTypes
-    deserialiseVars = fmap deserialiseVarBy argTypes
-
 baseNames :: [Text]
-baseNames =
-  [ Const.all
-  , Const.any
-  , "and"
-  , "or"
-  , Const.andSigma
-  , Const.orSigma
-  , "sum"
-  , "product"
-  , "id"
-  , "const"
-  , "."
-  , "getHeight"
-  , "getSelf"
-  , "getOutput"
-  , "getInput"
-  , "getOutputs"
-  , "getInputs"
-  , "getDataInputs"
-  , "getBoxId"
-  , "getBoxValue"
-  , "getBoxScript"
-  , "getBoxPostHeight"
-  , "getBoxArg"
-  , "sha256"
-  , "blake2b256"
-  , "length"
-  , "lengthText"
-  , "lengthBytes"
-  , "showInt"
-  , "showBool"
-  , "+"
-  , "*"
-  , "-"
-  , "/"
-  , "<>"
-  , Const.appendBytes
-  , Const.appendList
-  , Const.foldl
-  , Const.foldr
-  , Const.filter
-  , Const.map
-  , Const.length
-  , Const.pk
-  , Const.toSigma
-  , Const.sigmaAnd
-  , Const.sigmaOr
-  , Const.listAt
-  , "&&"
-  , "||"
-  , "not"
-  , Const.equals
-  , Const.nonEquals
-  , Const.less
-  , Const.greater
-  , Const.lessEquals
-  , Const.greaterEquals
-  , "fst"
-  , "snd"
-  , Const.sigmaGreater
-  , Const.sigmaLess
-  , Const.sigmaGreaterEquals
-  , Const.sigmaLessEquals
-  , Const.sigmaEquals
-  , Const.sigmaNonEquals
-  , "otherwise"
-  , "undefined"
-  , Const.checkSig
-  , Const.checkMultiSig
-  ] P.++ getVarNames
-    P.++ getBoxArgNames
-    P.++ serialiseNames
-    P.++ deserialiseNames
-  where
-    getVarNames = fmap getEnvVarName argTypes
-    getBoxArgNames = fmap (Const.getBoxArgs . argTypeName) argTypes
-    serialiseNames = fmap (Const.serialiseBytes . argTypeName) argTypes
-    deserialiseNames = fmap (Const.deserialiseBytes . argTypeName) argTypes
+baseNames = M.keys $ H.unContext $ baseLibTypeContext
 
 (~>) :: Type -> Type -> Type
 (~>) a b = H.arrowT noLoc a b
@@ -211,78 +86,80 @@ baseNames =
 forAllT' :: Text -> Signature -> Signature
 forAllT' = forAllT noLoc
 
-assumpType :: Text -> Signature -> (Text, Signature)
-assumpType idx ty = (idx, ty)
+assumeType :: Text -> Signature -> (Text, Signature)
+assumeType idx ty = (idx, ty)
 
 baseLibTypeContext :: TypeContext
 baseLibTypeContext = H.Context $ M.fromList $
-  [ assumpType "and" (monoT $ listT boolT ~> boolT)
-  , assumpType "or" (monoT $ listT boolT ~> boolT)
-  , assumpType "andSigma" (monoT $ listT sigmaT ~> sigmaT)
-  , assumpType "orSigma" (monoT $ listT sigmaT ~> sigmaT)
-  , assumpType Const.allSigma (forA $ (aT ~> sigmaT) ~> listT aT ~> sigmaT)
-  , assumpType Const.anySigma (forA $ (aT ~> sigmaT) ~> listT aT ~> sigmaT)
-  , assumpType Const.all (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
-  , assumpType Const.any (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
-  , assumpType "sum"      (monoT $ listT intT ~> intT)
-  , assumpType "product"  (monoT $ listT intT ~> intT)
-  , assumpType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
-  , assumpType  "id"  (forA $ aT ~> aT)
-  , assumpType "const" (forAB $ aT ~> bT ~> aT)
-  , assumpType "getHeight" (monoT intT)
-  , assumpType "getSelf" (monoT boxT)
-  , assumpType "getOutput" (monoT $ intT ~> boxT)
-  , assumpType "getInput"  (monoT $ intT ~> boxT)
-  , assumpType "getOutputs" (monoT $ listT boxT)
-  , assumpType "getInputs" (monoT $ listT boxT)
-  , assumpType "getDataInputs" (monoT $ listT boxT)
-  , assumpType "getBoxId" (monoT $ boxT ~> textT)
-  , assumpType "getBoxValue" (monoT $ boxT ~> intT)
-  , assumpType "getBoxPostHeight" (monoT $ boxT ~> intT)
-  , assumpType "getBoxScript" (monoT $ boxT ~> bytesT)
-  , assumpType "sha256" (monoT $ bytesT ~> bytesT)
-  , assumpType "getVar" (forA $ textT ~> aT)
-  , assumpType "length" (forA $ listT aT ~> intT)
-  , assumpType "lengthText" (monoT $ textT ~> intT)
-  , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
-  , assumpType "showInt" (monoT $ intT ~> textT)
-  , assumpType "showBool" (monoT $ boolT ~> textT)
-  , assumpType "not" (monoT $ boolT ~> boolT)
-  , assumpType "&&" (monoT $ boolT ~> boolT ~> boolT)
-  , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
-  , assumpType Const.sigmaAnd (monoT $ sigmaT ~> sigmaT ~> sigmaT)
-  , assumpType Const.sigmaOr (monoT $ sigmaT ~> sigmaT ~> sigmaT)
-  , assumpType "pk" (monoT $ bytesT ~> sigmaT)
-  , assumpType "toSigma" (monoT $ boolT ~> sigmaT)
-  , assumpType "+" (monoT $ intT ~> intT ~> intT)
-  , assumpType "-" (monoT $ intT ~> intT ~> intT)
-  , assumpType "*" (monoT $ intT ~> intT ~> intT)
-  , assumpType "/" (monoT $ intT ~> intT ~> intT)
-  , assumpType "++" (forA $ listT aT ~> listT aT ~> listT aT)
-  , assumpType "<>" (monoT $ textT ~> textT ~> textT)
-  , assumpType Const.appendBytes (monoT $ bytesT ~> bytesT ~> bytesT)
-  , assumpType "map" (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
-  , assumpType Const.foldl (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
-  , assumpType "length" (forA $ listT aT ~> intT)
-  , assumpType Const.listAt (forA $ listT aT ~> intT ~> aT)
-  , assumpType "==" (forA $ aT ~> aT ~> boolT)
-  , assumpType "/=" (forA $ aT ~> aT ~> boolT)
-  , assumpType "<" (forA $ aT ~> aT ~> boolT)
-  , assumpType "<=" (forA $ aT ~> aT ~> boolT)
-  , assumpType ">=" (forA $ aT ~> aT ~> boolT)
-  , assumpType ">" (forA $ aT ~> aT ~> boolT)
-  , assumpType Const.sigmaEquals (forA $ aT ~> aT ~> sigmaT)
-  , assumpType Const.sigmaNonEquals (forA $ aT ~> aT ~> sigmaT)
-  , assumpType Const.sigmaLess (forA $ aT ~> aT ~> sigmaT)
-  , assumpType Const.sigmaLessEquals (forA $ aT ~> aT ~> sigmaT)
-  , assumpType Const.sigmaGreater (forA $ aT ~> aT ~> sigmaT)
-  , assumpType Const.sigmaGreaterEquals (forA $ aT ~> aT ~> sigmaT)
-  , assumpType "fst" (forAB $ tupleT [aT, bT] ~> aT)
-  , assumpType "snd" (forAB $ tupleT [aT, bT] ~> bT)
-  , assumpType "otherwise" (monoT boolT)
-  , assumpType "undefined" $ forA aT
-  , assumpType Const.checkSig $ monoT $ bytesT ~> intT ~> boolT
-  , assumpType Const.checkMultiSig $ monoT $ intT ~> listT bytesT ~> listT intT ~> boolT
+  [ assumeType "and" (monoT $ listT boolT ~> boolT)
+  , assumeType "or" (monoT $ listT boolT ~> boolT)
+  , assumeType "andSigma" (monoT $ listT sigmaT ~> sigmaT)
+  , assumeType "orSigma" (monoT $ listT sigmaT ~> sigmaT)
+  , assumeType Const.allSigma (forA $ (aT ~> sigmaT) ~> listT aT ~> sigmaT)
+  , assumeType Const.anySigma (forA $ (aT ~> sigmaT) ~> listT aT ~> sigmaT)
+  , assumeType Const.all (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumeType Const.any (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
+  , assumeType Const.sum      (monoT $ listT intT ~> intT)
+  , assumeType Const.product  (monoT $ listT intT ~> intT)
+  , assumeType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
+  , assumeType  "id"  (forA $ aT ~> aT)
+  , assumeType "const" (forAB $ aT ~> bT ~> aT)
+  , assumeType "getHeight" (monoT intT)
+  , assumeType "getSelf" (monoT boxT)
+  , assumeType "getOutput" (monoT $ intT ~> boxT)
+  , assumeType "getInput"  (monoT $ intT ~> boxT)
+  , assumeType "getOutputs" (monoT $ listT boxT)
+  , assumeType "getInputs" (monoT $ listT boxT)
+  , assumeType "getDataInputs" (monoT $ listT boxT)
+  , assumeType "getBoxId" (monoT $ boxT ~> textT)
+  , assumeType "getBoxValue" (monoT $ boxT ~> intT)
+  , assumeType "getBoxPostHeight" (monoT $ boxT ~> intT)
+  , assumeType "getBoxScript" (monoT $ boxT ~> bytesT)
+  , assumeType "sha256" (monoT $ bytesT ~> bytesT)
+  , assumeType "getVar" (forA $ textT ~> aT)
+  , assumeType "length" (forA $ listT aT ~> intT)
+  , assumeType "lengthText" (monoT $ textT ~> intT)
+  , assumeType "lengthBytes" (monoT $ bytesT ~> intT)
+  , assumeType "show" (forA $ aT ~> textT)
+  , assumeType "not" (monoT $ boolT ~> boolT)
+  , assumeType "&&" (monoT $ boolT ~> boolT ~> boolT)
+  , assumeType "||" (monoT $ boolT ~> boolT ~> boolT)
+  , assumeType Const.sigmaAnd (monoT $ sigmaT ~> sigmaT ~> sigmaT)
+  , assumeType Const.sigmaOr (monoT $ sigmaT ~> sigmaT ~> sigmaT)
+  , assumeType "pk" (monoT $ bytesT ~> sigmaT)
+  , assumeType "toSigma" (monoT $ boolT ~> sigmaT)
+  , assumeType "+" (monoT $ intT ~> intT ~> intT)
+  , assumeType "-" (monoT $ intT ~> intT ~> intT)
+  , assumeType "negate" (monoT $ intT ~> intT)
+  , assumeType "*" (monoT $ intT ~> intT ~> intT)
+  , assumeType "/" (monoT $ intT ~> intT ~> intT)
+  , assumeType "++" (forA $ listT aT ~> listT aT ~> listT aT)
+  , assumeType "<>" (monoT $ textT ~> textT ~> textT)
+  , assumeType Const.appendBytes (monoT $ bytesT ~> bytesT ~> bytesT)
+  , assumeType Const.filter (forAB $ (aT ~> boolT) ~> listT aT ~> listT aT)
+  , assumeType Const.map (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
+  , assumeType Const.foldl (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
+  , assumeType Const.foldr (forAB $ (aT ~> bT ~> bT) ~> bT ~> listT aT ~> bT)
+  , assumeType Const.length (forA $ listT aT ~> intT)
+  , assumeType Const.listAt (forA $ listT aT ~> intT ~> aT)
+  , assumeType "==" (forA $ aT ~> aT ~> boolT)
+  , assumeType "/=" (forA $ aT ~> aT ~> boolT)
+  , assumeType "<" (forA $ aT ~> aT ~> boolT)
+  , assumeType "<=" (forA $ aT ~> aT ~> boolT)
+  , assumeType ">=" (forA $ aT ~> aT ~> boolT)
+  , assumeType ">" (forA $ aT ~> aT ~> boolT)
+  , assumeType Const.sigmaEquals (forA $ aT ~> aT ~> sigmaT)
+  , assumeType Const.sigmaNonEquals (forA $ aT ~> aT ~> sigmaT)
+  , assumeType Const.sigmaLess (forA $ aT ~> aT ~> sigmaT)
+  , assumeType Const.sigmaLessEquals (forA $ aT ~> aT ~> sigmaT)
+  , assumeType Const.sigmaGreater (forA $ aT ~> aT ~> sigmaT)
+  , assumeType Const.sigmaGreaterEquals (forA $ aT ~> aT ~> sigmaT)
+  , assumeType "fst" (forAB $ tupleT [aT, bT] ~> aT)
+  , assumeType "snd" (forAB $ tupleT [aT, bT] ~> bT)
+  , assumeType "otherwise" (monoT boolT)
+  , assumeType "undefined" $ forA aT
+  , assumeType Const.checkSig $ monoT $ bytesT ~> intT ~> boolT
+  , assumeType Const.checkMultiSig $ monoT $ intT ~> listT bytesT ~> listT intT ~> boolT
   ] P.++ getBoxArgListTypes P.++ getEnvVarTypes P.++ serialiseTypes P.++ deserialiseTypes
   where
     forA = forAllT' "a" . monoT
@@ -290,267 +167,19 @@ baseLibTypeContext = H.Context $ M.fromList $
     forABC = forAllT' "a" . forAllT' "b" . forAllT' "c" . monoT
 
     getBoxArgListTypes =
-      fmap (\ty -> assumpType (getBoxArgVar ty) (monoT $ boxT ~> listT (argTagToType ty))) argTypes
+      fmap (\ty -> assumeType (getBoxArgVar ty) (monoT $ boxT ~> listT (argTagToType ty))) argTypes
 
     getEnvVarTypes =
-      fmap (\ty -> assumpType (getEnvVarName ty) (monoT $ listT (argTagToType ty))) argTypes
+      fmap (\ty -> assumeType (getEnvVarName ty) (monoT $ listT (argTagToType ty))) argTypes
 
     serialiseTypes =
-      fmap (\ty -> assumpType (Const.serialiseBytes $ argTypeName ty) (monoT $ argTagToType ty ~> bytesT)) argTypes
+      fmap (\ty -> assumeType (Const.serialiseBytes $ argTypeName ty) (monoT $ argTagToType ty ~> bytesT)) argTypes
 
     deserialiseTypes =
-      fmap (\ty -> assumpType (Const.deserialiseBytes $ argTypeName ty) (monoT $ bytesT ~> argTagToType ty)) argTypes
-
-all :: Bind Lang
-all = bind "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
-  where
-    z  = Fix $ PrimE noLoc $ PrimBool P.True
-    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
-
-any :: Bind Lang
-any = bind "any" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
-  where
-    z  = Fix $ PrimE noLoc $ PrimBool P.False
-    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
-
-and :: Bind Lang
-and = bind "and" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimBool P.True
-
-or :: Bind Lang
-or = bind "or" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimBool P.False
-
-andSigma :: Bind Lang
-andSigma = bind "andSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAndSigma noLoc) x)
-
-orSigma :: Bind Lang
-orSigma = bind "orSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecOrSigma noLoc) x)
-
-sum :: Bind Lang
-sum = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Plus (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt 0
-
-product :: Bind Lang
-product = bind "product" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Times (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt 1
-
-id :: Bind Lang
-id = bind "id" $ Fix $ Lam noLoc "x" $ Fix $ Var noLoc "x"
-
-const :: Bind Lang
-const = bind "const" (Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ Var noLoc "x")
-
-compose :: Bind Lang
-compose = bind "." (Fix $ LamList noLoc ["f", "g", "x"] (Fix $ Apply noLoc (var' "f") (Fix $ Apply noLoc (var' "g") (var' "x"))))
-
-getHeight :: Bind Lang
-getHeight = bind "getHeight" (Fix $ GetEnv noLoc (Height noLoc))
-
-getSelf :: Bind Lang
-getSelf = bind "getSelf" (Fix $ GetEnv noLoc (Self noLoc))
-
-getOutput :: Bind Lang
-getOutput = bind "getOutput" (Fix $ Lam noLoc "x" $ Fix $ GetEnv noLoc $ Output noLoc $ Fix $ Var noLoc "x")
-
-getInput :: Bind Lang
-getInput = bind "getInput" (Fix $ Lam noLoc "x" $ Fix $ GetEnv noLoc $ Input noLoc $ Fix $ Var noLoc "x")
-
-getOutputs :: Bind Lang
-getOutputs = bind "getOutputs" (Fix $ GetEnv noLoc $ Outputs noLoc)
-
-getInputs :: Bind Lang
-getInputs = bind "getInputs" (Fix $ GetEnv noLoc $ Inputs noLoc)
-
-getDataInputs :: Bind Lang
-getDataInputs = bind "getDataInputs" (Fix $ GetEnv noLoc $ DataInputs noLoc)
-
-getBoxId :: Bind Lang
-getBoxId = bind "getBoxId" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldId)
-
-getBoxValue :: Bind Lang
-getBoxValue = bind "getBoxValue" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldValue)
-
-getBoxScript :: Bind Lang
-getBoxScript = bind "getBoxScript" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldScript)
-
-getBoxPostHeight :: Bind Lang
-getBoxPostHeight = bind "getBoxPostHeight" (Fix $ Lam noLoc "x" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "x") BoxFieldPostHeight)
-
-getBoxArgList :: ArgType -> Bind Lang
-getBoxArgList ty = bind (getBoxArgVar ty) (Fix $ Lam noLoc "box" $ Fix $ BoxE noLoc $ BoxAt noLoc (Fix $ Var noLoc "box") (BoxFieldArgList ty))
-
-sha256 :: Bind Lang
-sha256 = bind "sha256" (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ BytesHash noLoc Sha256 (Fix $ Var noLoc "x"))
-
-getVarBy :: ArgType -> Bind Lang
-getVarBy ty = bind (getEnvVarName ty) (Fix $ GetEnv noLoc $ GetVar noLoc ty)
-
-serialiseVarBy :: ArgType -> Bind Lang
-serialiseVarBy ty = bind (Const.serialiseBytes $ argTypeName ty) (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ SerialiseToBytes noLoc ty $ Fix $ Var noLoc "x")
-
-deserialiseVarBy :: ArgType -> Bind Lang
-deserialiseVarBy ty = bind (Const.deserialiseBytes $ argTypeName ty) (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ DeserialiseFromBytes noLoc ty $ Fix $ Var noLoc "x")
-
-showInt :: Bind Lang
-showInt = bind "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) (Fix $ Var noLoc "x"))
-
-showBool :: Bind Lang
-showBool = bind "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc BoolToText)) (Fix $ Var noLoc "x"))
-
-lengthVec :: Bind Lang
-lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))
-
-lengthText :: Bind Lang
-lengthText = bind "lengthText" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) (Fix $ Var noLoc "x"))
-
-lengthBytes :: Bind Lang
-lengthBytes = bind "lengthBytes" (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ BytesLength noLoc x)
-
-biOp :: Text -> BinOp -> Bind Lang
-biOp name op = bind name (Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc op x y)
-
-sigmaBiOp :: Text -> BinOp -> Bind Lang
-sigmaBiOp name op = bind name (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SPrimBool noLoc $ Fix $ BinOpE noLoc op x y)
-
-unOp :: Text -> UnOp -> Bind Lang
-unOp name op = bind name (Fix $ Lam noLoc "x" $ Fix $ UnOpE noLoc op x)
-
-eq :: Bind Lang
-eq = biOp "==" Equals
-
-neq :: Bind Lang
-neq = biOp "/=" NotEquals
-
-sigmaLess :: Bind Lang
-sigmaLess = sigmaBiOp Const.sigmaLess LessThan
-
-sigmaLessEquals :: Bind Lang
-sigmaLessEquals = sigmaBiOp Const.sigmaLessEquals LessThanEquals
-
-sigmaGreater :: Bind Lang
-sigmaGreater = sigmaBiOp Const.sigmaGreater GreaterThan
-
-sigmaGreaterEquals :: Bind Lang
-sigmaGreaterEquals = sigmaBiOp Const.sigmaGreaterEquals GreaterThanEquals
-
-sigmaEquals :: Bind Lang
-sigmaEquals = sigmaBiOp Const.sigmaEquals Equals
-
-sigmaNonEquals :: Bind Lang
-sigmaNonEquals = sigmaBiOp Const.sigmaEquals NotEquals
-
-lt :: Bind Lang
-lt = biOp "<" LessThan
-
-lteq :: Bind Lang
-lteq = biOp "<=" LessThanEquals
-
-gt :: Bind Lang
-gt = biOp ">" GreaterThan
-
-gteq :: Bind Lang
-gteq = biOp ">=" GreaterThanEquals
-
-andB :: Bind Lang
-andB = biOp "&&" And
-
-orB :: Bind Lang
-orB = biOp "||" Or
-
-notB :: Bind Lang
-notB = unOp "not" Not
-
-plus :: Bind Lang
-plus = biOp "+" Plus
-
-times :: Bind Lang
-times = biOp "*" Times
-
-minus :: Bind Lang
-minus = biOp "-" Minus
-
-division :: Bind Lang
-division = biOp "/" Div
-
-sigmaAnd :: Bind Lang
-sigmaAnd = bind Const.sigmaAnd (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAnd noLoc x y)
-
-sigmaOr :: Bind Lang
-sigmaOr = bind Const.sigmaOr (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SOr noLoc x y)
-
-allSigma :: Bind Lang
-allSigma = bind Const.allSigma (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAll noLoc x y)
-
-anySigma :: Bind Lang
-anySigma = bind Const.anySigma (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAny noLoc x y)
-
-toSigma :: Bind Lang
-toSigma = bind "toSigma" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ SPrimBool noLoc x)
-
-pk :: Bind Lang
-pk = bind Const.pk (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ Pk noLoc x)
-
-mapVec :: Bind Lang
-mapVec = bind Const.map (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
-
-foldVec :: Bind Lang
-foldVec = bind Const.foldl (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) f x y)
-
-appendVec :: Bind Lang
-appendVec = bind Const.appendList (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)
-
-checkSig :: Bind Lang
-checkSig = bind Const.checkSig (Fix $ LamList noLoc ["pubKey", "sigIndex"] $ Fix $ CheckSig noLoc (var' "pubKey") (var' "sigIndex"))
-
-checkMultiSig :: Bind Lang
-checkMultiSig = bind Const.checkMultiSig (Fix $ LamList noLoc ["total", "pubKeys", "sigIndices"] $ Fix $ CheckMultiSig noLoc (var' "total") (var' "pubKeys") (var' "sigIndices"))
-
-appendText :: Bind Lang
-appendText = bind Const.appendText (Fix $ LamList noLoc ["x", "y"] $ Fix $ TextE noLoc $ TextAppend noLoc x y)
-
-appendBytes :: Bind Lang
-appendBytes = bind Const.appendBytes (Fix $ LamList noLoc ["x", "y"] $ Fix $ BytesE noLoc $ BytesAppend noLoc x y)
-
-atVec :: Bind Lang
-atVec = bind Const.listAt (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAt noLoc x y)
-
-fst :: Bind Lang
-fst = bind "fst" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 0) (var' "x"))
-
-snd :: Bind Lang
-snd = bind "snd" (lam' "x" $ Fix $ UnOpE noLoc (TupleAt 2 1) (var' "x"))
-
-otherwise :: Bind Lang
-otherwise = bind "otherwise" (Fix $ PrimE noLoc $ PrimBool P.True)
-
-undefined :: Bind Lang
-undefined = bind "undefined" (Fix $ FailCase noLoc)
-
-lam' :: Text -> Lang -> Lang
-lam' name expr = Fix $ Lam noLoc (PVar noLoc $ VarName noLoc name) expr
-
-var' :: Text -> Lang
-var' name = Fix $ Var noLoc (VarName noLoc name)
-
-f, x, y :: Lang
-f = Fix $ Var noLoc "f"
-x = Fix $ Var noLoc "x"
-y = Fix $ Var noLoc "y"
-
-aT, bT, cT :: Type
-aT = varT "a"
-bT = varT "b"
-cT = varT "c"
-
-bind :: Text -> Lang -> Bind Lang
-bind var body = simpleBind (VarName noLoc var) body
+      fmap (\ty -> assumeType (Const.deserialiseBytes $ argTypeName ty) (monoT $ bytesT ~> argTagToType ty)) argTypes
+
+    aT, bT, cT :: Type
+    aT = varT "a"
+    bT = varT "b"
+    cT = varT "c"
 

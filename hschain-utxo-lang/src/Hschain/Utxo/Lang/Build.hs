@@ -14,14 +14,12 @@ module Hschain.Utxo.Lang.Build(
   , pk'
   , SigmaBool
   , toSigma
-  , sigmaAnd
-  , sigmaOr
   , getHeight
   , getSelf, getInput, getOutput
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList, getBoxPostHeight
   , getInputs, getOutputs, getDataInputs
   , getIntVars, getBoolVars, getTextVars, getBytesVars
-  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
+  , fromVec, mapVec, foldlVec, lengthVec, andVec, orVec, concatVec, listAt
   , andSigma, orSigma
   , checkSig
   , checkMultiSig
@@ -33,40 +31,40 @@ module Hschain.Utxo.Lang.Build(
   , app
   , concatText
   , lengthText
-  , showInt
-  , showScript
+  , showExpr
   , sha256
   , serialiseInt
   , serialiseBytes
   , serialiseBool
   , serialiseText
   , lengthBytes
-  , trace
   , pair
-  , pairAt1
-  , pairAt2
   , tuple3
   , tuple4
 ) where
 
+import Data.Text (Text)
+
+import Hschain.Utxo.Lang.Compile
+import Hschain.Utxo.Lang.Desugar
+import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Pretty
+import Hschain.Utxo.Lang.Types
+
+import qualified Data.Text   as T
 import Data.Boolean
 import Data.ByteString (ByteString)
 import Data.Fix
 import Data.String
-import Data.Text (Text)
 import Data.Vector (Vector)
 
-import qualified Data.Text   as T
 import qualified Data.Vector as V
 
 import HSChain.Crypto (ByteRepr(..))
-import Hschain.Utxo.Lang.Compile
-import Hschain.Utxo.Lang.Desugar
-import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma (PublicKey)
-import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Expr
+
+import qualified Hschain.Utxo.Lang.Const as Const
 
 -- | Creates module  out of single main expression and ignores the errors of compilation.
 mainScriptUnsafe :: Expr SigmaBool -> Script
@@ -104,11 +102,25 @@ bytes x = primExpr $ PrimBytes x
 mkBool :: Bool -> Expr Bool
 mkBool x = primExpr $ PrimBool x
 
-op1 :: (Lang -> E Lang) -> Expr a -> Expr b
-op1 f (Expr a) = Expr $ Fix $ f a
+primAp1 :: Text -> Expr a -> Expr b
+primAp1 = primOp1
 
-op2 :: (Lang -> Lang -> E Lang) -> Expr a -> Expr b -> Expr c
-op2 f (Expr a) (Expr b) = Expr $ Fix $ f a b
+primAp2 :: Text -> Expr a -> Expr b -> Expr c
+primAp2 name a (Expr b) = case primAp1 name a of
+  Expr f -> Expr $ Fix $ Apply noLoc f b
+
+primAp3 :: Text -> Expr a -> Expr b -> Expr c -> Expr d
+primAp3 name a b (Expr c) = case primAp2 name a b of
+  Expr f -> Expr $ Fix $ Apply noLoc f c
+
+primVar :: Text -> Expr a
+primVar name = Expr $ Fix $ Var noLoc $ VarName noLoc name
+
+primOp1 :: Text -> Expr a -> Expr b
+primOp1 name (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc (VarName noLoc name)) a
+
+primOp2 :: Text -> Expr a -> Expr b -> Expr c
+primOp2 name (Expr a) (Expr b) = Expr $ Fix $ InfixApply noLoc a (VarName noLoc name) b
 
 -- variables
 
@@ -136,12 +148,6 @@ app (Expr fun) (Expr arg) = Expr $ Fix $ Apply noLoc fun arg
 pair :: Expr a -> Expr b -> Expr (a, b)
 pair (Expr a) (Expr b) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b]
 
-pairAt1 :: Expr (a, b) -> Expr a
-pairAt1 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 0) a
-
-pairAt2 :: Expr (a, b) -> Expr b
-pairAt2 (Expr a) = Expr $ Fix $ UnOpE noLoc (TupleAt 2 1) a
-
 tuple3 :: Expr a -> Expr b -> Expr c -> Expr (a, b, c)
 tuple3 (Expr a) (Expr b) (Expr c) = Expr $ Fix $ Tuple noLoc $ V.fromList [a, b, c]
 
@@ -161,118 +167,112 @@ instance IsString (Expr Text) where
 instance Boolean (Expr Bool) where
   true = mkBool True
   false = mkBool False
-  notB = op1 (UnOpE noLoc Not)
-  (&&*) = op2 (BinOpE noLoc And)
-  (||*) = op2 (BinOpE noLoc Or)
+  notB = primOp1 "not"
+  (&&*) = primOp2 "&&"
+  (||*) = primOp2 "||"
 
 instance Boolean (Expr SigmaBool) where
   true  = toSigma true
   false = toSigma false
   notB = error "Not is not defined for sigma-expressions"
-  (&&*) = sigmaAnd
-  (||*) = sigmaOr
+  (&&*) = primOp2 Const.sigmaAnd
+  (||*) = primOp2 Const.sigmaOr
 
 pk' :: PublicKey -> Expr SigmaBool
 pk' = pk . bytes . encodeToBS
 
 pk :: Expr ByteString -> Expr SigmaBool
-pk (Expr key) = Expr $ Fix $ SigmaE noLoc $ Pk noLoc key
-
-sigmaAnd :: Expr SigmaBool -> Expr SigmaBool -> Expr SigmaBool
-sigmaAnd (Expr a) (Expr b) = Expr $ Fix $ SigmaE noLoc $ SAnd noLoc a b
-
-sigmaOr :: Expr SigmaBool -> Expr SigmaBool -> Expr SigmaBool
-sigmaOr (Expr a) (Expr b) = Expr $ Fix $ SigmaE noLoc $ SOr noLoc a b
+pk = primAp1 Const.pk
 
 toSigma :: Expr Bool -> Expr SigmaBool
-toSigma (Expr x) = Expr $ Fix $ SigmaE noLoc $ SPrimBool noLoc x
+toSigma = primAp1 Const.toSigma
 
 getSelf :: Expr Box
-getSelf = Expr $ Fix $ GetEnv noLoc (Self noLoc)
+getSelf = primVar Const.getSelf
 
 getInput :: Expr Int -> Expr Box
-getInput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Input noLoc n
+getInput = primAp1 Const.getInput
 
 getOutput :: Expr Int -> Expr Box
-getOutput (Expr n) = Expr $ Fix $ GetEnv noLoc $ Output noLoc n
+getOutput = primAp1 Const.getOutput
 
 getBoxId :: Expr Box -> Expr Text
-getBoxId (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldId
+getBoxId = primAp1 Const.getBoxId
 
 getBoxValue :: Expr Box -> Expr Int
-getBoxValue (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldValue
+getBoxValue = primAp1 Const.getBoxValue
 
 getBoxScript :: Expr Box -> Expr ByteString
-getBoxScript (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldScript
+getBoxScript = primAp1 Const.getBoxScript
 
 getBoxPostHeight :: Expr Box -> Expr Int
-getBoxPostHeight (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box BoxFieldPostHeight
+getBoxPostHeight = primAp1 Const.getBoxPostHeight
 
 getBoxBytesArgList :: Expr Box -> Expr (Vector ByteString)
-getBoxBytesArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList BytesArg)
+getBoxBytesArgList = primAp1 $ Const.getBoxArgs (argTypeName BytesArg)
 
 getBoxIntArgList :: Expr Box -> Expr (Vector Int)
-getBoxIntArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList IntArg)
+getBoxIntArgList = primAp1 $ Const.getBoxArgs (argTypeName IntArg)
 
 getBoxTextArgList :: Expr Box -> Expr (Vector Text)
-getBoxTextArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList TextArg)
+getBoxTextArgList = primAp1 $ Const.getBoxArgs (argTypeName TextArg)
 
 getBoxBoolArgList :: Expr Box -> Expr (Vector Bool)
-getBoxBoolArgList (Expr box) = Expr $ Fix $ BoxE noLoc $ BoxAt noLoc box (BoxFieldArgList BoolArg)
+getBoxBoolArgList = primAp1 $ Const.getBoxArgs (argTypeName BoolArg)
 
 getHeight :: Expr Int
-getHeight = Expr $ Fix $ GetEnv noLoc (Height noLoc)
+getHeight = primVar Const.getHeight
 
 getIntVars :: Expr (Vector Int)
-getIntVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc IntArg
+getIntVars = primVar $ Const.getArgs (argTypeName IntArg)
 
 getBoolVars :: Expr (Vector Bool)
-getBoolVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BoolArg
+getBoolVars = primVar $ Const.getArgs (argTypeName BoolArg)
 
 getTextVars :: Expr (Vector Text)
-getTextVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc TextArg
+getTextVars = primVar $ Const.getArgs (argTypeName TextArg)
 
 getBytesVars :: Expr (Vector ByteString)
-getBytesVars = Expr $ Fix $ GetEnv noLoc $ GetVar noLoc BytesArg
+getBytesVars = primVar $ Const.getArgs (argTypeName BytesArg)
 
 getInputs :: Expr (Vector Box)
-getInputs = Expr $ Fix $ GetEnv noLoc (Inputs noLoc)
+getInputs = primVar Const.getInputs
 
 getOutputs :: Expr (Vector Box)
-getOutputs = Expr $ Fix $ GetEnv noLoc (Outputs noLoc)
+getOutputs = primVar Const.getOutputs
 
 getDataInputs :: Expr (Vector Box)
-getDataInputs = Expr $ Fix $ GetEnv noLoc (DataInputs noLoc)
+getDataInputs = primVar Const.getDataInputs
 
 fromVec :: Vector (Expr a) -> Expr (Vector a)
-fromVec vs = Expr $ Fix $ VecE noLoc $ NewVec noLoc $ fmap (\(Expr a) -> a) vs
+fromVec vs = Expr $ Fix $ List noLoc $ fmap (\(Expr a) -> a) vs
 
 listAt :: Expr (Vector a) -> Expr Int -> Expr a
-listAt (Expr vector) (Expr index) = Expr $ Fix $ VecE noLoc $ VecAt noLoc vector index
+listAt = primAp2 Const.listAt
 
 mapVec :: Expr (a -> b) -> Expr (Vector a) -> Expr (Vector b)
-mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecMap noLoc)) f) v
+mapVec = primAp2 Const.map
 
-foldVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
-foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z) v
+foldlVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
+foldlVec = primAp3 Const.foldl
 
 lengthVec :: Expr (Vector a) -> Expr Int
-lengthVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) v
+lengthVec = primAp1 Const.length
 
 concatVec :: Expr (Vector a) -> Expr (Vector a) -> Expr (Vector a)
-concatVec (Expr a) (Expr b) = Expr $ Fix $ VecE noLoc $ VecAppend noLoc a b
+concatVec = primOp2 Const.appendList
 
-allVec :: Expr (Vector Bool) -> Expr Bool
-allVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "all") v
+andVec :: Expr (Vector Bool) -> Expr Bool
+andVec = primAp1 Const.and
 
-anyVec :: Expr (Vector Bool) -> Expr Bool
-anyVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "any") v
+orVec :: Expr (Vector Bool) -> Expr Bool
+orVec = primAp1 Const.or
 
 andSigma :: Expr (Vector SigmaBool) -> Expr SigmaBool
-andSigma (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "andSigma") v
+andSigma = primAp1 Const.andSigma
 
 orSigma :: Expr (Vector SigmaBool) -> Expr SigmaBool
-orSigma (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Var noLoc "orSigma") v
+orSigma = primAp1 Const.orSigma
 
 type instance BooleanOf (Expr a) = Expr Bool
 
@@ -283,9 +283,9 @@ instance IfB (Expr a) where
 -- numeric
 
 instance Num (Expr Int) where
-  (+) = op2 (BinOpE noLoc Plus)
-  (*) = op2 (BinOpE noLoc Times)
-  negate = op1 (UnOpE noLoc Neg)
+  (+) = primOp2 "+"
+  (*) = primOp2 "*"
+  negate = primAp1 "negate"
   fromInteger n = primExpr $ PrimInt $ fromIntegral n
   abs = error "abs is not defined for Expr"
   signum = error "signum is not defined for Expr"
@@ -294,61 +294,68 @@ instance Num (Expr Int) where
 --
 
 instance EqB (Expr Int) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
+  (==*) = primOp2 Const.equals
+  (/=*) = primOp2 Const.nonEquals
 
 instance EqB (Expr Text) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
+  (==*) = primOp2 Const.equals
+  (/=*) = primOp2 Const.nonEquals
 
 instance EqB (Expr ByteString) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
+  (==*) = primOp2 Const.equals
+  (/=*) = primOp2 Const.nonEquals
 
 instance EqB (Expr Script) where
-  (==*) = op2 (BinOpE noLoc Equals)
-  (/=*) = op2 (BinOpE noLoc NotEquals)
+  (==*) = primOp2 Const.equals
+  (/=*) = primOp2 Const.nonEquals
+
+instance EqB (Expr Bool) where
+  (==*) = primOp2 Const.equals
+  (/=*) = primOp2 Const.nonEquals
 
 -- order
 
 instance OrdB (Expr Int) where
-  (<*) = op2 (BinOpE noLoc LessThan)
+  (<*) = primOp2 Const.less
 
 instance OrdB (Expr Text) where
-  (<*) = op2 (BinOpE noLoc LessThan)
+  (<*) = primOp2 Const.less
+
+instance OrdB (Expr Bool) where
+  (<*) = primOp2 Const.less
 
 instance OrdB (Expr ByteString) where
-  (<*) = op2 (BinOpE noLoc LessThan)
+  (<*) = primOp2 Const.less
+
+instance OrdB (Expr Script) where
+  (<*) = primOp2 Const.less
 
 -------------------------
 -- btc-like signatures
 
 checkSig :: Expr ByteString -> Expr Int -> Expr Bool
-checkSig (Expr a) (Expr b) = Expr $ Fix $ CheckSig noLoc a b
+checkSig = primAp2 Const.checkSig
 
 checkMultiSig :: Expr Int -> Expr (Vector ByteString) -> Expr (Vector Int) -> Expr Bool
-checkMultiSig (Expr a) (Expr b) (Expr c) = Expr $ Fix $ CheckMultiSig noLoc a b c
+checkMultiSig = primAp3 Const.checkMultiSig
 
 --------------------------
 -- text
 
 concatText :: Expr Text -> Expr Text -> Expr Text
-concatText (Expr a) (Expr b) = Expr $ Fix $ TextE noLoc $ TextAppend noLoc a b
+concatText = primOp2 Const.appendText
 
 concatBytes :: Expr ByteString -> Expr ByteString -> Expr ByteString
-concatBytes (Expr a) (Expr b) = Expr $ Fix $ BytesE noLoc $ BytesAppend noLoc a b
+concatBytes = primAp2 Const.appendBytes
 
 lengthText :: Expr Text -> Expr Int
-lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
+lengthText = primAp1 Const.lengthText
 
-showInt :: Expr Int -> Expr Text
-showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) a
-
-showScript :: Expr Script -> Expr Text
-showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) a
+showExpr :: Expr a -> Expr Text
+showExpr = primAp1 Const.show
 
 sha256 :: Expr ByteString -> Expr ByteString
-sha256 (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesHash noLoc Sha256 a
+sha256 = primAp1 Const.sha256
 
 serialiseInt :: Expr Int -> Expr ByteString
 serialiseInt = serialiseBy IntArg
@@ -363,10 +370,10 @@ serialiseBool :: Expr Bool -> Expr ByteString
 serialiseBool = serialiseBy BoolArg
 
 serialiseBy :: ArgType -> Expr a -> Expr ByteString
-serialiseBy tag (Expr expr) = Expr $ Fix $ BytesE noLoc $ SerialiseToBytes noLoc tag expr
+serialiseBy tag = primAp1 $ Const.serialiseBytes (argTypeName tag)
 
 lengthBytes :: Expr ByteString -> Expr Int
-lengthBytes (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesLength noLoc a
+lengthBytes = primAp1 Const.lengthBytes
 
 -------------------------------
 -- monoids
@@ -386,8 +393,3 @@ instance Semigroup (Expr (Vector a)) where
 instance Monoid (Expr (Vector a)) where
   mempty = fromVec mempty
 
-------------------------------------
--- debug
-
-trace :: Expr Text -> Expr a -> Expr a
-trace (Expr str) (Expr a) = Expr $ Fix $ Trace noLoc str a

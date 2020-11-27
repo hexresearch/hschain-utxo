@@ -3,8 +3,9 @@
 -- Full fledged PoW consensus node, with external REST API.
 --
 -- Copyright (C) 2020 ...
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies    #-}
 -- SQL-related orphans
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Pow.App.Types
@@ -16,6 +17,8 @@ module Hschain.Utxo.Pow.App.Types
   , utxoStateView
   , miningRewardAmount
     -- * Working with state
+  , UtxoState
+  , createUtxoCandidate
   , retrieveUTXOByBoxId
   , getDatabaseBox
   , sumTxInputs
@@ -71,9 +74,7 @@ import HSChain.Store.Query
 import HSChain.Types.Merkle.Tree
 
 import Hschain.Utxo.Lang.Types
-import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Eval
-import Hschain.Utxo.Lang.Core.Types
 
 
 ----------------------------------------------------------------
@@ -121,6 +122,8 @@ instance Serialise (UTXOBlock t Proxy)
 --       , "target" JSON..= t
 --       , "nonce"  JSON..= ViaBase58 b
 --       ]
+
+-- NOTE: TH generator does not generate lens with sufficiently general type
 
 ubDataL :: Lens (UTXOBlock t f) (UTXOBlock t g) (MerkleBinTree1 SHA256 f Tx) (MerkleBinTree1 SHA256 g Tx)
 ubDataL = lens ubData (\b x -> b { ubData = x })
@@ -247,12 +250,24 @@ instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
 -- Blockchain state management
 ----------------------------------------------------------------
 
+data UtxoState (m :: * -> *) t = UtxoState
+  { stateBIdx    :: POW.BlockIndex (UTXOBlock t)
+  , stateOverlay :: StateOverlay t
+  }
+
+stateOverlayL :: Lens' (UtxoState m t) (StateOverlay t)
+stateOverlayL = lens stateOverlay (\x o -> x { stateOverlay = o })
+
+
 -- | Create triple: block storage, block index, state view using
 --   current database state.
 utxoStateView
   :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m, UtxoPOWCongig t)
   => POW.Block (UTXOBlock t)
-  -> m (POW.BlockDB m (UTXOBlock t), POW.BlockIndex (UTXOBlock t), POW.StateView m (UTXOBlock t))
+  -> m ( POW.BlockDB m (UTXOBlock t)
+       , POW.BlockIndex (UTXOBlock t)
+       , UtxoState m t
+       )
 utxoStateView genesis = do
   initUTXODB
   storeUTXOBlock genesis
@@ -262,13 +277,13 @@ utxoStateView genesis = do
 
 initializeStateView
   :: (MonadDB m, MonadThrow m, MonadQueryRW q, MonadIO m, UtxoPOWCongig t)
-  => POW.Block (UTXOBlock t)            -- ^ Genesis block
+  => POW.Block      (UTXOBlock t)       -- ^ Genesis block
   -> POW.BlockIndex (UTXOBlock t)       -- ^ Block index
-  -> q (POW.StateView m (UTXOBlock t))
+  -> q (UtxoState m t)
 initializeStateView genesis bIdx = do
   retrieveCurrentStateBlock >>= \case
     Just bid -> do let Just bh = POW.lookupIdx bid bIdx
-                   return $ makeStateView bIdx (emptyOverlay bh)
+                   return $ UtxoState bIdx (emptyOverlay bh)
     -- We need to initialize state table
     Nothing  -> do
       let bid     = POW.blockID genesis
@@ -276,44 +291,39 @@ initializeStateView genesis bIdx = do
       basicExecute
         "INSERT INTO utxo_state_bid SELECT blk_id,0 FROM utxo_blocks WHERE bid = ?"
         (Only bid)
-      return $ makeStateView bIdx (emptyOverlay bh)
+      return $ UtxoState bIdx (emptyOverlay bh)
 
-makeStateView
-  :: (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
-  => POW.BlockIndex (UTXOBlock t)
-  -> StateOverlay t
-  -> POW.StateView m (UTXOBlock t)
-makeStateView bIdx0 overlay = sview where
-  bh0    = overlayTip overlay
-  env    = let POW.Height h = POW.bhHeight bh0 in Env (fromIntegral h)
-  sview  = POW.StateView
-    { stateBID    = POW.bhBID bh0
-    , applyBlock  = applyUtxoBlock overlay
-    , revertBlock = return $ makeStateView bIdx0 (rollbackOverlay overlay)
-    --
-    , flushState = mustQueryRW $ do
-        -- Dump overlay content.
-        dumpOverlay overlay
-        -- Rewind state stored in the database from its current state
-        -- to current head.
-        Just bid <- retrieveCurrentStateBlock
-        case bid `POW.lookupIdx` bIdx0 of
-          Nothing -> error "makeStateView: bad index"
-          Just bh -> POW.traverseBlockIndexM_ revertBlockDB applyBlockDB bh bh0
-        do i <- retrieveUTXOBlockTableID (POW.bhBID bh0)
-           basicExecute "UPDATE utxo_state_bid SET state_block = ?" (Only i)
-        return $ makeStateView bIdx0 (emptyOverlay bh0)
-    , checkTx = \tx@Tx{..} -> queryRO $ runExceptT $ do
-        -- Incoming transactions are validated against current state as recorde in DB
-        txArg <- buildTxArg (getDatabaseBox POW.NoChange) env tx
-        unless (sumTxInputs txArg <= sumTxOutputs txArg) $
-          throwError $ InternalErr "Transaction create money"
-        either (throwError . InternalErr . T.unpack) pure
-          $ evalProveTx txArg
-      --
-    , createCandidateBlockData = createUtxoCandidate overlay bIdx0
-    }
-
+instance (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t) => POW.StateView (UtxoState m t) where
+  type BlockType (UtxoState m t) = UTXOBlock t
+  type MonadOf   (UtxoState m t) = m
+  stateBID      = POW.bhBID . overlayTip . stateOverlay
+  revertBlock   = pure . (stateOverlayL %~ rollbackOverlay)
+  applyBlock st = applyUtxoBlock (stateOverlay st)
+  flushState UtxoState{..} = mustQueryRW $ do
+    -- Dump overlay content.
+    dumpOverlay stateOverlay
+    -- Rewind state stored in the database from its current state
+    -- to current head.
+    Just bid <- retrieveCurrentStateBlock
+    case bid `POW.lookupIdx` stateBIdx of
+      Nothing -> error "makeStateView: bad index"
+      Just bh -> POW.traverseBlockIndexM_ revertBlockDB applyBlockDB bh bh0
+    do i <- retrieveUTXOBlockTableID (POW.bhBID bh0)
+       basicExecute "UPDATE utxo_state_bid SET state_block = ?" (Only i)
+    return $ UtxoState stateBIdx (emptyOverlay bh0)
+    where
+      bh0 = overlayTip stateOverlay
+  --
+  checkTx UtxoState{..} tx@Tx{..} = queryRO $ runExceptT $ do
+    -- Incoming transactions are validated against current state as recorde in DB
+    txArg <- buildTxArg (getDatabaseBox POW.NoChange) env tx
+    unless (sumTxInputs txArg <= sumTxOutputs txArg) $
+      throwError $ InternalErr "Transaction create money"
+    either (throwError . InternalErr . T.unpack) pure
+      $ evalProveTx txArg
+    where
+      bh0 = overlayTip stateOverlay
+      env = let POW.Height h = POW.bhHeight bh0 in Env (fromIntegral h)
 
 -- | Validate and apply block to current state view. Returns Left on failed validation
 applyUtxoBlock
@@ -322,7 +332,7 @@ applyUtxoBlock
   -> POW.BlockIndex (UTXOBlock t)
   -> POW.BH (UTXOBlock t)
   -> POW.GBlock (UTXOBlock t) Identity
-  -> m (Either UtxoException (POW.StateView m (UTXOBlock t)))
+  -> m (Either UtxoException (UtxoState m t))
 applyUtxoBlock overlay bIdx bh b = runExceptT $ do
   -- Consistency checks
   unless (POW.bhPrevious bh ==      Just bh0) $ throwError $ InternalErr "BH mismatich"
@@ -355,7 +365,7 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
     -- Mark every input as spend and create outputs
     foldM processTX overlay0 txArgs
   return
-    $ makeStateView bIdx
+    $ UtxoState bIdx
     $ fromMaybe (error "UTXO: invalid BH in apply block")
     $ finalizeOverlay bh overlay'
   where
@@ -363,64 +373,6 @@ applyUtxoBlock overlay bIdx bh b = runExceptT $ do
     bh0      = overlayTip overlay
     txList   = toList $ ubData $ POW.blockData b
     overlay0 = addOverlayLayer overlay
-
-
-createUtxoCandidate
-  :: (MonadReadDB m, MonadIO m, UtxoPOWCongig t)
-  => StateOverlay t
-  -> POW.BlockIndex (UTXOBlock t)
-  -> POW.BH (UTXOBlock t)
-  -> p
-  -> [Tx]
-  -> m (UTXOBlock t Identity)
-createUtxoCandidate overlay bIdx bh _time txlist = queryRO $ do
-  pathInDB <- do
-    Just stateBid <- retrieveCurrentStateBlock
-    let Just bhState = POW.lookupIdx stateBid bIdx
-    POW.makeBlockIndexPathM (retrieveUTXOBlockTableID . POW.bhBID)
-      bhState (overlayBase overlay)
-  -- Select transaction
-  let tryTX o tx = do
-        -- FIXME: duplication of checks with check TX
-        txArg <- buildTxArg (getDatabaseBox pathInDB) env tx
-        unless (sumTxInputs txArg <= sumTxOutputs txArg) $
-          throwError $ InternalErr "Transaction create money"
-        either (throwError . InternalErr . T.unpack) pure
-          $ evalProveTx txArg
-        o' <- processTX o txArg
-        return (txArg, o')
-  -- Select transactions
-  let selectTX []     _ = return []
-      selectTX (t:ts) o = runExceptT (tryTX o t) >>= \case
-        Left  _       -> selectTX ts o
-        Right (tA,o') -> ((tA,t):) <$> selectTX ts o'
-      --
-  txList <- selectTX txlist $ addOverlayLayer overlay
-  -- Create and process coinbase transaction
-  let commission  = sumOf (each . _1 . to sumTxOutputs) txList
-                  - sumOf (each . _1 . to sumTxInputs)  txList
-      coinbaseBox = Box { box'value  = miningRewardAmount + commission
-                        , box'script = coreProgToScript $ EPrim (PrimBool True)
-                        , box'args   = mempty
-                        }
-      coinbase = Tx { tx'inputs  = V.singleton BoxInputRef
-                        { boxInputRef'id      = coerce (POW.bhBID bh)
-                        , boxInputRef'args    = mempty
-                        , boxInputRef'proof   = Nothing
-                        , boxInputRef'sigs    = V.empty
-                        , boxInputRef'sigMask = SigAll
-                        }
-                    , tx'outputs = V.fromList [coinbaseBox]
-                    , tx'dataInputs = V.empty
-                    }
-  -- Create block!
-  return UTXOBlock
-    { ubNonce  = ""
-    , ubData   = createMerkleTreeNE1 $ coinbase :| fmap snd txList
-    , ubTarget = POW.retarget bh
-    }
-  where
-    env = Env $ fromIntegral (h + 1) where POW.Height h = POW.bhHeight bh
 
 
 -- | Create TxArg for coinbase transaction. It's treated differently
@@ -456,6 +408,61 @@ coinbaseTxArg (Just bid) env tx@Tx{..}
 coinbaseTxArg _ _ _ = throwError $ InternalErr "Invalid coinbase"
 
 
+createUtxoCandidate
+  :: (MonadReadDB m, MonadIO m, UtxoPOWCongig t)
+  => UtxoState m t
+  -> POW.BH (UTXOBlock t)
+  -> Script
+  -> [Tx]
+  -> m (UTXOBlock t Identity)
+createUtxoCandidate (UtxoState bIdx overlay) bh script txlist = queryRO $ do
+  pathInDB <- do
+    Just stateBid <- retrieveCurrentStateBlock
+    let Just bhState = POW.lookupIdx stateBid bIdx
+    POW.makeBlockIndexPathM (retrieveUTXOBlockTableID . POW.bhBID)
+      bhState (overlayBase overlay)
+  -- Select transaction
+  let tryTX o tx = do
+        -- FIXME: duplication of checks with check TX
+        txArg <- buildTxArg (getDatabaseBox pathInDB) env tx
+        unless (sumTxInputs txArg <= sumTxOutputs txArg) $
+          throwError $ InternalErr "Transaction create money"
+        either (throwError . InternalErr . T.unpack) pure
+          $ evalProveTx txArg
+        o' <- processTX o txArg
+        return (txArg, o')
+  -- Select transactions
+  let selectTX []     _ = return []
+      selectTX (t:ts) o = runExceptT (tryTX o t) >>= \case
+        Left  _       -> selectTX ts o
+        Right (tA,o') -> ((tA,t):) <$> selectTX ts o'
+      --
+  txList <- selectTX txlist $ addOverlayLayer overlay
+  -- Create and process coinbase transaction
+  let commission  = sumOf (each . _1 . to sumTxOutputs) txList
+                  - sumOf (each . _1 . to sumTxInputs)  txList
+      coinbaseBox = Box { box'value  = miningRewardAmount + commission
+                        , box'script = script
+                        , box'args   = mempty
+                        }
+      coinbase = Tx { tx'inputs  = V.singleton BoxInputRef
+                        { boxInputRef'id      = coerce (POW.bhBID bh)
+                        , boxInputRef'args    = mempty
+                        , boxInputRef'proof   = Nothing
+                        , boxInputRef'sigs    = V.empty
+                        , boxInputRef'sigMask = SigAll
+                        }
+                    , tx'outputs = V.fromList [coinbaseBox]
+                    , tx'dataInputs = V.empty
+                    }
+  -- Create block!
+  return UTXOBlock
+    { ubNonce  = ""
+    , ubData   = createMerkleTreeNE1 $ coinbase :| fmap snd txList
+    , ubTarget = POW.retarget bh
+    }
+  where
+    env = Env $ fromIntegral (h + 1) where POW.Height h = POW.bhHeight bh
 
 -- | Check that block preserves value. Individual transactions will
 --   leave part of value as reward for miners. So transactions do

@@ -5,8 +5,6 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskType
 ) where
 
-import Hex.Common.Text (showt)
-
 import Data.ByteString (ByteString)
 import Data.Fix
 
@@ -46,37 +44,17 @@ toHaskExp (Fix expr) = case expr of
   If loc a b c -> H.If loc (rec a) (rec b) (rec c)
   -- tuples
   Tuple loc ts -> H.Tuple loc H.Boxed (fmap rec $ V.toList ts)
-  -- operations
-  UnOpE loc op a -> fromUnOp loc op a
-  BinOpE loc op a b -> fromBimOp loc op a b
-  -- environment
-  GetEnv loc env -> fromEnv loc env
-  -- sigmas
-  SigmaE loc sigma -> fromSigma loc sigma
-  -- vectors
-  VecE loc vec -> fromVec loc vec
-  -- text
-  TextE loc txt -> fromText loc txt
-  -- bytes
-  BytesE loc bs -> fromBytes loc bs
-  -- boxes
-  BoxE loc box -> fromBox loc box
-  -- debug
-  Trace loc a b -> ap2 (VarName loc "trace") a b
+  List loc ts -> H.List loc (fmap rec $ V.toList ts)
+  NegApp loc a -> H.NegApp loc (rec a)
   FailCase loc -> H.Var loc (H.UnQual loc $ H.Ident loc "undefined")
   Let loc binds e -> H.Let loc (toLetBinds loc binds) (rec e)
   PrimLet loc binds e -> H.Let loc (toPrimLetBinds loc binds) (rec e)
-  CheckSig loc a b -> ap2 (VarName loc Const.checkSig) a b
-  CheckMultiSig loc a b c -> ap3 (VarName loc Const.checkMultiSig) a b c
   AltE _ _ _ -> error "Alt is for internal usage"
   AntiQuote loc mty name -> case mty of
     Just ty -> H.ExpTypeSig loc (H.SpliceExp loc (H.ParenSplice loc (toVar loc name))) (fromQuoteType loc ty)
     Nothing -> H.SpliceExp loc (H.ParenSplice loc (toVar loc name))
   where
     rec = toHaskExp
-    ap f x = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)
-    ap2 f x y = H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)
-    ap3 f x y z = H.App (HM.getLoc z) (H.App (HM.getLoc y) (H.App (HM.getLoc f) (toVar (HM.getLoc f) f) (rec x)) (rec y)) (rec z)
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
     toPrimLetBinds loc bg = H.BDecls loc $ toPrimDecl bg
 
@@ -87,90 +65,6 @@ toHaskExp (Fix expr) = case expr of
     toCaseAlt loc CaseExpr{..} = H.Alt loc (toPat caseExpr'lhs) (toRhs caseExpr'rhs) Nothing
       where
         toRhs = H.UnGuardedRhs loc . rec
-
-    fromUnOp loc op a = case op of
-      Not       -> ap (VarName loc "not") a
-      Neg       -> H.NegApp loc (rec a)
-      TupleAt size n -> ap2 (VarName loc $ mconcat ["tuple", showt size, "At"]) (Fix $ PrimE loc $ PrimInt $ fromIntegral n) a
-
-    fromBimOp loc op = case op of
-      And                   -> op2' "&&"
-      Or                    -> op2' "||"
-      Plus                  -> op2' "+"
-      Minus                 -> op2' "-"
-      Times                 -> op2' "*"
-      Div                   -> op2' "/"
-      Equals                -> op2' "=="
-      NotEquals             -> op2' "/="
-      LessThan              -> op2' "<"
-      GreaterThan           -> op2' ">"
-      LessThanEquals        -> op2' "<="
-      GreaterThanEquals     -> op2' ">="
-      where
-        op2' name a b = op2 loc name a b
-
-    fromEnv _ = \case
-      Height loc     -> toVar loc (VarName loc Const.getHeight)
-      Input loc a    -> ap (VarName loc "getInput") a
-      Output loc a   -> ap (VarName loc "getOutput") a
-      Self loc       -> toVar loc (VarName loc Const.getSelf)
-      Inputs loc     -> toVar loc (VarName loc Const.getInputs)
-      Outputs loc    -> toVar loc (VarName loc Const.getOutputs)
-      DataInputs loc -> toVar loc (VarName loc Const.getDataInputs)
-      GetVar loc ty  -> toVar loc (VarName loc $ getEnvVarName ty)
-
-    fromSigma _ = \case
-      Pk loc a        -> ap (VarName loc Const.pk) a
-      SOr loc a b     -> op2 loc Const.sigmaOr a b
-      SAnd loc a b    -> op2 loc Const.sigmaAnd a b
-      SPrimBool loc a -> ap (VarName loc Const.toSigma) a
-      SAny loc a b    -> op2 loc Const.anySigma a b
-      SAll loc a b    -> op2 loc Const.allSigma a b
-
-
-    fromVec _ = \case
-      NewVec loc vs     -> H.List loc (fmap rec $ V.toList vs)
-      VecAppend loc a b -> op2 loc "++" a b
-      VecAt loc a b     -> op2 loc "!" a b
-      VecLength loc     -> toVar loc (VarName loc "length")
-      VecMap loc        -> toVar loc (VarName loc "map")
-      VecFold loc       -> toVar loc (VarName loc Const.foldl)
-      VecAndSigma loc   -> toVar loc (VarName loc "andSigma")
-      VecOrSigma loc    -> toVar loc (VarName loc "orSigma")
-
-    fromText _ = \case
-      TextAppend loc a b    -> op2 loc "<>" a b
-      ConvertToText loc tag -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
-      TextLength loc        -> toVar loc (VarName loc "lengthText")
-      where
-        fromTextTag = \case
-          IntToText    -> "Int"
-          ScriptToText -> "Script"
-          BoolToText   -> "Bool"
-
-    fromBytes _ = \case
-      BytesAppend loc a b            -> ap2 (VarName loc Const.appendBytes) a b
-      BytesLength loc a              -> ap  (VarName loc $ Const.lengthBytes) a
-      SerialiseToBytes loc tag a     -> ap  (VarName loc $ Const.serialiseBytes $ argTypeName tag) a
-      DeserialiseFromBytes loc tag a -> ap  (VarName loc $ Const.deserialiseBytes $ argTypeName tag) a
-      BytesHash loc algo a           -> case algo of
-        Sha256     -> ap (VarName loc "sha256") a
-
-    fromBox _ = \case
-      BoxAt loc a field   -> fromBoxField loc a field
-
-    fromBoxField loc a = \case
-      BoxFieldId          -> get Const.getBoxId
-      BoxFieldValue       -> get Const.getBoxValue
-      BoxFieldScript      -> get Const.getBoxScript
-      BoxFieldArgList ty  -> get (getBoxArgVar ty)
-      BoxFieldPostHeight  -> get Const.getBoxPostHeight
-      where
-        get name = ap (VarName loc name) a
-
-    op2 :: Loc -> String -> Lang -> Lang -> H.Exp Loc
-    op2 loc name a b = H.InfixApp loc (rec a) (H.QVarOp loc $ H.UnQual loc $ H.Symbol loc name) (rec b)
-
 
 toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral loc = \case
