@@ -173,7 +173,6 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
     fromBinOp loc op = op2 $ case op of
       And                 -> andVar
       Or                  -> orVar
-      Xor                 -> xorVar
       Plus                -> plusVar
       Minus               -> minusVar
       Times               -> timesVar

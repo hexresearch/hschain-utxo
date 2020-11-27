@@ -190,7 +190,6 @@ exprToExtendedLC typeCtx = cataM $ \case
         fromOp = \case
           And                  -> "&&"
           Or                   -> "||"
-          Xor                  -> "^^"
           Plus                 -> "+"
           Minus                -> "-"
           Times                -> "*"

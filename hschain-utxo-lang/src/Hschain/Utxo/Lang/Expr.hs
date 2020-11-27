@@ -415,7 +415,6 @@ data UnOp
 data BinOp
   = And                  -- ^ boolean AND
   | Or                   -- ^ boolean OR
-  | Xor                  -- ^ boolean XOR
   | Plus                 -- ^ numeric addition
   | Minus                -- ^ numeric substraction
   | Times                -- ^ numeric multiplication

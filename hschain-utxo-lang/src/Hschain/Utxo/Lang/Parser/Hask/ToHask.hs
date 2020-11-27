@@ -96,7 +96,6 @@ toHaskExp (Fix expr) = case expr of
     fromBimOp loc op = case op of
       And                   -> op2' "&&"
       Or                    -> op2' "||"
-      Xor                   -> op2' "^^"
       Plus                  -> op2' "+"
       Minus                 -> op2' "-"
       Times                 -> op2' "*"
