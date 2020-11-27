@@ -12,6 +12,7 @@ import Hex.Common.Serialise
 
 import Data.Bool
 import Data.Fix
+import Data.Void
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
@@ -22,9 +23,10 @@ import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
-import Hschain.Utxo.Lang.Core.Compile.Expr (ExprCore)
-import Hschain.Utxo.Lang.Core.ToHask (toHaskExprCore)
+import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr (Core)
 import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
+import Hschain.Utxo.Lang.Core.ToHask
 import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam, TypedLamProg)
 import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr, toHaskProg)
 import Hschain.Utxo.Lang.Parser.Hask.ToHask (toHaskModule)
@@ -69,9 +71,9 @@ instance Pretty BoxId where
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    Right e -> pretty (e :: ExprCore)
+    Right e -> pretty $ show (e :: Core Void)
 
-instance Pretty ExprCore where
+instance IsVarName a => Pretty (Core a) where
   pretty = pretty . prettyPrint . toHaskExprCore
 
 instance Pretty Box where
@@ -231,6 +233,7 @@ instance Pretty Error where
     InternalError err     -> pretty err
     MonoError err         -> pretty err
     CoreScriptError err   -> pretty err
+    FreeVariable txt      -> "Free variable: " <> pretty txt
     ErrorList es          -> vcat $ fmap pretty es
 
 instance Pretty ExecError where

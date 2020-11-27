@@ -1,3 +1,5 @@
+{-# LANGUAGE MonadComprehensions #-}
+{-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE RankNTypes          #-}
 -- | Evaluator for Core
 module Hschain.Utxo.Lang.Core.RefEval
@@ -20,10 +22,8 @@ import Data.Text       (Text)
 import Data.Typeable
 import Data.Fix
 import Data.Foldable (foldrM)
-import qualified Data.Vector     as V
-import qualified Data.Text       as T
-import qualified Data.Map.Strict as Map
-import qualified Data.Map.Lazy   as MapL
+import qualified Data.Vector          as V
+import qualified Data.Text            as T
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LB
 
@@ -75,13 +75,10 @@ data EvalErr
 instance IsString EvalErr where
   fromString = EvalErr
 
--- | Local evaluation environment. Map from variable bindings to values
-type LEnv = Map.Map Name Val
-
 -- | Evaluate program
-evalProg :: InputEnv -> ExprCore -> EvalResult
+evalProg :: InputEnv -> Core v -> EvalResult
 evalProg env prog =
-  case runEval (evalExpr env mempty prog) of
+  case runEval (evalExpr env [] prog) of
     Right val -> case val of
                     ValP p      -> EvalPrim p
                     ValF{}      -> EvalFail $ EvalErr "Returning function"
@@ -114,14 +111,13 @@ getReductionCount = fmap evalEnv'reductions get
 bumpReductionCount :: Eval ()
 bumpReductionCount = modify' $ \st -> st { evalEnv'reductions = succ $ evalEnv'reductions st }
 
-evalExpr :: InputEnv -> LEnv -> ExprCore -> Eval Val
+evalExpr :: InputEnv -> [Val] -> Core v -> Eval Val
 evalExpr inpEnv = recur
   where
     evalVar lenv x
-      | Just v <- x `Map.lookup` lenv = pure v
-      | otherwise = throwError $ EvalErr $ "Unknown variable: " ++ show x
-
-    recur :: LEnv -> ExprCore -> Eval Val
+      | Just v <- lookupVar lenv x = pure v
+      | otherwise = throwError $ EvalErr "Unknown variable"
+    --
     recur lenv expr = do
       bumpReductionCount
       evalCount <- getReductionCount
@@ -129,23 +125,22 @@ evalExpr inpEnv = recur
         then throwError "Exceeds evaluation limit"
         else
           case expr of
-            EVar     x   -> evalVar lenv x
-            EPrim p      -> pure $ ValP p
-            EPrimOp op   -> evalPrimOp inpEnv op
+            EVar _     -> throwError "Free variable"
+            BVar i     -> evalVar lenv i
+            EPrim p    -> pure $ ValP p
+            EPrimOp op -> evalPrimOp inpEnv op
             EAp f x -> do
               valF :: (Val -> Eval Val) <- match =<< recur lenv f
               valX <- recur lenv x
               fmap inj $ valF valX
-            ELam nm _ body -> pure $ ValF $ \x -> recur (Map.insert nm x lenv) body
+            ELam _ body -> pure $ ValF $ \x -> recur (x : lenv) body
             EIf e a b -> do
               valCond <- recur lenv e
               case valCond of
                 ValP (PrimBool f) -> recur lenv $ if f then a else b
                 _                 -> throwError TypeMismatch
-            ELet nm bind body -> do
-              valBind <- recur lenv bind
-              let lenv' = MapL.insert nm valBind lenv
-              recur lenv' body
+            ELet bind body -> do x <- recur lenv bind
+                                 recur (x : lenv) body
             --
             ECase e alts -> do
               valE <- recur lenv e
@@ -153,13 +148,11 @@ evalExpr inpEnv = recur
                 ValCon tag fields -> matchCase alts
                   where
                     matchCase (CaseAlt{..} : cs)
-                      | tag == caseAlt'tag = recur (bindParams fields caseAlt'args lenv) caseAlt'rhs
+                      | tag == caseAlt'tag = if
+                        | length fields == caseAlt'nVars -> recur (fields <> lenv) caseAlt'rhs
+                        | otherwise                      -> throwError TypeMismatch
                       | otherwise          = matchCase cs
                     matchCase [] = throwError $ EvalErr "No match in case"
-                    --
-                    bindParams []     []     = id
-                    bindParams (v:vs) (n:ns) = bindParams vs ns . Map.insert n v
-                    bindParams _      _      = error "Type error in case"
                 _             -> throwError TypeMismatch
             EConstr (TupleT ts) 0 -> pure $ constr 0 (length ts)
             EConstr (ListT  _ ) 0 -> pure $ constr 0 0

@@ -33,7 +33,7 @@ initTx = do
           , box'script = mainScriptUnsafe $ pk' pubKey
           , box'args   = mempty
           }
-      , tx'dataInputs = []
+      , tx'dataInputs = mempty
       }
 
 -- | Verify that proof is correct

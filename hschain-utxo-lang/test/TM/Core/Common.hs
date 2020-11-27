@@ -2,7 +2,7 @@
 module TM.Core.Common
   ( env
   , testProgram
-  , testProgramBy
+  , testProgramL
   , testProgramFail
   , mkBoxInput
   , mkBoxOutput
@@ -59,24 +59,30 @@ mkBoxOutput height bid box = BoxOutput
                         }
   }
 
-testProgram :: String -> ExprCore -> Prim -> TestTree
-testProgram nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple"    $ EvalPrim res  @=? evalProg env prog
-  ]
+testProgram :: String -> Core Name -> Prim -> TestTree
+testProgram nm prog r = testProgramBy nm prog (Right [r])
 
-testProgramBy :: String -> ExprCore -> Either e [Prim] -> TestTree
-testProgramBy nm prog res = testGroup nm
-  [ testCase "typecheck" $ case typeCheck prog of
-      Left  e -> assertFailure $ show e
-      Right _ -> pure ()
-  , testCase "simple" $ case res of
-      Left  _   -> return ()
-      Right [r] -> EvalPrim r @=? evalProg env prog
-      Right r   -> EvalList r @=? evalProg env prog
-  ]
+testProgramL :: String -> Core Name -> [Prim] -> TestTree
+testProgramL nm prog r = testProgramBy nm prog (Right r)
 
-testProgramFail :: String -> ExprCore -> TestTree
+testProgramFail :: String -> Core Name -> TestTree
 testProgramFail nm prog = testProgramBy nm prog (Left ())
+
+testProgramBy :: String -> Core Name -> Either e [Prim] -> TestTree
+testProgramBy nm prog res
+  = testGroup nm
+  $ testTypecheck
+ ++ testEval
+  where
+    testTypecheck =
+      [ testCase "typeCheck dB" $ case typeCheck prog of
+            Left  e -> assertFailure $ show e
+            Right _ -> pure ()
+      ]
+    --
+    testEval = case res of
+      Left  _   -> []
+      Right [r] -> [ testCase "simple dB" $ EvalPrim r @=? evalProg env prog
+                   ]
+      Right r   -> [ testCase "simple dB" $ EvalList r @=? evalProg env prog
+                   ]

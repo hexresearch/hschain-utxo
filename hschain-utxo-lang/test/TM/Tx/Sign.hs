@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module TM.Tx.Sign(
   tests
 ) where
@@ -52,7 +53,7 @@ testByteReprSignature = do
   return $ decodeFromBS (encodeToBS sig) == Just sig
 
 
-pkExpr :: PublicKey -> ExprCore
+pkExpr :: PublicKey -> Core Name
 pkExpr = bytes . encodeToBS
 
 testCheckSig :: IO Bool

@@ -25,28 +25,28 @@ tests = testGroup "core-bytes"
   where
     val = "hello bytes"
 
-sha256V :: ExprCore -> ExprCore
+sha256V :: Core Name -> Core Name
 sha256V a = primOp OpSHA256 [a]
 
-serialise :: ArgType -> ExprCore -> ExprCore
+serialise :: ArgType -> Core Name-> Core Name
 serialise ty a = primOp (OpToBytes ty) [a]
 
-deserialise :: ArgType -> ExprCore -> ExprCore
+deserialise :: ArgType -> Core Name -> Core Name
 deserialise ty a = primOp (OpFromBytes ty) [a]
 
-appendBytes :: ExprCore -> ExprCore -> ExprCore
+appendBytes :: Core Name -> Core Name -> Core Name
 appendBytes a b = primOp OpBytesAppend [a, b]
 
-progHash :: ByteString -> ExprCore
+progHash :: ByteString -> Core Name
 progHash bs = equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs)
 
-progHashAppend :: ByteString -> Int64 -> ExprCore
+progHashAppend :: ByteString -> Int64 -> Core Name
 progHashAppend bs n
   = equals BytesT
     (sha256V $ appendBytes (bytes bs) (serialise IntArg $ int n))
     (bytes $ getSha256 $ bs <> serialiseInt n)
 
-progConvertId :: (a -> ExprCore) -> ArgType -> a -> ExprCore
+progConvertId :: (a -> Core Name) -> ArgType -> a -> Core Name
 progConvertId con ty n
   = equals (argTypeToCore ty) (deserialise ty $ serialise ty $ con n) (con n)
 

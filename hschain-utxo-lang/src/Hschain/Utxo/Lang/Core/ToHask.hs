@@ -1,13 +1,15 @@
 -- | Converts ExprCore to haskell expression.
 -- We ues it to borrow pretty-printer from haskell-src-exts
 module Hschain.Utxo.Lang.Core.ToHask(
-  toHaskExprCore
+    toHaskExprCore
+  , IsVarName
 ) where
 
 import Hex.Common.Text (showt)
 
 import Data.ByteString (ByteString)
 import Data.Fix
+import Data.Void
 import Data.Text (Text)
 
 import HSChain.Crypto.Classes (ByteRepr(..), encodeBase58)
@@ -22,16 +24,29 @@ import qualified Language.Haskell.Exts.Pretty as H
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Data.Text as T
 
-toHaskExprCore :: ExprCore -> H.Exp ()
+
+class IsVarName a where
+  toVarName :: a -> Text
+
+instance IsVarName Text where
+  toVarName = id
+
+instance IsVarName Void where
+  toVarName = absurd
+
+toHaskExprCore :: IsVarName a => Core a -> H.Exp ()
 toHaskExprCore = \case
-  EVar v             -> toVar v
+  EVar v             -> toVar $ toVarName v
+  BVar i             -> toVar $ T.pack $ "@" ++ show i
   EPrim p            -> fromPrim p
   EPrimOp op         -> toVar $ toOpName op
-  ELam name ty body  -> let (ps, expr) = getLamPats [(name, ty)] body
-                        in  H.Lambda () (fmap (uncurry toPat) ps) $ rec expr
+  ELam ty body ->
+    let (ps, expr) = getLamPats [("_", ty)] body
+    in  H.Lambda () (fmap (uncurry toPat) ps) $ rec expr
   EAp f a            -> H.App () (rec f) (rec a)
-  ELet name rhs body -> let (bs, expr) = getLetBinds [(name, rhs)] body
-                        in  H.Let () (toBinds bs) (rec expr)
+  ELet rhs body ->
+    let (bs, expr) = getLetBinds [("_", rhs)] body
+    in  H.Let () (toBinds bs) (rec expr)
   EIf c t e          -> H.If () (rec c) (rec t) (rec e)
   ECase e alts       -> H.Case () (rec e) (fmap fromAlt alts)
   EConstr ty n       -> H.ExpTypeSig () (H.Con () (toQName $ "Con" <> showt n )) (fromType ty)
@@ -45,12 +60,12 @@ toHaskExprCore = \case
     toPat name ty = H.PatTypeSig () (H.PVar () (toName name)) (fromType ty)
 
     getLamPats res = \case
-      ELam name ty body -> getLamPats ((name, ty) : res) body
-      other             -> (reverse res, other)
+      ELam ty body -> getLamPats (("_", ty) : res) body
+      other        -> (reverse res, other)
 
     getLetBinds res = \case
-      ELet name rhs body -> getLetBinds ((name, rhs) : res) body
-      other              -> (reverse res, other)
+      ELet rhs body -> getLetBinds (("_", rhs) : res) body
+      other         -> (reverse res, other)
 
     fromPrim = \case
       PrimInt n     -> H.Lit () $ H.Int () (fromIntegral n) (show n)
@@ -120,16 +135,14 @@ toHaskExprCore = \case
       where
         tyCon = H.TyCon () . toQName
 
-    fromAlt :: CaseAlt -> H.Alt ()
     fromAlt CaseAlt{..} = H.Alt () (H.PApp () cons pats) (toRhs caseAlt'rhs) Nothing
       where
         cons = toQName $ "Con" <> showt caseAlt'tag
-        pats = fmap (H.PVar () . toName) caseAlt'args
+        pats = fmap (H.PVar () . toName) $ replicate caseAlt'nVars "_"
 
-    toBinds :: [(Name, ExprCore)] -> H.Binds ()
     toBinds xs = H.BDecls () $ fmap toBind xs
       where
-        toBind (name, expr) = H.FunBind () [H.Match () (toName name) [] (toRhs expr) Nothing]
+        toBind (name, expr) = H.FunBind ()
+          [H.Match () (toName name) [] (H.UnGuardedRhs () $ rec expr) Nothing]
 
     toRhs expr = H.UnGuardedRhs () $ rec expr
-

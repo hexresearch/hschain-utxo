@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module TM.Core.Box(
     tests
 ) where
@@ -76,7 +77,7 @@ tests = testGroup "core-boxes"
     , testProg "get data-input text"(PrimText "kate") progGetDataInputLastTextArg
     ]
 
-testProg :: String -> Prim -> ExprCore -> TestTree
+testProg :: String -> Prim -> Core Name -> TestTree
 testProg name res prog = testGroup name
   [ testCase "typecheck" $ case typeCheck prog of
       Left  e -> assertFailure $ show e
@@ -84,36 +85,35 @@ testProg name res prog = testGroup name
   , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
   ]
 
-progGetHeight :: ExprCore
+progGetHeight :: Core Name
 progGetHeight = getHeight
 
-progGetSelfId :: ExprCore
+progGetSelfId :: Core Name
 progGetSelfId = getBoxId getSelf
 
-progGetSelfScript :: ExprCore
+progGetSelfScript :: Core Name
 progGetSelfScript = getBoxScript getSelf
 
-progGetTxArg :: ExprCore
+progGetTxArg :: Core Name
 progGetTxArg = listAt IntT getIntArgs (int 1)
 
-progGetInputId :: ExprCore
+progGetInputId :: Core Name
 progGetInputId = getBoxId $ listAt BoxT getInputs (int 0)
 
-progGetOutputId :: ExprCore
+progGetOutputId :: Core Name
 progGetOutputId = getBoxId $ listAt BoxT getOutputs (int 0)
 
-progGetDataInputId :: ExprCore
+progGetDataInputId :: Core Name
 progGetDataInputId = getBoxId $ listAt BoxT getDataInputs (int 0)
 
-progGetOutputLastIntArg :: ExprCore
+progGetOutputLastIntArg :: Core Name
 progGetOutputLastIntArg
   = listAt IntT (getBoxIntArgs $ listAt BoxT getOutputs (int 0)) (int 1)
 
-progGetInputLastTextArg :: ExprCore
+progGetInputLastTextArg :: Core Name
 progGetInputLastTextArg
   = listAt TextT (getBoxTextArgs $ listAt BoxT getInputs (int 1)) (int 1)
 
-progGetDataInputLastTextArg :: ExprCore
+progGetDataInputLastTextArg :: Core Name
 progGetDataInputLastTextArg
   = listAt TextT (getBoxTextArgs $ listAt BoxT getDataInputs (int 1)) (int 0)
-

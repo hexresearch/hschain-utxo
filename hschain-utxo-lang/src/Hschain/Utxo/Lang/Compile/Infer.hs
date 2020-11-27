@@ -191,7 +191,7 @@ libTypeContext = (H.Context $ M.fromList
     fromPrimOps = H.Context $ M.fromList
       [ (VarTag nm, H.monoT $ typeCoreToType ty)
       | (nm,op) <- M.toList monoPrimopNameMap
-      , let Right ty = runCheck mempty $ primopToType op
+      , let Right ty = runCheck $ primopToType op
       ]
 
     toTagContext (H.Context m) = H.Context $ M.map (fmap VarTag) $ M.mapKeys VarTag m

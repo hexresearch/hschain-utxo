@@ -4,11 +4,12 @@
 -- SKI calculus examples
 module Examples.Simple where
 
+import Data.Functor.Identity
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
 
 -- | Addition of two integers
-progAddition :: ExprCore
+progAddition :: Core a
 progAddition
   =     EPrimOp OpAdd
   `EAp` EPrim (PrimInt 1)
