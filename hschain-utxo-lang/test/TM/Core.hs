@@ -42,27 +42,27 @@ tests = testGroup "core"
     ]
   ]
 
-shouldFail :: String -> Core Identity Name -> TestTree
+shouldFail :: String -> Core Name -> TestTree
 shouldFail nm prog = testCase nm $ case typeCheck prog of
   Right _ -> assertFailure "Type checking should fail"
   Left  _ -> return ()
 
 
 -- Trivial
-progLiteral :: Prim -> Core Identity Name
+progLiteral :: Prim -> Core Name
 progLiteral = EPrim
 
-progHeight :: Core Identity Name
+progHeight :: Core Name
 progHeight = EPrimOp OpEnvGetHeight
 
-progEquality :: Prim -> Core Identity Name
+progEquality :: Prim -> Core Name
 progEquality p
   = EPrimOp (OpEQ ty) `EAp` EPrim p `EAp` EPrim p
   where
     ty = primToType p
 
 
-progListCase :: Core Identity Name
+progListCase :: Core Name
 progListCase
   =     EPrimOp OpAdd
   `EAp` safeHead nil
@@ -75,7 +75,7 @@ progListCase
       , alt 1 ["x", "xs"] (EVar "x")
       ]
 
-badListCase :: Core Identity Name
+badListCase :: Core Name
 badListCase = ECase nil
   [ alt 0 ["x"]       zero
   , alt 1 ["x", "xs"] zero

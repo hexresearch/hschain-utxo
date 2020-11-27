@@ -77,7 +77,7 @@ tests = testGroup "core-boxes"
     , testProg "get data-input text"(PrimText "kate") progGetDataInputLastTextArg
     ]
 
-testProg :: String -> Prim -> Core Identity Name -> TestTree
+testProg :: String -> Prim -> Core Name -> TestTree
 testProg name res prog = testGroup name
   [ testCase "typecheck" $ case typeCheck prog of
       Left  e -> assertFailure $ show e
@@ -85,35 +85,35 @@ testProg name res prog = testGroup name
   , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
   ]
 
-progGetHeight :: Core Identity Name
+progGetHeight :: Core Name
 progGetHeight = getHeight
 
-progGetSelfId :: Core Identity Name
+progGetSelfId :: Core Name
 progGetSelfId = getBoxId getSelf
 
-progGetSelfScript :: Core Identity Name
+progGetSelfScript :: Core Name
 progGetSelfScript = getBoxScript getSelf
 
-progGetTxArg :: Core Identity Name
+progGetTxArg :: Core Name
 progGetTxArg = listAt IntT getIntArgs (int 1)
 
-progGetInputId :: Core Identity Name
+progGetInputId :: Core Name
 progGetInputId = getBoxId $ listAt BoxT getInputs (int 0)
 
-progGetOutputId :: Core Identity Name
+progGetOutputId :: Core Name
 progGetOutputId = getBoxId $ listAt BoxT getOutputs (int 0)
 
-progGetDataInputId :: Core Identity Name
+progGetDataInputId :: Core Name
 progGetDataInputId = getBoxId $ listAt BoxT getDataInputs (int 0)
 
-progGetOutputLastIntArg :: Core Identity Name
+progGetOutputLastIntArg :: Core Name
 progGetOutputLastIntArg
   = listAt IntT (getBoxIntArgs $ listAt BoxT getOutputs (int 0)) (int 1)
 
-progGetInputLastTextArg :: Core Identity Name
+progGetInputLastTextArg :: Core Name
 progGetInputLastTextArg
   = listAt TextT (getBoxTextArgs $ listAt BoxT getInputs (int 1)) (int 1)
 
-progGetDataInputLastTextArg :: Core Identity Name
+progGetDataInputLastTextArg :: Core Name
 progGetDataInputLastTextArg
   = listAt TextT (getBoxTextArgs $ listAt BoxT getDataInputs (int 1)) (int 0)

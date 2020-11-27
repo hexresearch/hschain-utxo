@@ -6,7 +6,6 @@ module Hschain.Utxo.Lang.Core.Eval(
 ) where
 
 import Data.Fix
-import Data.Proxy
 import Data.Text
 import Data.Bifunctor
 import Data.Void
@@ -25,7 +24,7 @@ import Hschain.Utxo.Lang.Types
 
 -- | Executes spend-script in transaction. Spend script should be
 --   well-typed and evaluate to either sigma-expression or boolean.
-execScriptToSigma :: InputEnv -> Core Proxy Void -> Either Error (Sigma PublicKey)
+execScriptToSigma :: InputEnv -> Core Void -> Either Error (Sigma PublicKey)
 execScriptToSigma env prog = do
   -- Type check expression
   ty <- first (CoreScriptError . TypeCoreError)

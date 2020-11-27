@@ -11,11 +11,10 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , coreProgToScript
   , coreProgFromScript
     -- * Type classes for binding
-  , Scope1(..)
-  , ScopeN(..)
   , substVar
-  , toDeBrujin
-  , eraseCoreLabels
+  , abstract1
+  , abstractN
+  , abstractGen
   , isClosed
   , lookupVar
   , Identity(..)
@@ -29,7 +28,7 @@ import qualified Codec.Serialise.Decoding as CBOR
 -- import Control.DeepSeq
 import Control.Monad.Except
 import Data.String
-import Data.List       (elemIndex)
+import Data.List (elemIndex)
 import Data.Functor.Identity
 import Data.Proxy
 import Data.Void
@@ -40,10 +39,10 @@ import Hschain.Utxo.Lang.Types (Script(..),ArgType)
 import qualified Data.ByteString.Lazy as LB
 
 
-coreProgToScript :: Core Proxy Void -> Script
+coreProgToScript :: Core Void -> Script
 coreProgToScript = Script . LB.toStrict . serialise
 
-coreProgFromScript :: Script -> Maybe (Core Proxy Void)
+coreProgFromScript :: Script -> Maybe (Core Void)
 coreProgFromScript = either (const Nothing) Just . deserialiseOrFail . LB.fromStrict . unScript
 
 data PrimOp a
@@ -117,7 +116,7 @@ data PrimOp a
   deriving anyclass (Serialise)
 
 -- | Expressions of the Core-language
-data Core f a
+data Core a
   = EVar !a
   -- ^ Free variable in expression
   | BVar !Int
@@ -126,15 +125,15 @@ data Core f a
   -- ^ Literal expression
   | EPrimOp !(PrimOp TypeCore)
   -- ^ Primitive operation
-  | ELam !TypeCore (Scope1 f a)
+  | ELam !TypeCore (Core a)
   -- ^ Lambda abstraction
-  | EAp  (Core f a) (Core f a)
+  | EAp  (Core a) (Core a)
   -- ^ Function application
-  | ELet (Core f a) (Scope1 f a)
+  | ELet (Core a) (Core a)
   -- ^ Nonrecursive let bindings
-  | EIf (Core f a) (Core f a) (Core f a)
+  | EIf (Core a) (Core a) (Core a)
   -- ^ If expressions
-  | ECase !(Core f a) [CaseAlt f a]
+  | ECase !(Core a) [CaseAlt a]
   -- ^ Case expression
   | EConstr TypeCore !Int
   -- ^ Constructor of ADT. First field is a type of value being
@@ -142,28 +141,21 @@ data Core f a
   --   have that type as parameter. Second is constructor's tag.
   | EBottom
   -- ^ failed termination for the program
-  deriving (Generic, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Generic, Functor, Foldable, Traversable)
 
-instance IsString a => IsString (Core b a) where
+instance IsString a => IsString (Core a) where
   fromString = EVar . fromString
 
 -- | Case alternatives
-data CaseAlt f a = CaseAlt
+data CaseAlt a = CaseAlt
   { caseAlt'tag   :: !Int
   -- ^ Tag of the constructor. Instead of names we use numbers
-  , caseAlt'rhs   :: ScopeN f a
+  , caseAlt'nVars :: !Int
+  -- ^ Number of variables bound in the expression
+  , caseAlt'rhs   :: Core a
   -- ^ Right-hand side of the case-alternative
   }
-  deriving (Generic, Functor, Foldable, Traversable)
-
--- | Binder for single variable
-data Scope1 f a = Scope1 (f Name) (Core f a)
-  deriving (Functor, Foldable, Traversable)
-
--- | Binder for multiple variables. We need number of variables for
---   evaluation and
-data ScopeN f a = ScopeN !Int (f [Name]) (Core f a)
-  deriving (Functor, Foldable, Traversable)
+  deriving (Show, Eq, Generic, Functor, Foldable, Traversable)
 
 lookupVar :: [a] -> Int -> Maybe a
 lookupVar []    !_ = Nothing
@@ -176,12 +168,12 @@ lookupVar (_:xs) n = lookupVar xs (n-1)
 
 -- | Substitute free variables in expression.
 substVar
-  :: (v -> Maybe (Core f v))    -- ^ Substitution function
-  -> Core f v
-  -> Core f v
-substVar fun = go []
+  :: (v -> Maybe (Core v))    -- ^ Substitution function
+  -> Core v
+  -> Core v
+substVar fun = go
   where
-    go ctx expr = case expr of
+    go expr = case expr of
       EVar v
         | Just e <- fun v -> e
         | otherwise       -> expr
@@ -192,106 +184,51 @@ substVar fun = go []
       EBottom   -> expr
       EConstr{} -> expr
       -- No binders
-      EAp a b   -> EAp (go ctx a) (go ctx b)
-      EIf c t f -> EIf (go ctx c) (go ctx t) (go ctx f)
+      EAp a b   -> EAp (go a) (go b)
+      EIf c t f -> EIf (go c) (go t) (go f)
       -- Constructors with binders
-      ELet e  body -> ELet (go ctx e) (go1 ctx body)
-      ELam ty body -> ELam ty (go1 ctx body)
-      ECase e alts -> ECase (go ctx e)
-        [ CaseAlt tag (goN ctx alt)
-        | CaseAlt tag alt <- alts
-        ]
-    --
-    go1 ctx (Scope1   b e) = Scope1   b $ go ctx e
-    goN ctx (ScopeN n b e) = ScopeN n b $ go ctx e
-
--- | Substitute free variables in expression.
-eraseCoreLabels :: Core f v -> Core Proxy v
-eraseCoreLabels = go
-  where
-    go = \case
-      EVar v      -> EVar v
-      BVar i      -> BVar i
-      EPrim p     -> EPrim p
-      EPrimOp op  -> EPrimOp op
-      EBottom     -> EBottom
-      EConstr i t -> EConstr i t
-      EAp a b     -> EAp (go a) (go b)
-      EIf c t f   -> EIf (go c) (go t) (go f)
-      -- Constructors with binders
-      ELet e  body -> ELet (go e) (go1 body)
-      ELam ty body -> ELam ty (go1 body)
+      ELet e  body -> ELet (go e) (go body)
+      ELam ty body -> ELam ty (go body)
       ECase e alts -> ECase (go e)
-        [ CaseAlt tag (goN alt)
-        | CaseAlt tag alt <- alts
+        [ CaseAlt tag n (go alt)
+        | CaseAlt tag n alt <- alts
         ]
-    --
-    go1 (Scope1   _ e) = Scope1   Proxy $ go e
-    goN (ScopeN n _ e) = ScopeN n Proxy $ go e
 
-isClosed :: Core f v -> Either v (Core f a)
-isClosed = go
+isClosed :: Core v -> Either v (Core a)
+isClosed = traverse Left
+
+abstract1 :: Eq a => a -> Core a -> Core a
+abstract1 x = abstractGen $ \y -> 0 <$ guard (x == y)
+
+abstractN :: Eq a => [a] -> Core a -> Core a
+abstractN xs = abstractGen $ \x -> elemIndex x xs
+
+-- FIXME: naive use of abstractGen is depth of expression. Will do for
+--        now but we'll need better way to bind variables
+abstractGen :: (a -> Maybe Int) -> Core a -> Core a
+abstractGen fun = go 0
   where
-    go = \case
-      EVar v -> Left v
-      BVar i -> pure $ BVar i
-      -- Noops
-      EPrim   p   -> pure $ EPrim p
-      EPrimOp op  -> pure $ EPrimOp op
-      EBottom     -> pure   EBottom
-      EConstr i t -> pure $ EConstr i t
-      -- No binders
-      EAp a b   -> EAp <$> go a <*> go b
-      EIf c t f -> EIf <$> go c <*> go t <*> go f
-      -- -- Constructors with binders
-      ELet e  body -> ELet <$> go e <*> go1 body
-      ELam ty body -> ELam ty <$> go1 body
-      ECase e alts -> ECase <$> go e <*> sequence
-        [ CaseAlt tag <$> goN alt
-        | CaseAlt tag alt <- alts
-        ]
-    --
-    go1 (Scope1   b e) = Scope1   b <$> go e
-    goN (ScopeN n b e) = ScopeN n b <$> go e
-
-
--- | Bind all variables in the core expression
-toDeBrujin :: Core Identity Name -> Core Identity Name
-toDeBrujin = go []
-  where
-    go ctx expr = case expr of
-      EVar a
-        | Just i <- elemIndex a ctx -> BVar i
-        | otherwise                 -> expr
-      BVar{}                        -> expr
-      --
-      EPrim{}   -> expr
-      EPrimOp{} -> expr
-      EBottom   -> expr
-      EConstr{} -> expr
-      --
-      EAp a b   -> EAp (go ctx a) (go ctx b)
-      EIf c t f -> EIf (go ctx c) (go ctx t) (go ctx f)
-      --
-      ELet e  body -> ELet (go ctx e) (go1 ctx body)
-      ELam ty body -> ELam ty (go1 ctx body)
-      ECase e alts -> ECase (go ctx e) (goAlt ctx <$> alts)
-    --
-    goAlt ctx (CaseAlt i (ScopeN n (Identity xs) e))
-      | length xs /= n = error "Internal error: size mismatch in case"
-      | otherwise      = CaseAlt i $ ScopeN n (Identity xs) $ go (xs <> ctx) e
-    --
-    go1 ctx (Scope1 (Identity x) e) = Scope1 (Identity x) $ go (x : ctx) e
+    go n expr = case expr of
+      EVar x | Just i <- fun x -> BVar (n + i)
+             | otherwise       -> expr
+      BVar{}       -> expr
+      EPrim{}      -> expr
+      EPrimOp{}    -> expr
+      ELam ty e    -> ELam ty $ go (n+1) e
+      EAp f a      -> EAp (go n f) (go n a)
+      ELet e b     -> ELet (go n e) (go (n+1) b)
+      EIf  c t f   -> EIf (go n c) (go n t) (go n f)
+      ECase e alts -> ECase (go n e)
+        [ CaseAlt i k (go (n+k) a) | CaseAlt i k a <- alts ]
+      EConstr{}    -> expr
+      EBottom      -> expr
 
 
 ----------------------------------------------------------------
 -- Serialization of core
 ----------------------------------------------------------------
 
-instance ( Serialise v
-         , Serialise (Scope1 f v)
-         , Serialise (ScopeN f v)
-         ) => Serialise (Core f v) where
+instance ( Serialise v) => Serialise (Core v) where
   encode expr = prefix <> case expr of
     EVar v       -> encode v
     BVar i       -> encode i
@@ -327,44 +264,14 @@ instance ( Serialise v
       (10,1) -> pure EBottom
       _     -> fail "Invalid encoding"
 
-instance (Serialise (ScopeN f v)) => Serialise (CaseAlt f v) where
-  encode (CaseAlt i e) = CBOR.encodeListLen 2
-                      <> encode i
-                      <> encode e
+instance (Serialise v) => Serialise (CaseAlt v) where
+  encode (CaseAlt i n e) = CBOR.encodeListLen 3
+                        <> encode i
+                        <> encode n
+                        <> encode e
   decode = do
-    2 <- CBOR.decodeListLen
-    CaseAlt <$> decode <*> decode
-
-instance (Serialise v) => Serialise (Scope1 Identity v) where
-  encode (Scope1 (Identity v) e) = CBOR.encodeListLen 2
-                                <> encode v
-                                <> encode e
-  decode = do
-    2 <- CBOR.decodeListLen
-    Scope1 <$> (Identity <$> decode) <*> decode
-
-instance (Serialise v) => Serialise (ScopeN Identity v) where
-  encode (ScopeN _ (Identity xs) e) = CBOR.encodeListLen 2
-                                   <> encode xs
-                                   <> encode e
-  decode = do
-    2  <- CBOR.decodeListLen
-    xs <- decode
-    e  <- decode
-    pure $ ScopeN (length xs) (Identity xs) e
-
-instance (Serialise v) => Serialise (Scope1 Proxy v) where
-  encode (Scope1 Proxy e) = encode e
-  decode = Scope1 Proxy <$> decode
-
-instance (Serialise v) => Serialise (ScopeN Proxy v) where
-  encode (ScopeN n Proxy e) = CBOR.encodeListLen 2
-                           <> encode n
-                           <> encode e
-  decode = do
-    2 <- CBOR.decodeListLen
-    ScopeN <$> decode <*> pure Proxy <*> decode
-    
+    3 <- CBOR.decodeListLen
+    CaseAlt <$> decode <*> decode <*> decode
 
 
 
@@ -408,18 +315,6 @@ instance (GFieldInfo f, GFieldInfo g) => GFieldInfo (f :*: g) where
 ----------------------------------------------------------------
 -- Instances Zoo
 ----------------------------------------------------------------
-
-deriving instance (Show a, forall x. Show (f x)) => Show (Scope1 f a)
-deriving instance (Eq   a, forall x. Eq   (f x)) => Eq   (Scope1 f a)
-
-deriving instance (Show a, forall x. Show (f x)) => Show (ScopeN f a)
-deriving instance (Eq   a, forall x. Eq   (f x)) => Eq   (ScopeN f a)
-
-deriving instance (Show a, forall x. Show (f x)) => Show (CaseAlt f a)
-deriving instance (Eq   a, forall x. Eq   (f x)) => Eq   (CaseAlt f a)
- 
-deriving instance (Show a, forall x. Show (f x)) => Show (Core f a)
-deriving instance (Eq   a, forall x. Eq   (f x)) => Eq   (Core f a)
 
 instance Serialise Void where
   encode = absurd

@@ -53,7 +53,7 @@ testByteReprSignature = do
   return $ decodeFromBS (encodeToBS sig) == Just sig
 
 
-pkExpr :: PublicKey -> Core Identity Name
+pkExpr :: PublicKey -> Core Name
 pkExpr = bytes . encodeToBS
 
 testCheckSig :: IO Bool

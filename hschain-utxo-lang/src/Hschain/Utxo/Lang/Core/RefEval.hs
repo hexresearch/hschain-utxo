@@ -1,4 +1,5 @@
 {-# LANGUAGE MonadComprehensions #-}
+{-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE RankNTypes          #-}
 -- | Evaluator for Core
 module Hschain.Utxo.Lang.Core.RefEval
@@ -76,7 +77,7 @@ instance IsString EvalErr where
   fromString = EvalErr
 
 -- | Evaluate program
-evalProg :: InputEnv -> Core f v -> EvalResult
+evalProg :: InputEnv -> Core v -> EvalResult
 evalProg env prog =
   case runEval (evalExpr env [] prog) of
     Right val -> case val of
@@ -111,17 +112,12 @@ getReductionCount = fmap evalEnv'reductions get
 bumpReductionCount :: Eval ()
 bumpReductionCount = modify' $ \st -> st { evalEnv'reductions = succ $ evalEnv'reductions st }
 
-evalExpr :: InputEnv -> [Val] -> Core f v -> Eval Val
+evalExpr :: InputEnv -> [Val] -> Core v -> Eval Val
 evalExpr inpEnv = recur
   where
     evalVar lenv x
       | Just v <- lookupVar lenv x = pure v
       | otherwise = throwError $ EvalErr "Unknown variable"
-    evalScope1 lenv val  (Scope1 _   expr)
-      = recur (val : lenv) expr
-    evalScopeN lenv vals (ScopeN n _ expr)
-      | length vals /= n = throwError TypeMismatch
-      | otherwise        = recur (vals <> lenv) expr
     --
     recur lenv expr = do
       bumpReductionCount
@@ -138,14 +134,14 @@ evalExpr inpEnv = recur
               valF :: (Val -> Eval Val) <- match =<< recur lenv f
               valX <- recur lenv x
               fmap inj $ valF valX
-            ELam _ body -> pure $ ValF $ \x -> evalScope1 lenv x body
+            ELam _ body -> pure $ ValF $ \x -> recur (x : lenv) body
             EIf e a b -> do
               valCond <- recur lenv e
               case valCond of
                 ValP (PrimBool f) -> recur lenv $ if f then a else b
                 _                 -> throwError TypeMismatch
             ELet bind body -> do x <- recur lenv bind
-                                 evalScope1 lenv x body
+                                 recur (x : lenv) body
             --
             ECase e alts -> do
               valE <- recur lenv e
@@ -153,7 +149,9 @@ evalExpr inpEnv = recur
                 ValCon tag fields -> matchCase alts
                   where
                     matchCase (CaseAlt{..} : cs)
-                      | tag == caseAlt'tag = evalScopeN lenv fields caseAlt'rhs
+                      | tag == caseAlt'tag = if
+                        | length fields == caseAlt'nVars -> recur (fields <> lenv) caseAlt'rhs
+                        | otherwise                      -> throwError TypeMismatch
                       | otherwise          = matchCase cs
                     matchCase [] = throwError $ EvalErr "No match in case"
                 _             -> throwError TypeMismatch

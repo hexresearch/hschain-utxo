@@ -1,7 +1,8 @@
 -- | Converts ExprCore to haskell expression.
 -- We ues it to borrow pretty-printer from haskell-src-exts
 module Hschain.Utxo.Lang.Core.ToHask(
-  toHaskExprCore
+    toHaskExprCore
+  , IsVarName
 ) where
 
 import Hex.Common.Text (showt)
@@ -33,17 +34,17 @@ instance IsVarName Text where
 instance IsVarName Void where
   toVarName = absurd
 
-toHaskExprCore :: IsVarName a => Core f a -> H.Exp ()
+toHaskExprCore :: IsVarName a => Core a -> H.Exp ()
 toHaskExprCore = \case
   EVar v             -> toVar $ toVarName v
   BVar i             -> toVar $ T.pack $ "@" ++ show i
   EPrim p            -> fromPrim p
   EPrimOp op         -> toVar $ toOpName op
-  ELam ty (Scope1 _ body) ->
+  ELam ty body ->
     let (ps, expr) = getLamPats [("_", ty)] body
     in  H.Lambda () (fmap (uncurry toPat) ps) $ rec expr
   EAp f a            -> H.App () (rec f) (rec a)
-  ELet rhs (Scope1 _ body) ->
+  ELet rhs body ->
     let (bs, expr) = getLetBinds [("_", rhs)] body
     in  H.Let () (toBinds bs) (rec expr)
   EIf c t e          -> H.If () (rec c) (rec t) (rec e)
@@ -59,12 +60,12 @@ toHaskExprCore = \case
     toPat name ty = H.PatTypeSig () (H.PVar () (toName name)) (fromType ty)
 
     getLamPats res = \case
-      ELam ty (Scope1 _ body) -> getLamPats (("_", ty) : res) body
-      other                   -> (reverse res, other)
+      ELam ty body -> getLamPats (("_", ty) : res) body
+      other        -> (reverse res, other)
 
     getLetBinds res = \case
-      ELet rhs (Scope1 _ body) -> getLetBinds (("_", rhs) : res) body
-      other                    -> (reverse res, other)
+      ELet rhs body -> getLetBinds (("_", rhs) : res) body
+      other         -> (reverse res, other)
 
     fromPrim = \case
       PrimInt n     -> H.Lit () $ H.Int () (fromIntegral n) (show n)
@@ -137,12 +138,11 @@ toHaskExprCore = \case
     fromAlt CaseAlt{..} = H.Alt () (H.PApp () cons pats) (toRhs caseAlt'rhs) Nothing
       where
         cons = toQName $ "Con" <> showt caseAlt'tag
-        pats = undefined
-        -- pats = fmap (H.PVar () . toName) caseAlt'args
+        pats = fmap (H.PVar () . toName) $ replicate caseAlt'nVars "_"
 
     toBinds xs = H.BDecls () $ fmap toBind xs
       where
         toBind (name, expr) = H.FunBind ()
           [H.Match () (toName name) [] (H.UnGuardedRhs () $ rec expr) Nothing]
 
-    toRhs (ScopeN _ _ expr) = H.UnGuardedRhs () $ rec expr
+    toRhs expr = H.UnGuardedRhs () $ rec expr

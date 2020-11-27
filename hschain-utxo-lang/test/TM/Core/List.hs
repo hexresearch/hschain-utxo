@@ -44,13 +44,13 @@ tests = testGroup "core-lists"
     bigSize = 1000000
     okSize  = 1000
 
-listToExpr :: TypeCore -> [Core Identity Name] -> Core Identity Name
+listToExpr :: TypeCore -> [Core Name] -> Core Name
 listToExpr ty = foldr cons nil
   where
     nil      = EConstr (ListT ty) 0
     cons a b = ap (EConstr (ListT ty) 1) [a, b]
 
-listConsts :: Core Identity Name -> Core Identity Name
+listConsts :: Core Name -> Core Name
 listConsts
   = let_ "xs" (nums xs)
   . let_ "ys" (nums ys)
@@ -65,57 +65,57 @@ listConsts
     bs = [True, False, True]
 
 
-withBigList :: Int64 -> Core Identity Name -> Core Identity Name
+withBigList :: Int64 -> Core Name -> Core Name
 withBigList size =
   let_ "hugeList" (listToExpr IntT $ fmap (EPrim . PrimInt) [0 .. size])
 
 -- | Index to list.
 -- We index the list [1,2,3] with given index.
 -- Out of bound should terminate with BottomTerm.
-progListAt :: Int64 -> Core Identity Name
+progListAt :: Int64 -> Core Name
 progListAt n
   = listConsts
   $ listAt IntT "xs" (int n)
 
 -- | Concatenation of two lists.
-progConcatList :: Core Identity Name
+progConcatList :: Core Name
 progConcatList
   = listConsts
   $ appendList IntT "xs" "ys"
 
 -- | Map over list
-progMapList :: Core Identity Name
+progMapList :: Core Name
 progMapList
   = listConsts
   $ mapList IntT IntT (EAp (EPrimOp OpMul) (int 10)) "xs"
 
-progSumList :: Core Identity Name
+progSumList :: Core Name
 progSumList
   = listConsts
   $ ap (EPrimOp OpListSum) ["zs"]
 
-progOrList :: Int64 -> Core Identity Name
+progOrList :: Int64 -> Core Name
 progOrList n
   = listConsts
   $ ap (EPrimOp OpListOr) [mapList IntT BoolT (isIntV n) "zs"]
 
-isIntV :: Int64 -> Core Identity Name
+isIntV :: Int64 -> Core Name
 isIntV n = EAp (EPrimOp (OpEQ IntT)) (int n)
 
-progAnyList :: Int64 -> Core Identity Name
+progAnyList :: Int64 -> Core Name
 progAnyList n
   = listConsts
   $ ap (EPrimOp (OpListAny IntT)) [isIntV n, "xs"]
 
-progAllList :: Int64 -> Core Identity Name
+progAllList :: Int64 -> Core Name
 progAllList n
   = listConsts
   $ ap (EPrimOp (OpListAll IntT)) [isIntV n, "xs"]
 
-progSigmaAllList :: Core Identity Name
+progSigmaAllList :: Core Name
 progSigmaAllList
   = listConsts
   $ ap (EPrimOp (OpSigListAll BoolT)) [EPrimOp OpSigBool, "bs"]
 
-progBigListReduce :: Int64 -> Core Identity Name
+progBigListReduce :: Int64 -> Core Name
 progBigListReduce size = withBigList size $ ap (EPrimOp OpListSum)  ["hugeList"]

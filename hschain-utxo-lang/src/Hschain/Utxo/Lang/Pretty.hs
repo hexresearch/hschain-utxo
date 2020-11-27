@@ -12,8 +12,6 @@ import Hex.Common.Serialise
 
 import Data.Bool
 import Data.Fix
-import Data.Proxy
-import Data.String
 import Data.Void
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -28,6 +26,7 @@ import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr (Core)
 import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
+import Hschain.Utxo.Lang.Core.ToHask
 import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam, TypedLamProg)
 import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr, toHaskProg)
 import Hschain.Utxo.Lang.Parser.Hask.ToHask (toHaskModule)
@@ -72,12 +71,10 @@ instance Pretty BoxId where
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    -- FIXME: Use pretty instance when it's fixed
-    Right e -> pretty $ show (e :: Core Proxy Void)
+    Right e -> pretty $ show (e :: Core Void)
 
--- FIXME: broken
--- instance Pretty ExprCore where
---   pretty = pretty . prettyPrint . toHaskExprCore
+instance IsVarName a => Pretty (Core a) where
+  pretty = pretty . prettyPrint . toHaskExprCore
 
 instance Pretty Box where
   pretty Box{..} = prettyRecord "Box"

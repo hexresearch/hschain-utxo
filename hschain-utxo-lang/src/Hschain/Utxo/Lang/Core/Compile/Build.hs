@@ -47,68 +47,68 @@ import Hschain.Utxo.Lang.Sigma
 import qualified Data.List as L
 
 
-ap :: Core b v -> [Core b v] -> Core b v
+ap :: Core v -> [Core v] -> Core v
 ap f args = L.foldl' (\op a -> EAp op a) f args
 
-primOp :: PrimOp TypeCore -> [Core b v] -> Core b v
+primOp :: PrimOp TypeCore -> [Core v] -> Core v
 primOp op args = ap (EPrimOp op) args
 
 -- | Application of function to two arguments
-ap2 :: Core b v -> Core b v -> Core b v -> Core b v
+ap2 :: Core v -> Core v -> Core v -> Core v
 ap2 f a b = f `EAp` a `EAp` b
 
-int :: Int64 -> Core b v
+int :: Int64 -> Core v
 int n = EPrim $ PrimInt n
 
-bool :: Bool -> Core b v
+bool :: Bool -> Core v
 bool b = EPrim $ PrimBool b
 
-text :: Text -> Core b v
+text :: Text -> Core v
 text txt = EPrim $ PrimText txt
 
-bytes :: ByteString -> Core b v
+bytes :: ByteString -> Core v
 bytes b = EPrim $ PrimBytes b
 
-sigmaBool :: Bool -> Core b v
+sigmaBool :: Bool -> Core v
 sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
 
-equals :: TypeCore -> Core b v -> Core b v -> Core b v
+equals :: TypeCore -> Core v -> Core v -> Core v
 equals t a b = ap (EPrimOp (OpEQ t)) [a, b]
 
-listAt :: TypeCore -> Core b v -> Core b v -> Core b v
+listAt :: TypeCore -> Core v -> Core v -> Core v
 listAt ty as n = ap (EPrimOp (OpListAt ty)) [as, n]
 
-appendList :: TypeCore -> Core b v -> Core b v -> Core b v
+appendList :: TypeCore -> Core v -> Core v -> Core v
 appendList ty as bs = ap (EPrimOp (OpListAppend ty)) [as, bs]
 
-mapList :: TypeCore -> TypeCore -> Core b v -> Core b v -> Core b v
+mapList :: TypeCore -> TypeCore -> Core v -> Core v -> Core v
 mapList ta tb f as = ap (EPrimOp (OpListMap ta tb)) [f, as]
 
-listExpr :: TypeCore -> [Core b v] -> Core b v
+listExpr :: TypeCore -> [Core v] -> Core v
 listExpr ty = foldr cons nil
   where
     nil      = EConstr (ListT ty) 0
     cons a b = ap (EConstr (ListT ty) 1) [a, b]
 
-getBoxId :: Core b v -> Core b v
+getBoxId :: Core v -> Core v
 getBoxId = EAp (EPrimOp OpGetBoxId)
 
-getBoxValue :: Core b v -> Core b v
+getBoxValue :: Core v -> Core v
 getBoxValue = EAp (EPrimOp OpGetBoxValue)
 
-getBoxPostHeight :: Core b v -> Core b v
+getBoxPostHeight :: Core v -> Core v
 getBoxPostHeight = EAp (EPrimOp OpGetBoxPostHeight)
 
-getBoxScript :: Core b v -> Core b v
+getBoxScript :: Core v -> Core v
 getBoxScript = EAp (EPrimOp OpGetBoxScript)
 
-getBoxIntArgs,getBoxTextArgs,getBoxByteArgs,getBoxBoolArgs :: Core b v -> Core b v
+getBoxIntArgs,getBoxTextArgs,getBoxByteArgs,getBoxBoolArgs :: Core v -> Core v
 getBoxIntArgs  = EAp (EPrimOp $ OpGetBoxArgs IntArg)
 getBoxTextArgs = EAp (EPrimOp $ OpGetBoxArgs TextArg)
 getBoxByteArgs = EAp (EPrimOp $ OpGetBoxArgs BytesArg)
 getBoxBoolArgs = EAp (EPrimOp $ OpGetBoxArgs BoolArg)
 
-getInputs,getOutputs,getSelf,getDataInputs,getHeight,getIntArgs,getTextArgs,getByteArgs,getBoolArgs :: Core b v
+getInputs,getOutputs,getSelf,getDataInputs,getHeight,getIntArgs,getTextArgs,getByteArgs,getBoolArgs :: Core v
 getInputs     = EPrimOp OpEnvGetInputs
 getOutputs    = EPrimOp OpEnvGetOutputs
 getSelf       = EPrimOp OpEnvGetSelf
@@ -119,10 +119,10 @@ getTextArgs   = EPrimOp $ OpArgs TextArg
 getByteArgs   = EPrimOp $ OpArgs BytesArg
 getBoolArgs   = EPrimOp $ OpArgs BoolArg
 
-checkSig :: Core b v -> Core b v -> Core b v
+checkSig :: Core v -> Core v -> Core v
 checkSig pk ix = ap (EPrimOp OpCheckSig) [pk, ix]
 
-checkMultiSig :: Core b v -> Core b v -> Core b v -> Core b v
+checkMultiSig :: Core v -> Core v -> Core v -> Core v
 checkMultiSig total pks indices = ap (EPrimOp OpCheckMultiSig) [total, pks, indices]
 
 

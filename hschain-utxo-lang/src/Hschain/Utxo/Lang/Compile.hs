@@ -13,8 +13,7 @@ module Hschain.Utxo.Lang.Compile(
 import Control.Monad
 
 import Data.Fix
-import Data.Proxy
-import Data.Functor.Identity
+import Data.List (elemIndex)
 import Data.Void
 import qualified Data.Map.Strict as Map
 import qualified Data.Text       as T
@@ -46,13 +45,9 @@ toCoreScriptUnsafe :: Module -> Script
 toCoreScriptUnsafe m = either (error . T.unpack . renderText) id $ toCoreScript m
 
 -- | Compilation to Core-lang program from the script-language.
-compile :: MonadLang m => Module -> m (Core Proxy Void)
+compile :: MonadLang m => Module -> m (Core Void)
 compile
-  =  pure . Core.eraseCoreLabels
- <=< (either (throwError . FreeVariable) pure . Core.isClosed)
- <=< pure . Core.toDeBrujin
- <=< pure . substPrimOp
- <=< toCoreProg
+  =  toCoreProg
  <=< specifyOps
  <=< inlinePolys
  <=< annotateTypes
@@ -91,64 +86,72 @@ inlineModule m = either (error . T.unpack . renderText) id $ runInferM $ (inline
 inferModule :: Module -> TypedLamProg
 inferModule m = either (error . T.unpack . renderText) id $ runInferM $ (annotateTypes <=< toExtendedLC <=< pure . inlinePrelude) m
 
--- | Perform sunbstiturion of primops
-substPrimOp :: Core f Name -> Core f Name
-substPrimOp = Core.substVar $ \v -> Core.EPrimOp <$> Map.lookup v monoPrimopNameMap
-
 -- | Transforms type-annotated monomorphic program without lambda-expressions (all lambdas are lifted)
 -- to Core program.
-toCoreProg :: MonadLang m => TypedLamProg -> m (Core Identity Name)
+toCoreProg :: MonadLang m => TypedLamProg -> m (Core Void)
 toCoreProg = fromDefs . unAnnLamProg
 
-bind1 :: Name -> Core.Core Identity Name -> Core.Scope1 Identity Name
-bind1 nm = Core.Scope1 (Identity nm)
+-- bind1 :: Name -> Core.Core Identity Name -> Core.Scope1 Identity Name
+-- bind1 nm = Core.Scope1 (Identity nm)
 
-bindN :: [Name] -> Core.Core Identity Name -> Core.ScopeN Identity Name
-bindN nm = Core.ScopeN (length nm) (Identity nm)
+-- bindN :: [Name] -> Core.Core Identity Name -> Core.ScopeN Identity Name
+-- bindN nm = Core.ScopeN (length nm) (Identity nm)
 
-fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m (Core Identity Name)
-fromDefs [] = throwError $ PatError MissingMain
-fromDefs (Def{..}:rest)
-  | def'name == "main" = body
-  | otherwise          = Core.ELet <$> body <*> (bind1 (varName'name def'name) <$> fromDefs rest)
+fromDefs :: MonadLang m => [AnnComb (H.Type () Name) (Typed (H.Type () Name) Name)] -> m (Core Void)
+fromDefs = recur []
   where
-    body = go def'args
+    recur _   [] = throwError $ PatError MissingMain
+    recur ctx (defn : rest)
+      | def'name defn == "main" = body ctx defn
+      | otherwise               = Core.ELet <$> body ctx defn
+                                            <*> recur (varName'name (def'name defn) : ctx) rest
+    --
+    body ctx0 Def{..} = go ctx0 def'args
       where
-        go []                   = toCoreExpr def'body
-        go (Typed nm ty : args) = Core.ELam <$> toCoreType ty <*> (bind1 nm <$> go args)
+        go ctx []                   = toCoreExpr ctx def'body
+        go ctx (Typed nm ty : args) = Core.ELam <$> toCoreType ty <*> go (nm : ctx) args
 
-toCoreExpr :: MonadLang m => TypedExprLam -> m (Core Identity Name)
-toCoreExpr = cataM convert
+toCoreExpr :: MonadLang m => [Name] -> TypedExprLam -> m (Core Void)
+toCoreExpr = go
   where
-    convert (Ann exprTy val) = case val of
-      EVar loc name        ->
-        case Map.lookup name monoPrimopNameMap of
-          Just op  -> pure $ Core.EPrimOp op
-          Nothing  -> specifyPolyFun loc typeCtx exprTy name
+    go ctx (Fix (Ann exprTy val)) = case val of
+      EVar loc name
+        | Just i <- elemIndex name ctx
+          -> pure $ Core.BVar i
+        | Just op <- Map.lookup name monoPrimopNameMap
+          -> pure $ Core.EPrimOp op
+        | otherwise
+          -> specifyPolyFun loc typeCtx exprTy name
       EPrim _ prim         -> pure $ Core.EPrim $ primLoc'value prim
       EPrimOp _ primOp     -> Core.EPrimOp <$> traverse toCoreType primOp
-      EAp _  f a           -> pure $ Core.EAp f a
-      -- FIXME: We don't take recurion between let bindings into account
-      ELet _ binds body    -> pure $
-        let addLet (nm, e) = Core.ELet e . bind1 (typed'value nm)
-        in foldr addLet body binds
-      ELam _ xs body       -> toLambda xs body
-      EIf _ c t e          -> pure $ Core.EIf c t e
-      ECase _ e alts       -> Core.ECase e <$> traverse convertAlt alts
+      EAp _  f a           -> Core.EAp <$> go ctx f <*> go ctx a
+      ELet _ exprs body    -> toLet    ctx exprs body
+      ELam _ xs body       -> toLambda ctx xs body
+      EIf _ c t e          -> Core.EIf <$> go ctx c <*> go ctx t <*> go ctx e
+      ECase _ e alts       -> Core.ECase <$> go ctx e <*> traverse (convertAlt ctx) alts
       EConstr _ consTy m _ -> do ty <- toCoreType consTy
                                  pure $ Core.EConstr (resultType ty) m
-      EAssertType _ e _    -> pure e
+      EAssertType _ e _    -> go ctx e
       EBottom _            -> pure $ Core.EBottom
 
-    convertAlt CaseAlt{..} = return Core.CaseAlt
-      { caseAlt'rhs = bindN (typed'value <$> caseAlt'args) caseAlt'rhs
-      , ..
-      }
-    toLambda []                  body = pure body
-    toLambda (Typed x ty : vars) body = do
-      e   <- toLambda vars body
+    convertAlt ctx CaseAlt{..} = do
+      e <- go (fmap typed'value caseAlt'args <> ctx) caseAlt'rhs
+      pure Core.CaseAlt
+        { caseAlt'nVars = length caseAlt'args
+        , caseAlt'rhs   = e
+        , ..
+        }
+    toLet ctx [] body = go ctx body
+    toLet ctx ((Typed x _, expr) : rest) body = do
+      expr' <- go ctx expr
+      body' <- toLet (x : ctx) rest body
+      pure $ Core.ELet expr' body'
+    --
+    toLambda ctx []                  body = go ctx body
+    toLambda ctx (Typed x ty : vars) body = do
+      e   <- toLambda (x : ctx) vars body
       ty' <- toCoreType ty
-      pure $ Core.ELam ty' (bind1 x e)
+      pure $ Core.ELam ty' e
 
     typeCtx = baseLibTypeContext
 
@@ -159,14 +162,14 @@ resultType  a        = a
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
 -- We need to think on more generic rule for substitution like this.
-specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m (Core Identity Name)
+specifyPolyFun :: MonadLang m => Loc -> TypeContext -> H.Type () Name -> Name -> m (Core Void)
 specifyPolyFun loc ctx ty name = do
   case H.lookupCtx name ctx of
     Just sig -> fromSignature $ H.mapLoc (const ()) sig
-    Nothing  -> return $ Core.EVar name
+    Nothing  -> throwError $ FreeVariable name
   where
     fromSignature sig
-      | null args && H.isMono genTy = return $ Core.EVar name
+      | null args && H.isMono genTy = throwError $ FreeVariable name
       | otherwise                   = fromPolyType genTy args
       where
         (args, genTy) = H.splitSignature sig

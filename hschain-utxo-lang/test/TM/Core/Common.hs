@@ -59,30 +59,30 @@ mkBoxOutput height bid box = BoxOutput
                         }
   }
 
-testProgram :: String -> Core Identity Name -> Prim -> TestTree
+testProgram :: String -> Core Name -> Prim -> TestTree
 testProgram nm prog r = testProgramBy nm prog (Right [r])
 
-testProgramL :: String -> Core Identity Name -> [Prim] -> TestTree
+testProgramL :: String -> Core Name -> [Prim] -> TestTree
 testProgramL nm prog r = testProgramBy nm prog (Right r)
 
-testProgramFail :: String -> Core Identity Name -> TestTree
+testProgramFail :: String -> Core Name -> TestTree
 testProgramFail nm prog = testProgramBy nm prog (Left ())
 
-testProgramBy :: String -> Core Identity Name -> Either e [Prim] -> TestTree
+testProgramBy :: String -> Core Name -> Either e [Prim] -> TestTree
 testProgramBy nm prog res
   = testGroup nm
   $ testTypecheck
  ++ testEval
   where
     testTypecheck =
-      [ testCase "typeCheck dB" $ case typeCheck $ toDeBrujin prog of
+      [ testCase "typeCheck dB" $ case typeCheck prog of
             Left  e -> assertFailure $ show e
             Right _ -> pure ()
       ]
     --
     testEval = case res of
       Left  _   -> []
-      Right [r] -> [ testCase "simple dB" $ EvalPrim r @=? evalProg env (toDeBrujin prog)
+      Right [r] -> [ testCase "simple dB" $ EvalPrim r @=? evalProg env prog
                    ]
-      Right r   -> [ testCase "simple dB" $ EvalList r @=? evalProg env (toDeBrujin prog)
+      Right r   -> [ testCase "simple dB" $ EvalList r @=? evalProg env prog
                    ]

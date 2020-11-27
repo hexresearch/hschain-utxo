@@ -32,7 +32,7 @@ unifyMonoType a b = case (a, b) of
   (ta, AnyType) -> return ta
 
 -- | Check the types for core program.
-typeCheck :: Core f v -> Either TypeCoreError TypeCore
+typeCheck :: Core v -> Either TypeCoreError TypeCore
 typeCheck prog
   = runCheck
   $ inferExpr prog >>= \case
@@ -55,7 +55,7 @@ getSignature v = maybe err pure =<< asks (flip lookupVar v)
   where
     err = throwError $ VarIsNotDefined "NAME"
 
-inferExpr :: Core f v -> Check v MonoType
+inferExpr :: Core v -> Check v MonoType
 inferExpr = \case
     EVar  _        -> throwError $ VarIsNotDefined "Free variable without type"
     BVar  i        -> MonoType <$> getSignature i
@@ -75,18 +75,18 @@ inferExpr = \case
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
-inferScope1 :: TypeCore -> Scope1 b v -> Check v MonoType
-inferScope1 ty (Scope1 _ expr)
+inferScope1 :: TypeCore -> Core v -> Check v MonoType
+inferScope1 ty expr
   = local (ty:) $ inferExpr expr
 
-inferScopeN :: [TypeCore] -> ScopeN b v -> Check v MonoType
-inferScopeN types (ScopeN n _ expr) = do
+inferScopeN :: Int -> [TypeCore] -> Core v -> Check v MonoType
+inferScopeN n types expr = do
   when (n /= length types) $ do
     throwError BadCase
   local (types <>) $ inferExpr expr
 
 
-inferAp :: Core f v -> Core f v -> Check v MonoType
+inferAp :: Core v -> Core v -> Check v MonoType
 inferAp f a = do
   funTy <- inferExpr f
   aTy   <- inferExpr a
@@ -100,37 +100,37 @@ inferAp f a = do
     (AnyType   , MonoType _) -> pure AnyType
     (AnyType   , AnyType   ) -> pure AnyType
 
-inferLet :: Core f v -> Scope1 f v -> Check v MonoType
+inferLet :: Core v -> Core v -> Check v MonoType
 inferLet expr body = do
   ty <- inferExpr expr >>= \case
     MonoType ty -> pure ty
     AnyType     -> throwError PolymorphicLet
   inferScope1 ty body
 
-inferCase :: Core f v -> [CaseAlt f v] -> Check v MonoType
+inferCase :: Core v -> [CaseAlt v] -> Check v MonoType
 inferCase expr alts = inferExpr expr >>= \case
   -- Tuple
   MonoType (TupleT ts) -> case alts of
-    [ CaseAlt 0 e] -> inferScopeN ts e
-    _              -> throwError BadCase
+    [ CaseAlt 0 n e] -> inferScopeN n ts e
+    _                -> throwError BadCase
   -- List
   MonoType (ListT  t) -> getResultType =<< traverse (inferListAlt t) alts
   -- Box
   MonoType  BoxT -> case alts of
-    [ CaseAlt 0 e] -> inferScopeN [BytesT, BytesT, IntT, argsTuple] e
-    _              -> throwError BadCase
+    [ CaseAlt 0 n e] -> inferScopeN n [BytesT, BytesT, IntT, argsTuple] e
+    _                -> throwError BadCase
   _ -> throwError BadCase
   where
-    inferListAlt _  (CaseAlt 0 e) = inferScopeN []             e
-    inferListAlt ty (CaseAlt 1 e) = inferScopeN [ty, ListT ty] e
-    inferListAlt _   _            = throwError BadCase
+    inferListAlt _  (CaseAlt 0 n e) = inferScopeN n []             e
+    inferListAlt ty (CaseAlt 1 n e) = inferScopeN n [ty, ListT ty] e
+    inferListAlt _   _              = throwError BadCase
     --
     getResultType = \case
       []   -> throwError EmptyCaseExpression
       t:ts -> foldM unifyMonoType t ts
 
 
-inferIf :: Core f v -> Core f v -> Core f v -> Check v MonoType
+inferIf :: Core v -> Core v -> Core v -> Check v MonoType
 inferIf c t e = do
   inferExpr c >>= \case
     AnyType        -> pure ()
