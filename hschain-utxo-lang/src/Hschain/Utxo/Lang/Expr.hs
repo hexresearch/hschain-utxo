@@ -371,35 +371,10 @@ data E a
   -- ^ if-expressions (@if cond then a else b@)
   | Tuple Loc (Vector a)
   -- ^ Tuple constructor with list of arguments (@(a, b, c)@)
-  -- operations
-  | UnOpE Loc UnOp a
-  -- ^ Application of built-in unary operator to arguments
-  | BinOpE Loc BinOp a a
-  -- ^ Application of built-in binary operator to arguments
-  -- environment
-  | GetEnv Loc (EnvId a)
-  -- ^ query some item by id in blockchain environment (@getEnvField@)
-  -- vectors
-  | SigmaE Loc (SigmaExpr a)
-  -- ^ Sigma-expressions
-  | VecE Loc (VecExpr a)
-  -- ^ Vector expression
-  -- text
-  | TextE Loc (TextExpr a)
-  -- ^ Text expression
-  -- Bytes
-  | BytesE Loc (BytesExpr a)
-  -- ^ bytes expression
-  -- boxes
-  | BoxE Loc (BoxExpr a)
-  -- ^ Box-expression
-  | CheckSig Loc a a
-  -- ^ check signature. Arguments are: public key as byte string and index of boxInput'sigs vector (of signatures)
-  | CheckMultiSig Loc a a a
-  -- ^ check multi-signature M out of N. Arguments are: number of signatures o be valid, list of public keys as texts, list of indices to boxInput'sigs vector (of signatures)
-  -- debug
-  | Trace Loc a a
-  -- ^ Trace print for debug of execution (@trace printMessage value@)
+  | List Loc (Vector a)
+  -- ^ List constructor with list of arguments (@[a, b, c]@)
+  | NegApp Loc a
+  -- ^ unary negation sign
   | AntiQuote Loc (Maybe QuoteType) VarName
   -- ^ reference to external vriables (used in quasi quoting)
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
@@ -474,82 +449,6 @@ secretVar = flip mappend "___"
 
 -- | Type tag for type-safe construction
 data SigmaBool
-
--- | Sigma-expressions
-data SigmaExpr a
-  = Pk Loc a         -- ^ key ownership
-  | SAnd Loc a a     -- ^ sigma and
-  | SOr Loc a a      -- ^ sigma or
-  | SPrimBool Loc a  -- ^ constant bool
-  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
--- | Expressions that operate on vectors
-data VecExpr a
-  = NewVec Loc (Vector a)
-  -- ^ Vector conxtructor from the list of values (@[a, b, c]@)
-  | VecAppend Loc a a
-  -- ^ Append two vectors (@as ++ bs@)
-  | VecAt Loc a a
-  -- ^ Get value from the vector by index (@as !! n@)
-  | VecLength Loc
-  -- ^ Get length of the vector (@length as@)
-  | VecMap Loc
-  -- ^ map vector with the function (@map f as@)
-  | VecFoldl Loc
-  -- ^ Left-fold vector with function and accumulator (@foldl f z as@)
-  | VecFoldr Loc
-  -- ^ Right-fold vector with function and accumulator (@foldr f z as@)
-  | VecFilter Loc
-  -- ^ filter vector with function and accumulator (@filter f z as@)
-  | VecAnd Loc
-  -- ^ and of vector of boolean expressions
-  | VecOr Loc
-  -- ^ or of vector of boolean expressions
-  | VecAndSigma Loc
-  -- ^ and of vector of sigma expressions
-  | VecOrSigma Loc
-  -- ^ or of vector of sigma expressions
-  | VecAny Loc
-  -- ^ any of vector of boolean expressions
-  | VecAll Loc
-  -- ^ all of vector of boolean expressions
-  | VecAnySigma Loc
-  -- ^ any of vector of sigma expressions
-  | VecAllSigma Loc
-  -- ^ or of vector of sigma expressions
-  | VecSum Loc
-  -- ^ sum of list of integers
-  | VecProduct Loc
-  -- ^ product of list of integers
-  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
--- | Expressions that operate on texts.
-data TextExpr a
-  = TextAppend Loc a a
-  -- ^ Append text values (@a <> b@)
-  | ConvertToText Loc
-  -- ^ Convert some value to text (@show a@)
-  | TextLength Loc
-  -- ^ Get textlength (@lengthText a@)
-  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
-data BytesExpr a
-  = BytesAppend Loc a a
-  -- ^ append bytes
-  | BytesLength Loc a
-  -- ^ size of byteString
-  | SerialiseToBytes Loc ArgType a
-  -- ^ serialise primitive types to bytes
-  | DeserialiseFromBytes Loc ArgType a
-  -- ^ deserialise values from bytes
-  | BytesHash Loc HashAlgo a
-  -- ^ get hash for the given ByteString.
-  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
--- | Hashing algorithm tag
-data HashAlgo
-  = Sha256
-  deriving (Eq, Show, Data, Typeable)
 
 -- | Primitive values of the language (constants).
 data Prim
@@ -730,26 +629,11 @@ instance Show a => H.HasLoc (E a) where
     If loc _ _ _ -> loc
     -- tuples
     Tuple loc _ -> loc
+    -- lists
+    List loc _ -> loc
+    -- unary negation
+    NegApp loc _ -> loc
     -- operations
-    UnOpE loc _ _ -> loc
-    BinOpE loc _ _ _ -> loc
-    -- environment
-    GetEnv loc _ -> loc
-    -- sigmas
-    SigmaE loc _ -> loc
-    -- vectors
-    VecE loc _ -> loc
-    -- text
-    TextE loc _ -> loc
-    -- bytes
-    BytesE loc _ -> loc
-    -- boxes
-    BoxE loc _ -> loc
-    -- BTC-style signatures
-    CheckSig loc _ _ -> loc
-    CheckMultiSig loc _ _ _ -> loc
-    -- debug
-    Trace loc _ _ -> loc
     AltE loc _ _ -> loc
     FailCase loc -> loc
     AntiQuote loc _ _ -> loc
@@ -807,18 +691,9 @@ freeVars = cata $ \case
   PrimE _ _        -> Set.empty
   If _ a b c       -> mconcat [a, b, c]
   Tuple _ vs       -> fold $ V.toList vs
-  UnOpE _ _ a      -> a
-  BinOpE _ _ a b   -> mconcat [a, b]
-  GetEnv _ env     -> fold env
-  SigmaE _ sigma   -> fold sigma
-  VecE _ vec       -> fold vec
-  TextE _ txt      -> fold txt
-  BytesE _ bs      -> fold bs
-  BoxE _ box       -> fold box
-  Trace _ a b      -> mconcat [a, b]
+  List _ vs        -> fold $ V.toList vs
+  NegApp _ a       -> a
   AltE _ a b       -> mappend a b
-  CheckSig _ a b   -> a <> b
-  CheckMultiSig _ a b c -> a <> b <> c
   FailCase _       -> Set.empty
   AntiQuote _ _ v  -> Set.singleton v
   where
@@ -1046,7 +921,7 @@ instance ToLang Int64 where
   toLang loc n = toPrim loc $ PrimInt n
 
 instance ToLang a => ToLang [a] where
-  toLang loc vals = Fix $ VecE loc $ NewVec loc $ V.fromList $ fmap (toLang loc) vals
+  toLang loc vals = Fix $ List loc $ V.fromList $ fmap (toLang loc) vals
 
 instance (ToLang a, ToLang b) => ToLang (a, b) where
   toLang loc (a, b) = Fix $ Tuple loc $ V.fromList [toLang loc a, toLang loc b]
@@ -1069,11 +944,6 @@ $(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
-$(deriveShow1 ''TextExpr)
-$(deriveShow1 ''BytesExpr)
-$(deriveShow1 ''SigmaExpr)
-$(deriveShow1 ''VecExpr)
-$(deriveShow1 ''BoxExpr)
 
 instance H.IsVar Text where
   intToVar = H.stringIntToVar

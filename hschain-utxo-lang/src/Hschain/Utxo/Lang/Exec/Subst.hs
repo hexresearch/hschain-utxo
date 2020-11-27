@@ -22,8 +22,6 @@ subst (Fix body) varName sub = case body of
                            | otherwise     -> Fix $ Var loc e
   PrimE loc p                              -> Fix $ PrimE loc p
   Ascr loc lc t                            -> Fix $ Ascr loc (rec lc) t
-  UnOpE loc uo lc                          -> Fix $ UnOpE loc uo $ rec lc
-  BinOpE loc bo a b                        -> Fix $ BinOpE loc bo (rec a) (rec b)
   Apply loc a b                            -> Fix $ Apply loc (rec a) (rec b)
   InfixApply loc a v b     | v == varName  -> subInfix loc sub a b
   InfixApply loc a v b     | otherwise     -> Fix $ InfixApply loc (rec a) v (rec b)
@@ -32,22 +30,15 @@ subst (Fix body) varName sub = case body of
   Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
   PrimLet loc bg e                         -> Fix $ PrimLet loc (substPrimBindGeoup bg) (recBy (primBindVars bg) e)
   Tuple loc as                             -> Fix $ Tuple loc $ fmap rec as
-  GetEnv loc idx                           -> Fix $ GetEnv loc $ fmap rec idx
-  SigmaE loc sigma                         -> Fix $ SigmaE loc $ fmap rec sigma
-  VecE loc vec                             -> Fix $ VecE loc $ fmap rec vec
-  TextE loc txt                            -> Fix $ TextE loc $ fmap rec txt
-  BytesE loc txt                           -> Fix $ BytesE loc $ fmap rec txt
-  BoxE loc box                             -> Fix $ BoxE loc $ fmap rec box
+  List loc as                              -> Fix $ List loc $ fmap rec as
+  NegApp loc a                             -> Fix $ NegApp loc $ rec a
   LamList loc vs a                         -> Fix $ LamList loc vs $ recBy (foldMap freeVarsPat vs) a
-  Trace loc a b                            -> Fix $ Trace loc (rec a) (rec b)
   FailCase loc                             -> Fix $ FailCase loc
   AltE loc a b                             -> Fix $ AltE loc (rec a) (rec b)
   CaseOf loc expr cases                    -> Fix $ CaseOf loc (rec expr) (fmap substCase cases)
   Cons loc name vs                         -> Fix $ Cons loc name $ fmap rec vs
   RecConstr loc name vals                  -> Fix $ RecConstr loc name (fmap (second rec) vals)
   RecUpdate loc a upds                     -> Fix $ RecUpdate loc (rec a) (fmap (second rec) upds)
-  CheckSig loc a b                         -> Fix $ CheckSig loc (rec a) (rec b)
-  CheckMultiSig loc a b c                  -> Fix $ CheckMultiSig loc (rec a) (rec b) (rec c)
   AntiQuote loc ty v                       -> Fix $ AntiQuote loc ty v
   where
     subInfix loc op a b = rec $ Fix (Apply loc (Fix $ Apply loc op a) b)

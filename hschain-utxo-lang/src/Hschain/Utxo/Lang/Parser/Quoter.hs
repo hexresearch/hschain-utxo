@@ -80,7 +80,7 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey)
 import Hschain.Utxo.Lang.Types (ArgType(..), Script)
 import Hschain.Utxo.Lang.Infer
-import Hschain.Utxo.Lang.Lib.Base (baseModuleCtx, baseLibTypeContext)
+import Hschain.Utxo.Lang.Lib.Base (baseLibInferCtx, baseLibTypeContext)
 import Hschain.Utxo.Lang.Parser.Hask
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Build (mainExprModule)
@@ -144,7 +144,7 @@ parseScript pos@(file, _, _) str =
   where
     typeCheckExpr e = do
       let (e', externalCtx) = substAntiQuoteExpr e
-      void $ checkError pos $ runInferM $ inferExpr (moduleCtx'types baseModuleCtx <> InferCtx externalCtx mempty) e'
+      void $ checkError pos $ runInferM $ inferExpr (baseLibInferCtx <> InferCtx externalCtx mempty) e'
       return e
 
     typeCheckModule m = do

@@ -67,18 +67,9 @@ exprToExtendedLC typeCtx = cataM $ \case
   PrimE loc p             -> fromPrim loc p
   If loc a b c            -> fromIf loc a b c
   Tuple loc args          -> fromTuple loc args
-  UnOpE loc op a          -> fromUnOp loc op a
-  BinOpE loc op a b       -> fromBinOp loc op a b
-  GetEnv loc envId        -> fromGetEnv loc envId
-  SigmaE loc e            -> fromSigma loc e
-  VecE loc e              -> fromVecExpr loc e
-  TextE loc e             -> fromTextExpr loc e
-  BytesE loc e            -> fromBytesExpr loc e
-  BoxE loc e              -> fromBoxExpr loc e
-  Trace loc a b           -> fromTrace loc a b
+  List loc args           -> fromList loc args
+  NegApp loc a            -> fromNegApp loc a
   Ascr loc e t            -> fromAscr loc e t
-  CheckSig loc a b        -> fromCheckSig loc a b
-  CheckMultiSig loc a b c -> fromCheckMultiSig loc a b c
   Let _ _ _               -> failedToEliminate "Complex let-expression"
   InfixApply _ _ _ _      -> failedToEliminate "InfixApply"
   Lam _ _ _               -> failedToEliminate "Single argument Lam"
@@ -153,12 +144,6 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
-    fromSigma locA = \case
-      Pk locB a        -> pure $ ap1 locA (var locB Const.pk) a
-      SAnd locB a b    -> pure $ ap2 locA (var locB Const.sigmaAnd) a b
-      SOr  locB a b    -> pure $ ap2 locA (var locB Const.sigmaOr)  a b
-      SPrimBool locB a -> pure $ ap1 locA (var locB Const.toSigma) a
-
     fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args
       where
         arity = V.length args
@@ -167,107 +152,16 @@ exprToExtendedLC typeCtx = cataM $ \case
         vs    = fmap (varT . mappend "a" . showt) [1 .. arity]
         tagId = 0
 
-    fromUnOp loc op a = fromOp op
+    fromNegApp loc a = pure $ ap1 loc (var loc Const.negate) a
+
+    fromList loc args = pure $ V.foldr cons nil args
       where
-        fromOp = \case
-          Not -> unOp "not"
-          Neg -> unOp "negate"
-          TupleAt arity index -> pure $ Fix $ ECase loc a [CaseAlt loc 0 (tupleCaseArgs arity) (ty index) (Fix $ EVar loc $ tupleVar index)]
-
-        unOp name = pure $ ap1 loc (var loc name) a
-
-        tupleCaseArgs arity = fmap tyVar [0 .. arity-1]
-        tupleVar index = T.pack $ "v" <> show index
-        ty index = H.varT () (tupleVar index)
-
-        tyVar :: Int -> P.Typed (H.Type () Name) Name
-        tyVar index = P.Typed (tupleVar index) (ty index)
-
-    -- | TODO: Maybe we should consider to use special type for primary operators
-    -- instead of relying on string names
-    fromBinOp loc op a b = pure $ ap2 loc (var loc $ fromOp op) a b
-      where
-        fromOp = \case
-          And                  -> "&&"
-          Or                   -> "||"
-          Plus                 -> "+"
-          Minus                -> "-"
-          Times                -> "*"
-          Div                  -> "/"
-          Equals               -> "=="
-          NotEquals            -> "/="
-          LessThan             -> "<"
-          GreaterThan          -> ">"
-          LessThanEquals       -> "<="
-          GreaterThanEquals    -> ">="
-
-    fromGetEnv _ envId = pure $ case envId of
-      Height loc     -> var loc Const.getHeight
-      Input loc a    -> ap2 loc (var loc "listAt") (var loc Const.getInputs) a
-      Output loc a   -> ap2 loc (var loc "listAt") (var loc Const.getOutputs) a
-      Self loc       -> var loc Const.getSelf
-      Inputs loc     -> var loc Const.getInputs
-      Outputs loc    -> var loc Const.getOutputs
-      DataInputs loc -> var loc Const.getDataInputs
-      GetVar loc ty  -> var loc (getEnvVarName ty)
-
-    fromVecExpr _ expr = pure $ case expr of
-      NewVec loc args     -> newVec loc args
-      VecAppend loc a b   -> ap2 loc (var loc Const.appendList) a b
-      VecAt loc a b       -> ap2 loc (var loc Const.listAt) a b
-      VecLength loc       -> var loc Const.length
-      VecMap loc          -> var loc Const.map
-      VecFoldl loc        -> var loc Const.foldl
-      VecFoldr loc        -> var loc Const.foldr
-      VecFilter loc       -> var loc Const.filter
-      VecAndSigma loc     -> var loc Const.andSigma
-      VecOrSigma loc      -> var loc Const.orSigma
-      VecSum loc          -> var loc Const.sum
-      VecProduct loc      -> var loc Const.product
-      VecAnd loc          -> var loc Const.and
-      VecOr loc           -> var loc Const.or
-      VecAny loc          -> var loc Const.any
-      VecAll loc          -> var loc Const.all
-      VecAnySigma loc     -> var loc Const.anySigma
-      VecAllSigma loc     -> var loc Const.allSigma
-      where
-        newVec loc args = V.foldr (cons loc) (nil loc) args
-
-        cons loc a as = ap2 loc (Fix $ EConstr loc consTy 1 2) a as
-        nil loc   = Fix $ EConstr loc nilTy 0 0
+        cons a as = ap2 loc (Fix $ EConstr loc consTy 1 2) a as
+        nil = Fix $ EConstr loc nilTy 0 0
 
         nilTy  = listT (varT "a")
         consTy = arrowT (varT "a") (arrowT (listT (varT "a")) (listT (varT "a")))
 
-    fromTextExpr _ expr = pure $ case expr of
-      TextAppend loc a b -> ap2 loc (var loc "<>") a b
-      ConvertToText loc  -> var loc "show"
-      TextLength loc     -> var loc "lengthText"
-
-    fromCheckSig loc a b = pure $ ap2 loc (var loc Const.checkSig) a b
-    fromCheckMultiSig loc a b c = pure $ ap3 loc (var loc Const.checkMultiSig) a b c
-
-    fromBytesExpr _ expr = pure $ case expr of
-      BytesAppend loc a b            -> ap2 loc (var loc Const.appendBytes) a b
-      BytesLength loc a              -> ap1 loc (var loc Const.lengthBytes) a
-      SerialiseToBytes loc tag a     -> ap1 loc (var loc $ Const.serialiseBytes $ argTypeName tag) a
-      DeserialiseFromBytes loc tag a -> ap1 loc (var loc $ Const.deserialiseBytes $ argTypeName tag) a
-      BytesHash loc algo a           -> ap1 loc (var loc $ fromHashAlgo algo) a
-      where
-        fromHashAlgo = \case
-          Sha256       -> "sha256"
-
-    fromBoxExpr _ expr = pure $ case expr of
-      BoxAt loc a field   -> fromBoxField loc a field
-      where
-        fromBoxField loc a field = (\f -> ap1 loc f a) $ case field of
-          BoxFieldId         -> var loc Const.getBoxId
-          BoxFieldValue      -> var loc Const.getBoxValue
-          BoxFieldScript     -> var loc Const.getBoxScript
-          BoxFieldArgList ty -> var loc $ Const.getBoxArgs $ argTypeName ty
-          BoxFieldPostHeight -> var loc Const.getBoxPostHeight
-
-    fromTrace loc a b = pure $ ap2 loc (var loc "trace") a b
 
 getConsInfo :: MonadLang m => UserTypeCtx -> ConsName -> m ConsInfo
 getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
