@@ -28,6 +28,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Vector as V
 
 import qualified Language.HM as H
+import qualified Hschain.Utxo.Lang.Const as Const
 
 desugarCase :: MonadLang m => Module -> m Module
 desugarCase = liftToModuleWithCtx desugarCaseExpr
@@ -141,8 +142,9 @@ flatternCaseExpr (Fix x) = case x of
               cond = L.foldl1 and' $ fmap (\(v, loc, p) -> eq loc (Fix $ Var loc v) (Fix $ PrimE loc p)) primPats
           return $ Fix $ If exprLoc cond rhs' cont
       where
-        eq loc a b = Fix $ BinOpE loc Equals a b
-        and' a b = Fix $ BinOpE (H.getLoc a) And a b
+        eq loc a b = Fix $ InfixApply loc a (VarName loc Const.equals) b
+        and' a b = let loc = H.getLoc a
+                   in  Fix $ InfixApply loc a (VarName loc Const.and) b
 
     fromComplexPat cont pats rhs = do
       case pats of
@@ -224,7 +226,7 @@ substAlts ctx loc expr alts
                 PWildCard _    -> return $ ifPrim expr
                 other          -> wrongPatPrimMixture $ H.getLoc other
       where
-        ifPrim e = Fix $ If ploc (Fix $ BinOpE ploc Equals expr (Fix $ PrimE ploc p)) rhs e
+        ifPrim e = Fix $ If ploc (Fix $ InfixApply ploc expr (VarName ploc Const.equals) (Fix $ PrimE ploc p)) rhs e
 
 
 

@@ -96,7 +96,9 @@ reload x = go (getLoadedFiles x) x
 -- | We do not need to include prelude definitions because
 -- they are inlined during compilation.
 loadBase :: Imports -> Imports
-loadBase imp = imp { imports'base = baseModuleCtx { moduleCtx'exprs = mempty } }
+loadBase imp = imp { imports'base = ModuleCtx
+  { moduleCtx'types = baseLibInferCtx
+  , moduleCtx'exprs = mempty } }
 
 updateCurrent :: Imports -> Imports
 updateCurrent = updateCtx . updateNames

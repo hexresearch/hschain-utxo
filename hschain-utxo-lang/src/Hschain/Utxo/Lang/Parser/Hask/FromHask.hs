@@ -66,7 +66,7 @@ fromHaskExp topExp = case topExp of
       "True"  -> bool True
       "False" -> bool False
       _       -> Fix $ Cons loc (varToConsName n) V.empty
-  H.List loc es -> fmap (Fix . VecE loc . NewVec loc . V.fromList) (mapM rec es)
+  H.List loc es -> fmap (Fix . List loc . V.fromList) (mapM rec es)
   H.InfixApp loc a op b -> fromInfixApp loc op a b
   H.Paren _ expr        -> rec expr
   H.LeftSection loc a op  -> rec $ unfoldLeftSection loc a op
@@ -74,7 +74,7 @@ fromHaskExp topExp = case topExp of
   H.Case loc expr alts -> liftA2 (fromCase loc) (rec expr) (mapM fromCaseAlt alts)
   H.RecConstr loc name fields -> liftA2 (fromRecConstr loc) (fromQName name) (mapM fromField fields)
   H.RecUpdate loc expr fields -> liftA2 (fromRecUpdate loc) (rec expr) (mapM fromField fields)
-  H.NegApp loc expr -> fmap (fromNegApp loc) (rec expr)
+  H.NegApp loc expr -> fmap (Fix . NegApp loc) (rec expr)
   other                 -> parseFailedBy "Failed to parse expression" other
   where
     rec = fromHaskExp
@@ -90,8 +90,6 @@ fromHaskExp topExp = case topExp of
 
     fromInfixApp loc op a b =
       liftA3 (\x v y -> Fix $ InfixApply loc x v y) (rec a) (fromOp op) (rec b)
-
-    fromNegApp loc a = Fix $ UnOpE loc Neg a
 
     fromOp = \case
       H.QVarOp _ qname -> fromQName qname

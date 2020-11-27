@@ -5,6 +5,9 @@ module Hschain.Utxo.Lang.Const(
   -- * Environment
   , getHeight
   , getSelf
+  , getInput
+  , getOutput
+  , getDataInput
   , getInputs
   , getOutputs
   , getDataInputs
@@ -27,6 +30,8 @@ module Hschain.Utxo.Lang.Const(
   , sigmaLessEquals
   , sigmaEquals
   , sigmaNonEquals
+  -- * Nums
+  , negate
   -- * Comparisons
   , greater
   , less
@@ -67,9 +72,12 @@ module Hschain.Utxo.Lang.Const(
   , evalReductionLimit
 ) where
 
-import Prelude hiding (map, filter, foldr, foldl, length, show, all, any, and, or, sum, product)
+import Prelude hiding (map, filter, foldr, foldl, length, show, all, any, and, or, sum, product, negate)
 import Data.String
 import Data.Text (Text)
+
+negate :: IsString a => a
+negate = "negate"
 
 -- TODO: define all names for primitive functions in this module.
 -- right now we use it only for
@@ -82,13 +90,16 @@ import Data.Text (Text)
 ---------------------------------------------------------------
 -- names for functions that read environment
 
-getHeight, getSelf, getInputs, getOutputs, getDataInputs :: Text
+getHeight, getSelf, getInputs, getOutputs, getDataInputs, getInput, getOutput, getDataInput :: Text
 
 getHeight  = "getHeight"
 getSelf    = "getSelf"
 getInputs  = "getInputs"
 getOutputs = "getOutputs"
 getDataInputs = "getDataInputs"
+getInput  = "getInput"
+getOutput = "getOutput"
+getDataInput = "getDataInput"
 
 getArgs :: Text -> Text
 getArgs typeName = mconcat ["get", typeName, "Args"]
