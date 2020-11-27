@@ -202,6 +202,7 @@ instance Pretty BinOp where
   pretty = \case
     And       -> "&&"
     Or        -> "||"
+    Xor       -> "^^"
     Plus      -> "+"
     Minus     -> "-"
     Times     -> "*"

@@ -173,6 +173,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
     fromBinOp loc op = op2 $ case op of
       And                 -> andVar
       Or                  -> orVar
+      Xor                 -> xorVar
       Plus                -> plusVar
       Minus               -> minusVar
       Times               -> timesVar
@@ -218,9 +219,9 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
 
 
     fromText _ = \case
-      TextAppend loc a b            -> app2 loc appendTextVar a b
-      ConvertToText loc textTypeTag -> varE loc (convertToTextVar textTypeTag)
-      TextLength loc                -> varE loc lengthTextVar
+      TextAppend loc a b -> app2 loc appendTextVar a b
+      ConvertToText loc  -> varE loc convertToTextVar
+      TextLength loc     -> varE loc lengthTextVar
 
     fromBytes _ = \case
       BytesAppend loc a b            -> app2 loc appendBytesVar a b
@@ -283,6 +284,7 @@ defaultContext = H.Context $ M.fromList $
   -- binary
   , (andVar,    boolOp2)
   , (orVar,     boolOp2)
+  , (xorVar,     boolOp2)
   , (plusVar,   intOp2)
   , (minusVar,  intOp2)
   , (timesVar,  intOp2)
@@ -381,12 +383,8 @@ defaultContext = H.Context $ M.fromList $
     textExprVars =
       [ (appendTextVar, monoT $ textT `arr` (textT `arr` textT))
       , (lengthTextVar, monoT $ textT `arr` intT)
-      , convertExpr IntToText intT
-      , convertExpr BoolToText boolT
-      , convertExpr ScriptToText scriptT
+      , (convertToTextVar, forA $ monoT $ a `arr` textT)
       ] ++ (fmap (\alg -> (bytesHashVar alg, monoT $ bytesT `arr` bytesT)) [Sha256])
-      where
-        convertExpr tag ty = (convertToTextVar tag, monoT $ ty `arr` textT)
 
     bytesExprVars =
       [ (appendBytesVar, monoT $ bytesT `arr` (bytesT `arr` bytesT))
@@ -425,12 +423,13 @@ ifVar = secretVar "if"
 pkVar = secretVar "pk"
 
 
-andVar, orVar, plusVar, minusVar, timesVar, divVar,
+andVar, orVar, xorVar, plusVar, minusVar, timesVar, divVar,
   equalsVar, notEqualsVar, lessThanVar,
   greaterThanVar, lessThanEqualsVar, greaterThanEqualsVar :: Text
 
 andVar  = secretVar "and"
 orVar   = secretVar "or"
+xorVar   = secretVar "xor"
 plusVar = secretVar "plus"
 minusVar = secretVar "minus"
 timesVar = secretVar "times"
@@ -487,8 +486,8 @@ serialiseToBytesVar, deserialiseToBytesVar :: ArgType -> Text
 serialiseToBytesVar   tag = secretVar $ Const.serialiseBytes (argTypeName tag)
 deserialiseToBytesVar tag = secretVar $ Const.deserialiseBytes (argTypeName tag)
 
-convertToTextVar :: TextTypeTag -> Text
-convertToTextVar tag = secretVar $ mappend "convertToText" (showt tag)
+convertToTextVar :: Text
+convertToTextVar = secretVar "show"
 
 bytesHashVar :: HashAlgo -> Text
 bytesHashVar hashAlgo = secretVar $ mappend "bytesHash" (showt hashAlgo)

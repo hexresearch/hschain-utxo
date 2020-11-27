@@ -415,6 +415,7 @@ data UnOp
 data BinOp
   = And                  -- ^ boolean AND
   | Or                   -- ^ boolean OR
+  | Xor                  -- ^ boolean XOR
   | Plus                 -- ^ numeric addition
   | Minus                -- ^ numeric substraction
   | Times                -- ^ numeric multiplication
@@ -523,22 +524,12 @@ data VecExpr a
   -- ^ product of list of integers
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
--- | Tag for values to convert to to text
-data TextTypeTag
-  = IntToText
-  -- ^ convert int to text
-  | BoolToText
-  -- ^ convert boolean to text
-  | ScriptToText
-  -- ^ convert script to text
-  deriving (Eq, Show, Data, Typeable)
-
 -- | Expressions that operate on texts.
 data TextExpr a
   = TextAppend Loc a a
   -- ^ Append text values (@a <> b@)
-  | ConvertToText Loc TextTypeTag
-  -- ^ Convert some value to text (@showType a@)
+  | ConvertToText Loc
+  -- ^ Convert some value to text (@show a@)
   | TextLength Loc
   -- ^ Get textlength (@lengthText a@)
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)

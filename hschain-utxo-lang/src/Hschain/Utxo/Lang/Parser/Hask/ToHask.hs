@@ -96,6 +96,7 @@ toHaskExp (Fix expr) = case expr of
     fromBimOp loc op = case op of
       And                   -> op2' "&&"
       Or                    -> op2' "||"
+      Xor                   -> op2' "^^"
       Plus                  -> op2' "+"
       Minus                 -> op2' "-"
       Times                 -> op2' "*"
@@ -147,14 +148,9 @@ toHaskExp (Fix expr) = case expr of
 
 
     fromText _ = \case
-      TextAppend loc a b    -> op2 loc "<>" a b
-      ConvertToText loc tag -> toVar loc (VarName loc $ mconcat ["show", fromTextTag tag])
-      TextLength loc        -> toVar loc (VarName loc "lengthText")
-      where
-        fromTextTag = \case
-          IntToText    -> "Int"
-          ScriptToText -> "Script"
-          BoolToText   -> "Bool"
+      TextAppend loc a b -> op2 loc "<>" a b
+      ConvertToText loc  -> toVar loc (VarName loc "show")
+      TextLength loc     -> toVar loc (VarName loc "lengthText")
 
     fromBytes _ = \case
       BytesAppend loc a b            -> ap2 (VarName loc Const.appendBytes) a b

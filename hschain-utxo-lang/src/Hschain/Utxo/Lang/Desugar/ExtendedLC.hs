@@ -190,6 +190,7 @@ exprToExtendedLC typeCtx = cataM $ \case
         fromOp = \case
           And                  -> "&&"
           Or                   -> "||"
+          Xor                  -> "^^"
           Plus                 -> "+"
           Minus                -> "-"
           Times                -> "*"
@@ -240,14 +241,9 @@ exprToExtendedLC typeCtx = cataM $ \case
         consTy = arrowT (varT "a") (arrowT (listT (varT "a")) (listT (varT "a")))
 
     fromTextExpr _ expr = pure $ case expr of
-      TextAppend loc a b    -> ap2 loc (var loc "<>") a b
-      ConvertToText loc tag -> var loc (mappend "show" $ fromTextTag tag)
-      TextLength loc        -> var loc "lengthText"
-      where
-        fromTextTag = \case
-          IntToText    -> "Int"
-          BoolToText   -> "Bool"
-          ScriptToText -> "Script"  -- TODO: in low level language we don't have type for Script, or should we?
+      TextAppend loc a b -> ap2 loc (var loc "<>") a b
+      ConvertToText loc  -> var loc "show"
+      TextLength loc     -> var loc "lengthText"
 
     fromCheckSig loc a b = pure $ ap2 loc (var loc Const.checkSig) a b
     fromCheckMultiSig loc a b c = pure $ ap3 loc (var loc Const.checkMultiSig) a b c

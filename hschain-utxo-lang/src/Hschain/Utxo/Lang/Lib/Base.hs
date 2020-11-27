@@ -79,8 +79,7 @@ baseFuns =
   , lengthVec
   , lengthText
   , lengthBytes
-  , showInt
-  , showBool
+  , show
   , plus
   , times
   , minus
@@ -107,6 +106,7 @@ baseFuns =
   , atVec
   , andB
   , orB
+  , xorB
   , notB
   , eq
   , neq
@@ -157,8 +157,7 @@ baseNames =
   , "length"
   , "lengthText"
   , "lengthBytes"
-  , "showInt"
-  , "showBool"
+  , "show"
   , "+"
   , "*"
   , "-"
@@ -178,6 +177,7 @@ baseNames =
   , Const.listAt
   , "&&"
   , "||"
+  , "^^"
   , "not"
   , Const.equals
   , Const.nonEquals
@@ -247,11 +247,11 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "length" (forA $ listT aT ~> intT)
   , assumpType "lengthText" (monoT $ textT ~> intT)
   , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
-  , assumpType "showInt" (monoT $ intT ~> textT)
-  , assumpType "showBool" (monoT $ boolT ~> textT)
+  , assumpType "show" (forA $ aT ~> textT)
   , assumpType "not" (monoT $ boolT ~> boolT)
   , assumpType "&&" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
+  , assumpType "^^" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType Const.sigmaAnd (monoT $ sigmaT ~> sigmaT ~> sigmaT)
   , assumpType Const.sigmaOr (monoT $ sigmaT ~> sigmaT ~> sigmaT)
   , assumpType "pk" (monoT $ bytesT ~> sigmaT)
@@ -263,7 +263,8 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "++" (forA $ listT aT ~> listT aT ~> listT aT)
   , assumpType "<>" (monoT $ textT ~> textT ~> textT)
   , assumpType Const.appendBytes (monoT $ bytesT ~> bytesT ~> bytesT)
-  , assumpType "map" (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
+  , assumpType Const.filter (forAB $ (aT ~> boolT) ~> listT aT ~> listT aT)
+  , assumpType Const.map (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
   , assumpType Const.foldl (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
   , assumpType Const.foldr (forAB $ (aT ~> bT ~> bT) ~> bT ~> listT aT ~> bT)
   , assumpType Const.length (forA $ listT aT ~> intT)
@@ -385,11 +386,8 @@ serialiseVarBy ty = bind (Const.serialiseBytes $ argTypeName ty) (Fix $ Lam noLo
 deserialiseVarBy :: ArgType -> Bind Lang
 deserialiseVarBy ty = bind (Const.deserialiseBytes $ argTypeName ty) (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ DeserialiseFromBytes noLoc ty $ Fix $ Var noLoc "x")
 
-showInt :: Bind Lang
-showInt = bind "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) (Fix $ Var noLoc "x"))
-
-showBool :: Bind Lang
-showBool = bind "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc BoolToText)) (Fix $ Var noLoc "x"))
+show :: Bind Lang
+show = bind "show" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) (Fix $ Var noLoc "x"))
 
 lengthVec :: Bind Lang
 lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))
@@ -445,11 +443,15 @@ gt = biOp ">" GreaterThan
 gteq :: Bind Lang
 gteq = biOp ">=" GreaterThanEquals
 
+
 andB :: Bind Lang
 andB = biOp "&&" And
 
 orB :: Bind Lang
 orB = biOp "||" Or
+
+xorB :: Bind Lang
+xorB = biOp "^^" And
 
 notB :: Bind Lang
 notB = unOp "not" Not

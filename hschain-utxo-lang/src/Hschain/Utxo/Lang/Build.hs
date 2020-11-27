@@ -33,8 +33,7 @@ module Hschain.Utxo.Lang.Build(
   , app
   , concatText
   , lengthText
-  , showInt
-  , showScript
+  , showExpr
   , sha256
   , serialiseInt
   , serialiseBytes
@@ -341,11 +340,8 @@ concatBytes (Expr a) (Expr b) = Expr $ Fix $ BytesE noLoc $ BytesAppend noLoc a 
 lengthText :: Expr Text -> Expr Int
 lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
 
-showInt :: Expr Int -> Expr Text
-showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) a
-
-showScript :: Expr Script -> Expr Text
-showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) a
+showExpr :: Expr a -> Expr Text
+showExpr (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) a
 
 sha256 :: Expr ByteString -> Expr ByteString
 sha256 (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesHash noLoc Sha256 a
