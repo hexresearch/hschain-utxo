@@ -21,7 +21,7 @@ module Hschain.Utxo.Lang.Build(
   , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList, getBoxPostHeight
   , getInputs, getOutputs, getDataInputs
   , getIntVars, getBoolVars, getTextVars, getBytesVars
-  , fromVec, mapVec, foldVec, lengthVec, allVec, anyVec, concatVec, listAt
+  , fromVec, mapVec, foldlVec, lengthVec, allVec, anyVec, concatVec, listAt
   , andSigma, orSigma
   , checkSig
   , checkMultiSig
@@ -33,8 +33,7 @@ module Hschain.Utxo.Lang.Build(
   , app
   , concatText
   , lengthText
-  , showInt
-  , showScript
+  , showExpr
   , sha256
   , serialiseInt
   , serialiseBytes
@@ -253,8 +252,8 @@ listAt (Expr vector) (Expr index) = Expr $ Fix $ VecE noLoc $ VecAt noLoc vector
 mapVec :: Expr (a -> b) -> Expr (Vector a) -> Expr (Vector b)
 mapVec (Expr f) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecMap noLoc)) f) v
 
-foldVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
-foldVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) f) z) v
+foldlVec :: Expr (a -> b -> a) -> Expr a -> Expr (Vector b) -> Expr a
+foldlVec (Expr f) (Expr z) (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFoldl noLoc)) f) z) v
 
 lengthVec :: Expr (Vector a) -> Expr Int
 lengthVec (Expr v) = Expr $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) v
@@ -341,11 +340,8 @@ concatBytes (Expr a) (Expr b) = Expr $ Fix $ BytesE noLoc $ BytesAppend noLoc a 
 lengthText :: Expr Text -> Expr Int
 lengthText (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (TextLength noLoc)) a
 
-showInt :: Expr Int -> Expr Text
-showInt (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) a
-
-showScript :: Expr Script -> Expr Text
-showScript (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc ScriptToText)) a
+showExpr :: Expr a -> Expr Text
+showExpr (Expr a) = Expr $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) a
 
 sha256 :: Expr ByteString -> Expr ByteString
 sha256 (Expr a) = Expr $ Fix $ BytesE noLoc $ BytesHash noLoc Sha256 a

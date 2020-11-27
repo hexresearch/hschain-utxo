@@ -38,7 +38,6 @@ data PrimOp a
 
   | OpBoolAnd             -- ^ Boolean AND
   | OpBoolOr              -- ^ Boolean OR
-  | OpBoolXor             -- ^ Boolean XOR
   | OpBoolNot             -- ^ Boolean negation
 
   | OpSigAnd              -- ^ AND for sigma expressions
@@ -92,6 +91,7 @@ data PrimOp a
   | OpListFoldl  !a !a    -- ^ Foldl
   | OpListFilter !a
   | OpListSum             -- ^ Sum
+  | OpListProduct         -- ^ Product
   | OpListAnd             -- ^ AND for all elements
   | OpListOr              -- ^ OR for all elements
   | OpListAll    !a       -- ^ Every element of list satisfy predicate

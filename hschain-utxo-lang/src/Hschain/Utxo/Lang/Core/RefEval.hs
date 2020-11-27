@@ -13,7 +13,6 @@ import Control.Monad
 import Control.Monad.Except
 import Control.Monad.State.Strict
 import Data.Int
-import Data.Bits       (xor)
 import Data.ByteString (ByteString)
 import Data.Bool
 import Data.String
@@ -28,7 +27,7 @@ import qualified Data.Map.Lazy   as MapL
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LB
 
-import HSChain.Crypto     (Hash(..),hashBlob,ByteRepr(..))
+import HSChain.Crypto     (Hash(..),hashBlob,ByteRepr(..), encodeBase58)
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -212,7 +211,6 @@ evalPrimOp env = \case
     case valX of
       True  -> pure $ inj True
       False -> match y
-  OpBoolXor -> pure $ lift2 (xor @Bool)
   OpBoolNot -> pure $ lift1 not
   --
   OpSigBool -> pure $ lift1 $ Fix . SigmaBool
@@ -228,7 +226,7 @@ evalPrimOp env = \case
   OpSigListAny _ -> pure $ Val2F $ \valF valXS -> fmap inj $ do
     f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val]        valXS
-    fmap (Fix . SigmaAnd) $ mapM (match <=< f) xs
+    fmap (Fix . SigmaOr) $ mapM (match <=< f) xs
   --
   OpCheckSig -> pure $ evalLift2 $ \bs sigIndex -> do
     pk  <- parsePublicKey bs
@@ -255,9 +253,12 @@ evalPrimOp env = \case
   OpSHA256      -> pure $ lift1 (hashBlob @SHA256)
   --
   OpShow t
-    | t == IntT  -> pure $ lift1 (T.pack . show @Int64)
-    | t == BoolT -> pure $ lift1 (T.pack . show @Bool)
-    | otherwise  -> throwError "Invalid show"
+    | t == IntT   -> pure $ lift1 (T.pack . show @Int64)
+    | t == BoolT  -> pure $ lift1 (T.pack . show @Bool)
+    | t == TextT  -> pure $ ValF pure
+    | t == BytesT -> pure $ lift1 (encodeBase58 @ByteString)
+    | t == SigmaT -> pure $ lift1 (T.pack . show @(Sigma PublicKey))
+    | otherwise  -> throwError "Invalid show. Show is defined only for primitive values"
   --
   OpToBytes   tag -> pure $ case tag of
     IntArg   -> lift1 $ serialise @Int64
@@ -327,8 +328,9 @@ evalPrimOp env = \case
     xs <- match @[Val]        valXS
     p  <- match @(Val -> Eval Val) valF
     filterM (match <=< p) xs
-  OpListSum   -> pure $ lift1 (sum @[] @Int64)
-  OpListAnd   -> pure $ ValF $ \valXS -> do
+  OpListSum     -> pure $ lift1 (sum @[] @Int64)
+  OpListProduct -> pure $ lift1 (product @[] @Int64)
+  OpListAnd     -> pure $ ValF $ \valXS -> do
     xs <- match @[Val] valXS
     let step []       = pure $ inj True
         step (a : as) = do

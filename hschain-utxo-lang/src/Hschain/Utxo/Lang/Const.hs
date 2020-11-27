@@ -44,8 +44,12 @@ module Hschain.Utxo.Lang.Const(
   , appendList
   , andSigma
   , orSigma
+  , and
+  , or
   , all
   , any
+  , sum
+  , product
   -- * Text functions
   , appendText
   , lengthText
@@ -63,7 +67,7 @@ module Hschain.Utxo.Lang.Const(
   , evalReductionLimit
 ) where
 
-import Prelude hiding (map, filter, foldr, foldl, length, show, all, any)
+import Prelude hiding (map, filter, foldr, foldl, length, show, all, any, and, or, sum, product)
 import Data.String
 import Data.Text (Text)
 
@@ -104,7 +108,7 @@ getBoxPostHeight = "getBoxPostHeight"
 -------------------------------------------------------------------
 -- list functions
 
-listAt, map, filter, foldr, foldl, length, appendList, andSigma, orSigma, all, any :: IsString a => a
+listAt, map, filter, foldr, foldl, length, appendList, andSigma, orSigma, all, any, and, or, sum, product :: IsString a => a
 
 listAt = "listAt"
 map    = "map"
@@ -117,6 +121,10 @@ andSigma = "andSigma"
 orSigma = "orSigma"
 all = "all"
 any = "any"
+and = "and"
+or = "or"
+sum = "sum"
+product = "product"
 
 pk, toSigma, sigmaOr, sigmaAnd, allSigma, anySigma, sigmaGreater, sigmaLess, sigmaGreaterEquals, sigmaLessEquals, sigmaEquals, sigmaNonEquals :: IsString a => a
 

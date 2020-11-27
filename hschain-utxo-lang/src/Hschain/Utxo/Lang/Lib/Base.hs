@@ -79,8 +79,7 @@ baseFuns =
   , lengthVec
   , lengthText
   , lengthBytes
-  , showInt
-  , showBool
+  , show
   , plus
   , times
   , minus
@@ -89,7 +88,9 @@ baseFuns =
   , appendBytes
   , appendVec
   , mapVec
-  , foldVec
+  , foldlVec
+  , foldrVec
+  , filterVec
   , pk
   , toSigma
   , sigmaAnd
@@ -105,6 +106,7 @@ baseFuns =
   , atVec
   , andB
   , orB
+  , xorB
   , notB
   , eq
   , neq
@@ -155,8 +157,7 @@ baseNames =
   , "length"
   , "lengthText"
   , "lengthBytes"
-  , "showInt"
-  , "showBool"
+  , "show"
   , "+"
   , "*"
   , "-"
@@ -176,6 +177,7 @@ baseNames =
   , Const.listAt
   , "&&"
   , "||"
+  , "^^"
   , "not"
   , Const.equals
   , Const.nonEquals
@@ -224,8 +226,8 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType Const.anySigma (forA $ (aT ~> sigmaT) ~> listT aT ~> sigmaT)
   , assumpType Const.all (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
   , assumpType Const.any (forA $ (aT ~> boolT) ~> listT aT ~> boolT)
-  , assumpType "sum"      (monoT $ listT intT ~> intT)
-  , assumpType "product"  (monoT $ listT intT ~> intT)
+  , assumpType Const.sum      (monoT $ listT intT ~> intT)
+  , assumpType Const.product  (monoT $ listT intT ~> intT)
   , assumpType  "."  (forABC $ (bT ~> cT) ~> (aT ~> bT) ~> (aT ~> cT))
   , assumpType  "id"  (forA $ aT ~> aT)
   , assumpType "const" (forAB $ aT ~> bT ~> aT)
@@ -245,11 +247,11 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "length" (forA $ listT aT ~> intT)
   , assumpType "lengthText" (monoT $ textT ~> intT)
   , assumpType "lengthBytes" (monoT $ bytesT ~> intT)
-  , assumpType "showInt" (monoT $ intT ~> textT)
-  , assumpType "showBool" (monoT $ boolT ~> textT)
+  , assumpType "show" (forA $ aT ~> textT)
   , assumpType "not" (monoT $ boolT ~> boolT)
   , assumpType "&&" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType "||" (monoT $ boolT ~> boolT ~> boolT)
+  , assumpType "^^" (monoT $ boolT ~> boolT ~> boolT)
   , assumpType Const.sigmaAnd (monoT $ sigmaT ~> sigmaT ~> sigmaT)
   , assumpType Const.sigmaOr (monoT $ sigmaT ~> sigmaT ~> sigmaT)
   , assumpType "pk" (monoT $ bytesT ~> sigmaT)
@@ -261,9 +263,11 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumpType "++" (forA $ listT aT ~> listT aT ~> listT aT)
   , assumpType "<>" (monoT $ textT ~> textT ~> textT)
   , assumpType Const.appendBytes (monoT $ bytesT ~> bytesT ~> bytesT)
-  , assumpType "map" (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
+  , assumpType Const.filter (forAB $ (aT ~> boolT) ~> listT aT ~> listT aT)
+  , assumpType Const.map (forAB $ (aT ~> bT) ~> listT aT ~> listT bT)
   , assumpType Const.foldl (forAB $ (aT ~> bT ~> aT) ~> aT ~> listT bT ~> aT)
-  , assumpType "length" (forA $ listT aT ~> intT)
+  , assumpType Const.foldr (forAB $ (aT ~> bT ~> bT) ~> bT ~> listT aT ~> bT)
+  , assumpType Const.length (forA $ listT aT ~> intT)
   , assumpType Const.listAt (forA $ listT aT ~> intT ~> aT)
   , assumpType "==" (forA $ aT ~> aT ~> boolT)
   , assumpType "/=" (forA $ aT ~> aT ~> boolT)
@@ -302,28 +306,16 @@ baseLibTypeContext = H.Context $ M.fromList $
       fmap (\ty -> assumpType (Const.deserialiseBytes $ argTypeName ty) (monoT $ bytesT ~> argTagToType ty)) argTypes
 
 all :: Bind Lang
-all = bind "all" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
-  where
-    z  = Fix $ PrimE noLoc $ PrimBool P.True
-    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
+all = bind Const.all (Fix $ LamList noLoc ["f", "xs"] $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAll noLoc) f) $ var' "xs")
 
 any :: Bind Lang
-any = bind "any" $ Fix $ LamList noLoc ["f", "xs"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) go z (Fix $ Var noLoc "xs")
-  where
-    z  = Fix $ PrimE noLoc $ PrimBool P.False
-    go = Fix $ LamList noLoc ["x", "y"] $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (app1 (Fix $ Var noLoc "f") $ Fix $ Var noLoc "y")
+any = bind Const.any (Fix $ LamList noLoc ["f", "xs"] $ Fix $ Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAny noLoc) f) $ var' "xs")
 
 and :: Bind Lang
-and = bind "and" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc And (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimBool P.True
+and = bind "and" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAnd noLoc) x)
 
 or :: Bind Lang
-or = bind "or" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Or (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimBool P.False
+or = bind "or" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecOr noLoc) x)
 
 andSigma :: Bind Lang
 andSigma = bind "andSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecAndSigma noLoc) x)
@@ -332,16 +324,10 @@ orSigma :: Bind Lang
 orSigma = bind "orSigma" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecOrSigma noLoc) x)
 
 sum :: Bind Lang
-sum = bind "sum" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Plus (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt 0
+sum = bind Const.sum (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecSum noLoc) x)
 
 product :: Bind Lang
-product = bind "product" (Fix (Apply noLoc (Fix $ Apply noLoc (Fix $ VecE noLoc (VecFold noLoc)) g) z))
-  where
-    g = Fix $ Lam noLoc "x" $ Fix $ Lam noLoc "y" $ Fix $ BinOpE noLoc Times (Fix $ Var noLoc "x") (Fix $ Var noLoc "y")
-    z = Fix $ PrimE noLoc $ PrimInt 1
+product = bind Const.product (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc $ VecProduct noLoc) x)
 
 id :: Bind Lang
 id = bind "id" $ Fix $ Lam noLoc "x" $ Fix $ Var noLoc "x"
@@ -400,11 +386,8 @@ serialiseVarBy ty = bind (Const.serialiseBytes $ argTypeName ty) (Fix $ Lam noLo
 deserialiseVarBy :: ArgType -> Bind Lang
 deserialiseVarBy ty = bind (Const.deserialiseBytes $ argTypeName ty) (Fix $ Lam noLoc "x" $ Fix $ BytesE noLoc $ DeserialiseFromBytes noLoc ty $ Fix $ Var noLoc "x")
 
-showInt :: Bind Lang
-showInt = bind "showInt" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc IntToText)) (Fix $ Var noLoc "x"))
-
-showBool :: Bind Lang
-showBool = bind "showBool" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc BoolToText)) (Fix $ Var noLoc "x"))
+show :: Bind Lang
+show = bind "show" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ TextE noLoc (ConvertToText noLoc)) (Fix $ Var noLoc "x"))
 
 lengthVec :: Bind Lang
 lengthVec = bind "length" (Fix $ Lam noLoc "x" $ Fix $ Apply noLoc (Fix $ VecE noLoc (VecLength noLoc)) (Fix $ Var noLoc "x"))
@@ -460,11 +443,15 @@ gt = biOp ">" GreaterThan
 gteq :: Bind Lang
 gteq = biOp ">=" GreaterThanEquals
 
+
 andB :: Bind Lang
 andB = biOp "&&" And
 
 orB :: Bind Lang
 orB = biOp "||" Or
+
+xorB :: Bind Lang
+xorB = biOp "^^" And
 
 notB :: Bind Lang
 notB = unOp "not" Not
@@ -488,10 +475,10 @@ sigmaOr :: Bind Lang
 sigmaOr = bind Const.sigmaOr (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SOr noLoc x y)
 
 allSigma :: Bind Lang
-allSigma = bind Const.allSigma (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAll noLoc x y)
+allSigma = bind Const.allSigma (Fix $ LamList noLoc ["x", "y"] $ app2 (Fix $ VecE noLoc $ VecAllSigma noLoc) x y)
 
 anySigma :: Bind Lang
-anySigma = bind Const.anySigma (Fix $ LamList noLoc ["x", "y"] $ Fix $ SigmaE noLoc $ SAny noLoc x y)
+anySigma = bind Const.anySigma (Fix $ LamList noLoc ["x", "y"] $ app2 (Fix $ VecE noLoc $ VecAnySigma noLoc) x y)
 
 toSigma :: Bind Lang
 toSigma = bind "toSigma" (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ SPrimBool noLoc x)
@@ -502,8 +489,14 @@ pk = bind Const.pk (Fix $ Lam noLoc "x" $ Fix $ SigmaE noLoc $ Pk noLoc x)
 mapVec :: Bind Lang
 mapVec = bind Const.map (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecMap noLoc)) f x)
 
-foldVec :: Bind Lang
-foldVec = bind Const.foldl (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFold noLoc)) f x y)
+filterVec :: Bind Lang
+filterVec = bind Const.filter (Fix $ LamList noLoc ["f", "x"] $ app2 (Fix $ VecE noLoc (VecFilter noLoc)) f x)
+
+foldlVec :: Bind Lang
+foldlVec = bind Const.foldl (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFoldl noLoc)) f x y)
+
+foldrVec :: Bind Lang
+foldrVec = bind Const.foldr (Fix $ LamList noLoc ["f", "x", "y"] $ app3 (Fix $ VecE noLoc (VecFoldr noLoc)) f x y)
 
 appendVec :: Bind Lang
 appendVec = bind Const.appendList (Fix $ LamList noLoc ["x", "y"] $ Fix $ VecE noLoc $ VecAppend noLoc x y)
