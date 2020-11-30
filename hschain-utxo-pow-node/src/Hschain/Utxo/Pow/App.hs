@@ -11,6 +11,7 @@ module Hschain.Utxo.Pow.App(
     runApp
   , runNode
   , TestNet
+  , MockChain
   , UtxoRestAPI(..)
     -- * Monad for running
   , UTXOT(..)
@@ -83,10 +84,18 @@ runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
 runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
 
 
+-- | Standard configuration for testnet
 data TestNet
 
 instance UtxoPOWCongig TestNet where
   powConfig _ = POW.defaultPOWConfig
+
+-- | Configuration that disables checking of work at all. This primarily useful for testing
+data MockChain
+
+instance UtxoPOWCongig MockChain where
+  powConfig      _ = POW.defaultPOWConfig
+  checkBlockWork _ = False
 
 
 runApp :: IO ()
