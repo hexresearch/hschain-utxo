@@ -34,8 +34,7 @@ data Tag
   deriving (Show, Eq, Ord)
 
 instance H.IsVar Tag where
-  intToVar n = VarTag $ mappend "$$" (showt n)
-  prettyLetters = fmap (VarTag . fromString) $ [1..] >>= flip replicateM ['a'..'z']
+  prettyLetters = fmap VarTag H.prettyLetters
 
 -- todo: ugly hack, something wrong with this function
 -- do we really need it
@@ -94,17 +93,17 @@ annotateTypes =
 
     toInferExpr :: ExprLam Name -> H.Term PrimLoc Loc Tag
     toInferExpr = cata $ \case
-      EVar loc name   -> H.varE loc (VarTag name)
-      EPrim loc prim  -> H.primE loc prim
-      EPrimOp{}       -> error "No primop are accessible before type checking"
-      EAp loc a b     -> H.appE loc a b
-      ELam loc args e -> foldr (H.lamE loc) e (fmap VarTag args)
-      EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
-      EBottom loc     -> H.bottomE loc
-      EConstr loc ty tag arity -> H.constrE loc (eraseWith loc ty) (ConstrTag tag) arity
-      ELet loc bs e   -> foldr (\b rhs -> H.letE loc (fromBind loc b) rhs) e bs
+      EVar loc name        -> H.varE loc (VarTag name)
+      EPrim loc prim       -> H.primE loc prim
+      EPrimOp{}            -> error "No primop are accessible before type checking"
+      EAp loc a b          -> H.appE loc a b
+      ELam loc args e      -> foldr (H.lamE loc) e (fmap VarTag args)
+      EIf loc a b c        -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
+      EBottom loc          -> H.bottomE loc
+      EConstr loc ty tag   -> H.constrE loc (eraseWith loc ty) (ConstrTag tag)
+      ELet loc bs e        -> foldr (\b rhs -> H.letE loc (fromBind loc b) rhs) e bs
       EAssertType loc e ty -> H.assertTypeE loc e (eraseWith loc ty)
-      ECase loc e alts -> H.caseE loc e (fmap fromAlt alts)
+      ECase loc e alts     -> H.caseE loc e (fmap fromAlt alts)
 
     -- todo: we do need to use VarName to keep info on bind locations
     --  for now we write wrong locations...
@@ -138,9 +137,9 @@ annotateTypes =
         H.Let loc bs e -> toLet loc bs e
         H.LetRec loc bs e -> toLetRec loc bs e
         H.Case loc e alts -> fmap (ECase loc e) (mapM toAlt alts)
-        H.Constr loc conTy tag n ->
+        H.Constr loc conTy tag ->
           case tag of
-            ConstrTag m -> pure $ EConstr loc (toType conTy) m n
+            ConstrTag m -> pure $ EConstr loc (toType conTy) m
             _           -> throwError $ InternalError $ NonIntegerConstrTag (fromTag tag)
 
     toAlt alt =

@@ -42,7 +42,6 @@ import qualified Hschain.Utxo.Lang.Sigma as S
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 import qualified Language.HM as H
-import qualified Language.HM.Pretty as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Text.Show.Pretty as P
@@ -265,6 +264,7 @@ instance Pretty TypeError where
     H.NotInScopeErr src name -> err src $ hsep ["Not in scope", pretty name]
     H.SubtypeErr src tyA tyB -> err src $ hsep ["Subtype error", inTicks $ pretty tyB, "expected", inTicks $ pretty tyA]
     H.EmptyCaseExpr src      -> err src $ "Case-expression should have at least one alternative case"
+    H.FreshNameFound         -> err noLoc $ "Impossible happened: failed to eliminate fresh name on type-checker stage"
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
       inTicks x = hcat ["'", x, "'"]
@@ -315,9 +315,6 @@ instance Pretty Hask.SrcLoc where
     [ pretty srcFilename, ":"
     , pretty srcLine, ":"
     , pretty srcColumn ]
-
-instance H.HasPrefix Text where
-  getFixity = const Nothing
 
 instance Pretty EvalResult where
   pretty = \case

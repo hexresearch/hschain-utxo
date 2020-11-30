@@ -944,7 +944,3 @@ $(deriveShow1 ''Bind)
 $(deriveShow1 ''E)
 $(deriveShow1 ''EnvId)
 $(deriveShow1 ''CaseExpr)
-
-instance H.IsVar Text where
-  intToVar = H.stringIntToVar
-  prettyLetters = H.stringPrettyLetters

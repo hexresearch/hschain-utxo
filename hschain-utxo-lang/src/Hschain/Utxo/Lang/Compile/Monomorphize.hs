@@ -169,7 +169,7 @@ mapType f = cata $ \(Ann ty val) -> Fix $ Ann (f ty) $ case val of
   ELet loc binds body -> ELet loc (fmap (first mapBind) binds) body
   EPrimOp loc p -> EPrimOp loc $ fmap f p
   ELam loc bs body -> ELam loc (fmap mapBind bs) body
-  EConstr loc t m n -> EConstr loc (f t) m n
+  EConstr loc t m -> EConstr loc (f t) m
   EAssertType loc a t -> EAssertType loc a (f t)
   ECase loc e alts -> ECase loc e (fmap mapAlt alts)
   other               -> other

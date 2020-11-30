@@ -4,8 +4,6 @@
 -- SKI calculus examples
 module Examples.SKI where
 
-import Control.Monad (guard)
-import Data.List (elemIndex)
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
 
