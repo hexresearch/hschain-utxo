@@ -25,6 +25,14 @@ import qualified Data.Sequence as S
 
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
+data HschainLang
+
+instance H.Lang HschainLang where
+  type Src  HschainLang = Loc
+  type Var  HschainLang = Tag
+  type Prim HschainLang = PrimLoc
+
+  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
 
 -- | We need this type for type-inference algorithm
 data Tag
@@ -46,12 +54,6 @@ fromTag = \case
 
 instance IsString Tag where
   fromString = VarTag . fromString
-
-instance H.IsPrim PrimLoc where
-  type PrimLoc PrimLoc = Loc
-  type PrimVar PrimLoc = Tag
-
-  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
 
 eraseWith :: Loc -> H.Type () Name -> H.Type Loc Tag
 eraseWith loc = H.setLoc loc . fmap VarTag

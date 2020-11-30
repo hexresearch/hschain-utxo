@@ -6,7 +6,9 @@ module Language.HM.Infer(
   , TypeOf
   , TermOf
   , TyTermOf
+  , ContextOf
   , SubstOf
+  , ErrorOf
   , Context(..)
   , insertContext
   , lookupCtx
@@ -162,9 +164,9 @@ class
   , Show (Src q)
   , Eq (Src q)
   ) => Lang q where
-  type Var  q = r | r -> q
-  type Src  q = r | r -> q
-  type Prim q = r | r -> q
+  type Var q = r | r -> q
+  type Src q
+  type Prim q
 
   getPrimType :: Prim q -> TypeOf q
 
@@ -457,8 +459,8 @@ unifyl subst as bs = foldr go (return subst) $ zip as bs
     go (a, b) eSubst = (\t -> unify t a b) =<< eSubst
 
 -- | Checks if first argument one type is subtype of the second one.
-subtypeOf :: (Lang q)
-  => TypeOf q -> TypeOf q -> Either (ErrorOf q) (SubstOf q)
+subtypeOf :: (IsVar v, Show loc, Eq loc)
+  => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
 subtypeOf a b =
   join $ bimap (fromTypeErrorNameVar . normaliseType) (fromSubstNameVar . fromSubstOrigin) $
     genSubtypeOf mempty (mapVar Name $ mapLoc Proven a) (mapVar Name $ mapLoc UserCode b)
@@ -539,7 +541,7 @@ normaliseSubst x =
 --
 
 -- | Checks weather two types unify. If they do it returns substitution that unifies them.
-unifyTypes :: Lang q => TypeOf q -> TypeOf q -> Either (ErrorOf q) (SubstOf q)
+unifyTypes :: (Show loc, IsVar v, Eq loc) => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
 unifyTypes a b =
   join $ bimap (fromTypeErrorNameVar . normaliseType) (fromSubstNameVar . fromSubstOrigin) $
     unify mempty (mapVar Name $ mapLoc Proven a) (mapVar Name $ mapLoc UserCode b)

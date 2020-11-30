@@ -35,12 +35,16 @@ import qualified Language.HM as H
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Desugar as D
 
+data HschainLang
+
 data EmptyPrim = EmptyPrim
   deriving (Show)
 
-instance H.IsPrim EmptyPrim where
-  type PrimLoc EmptyPrim = Loc
-  type PrimVar EmptyPrim = Text
+instance H.Lang HschainLang where
+  type Src  HschainLang = Loc
+  type Var  HschainLang = Text
+  type Prim HschainLang = EmptyPrim
+
   getPrimType EmptyPrim = H.conT noLoc "Unit" []
 
 -- | Monad for type-inference.
