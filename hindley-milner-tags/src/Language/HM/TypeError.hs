@@ -20,6 +20,7 @@ data TypeError loc var
   | SubtypeErr loc (Type loc var) (Type loc var)  -- ^ Subtype error (happens on explicit type assertions)
   | NotInScopeErr loc var                         -- ^ Missing signature in context for free-variable.
   | EmptyCaseExpr loc                             -- ^ no case alternatives in the case expression
+  | FreshNameFound                                -- ^ internal error with fresh name substitution
   deriving stock    (Show, Eq, Functor, Generic, Data)
   deriving anyclass (NFData)
 
@@ -30,6 +31,17 @@ instance LocFunctor TypeError where
     SubtypeErr loc tA tB -> SubtypeErr (f loc) (mapLoc f tA) (mapLoc f tB)
     NotInScopeErr loc v  -> NotInScopeErr (f loc) v
     EmptyCaseExpr loc    -> EmptyCaseExpr (f loc)
+    FreshNameFound       -> FreshNameFound
+
+
+instance VarFunctor TypeError where
+  mapVar f = \case
+    OccursErr loc ty     -> OccursErr loc (mapVar f ty)
+    UnifyErr loc tA tB   -> UnifyErr loc (mapVar f tA) (mapVar f tB)
+    SubtypeErr loc tA tB -> SubtypeErr loc (mapVar f tA) (mapVar f tB)
+    NotInScopeErr loc v  -> NotInScopeErr loc (f v)
+    EmptyCaseExpr loc    -> EmptyCaseExpr loc
+    FreshNameFound       -> FreshNameFound
 
 instance HasTypeVars TypeError where
   tyVars = \case
@@ -38,6 +50,7 @@ instance HasTypeVars TypeError where
     SubtypeErr _ a b   -> tyVars a <> tyVars b
     NotInScopeErr _ _  -> mempty
     EmptyCaseExpr _    -> mempty
+    FreshNameFound     -> mempty
 
   tyVarsInOrder err = L.nubBy ((==) `on` fst) $ case err of
     OccursErr _ ty     -> tyVarsInOrder ty
@@ -45,6 +58,7 @@ instance HasTypeVars TypeError where
     SubtypeErr _ a b   -> tyVarsInOrder a <> tyVarsInOrder b
     NotInScopeErr _ _  -> mempty
     EmptyCaseExpr _    -> mempty
+    FreshNameFound     -> mempty
 
 instance CanApply TypeError where
   apply f = \case

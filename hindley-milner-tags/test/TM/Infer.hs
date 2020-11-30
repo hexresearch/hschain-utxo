@@ -5,14 +5,11 @@
 -- |
 module TM.Infer (tests) where
 
-import Control.Monad
 import Data.Text (Text)
-import Data.String (IsString(..))
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import Language.HM
-import Language.HM.Pretty
 
 tests :: TestTree
 tests = testGroup "infer"
@@ -59,10 +56,3 @@ termLetRecChain = lamE () "x" $ letRecE ()
 
 ----------------------------------------------------------------
 -- Orphans
-
-instance IsVar Text where
-  intToVar n = fromString $ "$$" ++ show n
-  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
-
-instance HasPrefix Text where
-  getFixity = const Nothing

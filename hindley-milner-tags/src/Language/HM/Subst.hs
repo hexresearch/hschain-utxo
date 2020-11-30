@@ -22,6 +22,7 @@ delta v = Subst . M.singleton v
 applyToVar :: Ord v => Subst loc v -> v -> Maybe (Type loc v)
 applyToVar (Subst m) v = M.lookup v m
 
+
 ---------------------------------------------------------------
 
 -- | Class for application of substitutions to various types.

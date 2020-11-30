@@ -76,8 +76,8 @@ tyCaseE :: Type loc v -> loc -> TyTerm prim loc v -> [CaseAlt loc v (TyTerm prim
 tyCaseE ty loc (TyTerm e) alts = tyTerm ty $ Case loc e $ fmap (fmap unTyTerm) alts
 
 -- | 'constrE' @loc ty tag arity@ constructs constructor tag expression.
-tyConstrE :: loc -> Type loc v -> v -> Int -> TyTerm prim loc v
-tyConstrE loc ty tag arity = tyTerm ty $ Constr loc ty tag arity
+tyConstrE :: loc -> Type loc v -> v -> TyTerm prim loc v
+tyConstrE loc ty tag = tyTerm ty $ Constr loc ty tag
 
 -- | 'bottomE' @loc@ constructs bottom value.
 tyBottomE :: Type loc v -> loc -> TyTerm prim loc v
@@ -94,7 +94,7 @@ instance LocFunctor (TyTerm prim) where
         Let loc v a  -> Let (f loc) (v { bind'loc = f $ bind'loc v }) a
         LetRec loc vs a -> LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> AssertType (f loc) r (mapLoc f sig)
-        Constr loc ty v arity -> Constr (f loc) (mapLoc f ty) v arity
+        Constr loc ty v -> Constr (f loc) (mapLoc f ty) v
         Case loc e alts -> Case (f loc) e (fmap (mapAlt f) alts)
         Bottom loc -> Bottom (f loc)
 
@@ -111,7 +111,7 @@ instance TypeFunctor (TyTerm prim) where
     where
       go (Ann ty term) = Fix $ Ann (f ty) $
         case term of
-          Constr loc cty cons arity -> Constr loc (f cty) cons arity
+          Constr loc cty cons -> Constr loc (f cty) cons
           Case loc e alts          -> Case loc e $ fmap applyAlt alts
           other                    -> other
 
@@ -121,6 +121,27 @@ instance TypeFunctor (TyTerm prim) where
         }
 
       applyTyped ty@Typed{..} = ty { typed'type = f typed'type }
+
+instance VarFunctor (TyTerm prim) where
+  mapVar f (TyTerm x) = TyTerm $ cata go x
+    where
+      go (Ann annTy term) = Fix $ Ann (mapVar f annTy) $ case term of
+        Var loc v    -> Var loc (f v)
+        Prim loc p   -> Prim loc p
+        App loc a b  -> App loc a b
+        Lam loc v a  -> Lam loc (f v) a
+        Let loc v a  -> Let loc (v { bind'lhs = f $ bind'lhs v }) a
+        LetRec loc vs a -> LetRec loc (fmap (\b ->  b { bind'lhs = f $ bind'lhs b }) vs) a
+        AssertType loc r sig -> AssertType loc r (mapVar f sig)
+        Constr loc ty v -> Constr loc (mapVar f ty) (f v)
+        Case loc e alts -> Case loc e (fmap (mapAlt f) alts)
+        Bottom loc -> Bottom loc
+
+      mapAlt g alt@CaseAlt{..} = alt
+        { caseAlt'tag  = g caseAlt'tag
+        , caseAlt'args = fmap (mapTypedVar g) caseAlt'args
+        , caseAlt'constrType = mapVar g caseAlt'constrType
+        }
 
 instance CanApply (TyTerm prim) where
   apply subst term = mapType (apply subst) term

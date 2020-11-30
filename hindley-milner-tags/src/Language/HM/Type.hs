@@ -1,8 +1,6 @@
 -- | This module contains the abstract syntax of Hindley-Milner types.
 module Language.HM.Type (
     IsVar(..),
-    stringIntToVar,
-    stringPrettyLetters,
     HasLoc(..),
     DefLoc(..),
     -- * Monomorphic types.
@@ -35,6 +33,8 @@ module Language.HM.Type (
     LocFunctor(..),
     setLoc,
     TypeFunctor(..),
+    VarFunctor(..),
+    mapTypedVar,
 
     extractFunType,
     extractArrow,
@@ -58,6 +58,7 @@ import Data.Map.Strict (Map)
 import Data.Monoid
 import Data.String
 import Data.Tuple (swap)
+import Data.Text (Text)
 
 import GHC.Generics
 
@@ -82,9 +83,6 @@ class DefLoc f where
 
 -- | Functions we need for variables to do type-inference.
 class (Show v, Ord v) => IsVar v where
-  -- | Way to allocate fresh variables from integer count
-  intToVar      :: Int -> v
-
   -- | Canonical leters for pretty output
   prettyLetters :: [v]
 
@@ -94,13 +92,17 @@ data Typed loc v a = Typed
   , typed'value :: a
   } deriving (Show, Eq, Functor, Foldable, Traversable, Data)
 
+instance IsVar String where
+  prettyLetters = stringPrettyLetters
 
-stringIntToVar :: IsString a => Int -> a
-stringIntToVar n = fromString $ mappend "$$" (show n)
+instance IsVar Text where
+  prettyLetters = stringPrettyLetters
+
+instance IsVar Int where
+  prettyLetters = [0..]
 
 stringPrettyLetters :: IsString a => [a]
 stringPrettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
-
 
 instance DefLoc () where
   defLoc = ()
@@ -237,6 +239,25 @@ class TypeFunctor f where
 
 instance TypeFunctor Type where
   mapType f = f
+
+-- | Mapping over source code variables.
+class VarFunctor f where
+  mapVar :: (varA -> varB) -> f loc varA -> f loc varB
+
+instance VarFunctor Type where
+  mapVar f = fmap f
+
+instance VarFunctor Signature where
+  mapVar f = fmap f
+
+instance VarFunctor (,) where
+  mapVar f (loc, var) = (loc, f var)
+
+mapTypedVar :: VarFunctor f => (varA -> varB) -> Typed loc varA (f loc varA) -> Typed loc varB (f loc varB)
+mapTypedVar f Typed{..} = Typed
+  { typed'type  = mapVar f typed'type
+  , typed'value = mapVar f typed'value
+  }
 
 -- | 'forAllT' @x t@ universally quantifies @x@ in @t@.
 forAllT :: loc -> v -> Signature loc v -> Signature loc v

@@ -20,6 +20,15 @@ import Language.HM.Term
 class IsVar v => HasPrefix v where
   getFixity :: v -> Maybe OpFix
 
+instance HasPrefix Text where
+  getFixity = const Nothing
+
+instance HasPrefix String where
+  getFixity = const Nothing
+
+instance HasPrefix Int where
+  getFixity = const Nothing
+
 -- | This class is useful to define the way to print special cases
 -- like constructors for tuples or lists.
 class PrintCons v where
@@ -160,7 +169,7 @@ instance (HasPrefix v, PrintCons v, Pretty v, Pretty prim) => Pretty (Term prim 
         Let _ v a          -> onLet [v] a
         LetRec _ vs a      -> onLet vs a
         AssertType _ r sig -> parens $ hsep [r, "::", pretty sig]
-        Constr _ _ tag _   -> pretty tag
+        Constr _ _ tag     -> pretty tag
         Case _ e alts      -> vcat [ hsep ["case", e, "of"], indent 4 $ vcat $ fmap onAlt alts]
         Bottom _           -> "_|_"
         where
