@@ -30,9 +30,12 @@ tests = testGroup "infer"
 data NoPrim
   deriving (Show)
 
-instance IsPrim NoPrim where
-  type PrimLoc NoPrim = ()
-  type PrimVar NoPrim = Text
+data TestLang
+
+instance Lang TestLang where
+  type Src  TestLang = ()
+  type Var  TestLang = Text
+  type Prim TestLang = NoPrim
   getPrimType _ = error "No primops"
 
 -- I combinator

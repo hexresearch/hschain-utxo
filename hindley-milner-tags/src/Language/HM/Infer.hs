@@ -1,6 +1,13 @@
+{-# Language AllowAmbiguousTypes #-}
+{-# Language TypeFamilyDependencies #-}
 -- | Defines type-inference algorithm.
 module Language.HM.Infer(
-    Context(..)
+    Lang(..)
+  , TypeOf
+  , TermOf
+  , TyTermOf
+  , SubstOf
+  , Context(..)
   , insertContext
   , lookupCtx
   , inferType
@@ -8,6 +15,8 @@ module Language.HM.Infer(
   , subtypeOf
   , unifyTypes
 ) where
+
+import Control.Monad.Identity
 
 import Control.Applicative
 import Control.Arrow (second)
@@ -54,13 +63,19 @@ instance IsVar a => IsVar (Name a) where
 -- Synonyms to simplify typing
 type Context' loc v = Context (Origin loc) (Name v)
 type Type' loc v = Type (Origin loc) (Name v)
-type Term' prim loc v = Term prim (Origin loc) (Name v)
-type TyTerm' prim loc v = TyTerm prim (Origin loc) (Name v)
 type Signature' loc v = Signature (Origin loc) (Name v)
 type Subst' loc v = Subst (Origin loc) (Name v)
 type Bind' loc v a = Bind (Origin loc) (Name v) a
 type VarSet' loc v = VarSet (Origin loc) (Name v)
-type CaseAlt' loc v = CaseAlt (Origin loc) (Name v)
+
+type ContextOf' q = Context (Origin (Src q)) (Name (Var q))
+type TypeOf' q = Type (Origin (Src q)) (Name (Var q))
+type TermOf' q = Term (Prim q) (Origin (Src q)) (Name (Var q))
+type TyTermOf' q = TyTerm (Prim q) (Origin (Src q)) (Name (Var q))
+type SignatureOf' q = Signature (Origin (Src q)) (Name (Var q))
+type SubstOf' q = Subst (Origin (Src q)) (Name (Var q))
+type BindOf' q a = Bind (Origin (Src q)) (Name (Var q)) a
+type CaseAltOf' q = CaseAlt (Origin (Src q)) (Name (Var q))
 
 -- | Context holds map of proven signatures for free variables in the expression.
 newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
@@ -142,18 +157,36 @@ newtype InferM loc var a = InferM (StateT Int (Except (TypeError loc (Name var))
 runInferM :: InferM loc var a -> Either (TypeError loc (Name var)) a
 runInferM (InferM m) = runExcept $ evalStateT m 0
 
+class
+  ( IsVar (Var q)
+  , Show (Src q)
+  , Eq (Src q)
+  ) => Lang q where
+  type Var  q = r | r -> q
+  type Src  q = r | r -> q
+  type Prim q = r | r -> q
+
+  getPrimType :: Prim q -> TypeOf q
+
+type TypeOf q = Type (Src q) (Var q)
+type TermOf q = Term (Prim q) (Src q) (Var q)
+type TyTermOf q = TyTerm (Prim q) (Src q) (Var q)
+type ErrorOf q = TypeError (Src q) (Var q)
+type ContextOf q = Context (Src q) (Var q)
+type SubstOf q = Subst (Src q) (Var q)
+
+type InferOf q = InferM (Src q) (Var q) (Out (Prim q) (Src q) (Var q))
+
 -- | Type-inference function.
 -- We provide a context of already proven type-signatures and term to infer the type.
-inferType :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
-  => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var)
+inferType :: Lang q => ContextOf q -> TermOf q -> Either (ErrorOf q) (TypeOf q)
 inferType ctx term = join $
   bimap (fromTypeErrorNameVar . normaliseType) (fromTypeNameVar . normaliseType . mapLoc fromOrigin . (\(_, t) -> termType t)) $
     runInferM $ infer (wrapContextNames $ markProven $ restrictContext term ctx) (wrapTermNames $ markUserCode term)
 
 -- | Infers types for all subexpressions of the given term.
 -- We provide a context of already proven type-signatures and term to infer the type.
-inferTerm :: (IsVar var, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var, Show loc, Eq loc)
-  => Context loc var -> Term prim loc var -> Either (TypeError loc var) (Type loc var, TyTerm prim loc var)
+inferTerm :: Lang q => ContextOf q -> TermOf q -> Either (ErrorOf q) (TypeOf q, TyTermOf q)
 inferTerm ctx term = join $
   bimap (fromTypeErrorNameVar . normaliseType) ((\(_, tyTerm) -> liftA2 (,) (toType tyTerm) (toTyTerm tyTerm))) $
     runInferM $ infer (wrapContextNames $ markProven $ restrictContext term ctx) (wrapTermNames $ markUserCode term)
@@ -165,10 +198,7 @@ type Out prim loc var = ( Subst (Origin loc) (Name var)
                         , TyTerm prim (Origin loc) (Name var)
                         )
 
-infer :: (Eq loc, IsVar var, Show loc, IsPrim prim, PrimLoc prim ~ loc, PrimVar prim ~ var)
-  => Context' loc var
-  -> Term' prim loc var
-  -> InferM loc var (Out prim loc var)
+infer :: Lang q => ContextOf' q -> TermOf' q -> InferOf q
 infer ctx (Term (Fix x)) = case x of
   Var loc v           -> inferVar ctx loc v
   Prim loc p          -> inferPrim loc p
@@ -181,32 +211,20 @@ infer ctx (Term (Fix x)) = case x of
   Case loc e alts     -> inferCase ctx loc (Term e) (fmap (fmap Term) alts)
   Bottom loc          -> inferBottom loc
 
-inferVar :: (Show loc, IsVar v)
-  => Context' loc v
-  -> Origin loc
-  -> Name v
-  -> InferM loc v (Out prim loc v)
+inferVar :: Lang q => ContextOf' q -> Origin (Src q) -> Name (Var q) -> InferOf q
 inferVar ctx loc v = {- trace (unlines ["VAR", ppShow ctx, ppShow v]) $ -}
   case M.lookup v (unContext ctx) of
     Nothing  -> throwError $ NotInScopeErr (fromOrigin loc) v
     Just sig -> do ty <- newInstance $ setLoc loc sig
                    return (mempty, tyVarE ty loc v)
 
-inferPrim :: (Ord v, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Origin loc
-  -> prim
-  -> InferM loc v (Out prim loc v)
+inferPrim :: Lang q => Origin (Src q) -> Prim q -> InferOf q
 inferPrim loc prim =
   return (mempty, tyPrimE ty loc prim)
   where
     ty = mapVar Name $ mapLoc UserCode $ getPrimType prim
 
-inferApp :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v
-  -> Origin loc
-  -> Term' prim loc v
-  -> Term' prim loc v
-  -> InferM loc v (Out prim loc v)
+inferApp :: Lang q => ContextOf' q -> Origin (Src q) -> TermOf' q -> TermOf' q -> InferOf q
 inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow' f, ppShow' a]) $ -} do
   tvn <- fmap (varT loc) $ freshVar
   res <- inferTerms ctx [f, a]
@@ -217,12 +235,7 @@ inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow' f, ppShow' 
                                             in  (subst, term)) $ unify phi tf (arrowT loc ta tvn)
     _               -> error "Impossible has happened!"
 
-inferLam :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v
-  -> Origin loc
-  -> Name v
-  -> Term' prim loc v
-  -> InferM loc v (Out prim loc v)
+inferLam :: Lang q => ContextOf' q -> Origin (Src q) -> Name (Var q) -> TermOf' q -> InferOf q
 inferLam ctx loc x body = do
   tvn <- freshVar
   (phi, bodyTyTerm) <- infer (ctx1 tvn) body
@@ -231,12 +244,7 @@ inferLam ctx loc x body = do
   where
     ctx1 tvn = insertCtx x (newVar loc tvn) ctx
 
-inferLet :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v
-  -> Origin loc
-  -> Bind' loc v (Term' prim loc v)
-  -> Term' prim loc v
-  -> InferM loc v (Out prim loc v)
+inferLet :: Lang q => ContextOf' q -> Origin (Src q) -> BindOf' q (TermOf' q) -> TermOf' q -> InferOf q
 inferLet ctx loc v body = do
   (phi, rhsTyTerm) <- infer ctx $ bind'rhs v
   let tBind = termType rhsTyTerm
@@ -247,12 +255,9 @@ inferLet ctx loc v body = do
          , tyLetE (termType bodyTerm) loc tyBind bodyTerm
          )
 
-inferLetRec :: forall prim loc v . (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v
-  -> Origin loc
-  -> [Bind' loc v (Term' prim loc v)]
-  -> Term' prim loc v
-  -> InferM loc v (Out prim loc v)
+inferLetRec :: forall q . Lang q
+  => ContextOf' q -> Origin (Src q) -> [BindOf' q (TermOf' q)] -> TermOf' q
+  -> InferOf q
 inferLetRec ctx topLoc vs body = do
   lhsCtx <- getTypesLhs vs
   (phi, rhsTyTerms) <- inferTerms (ctx <> Context (M.fromList lhsCtx)) exprBinds
@@ -263,7 +268,7 @@ inferLetRec ctx topLoc vs body = do
     exprBinds = fmap bind'rhs vs
     locBinds  = fmap bind'loc vs
 
-    getTypesLhs :: [Bind' loc v (Term' prim loc v)] -> InferM loc v [(Name v, Signature' loc v)]
+    getTypesLhs :: [BindOf' q (TermOf' q)] -> InferM (Src q) (Var q) [(Name (Var q), SignatureOf' q)]
     getTypesLhs lhs = mapM (\b -> fmap ((bind'lhs b, ) . newVar (bind'loc b)) freshVar) lhs
 
     unifyRhs context lhsCtx phi tBinds =
@@ -285,38 +290,27 @@ inferLetRec ctx topLoc vs body = do
       let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
       return (phi <> subst, tyLetRecE (termType bodyTerm) topLoc tyBinds bodyTerm)
 
-inferAssertType :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v
-  -> Origin loc
-  -> Term' prim loc v
-  -> Type' loc v
-  -> InferM loc v (Out prim loc v)
+inferAssertType :: Lang q => ContextOf' q -> Origin (Src q) -> TermOf' q -> TypeOf' q -> InferOf q
 inferAssertType ctx loc a ty = do
   (phi, aTyTerm) <- infer ctx a
   subst <- genSubtypeOf phi ty (termType aTyTerm)
   return (subst <> phi, tyAssertTypeE loc aTyTerm ty)
 
-inferConstr :: (Eq loc, IsVar v)
-  => Origin loc
-  -> Type' loc v
-  -> Name v
-  -> InferM loc v (Out prim loc v)
+inferConstr :: Lang q => Origin (Src q) -> TypeOf' q -> Name (Var q) -> InferOf q
 inferConstr loc ty tag = do
   vT <- newInstance $ typeToSignature ty
   return (mempty, tyConstrE loc vT tag)
 
-inferCase :: forall prim loc v .
-     (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v
-  -> Origin loc -> Term' prim loc v -> [CaseAlt' loc v (Term' prim loc v)]
-  -> InferM loc v (Out prim loc v)
+inferCase :: forall q . Lang q
+  => ContextOf' q -> Origin (Src q) -> TermOf' q -> [CaseAltOf' q (TermOf' q)]
+  -> InferOf q
 inferCase ctx loc e caseAlts = do
   (phi, tyTermE) <- infer ctx e
   (psi, tRes, tyAlts) <- inferAlts phi (termType tyTermE) caseAlts
   return ( psi
          , apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
   where
-    inferAlts :: Subst' loc v -> Type' loc v -> [CaseAlt' loc v (Term' prim loc v)] -> InferM loc v (Subst' loc v, Type' loc v, [CaseAlt' loc v (TyTerm' prim loc v)])
+    inferAlts :: SubstOf' q -> TypeOf' q -> [CaseAltOf' q (TermOf' q)] -> InferM (Src q) (Var q) (SubstOf' q, TypeOf' q, [CaseAltOf' q (TyTermOf' q)])
     inferAlts substE tE alts =
       fmap (\(subst, _, tRes, as) -> (subst, tRes, L.reverse as)) $ foldM go (substE, tE, tE, []) alts
       where
@@ -326,7 +320,7 @@ inferCase ctx loc e caseAlts = do
           return (subst', apply subst' tyTop, apply subst' tRes, applyAlt subst' alt' : res)
 
 
-    inferAlt :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v (Subst' loc v, Type' loc v, CaseAlt' loc v (TyTerm' prim loc v))
+    inferAlt :: CaseAltOf' q (TermOf' q) -> InferM (Src q) (Var q) (SubstOf' q, TypeOf' q, CaseAltOf' q (TyTermOf' q))
     inferAlt preAlt = do
       alt <- newCaseAltInstance preAlt
       let argVars = fmap  (\ty -> (snd $ typed'value ty, (fst $ typed'value ty, typed'type ty))) $ caseAlt'args alt
@@ -340,7 +334,7 @@ inferCase ctx loc e caseAlts = do
                   }
       return (subst, termType tyTermRhs, alt')
 
-    newCaseAltInstance :: CaseAlt' loc v (Term' prim loc v) -> InferM loc v (CaseAlt' loc v (Term' prim loc v))
+    newCaseAltInstance :: CaseAltOf' q (TermOf' q) -> InferM (Src q) (Var q) (CaseAltOf' q (TermOf' q))
     newCaseAltInstance alt = do
       tv <- newInstance $ typeToSignature $ getCaseType alt
       let (argsT, resT)= splitFunT tv
@@ -349,10 +343,10 @@ inferCase ctx loc e caseAlts = do
         , caseAlt'args = zipWith (\aT ty -> ty { typed'type = aT }) argsT $ caseAlt'args alt
         }
 
-    getCaseType :: CaseAlt' loc v (Term' prim loc v) -> Type' loc v
+    getCaseType :: CaseAltOf' q (TermOf' q) -> TypeOf' q
     getCaseType CaseAlt{..} = funT (fmap typed'type caseAlt'args) caseAlt'constrType
 
-    splitFunT :: Type' loc v -> ([Type' loc v], Type' loc v)
+    splitFunT :: TypeOf' q -> ([TypeOf' q], TypeOf' q)
     splitFunT arrT = go [] arrT
       where
         go argsT (Type (Fix t)) = case t of
@@ -360,7 +354,7 @@ inferCase ctx loc e caseAlts = do
           other           -> (reverse argsT, Type $ Fix other)
 
 
-    funT :: [Type' loc v] -> Type' loc v -> Type' loc v
+    funT :: [TypeOf' q] -> TypeOf' q -> TypeOf' q
     funT argsT resT = foldr (\a b -> arrowT (getLoc a) a b) resT argsT
 
     applyAlt subst alt@CaseAlt{..} = alt
@@ -371,7 +365,7 @@ inferCase ctx loc e caseAlts = do
       where
         applyTyped ty@Typed{..} = ty { typed'type = apply subst $ typed'type }
 
-inferBottom :: IsVar v => Origin loc -> InferM loc v (Out prim loc v)
+inferBottom :: Lang q => Origin (Src q) -> InferOf q
 inferBottom loc = do
   ty <- fmap (varT loc) freshVar
   return (mempty, tyBottomE ty loc)
@@ -392,10 +386,10 @@ freshVar = do
   put $ n + 1
   return $ FreshName n
 
-inferTerms :: (Eq loc, IsVar v, Show loc, IsPrim prim, loc ~ PrimLoc prim, v ~ PrimVar prim)
-  => Context' loc v
-  -> [Term' prim loc v]
-  -> InferM loc v (Subst' loc v, [(Type' loc v, TyTerm' prim loc v)])
+inferTerms :: Lang q
+  => ContextOf' q
+  -> [TermOf' q]
+  -> InferM (Src q) (Var q) (SubstOf' q, [(TypeOf' q, TyTermOf' q)])
 inferTerms ctx ts = case ts of
   []   -> return $ (mempty, [])
   a:as -> do
@@ -463,8 +457,8 @@ unifyl subst as bs = foldr go (return subst) $ zip as bs
     go (a, b) eSubst = (\t -> unify t a b) =<< eSubst
 
 -- | Checks if first argument one type is subtype of the second one.
-subtypeOf :: (IsVar v, Show loc, Eq loc)
-  => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
+subtypeOf :: (Lang q)
+  => TypeOf q -> TypeOf q -> Either (ErrorOf q) (SubstOf q)
 subtypeOf a b =
   join $ bimap (fromTypeErrorNameVar . normaliseType) (fromSubstNameVar . fromSubstOrigin) $
     genSubtypeOf mempty (mapVar Name $ mapLoc Proven a) (mapVar Name $ mapLoc UserCode b)
@@ -545,7 +539,7 @@ normaliseSubst x =
 --
 
 -- | Checks weather two types unify. If they do it returns substitution that unifies them.
-unifyTypes :: (Show loc, IsVar v, Eq loc) => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
+unifyTypes :: Lang q => TypeOf q -> TypeOf q -> Either (ErrorOf q) (SubstOf q)
 unifyTypes a b =
   join $ bimap (fromTypeErrorNameVar . normaliseType) (fromSubstNameVar . fromSubstOrigin) $
     unify mempty (mapVar Name $ mapLoc Proven a) (mapVar Name $ mapLoc UserCode b)

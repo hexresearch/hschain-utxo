@@ -4,7 +4,6 @@ module Language.HM.Term(
   , TermF(..)
   , CaseAlt(..)
   , Bind(..)
-  , IsPrim(..)
   , varE
   , primE
   , appE
@@ -44,12 +43,6 @@ data TermF prim loc v r
                                       --   of constructor as a function for a type-checker
     | Bottom loc                      -- ^ value of any type that means failed programm.
     deriving (Show, Eq, Functor, Foldable, Traversable, Data)
-
-class Show prim => IsPrim prim where
-  type PrimLoc prim :: *
-  type PrimVar prim :: *
-
-  getPrimType :: prim -> Type (PrimLoc prim) (PrimVar prim)
 
 -- | Case alternatives
 data CaseAlt loc v a = CaseAlt
