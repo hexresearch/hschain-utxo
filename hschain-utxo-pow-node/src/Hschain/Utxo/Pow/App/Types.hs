@@ -100,7 +100,10 @@ data UTXOBlock t f = UTXOBlock
 -- | Configuration of PoW function for given tag. It allows to pick
 --   concrete set of parameters of disable work check at all
 class Typeable t => UtxoPOWCongig t where
+  -- | Parameters for work function
   powConfig :: Proxy t -> POW.POWConfig
+  -- | Whether we want to check block work. Disabling it mostly useful
+  --   for testing
   checkBlockWork :: Proxy t -> Bool
   checkBlockWork _ = True
 
