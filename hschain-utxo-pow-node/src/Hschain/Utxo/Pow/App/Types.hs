@@ -106,6 +106,13 @@ class Typeable t => UtxoPOWCongig t where
   --   for testing
   checkBlockWork :: Proxy t -> Bool
   checkBlockWork _ = True
+  -- | Interval between blocks. Default is 1 minute
+  blockInterval :: Proxy t -> POW.DTime
+  blockInterval _ = POW.timeMinutes 1
+  -- | Number of blocks between adjustments. Default is 1 day
+  adjustmentInterval :: Proxy t -> POW.Height
+  adjustmentInterval _ = POW.Height (24 * 60)
+
 
 deriving stock instance (Show1 f)    => Show (UTXOBlock t f)
 deriving stock instance (IsMerkle f) => Eq   (UTXOBlock t f)
@@ -198,7 +205,8 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
                        . POW.targetInteger . ubTarget . POW.blockData
   blockTargetThreshold = POW.Target
                        . POW.targetInteger . ubTarget . POW.blockData
-
+  targetAdjustmentInfo _ = ( adjustmentInterval (Proxy @t)
+                           , blockInterval      (Proxy @t))
 
 instance MerkleMap (UTXOBlock t) where
   merkleMap f = ubDataL %~ mapMerkleNode f
