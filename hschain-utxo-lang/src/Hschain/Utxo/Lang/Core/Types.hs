@@ -2,6 +2,7 @@
 module Hschain.Utxo.Lang.Core.Types (
     Name
   , TypeCore(..)
+  , boxTuple
   , argsTuple
   , Typed(..)
   , Prim(..)
@@ -73,11 +74,17 @@ data TypeCore
   | TypeCore :-> TypeCore       -- ^ Function type
   | ListT TypeCore              -- ^ List
   | TupleT [TypeCore]           -- ^ Tuple. Nullary tuple doubles as unit
+  | SumT [TypeCore]             -- ^ Sum type
+  | UnitT                       -- ^ Unit
+  | MaybeT TypeCore             -- ^ Maybe
   | BoxT
-    -- ^ Box. 4-tuple of box ID, spend script, value of box, and arguments
+    -- ^ Box. 5-tuple of box ID, spend script, value of box, arguments and post-height
   deriving stock    (Show, Eq, Generic,Data)
   deriving anyclass (NFData,Serialise)
 infixr 5 :->
+
+boxTuple :: TypeCore
+boxTuple = TupleT [BytesT, BytesT, IntT, argsTuple, IntT]
 
 argsTuple :: TypeCore
 argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
