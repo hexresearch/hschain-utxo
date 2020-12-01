@@ -19,7 +19,7 @@ import Control.Monad.State.Strict
 import Data.Fix hiding ((~>))
 import Data.Text (Text)
 
-import Language.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)
+import Type.Check.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)
 
 import Hschain.Utxo.Lang.Desugar hiding (app1, app2, app3)
 import Hschain.Utxo.Lang.Expr
@@ -30,7 +30,7 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Desugar as D

@@ -33,7 +33,7 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
 import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes, Script(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Data.Map.Strict as M

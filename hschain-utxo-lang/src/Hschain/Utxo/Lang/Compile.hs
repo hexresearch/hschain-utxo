@@ -33,8 +33,8 @@ import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext, baseLibExecCtx)
 import Hschain.Utxo.Lang.Exec.Module (trimModuleByMain)
 
-import qualified Language.HM       as H
-import qualified Language.HM.Subst as H
+import qualified Type.Check.HM       as H
+import qualified Type.Check.HM.Subst as H
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 

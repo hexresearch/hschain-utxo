@@ -2,14 +2,14 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DerivingStrategies #-}
 -- | This module contains types for structured type errors.
-module Language.HM.TypeError where
+module Type.Check.HM.TypeError where
 
 import Control.DeepSeq (NFData)
 import Data.Data
 import Data.Function (on)
 import GHC.Generics    (Generic)
-import Language.HM.Type
-import Language.HM.Subst
+import Type.Check.HM.Type
+import Type.Check.HM.Subst
 
 import qualified Data.List as L
 

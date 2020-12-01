@@ -22,8 +22,8 @@ import Hschain.Utxo.Lang.Expr(VarName(..))
 
 import qualified Data.Map.Strict as M
 
-import qualified Language.HM as H
-import qualified Language.HM.Subst as H
+import qualified Type.Check.HM as H
+import qualified Type.Check.HM.Subst as H
 
 import qualified Hschain.Utxo.Lang.Const as Const
 

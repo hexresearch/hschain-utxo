@@ -34,7 +34,7 @@ import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 
 -- | Programms annotated with types
 type TypedLamProg = AnnLamProg (H.Type () Name) TypedName

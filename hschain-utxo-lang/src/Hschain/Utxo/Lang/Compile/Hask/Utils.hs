@@ -25,7 +25,7 @@ import qualified Data.List as L
 import qualified Data.Text as T
 
 import qualified Language.Haskell.Exts.Syntax as H
-import qualified Language.HM as HM(LocFunctor(..), Type)
+import qualified Type.Check.HM as HM(LocFunctor(..), Type)
 
 import qualified Hschain.Utxo.Lang.Parser.Hask.ToHask as H(toHaskType)
 

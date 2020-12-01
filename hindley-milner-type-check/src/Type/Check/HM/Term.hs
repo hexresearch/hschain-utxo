@@ -1,5 +1,5 @@
 -- | This module contains the abstract syntax tree of the term language.
-module Language.HM.Term(
+module Type.Check.HM.Term(
     Term(..)
   , TermF(..)
   , CaseAlt(..)
@@ -23,8 +23,8 @@ import Data.Data
 import Data.Fix
 import Data.Set (Set)
 
-import Language.HM.Subst
-import Language.HM.Type
+import Type.Check.HM.Subst
+import Type.Check.HM.Type
 
 import qualified Data.Set as S
 

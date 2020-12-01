@@ -7,7 +7,7 @@ import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 
 -- | Converts guarded expression to single expression with explicit
 -- if-then-else checks.

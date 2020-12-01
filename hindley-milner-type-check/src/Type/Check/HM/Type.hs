@@ -1,5 +1,5 @@
 -- | This module contains the abstract syntax of Hindley-Milner types.
-module Language.HM.Type (
+module Type.Check.HM.Type (
     IsVar(..),
     HasLoc(..),
     DefLoc(..),

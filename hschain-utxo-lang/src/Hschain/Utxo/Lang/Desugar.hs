@@ -25,7 +25,7 @@ module Hschain.Utxo.Lang.Desugar(
 
 import Data.Fix
 
-import Language.HM (getLoc)
+import Type.Check.HM (getLoc)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad

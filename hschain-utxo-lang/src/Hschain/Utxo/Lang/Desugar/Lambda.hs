@@ -14,7 +14,7 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Data.Vector as V
 
 

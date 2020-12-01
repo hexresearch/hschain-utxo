@@ -15,7 +15,7 @@ import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
 
 import qualified Data.List as L
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 
 -- | Apply unary function to its argument
 ap1 :: Loc -> ExprLam a -> ExprLam a -> ExprLam a

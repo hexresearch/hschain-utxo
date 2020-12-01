@@ -33,7 +33,7 @@ import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Core.Types as P
 import qualified Hschain.Utxo.Lang.Const as Const
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Data.Text as T
 
 -- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.

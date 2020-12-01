@@ -18,7 +18,7 @@ import Hschain.Utxo.Lang.Core.Types (Prim(..), Typed(..))
 import Data.Fix
 
 import qualified Language.Haskell.Exts.Syntax as H
-import qualified Language.HM as H(getLoc, LocFunctor(..))
+import qualified Type.Check.HM as H(getLoc, LocFunctor(..))
 
 import qualified Hschain.Utxo.Lang.Parser.Hask.ToHask as H(toHaskType)
 

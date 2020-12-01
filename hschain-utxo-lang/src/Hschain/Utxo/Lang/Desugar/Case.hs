@@ -27,7 +27,7 @@ import qualified Data.Set as S
 import qualified Data.Sequence as Seq
 import qualified Data.Vector as V
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Hschain.Utxo.Lang.Const as Const
 
 desugarCase :: MonadLang m => Module -> m Module

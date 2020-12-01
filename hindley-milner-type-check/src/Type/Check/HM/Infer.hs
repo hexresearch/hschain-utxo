@@ -1,6 +1,12 @@
 -- | Defines type-inference algorithm.
-module Language.HM.Infer(
-    inferType
+module Type.Check.HM.Infer(
+  -- * Context
+    Context(..)
+  , insertCtx
+  , lookupCtx
+  , ContextOf
+  -- * Inference
+  , inferType
   , inferTerm
   , subtypeOf
   , unifyTypes
@@ -16,14 +22,15 @@ import Control.Monad.State.Strict
 import Data.Bifunctor (bimap)
 import Data.Fix
 import Data.Function (on)
+import Data.Map.Strict (Map)
 import Data.Maybe
 
-import Language.HM.Lang
-import Language.HM.Term
-import Language.HM.Subst
-import Language.HM.Type
-import Language.HM.TypeError
-import Language.HM.TyTerm
+import Type.Check.HM.Lang
+import Type.Check.HM.Term
+import Type.Check.HM.Subst
+import Type.Check.HM.Type
+import Type.Check.HM.TypeError
+import Type.Check.HM.TyTerm
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -35,6 +42,22 @@ import Text.Show.Pretty
 ppShow' :: (Show (f () v), LocFunctor f) => f b v -> String
 ppShow' = ppShow . mapLoc (const ())
 -}
+
+-- | Context holds map of proven signatures for free variables in the expression.
+newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
+  deriving (Show, Eq, Semigroup, Monoid)
+
+type ContextOf q = Context (Src q) (Var q)
+
+instance CanApply Context where
+  apply subst = Context . fmap (apply subst) . unContext
+
+insertCtx :: Ord v => v -> Signature loc v ->  Context loc v -> Context loc v
+insertCtx v sign (Context ctx) = Context $ M.insert v sign ctx
+
+lookupCtx :: Ord v => v -> Context loc v -> Maybe (Signature loc v)
+lookupCtx v (Context ctx) = M.lookup v ctx
+
 
 -- | Wrapper with ability to generate fresh names
 data Name v

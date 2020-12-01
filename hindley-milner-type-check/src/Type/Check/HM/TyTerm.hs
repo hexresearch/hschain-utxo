@@ -1,5 +1,5 @@
 -- | This module contains type annotations for terms of the language.
-module Language.HM.TyTerm(
+module Type.Check.HM.TyTerm(
     Ann(..)
   , TyTerm(..)
   , termType
@@ -20,9 +20,9 @@ import Control.Arrow
 
 import Data.Fix
 
-import Language.HM.Subst
-import Language.HM.Type
-import Language.HM.Term
+import Type.Check.HM.Subst
+import Type.Check.HM.Type
+import Type.Check.HM.Term
 
 -- | Type to annotate nodes of AST.
 -- We use it for type annotations.

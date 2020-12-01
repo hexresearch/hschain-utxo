@@ -20,7 +20,7 @@ import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, f
                               , arrowT, intT, boolT, bytesT, sigmaT
                               , monoPrimopNameMap)
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Data.Sequence as S
 
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
@@ -68,7 +68,7 @@ annotateTypes =
   where
     go (ctx, prog) comb = do
       (combT, combTyped) <- typeDef ctx comb
-      return (H.insertContext (VarTag $ varName'name $ def'name comb) combT ctx, combTyped : prog)
+      return (H.insertCtx (VarTag $ varName'name $ def'name comb) (H.monoT combT) ctx, combTyped : prog)
 
     typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, TypedDef)
     typeDef ctx comb = do

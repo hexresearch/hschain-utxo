@@ -1,4 +1,4 @@
-name:                   hindley-milner-tags
+name:                   hindley-milner-type-check
 version:                0.1.0.0
 synopsis:               Type inference for Hindley-Milner based languages
 description:
@@ -7,7 +7,7 @@ description:
 
 
 license: MIT
-author:                 Anton Kholomiov
+author:                 Anton Kholomiov, Aleksey Khudyakov
 maintainer:             anton.kholomiov@gmail.com
 category:               Language
 build-type:             Simple
@@ -20,15 +20,15 @@ source-repository head
 library
   ghc-options:  -Wall
   exposed-modules:
-    Language.HM,
-    Language.HM.Infer,
-    Language.HM.Lang
-    Language.HM.Pretty,
-    Language.HM.Subst,
-    Language.HM.Term,
-    Language.HM.Type,
-    Language.HM.TypeError,
-    Language.HM.TyTerm
+    Type.Check.HM,
+    Type.Check.HM.Infer,
+    Type.Check.HM.Lang
+    Type.Check.HM.Pretty,
+    Type.Check.HM.Subst,
+    Type.Check.HM.Term,
+    Type.Check.HM.Type,
+    Type.Check.HM.TypeError,
+    Type.Check.HM.TyTerm
 
   other-modules:
 
@@ -76,7 +76,7 @@ test-suite hindley-milner-tests
   Ghc-options:         -Wall -threaded -rtsopts
   Default-Language:    Haskell2010
   Build-Depends:       base              >=4.9 && <5
-                     , hindley-milner-tags
+                     , hindley-milner-type-check
                      , text
                      , data-fix
                      , tasty

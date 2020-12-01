@@ -1,5 +1,5 @@
 -- | Capture-avoiding substitutions.
-module Language.HM.Subst(
+module Type.Check.HM.Subst(
     CanApply(..)
   , Subst(..)
   , delta
@@ -9,7 +9,7 @@ module Language.HM.Subst(
 import Data.Fix
 import qualified Data.Map.Strict as M
 
-import Language.HM.Type
+import Type.Check.HM.Type
 
 -- | Substitutions of type variables for monomorphic types.
 newtype Subst loc v = Subst { unSubst :: M.Map v (Type loc v) }

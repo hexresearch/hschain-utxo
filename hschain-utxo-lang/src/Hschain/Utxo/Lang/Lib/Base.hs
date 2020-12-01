@@ -18,11 +18,11 @@ import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types (argTypes)
-import Language.HM (monoT, forAllT)
+import Type.Check.HM (monoT, forAllT)
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Data.Map as M
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 
 infixr 6 ~>
 

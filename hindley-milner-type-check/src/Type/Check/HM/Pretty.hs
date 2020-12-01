@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | Pretty printer for types and terms.
-module Language.HM.Pretty(
+module Type.Check.HM.Pretty(
     HasPrefix(..)
   , PrintCons(..)
   , OpFix(..)
@@ -13,8 +13,8 @@ import Data.Maybe
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
 
-import Language.HM.Type
-import Language.HM.Term
+import Type.Check.HM.Type
+import Type.Check.HM.Term
 
 -- | Class to querry fixity of infix operations.
 class IsVar v => HasPrefix v where

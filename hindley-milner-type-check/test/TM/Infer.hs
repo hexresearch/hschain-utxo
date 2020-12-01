@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE EmptyDataDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
@@ -9,7 +8,7 @@ import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Language.HM
+import Type.Check.HM
 
 tests :: TestTree
 tests = testGroup "infer"
@@ -57,5 +56,3 @@ termLetRecChain = lamE () "x" $ letRecE ()
   ]
   (varE () "b")
 
-----------------------------------------------------------------
--- Orphans
