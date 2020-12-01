@@ -100,8 +100,8 @@ instance UtxoPOWCongig MockChain where
 
 runApp :: IO ()
 runApp = do
-  hSetBuffering stderr NoBuffering
-  hSetBuffering stdout NoBuffering
+  hSetBuffering stderr LineBuffering
+  hSetBuffering stdout LineBuffering
   -- Parse configuration
   command <- readCommandOptions
   case command of
