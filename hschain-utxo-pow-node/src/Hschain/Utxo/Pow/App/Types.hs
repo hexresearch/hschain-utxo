@@ -32,6 +32,7 @@ import Hex.Common.Aeson
 
 import Codec.Serialise
 import Control.Arrow ((&&&))
+import Control.Concurrent (threadDelay)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch hiding (Handler)
@@ -58,7 +59,7 @@ import qualified Database.SQLite.Simple           as SQL
 import qualified Database.SQLite.Simple.ToField   as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.FromRow   as SQL
-
+import System.Random (randomIO)
 import GHC.Generics (Generic)
 
 import HSChain.Crypto.Classes
@@ -244,12 +245,24 @@ checkPuzzle b = POW.check bs nonce h powCfg
     Hash h = hashBlob @SHA256 $ nonce <> bs
 
 instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
-  adjustPuzzle b0@POW.Block{..} = do
-    (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
-    return ( do answer <- maybeAnswer
-                pure $ b0 & POW.blockDataL . ubNonceL .~ answer
-           , POW.hash256AsTarget hashR
-           )
+  adjustPuzzle b0@POW.Block{..} =
+    case checkBlockWork (Proxy @t) of
+      -- If we're running mock net let just wait allotted time
+      False -> liftIO $ do
+        p <- liftIO randomIO
+        let POW.DTime meanT = blockInterval (Proxy @t)
+            t = log p * fromIntegral meanT * 1000 :: Double
+        print t
+        threadDelay (round t)
+        pure ( Just b0
+             , POW.Target $ 2^(256::Int) - 1
+             )
+      -- Attempt to solve puzzle
+      True  -> do
+        (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
+        return ( traverseOf (POW.blockDataL . ubNonceL) (const maybeAnswer) b0
+               , POW.hash256AsTarget hashR
+               )
     where
       bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b0
       powCfg = (powConfig (Proxy @t))
