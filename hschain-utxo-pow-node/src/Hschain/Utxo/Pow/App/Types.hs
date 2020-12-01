@@ -251,9 +251,8 @@ instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
       False -> liftIO $ do
         p <- liftIO randomIO
         let POW.DTime meanT = blockInterval (Proxy @t)
-            t = log p * fromIntegral meanT * 1000 :: Double
-        print t
-        threadDelay (round t)
+            t = - log p * fromIntegral meanT * 1000 :: Double
+        threadDelay $ round t
         pure ( Just b0
              , POW.Target $ 2^(256::Int) - 1
              )

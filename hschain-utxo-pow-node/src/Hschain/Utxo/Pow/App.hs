@@ -10,6 +10,8 @@
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
+  , genesisTest
+  , genesisMock
   , TestNet
   , MockChain
   , UtxoRestAPI(..)
@@ -98,11 +100,11 @@ instance UtxoPOWCongig MockChain where
   checkBlockWork _ = False
 
 
-runApp :: IO ()
-runApp = do
+runApp :: UtxoPOWCongig t => POW.Block (UTXOBlock t) -> IO ()
+runApp genesis = do
   hSetBuffering stderr LineBuffering
   hSetBuffering stdout LineBuffering
-  -- Parse configuration
+  -- Parse configurationx
   command <- readCommandOptions
   case command of
     GenerateKey {..} -> do
@@ -111,8 +113,25 @@ runApp = do
       config <- loadYamlSettings runnode'config [] requireEnv
       runNode genesis config runnode'nodeSecret
 
-genesis :: POW.Block (UTXOBlock TestNet)
-genesis = POW.Block
+genesisTest :: POW.Block (UTXOBlock TestNet)
+genesisTest = POW.Block
+  { blockHeight = POW.Height 0
+  , blockTime   = POW.Time   0
+  , prevBlock   = Nothing
+  , blockData   = UTXOBlock
+    { ubNonce  = ""
+    , ubData   = createMerkleTreeNE1 $ coinbase :| []
+    , ubTarget = POW.Target $ 2^(256::Int) - 1
+    }
+  }
+  where
+    coinbase = Tx { tx'inputs     = mempty
+                  , tx'outputs    = mempty
+                  , tx'dataInputs = mempty
+                  }
+
+genesisMock :: POW.Block (UTXOBlock MockChain)
+genesisMock = POW.Block
   { blockHeight = POW.Height 0
   , blockTime   = POW.Time   0
   , prevBlock   = Nothing
@@ -132,7 +151,7 @@ genesis = POW.Block
 -------------------------------------------------------------------------------
 -- Node.
 
-runNode :: POW.Block (UTXOBlock TestNet) -> POW.Cfg -> Maybe c -> IO ()
+runNode :: UtxoPOWCongig t => POW.Block (UTXOBlock t) -> POW.Cfg -> Maybe c -> IO ()
 runNode genesisBlk POW.Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
@@ -192,8 +211,8 @@ data UtxoRestAPI route = UtxoRestAPI
   deriving (Generic)
 
 utxoRestServer
-  :: (MonadIO m, MonadReadDB m)
-  => POW.MempoolAPI (UtxoState m TestNet) -> UtxoRestAPI (Servant.AsServerT m)
+  :: (MonadIO m, MonadReadDB m, UtxoPOWCongig t)
+  => POW.MempoolAPI (UtxoState m t) -> UtxoRestAPI (Servant.AsServerT m)
 utxoRestServer mempool = UtxoRestAPI
   { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
   , endpointGetBox = endpointGetBoxImpl
