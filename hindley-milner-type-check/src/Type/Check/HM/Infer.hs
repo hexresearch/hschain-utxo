@@ -135,12 +135,12 @@ restrictContext t (Context ctx) = Context $ M.intersection ctx fv
     fv = M.fromList $ fmap (, ()) $ S.toList $ freeVars t
 
 wrapContextNames :: Ord v => Context loc v -> Context loc (Name v)
-wrapContextNames = mapVarCtx Name
+wrapContextNames = fmapCtx Name
   where
-    mapVarCtx f (Context m) = Context $ M.mapKeys f $ M.map (mapVar f) m
+    fmapCtx f (Context m) = Context $ M.mapKeys f $ M.map (fmap f) m
 
 wrapTermNames :: Term prim loc v -> Term prim loc (Name v)
-wrapTermNames = mapVar Name
+wrapTermNames = fmap Name
 
 markProven :: Context loc v -> Context (Origin loc) v
 markProven = Context . M.map (mapLoc Proven) . unContext
@@ -234,7 +234,7 @@ inferPrim :: Lang q => Origin (Src q) -> Prim q -> InferOf q
 inferPrim loc prim =
   return (mempty, tyPrimE ty loc prim)
   where
-    ty = mapVar Name $ mapLoc UserCode $ getPrimType prim
+    ty = fmap Name $ mapLoc UserCode $ getPrimType prim
 
 inferApp :: Lang q => ContextOf' q -> Origin (Src q) -> TermOf' q -> TermOf' q -> InferOf q
 inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow' f, ppShow' a]) $ -} do
@@ -473,7 +473,7 @@ subtypeOf :: (IsVar v, Show loc, Eq loc)
   => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
 subtypeOf a b =
   join $ bimap (fromTypeErrorNameVar . normaliseType) (fromSubstNameVar . fromSubstOrigin) $
-    genSubtypeOf mempty (mapVar Name $ mapLoc Proven a) (mapVar Name $ mapLoc UserCode b)
+    genSubtypeOf mempty (fmap Name $ mapLoc Proven a) (fmap Name $ mapLoc UserCode b)
 
 genSubtypeOf :: (IsVar v, Show loc, MonadError (TypeError loc (Name v)) m)
   => Subst' loc v
@@ -554,7 +554,7 @@ normaliseSubst x =
 unifyTypes :: (Show loc, IsVar v, Eq loc) => Type loc v -> Type loc v -> Either (TypeError loc v) (Subst loc v)
 unifyTypes a b =
   join $ bimap (fromTypeErrorNameVar . normaliseType) (fromSubstNameVar . fromSubstOrigin) $
-    unify mempty (mapVar Name $ mapLoc Proven a) (mapVar Name $ mapLoc UserCode b)
+    unify mempty (fmap Name $ mapLoc Proven a) (fmap Name $ mapLoc UserCode b)
 
 ------------------------------------------------
 -- recover name and origin wrappers

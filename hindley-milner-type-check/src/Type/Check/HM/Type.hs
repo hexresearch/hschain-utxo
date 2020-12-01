@@ -33,8 +33,6 @@ module Type.Check.HM.Type (
     LocFunctor(..),
     setLoc,
     TypeFunctor(..),
-    VarFunctor(..),
-    mapTypedVar,
 
     extractFunType,
     extractArrow,
@@ -239,25 +237,6 @@ class TypeFunctor f where
 
 instance TypeFunctor Type where
   mapType f = f
-
--- | Mapping over source code variables.
-class VarFunctor f where
-  mapVar :: (varA -> varB) -> f loc varA -> f loc varB
-
-instance VarFunctor Type where
-  mapVar f = fmap f
-
-instance VarFunctor Signature where
-  mapVar f = fmap f
-
-instance VarFunctor (,) where
-  mapVar f (loc, var) = (loc, f var)
-
-mapTypedVar :: VarFunctor f => (varA -> varB) -> Typed loc varA (f loc varA) -> Typed loc varB (f loc varB)
-mapTypedVar f Typed{..} = Typed
-  { typed'type  = mapVar f typed'type
-  , typed'value = mapVar f typed'value
-  }
 
 -- | 'forAllT' @x t@ universally quantifies @x@ in @t@.
 forAllT :: loc -> v -> Signature loc v -> Signature loc v

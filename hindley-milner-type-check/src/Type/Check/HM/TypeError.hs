@@ -33,16 +33,6 @@ instance LocFunctor TypeError where
     EmptyCaseExpr loc    -> EmptyCaseExpr (f loc)
     FreshNameFound       -> FreshNameFound
 
-
-instance VarFunctor TypeError where
-  mapVar f = \case
-    OccursErr loc ty     -> OccursErr loc (mapVar f ty)
-    UnifyErr loc tA tB   -> UnifyErr loc (mapVar f tA) (mapVar f tB)
-    SubtypeErr loc tA tB -> SubtypeErr loc (mapVar f tA) (mapVar f tB)
-    NotInScopeErr loc v  -> NotInScopeErr loc (f v)
-    EmptyCaseExpr loc    -> EmptyCaseExpr loc
-    FreshNameFound       -> FreshNameFound
-
 instance HasTypeVars TypeError where
   tyVars = \case
     OccursErr _ ty     -> tyVars ty

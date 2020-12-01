@@ -122,27 +122,6 @@ instance TypeFunctor (TyTerm prim) where
 
       applyTyped ty@Typed{..} = ty { typed'type = f typed'type }
 
-instance VarFunctor (TyTerm prim) where
-  mapVar f (TyTerm x) = TyTerm $ cata go x
-    where
-      go (Ann annTy term) = Fix $ Ann (mapVar f annTy) $ case term of
-        Var loc v    -> Var loc (f v)
-        Prim loc p   -> Prim loc p
-        App loc a b  -> App loc a b
-        Lam loc v a  -> Lam loc (f v) a
-        Let loc v a  -> Let loc (v { bind'lhs = f $ bind'lhs v }) a
-        LetRec loc vs a -> LetRec loc (fmap (\b ->  b { bind'lhs = f $ bind'lhs b }) vs) a
-        AssertType loc r sig -> AssertType loc r (mapVar f sig)
-        Constr loc ty v -> Constr loc (mapVar f ty) (f v)
-        Case loc e alts -> Case loc e (fmap (mapAlt f) alts)
-        Bottom loc -> Bottom loc
-
-      mapAlt g alt@CaseAlt{..} = alt
-        { caseAlt'tag  = g caseAlt'tag
-        , caseAlt'args = fmap (mapTypedVar g) caseAlt'args
-        , caseAlt'constrType = mapVar g caseAlt'constrType
-        }
-
 instance CanApply (TyTerm prim) where
   apply subst term = mapType (apply subst) term
 
