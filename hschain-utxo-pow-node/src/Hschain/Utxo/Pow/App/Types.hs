@@ -194,11 +194,10 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
   validateBlock         = pure . validateBlockContextFree
   validateTxContextFree = validateTransactionContextFree
 
-  blockWork b = POW.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
-                         $ POW.targetInteger $ ubTarget
-                         $ POW.blockData b
-
-  blockTargetThreshold b = POW.Target $ POW.targetInteger $ ubTarget $ POW.blockData b
+  blockWork            = POW.Work . fromIntegral . ((2^(256 :: Int)) `div`)
+                       . POW.targetInteger . ubTarget . POW.blockData
+  blockTargetThreshold = POW.Target
+                       . POW.targetInteger . ubTarget . POW.blockData
 
 
 instance MerkleMap (UTXOBlock t) where
