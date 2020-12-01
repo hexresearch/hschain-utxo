@@ -18,6 +18,8 @@ import Control.Monad.Except
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
 
+import qualified Data.Vector as V
+
 
 data MonoType
   = MonoType TypeCore  -- ^ Simple case when we know the type
@@ -67,11 +69,7 @@ inferExpr = \case
       AnyType      -> pure $ AnyType
     ELet  e body   -> inferLet  e body
     ECase e alts   -> inferCase e alts
-    -- Constructors
-    EConstr (TupleT ts) 0 -> pure $ MonoType $ foldr (:->) (TupleT ts) ts
-    EConstr (ListT  t)  0 -> pure $ MonoType $ ListT t
-    EConstr (ListT  t)  1 -> pure $ MonoType $ t :-> ListT t :-> ListT t
-    EConstr{}             -> throwError BadConstructor
+    EConstr con    -> fmap MonoType $ maybe (throwError BadConstructor) pure $ conType con
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
@@ -110,24 +108,46 @@ inferLet expr body = do
 inferCase :: Core v -> [CaseAlt v] -> Check v MonoType
 inferCase expr alts = inferExpr expr >>= \case
   -- Tuple
-  MonoType (TupleT ts) -> case alts of
-    [ CaseAlt 0 n e] -> inferScopeN n ts e
-    _                -> throwError BadCase
+  MonoType (TupleT tsA) -> case alts of
+    [ CaseAlt (ConTuple tsB) n e] | tsA == V.toList tsB -> inferScopeN n tsA e
+    _                                                -> throwError BadCase
   -- List
   MonoType (ListT  t) -> getResultType =<< traverse (inferListAlt t) alts
   -- Box
   MonoType  BoxT -> case alts of
-    [ CaseAlt 0 n e] -> inferScopeN n [BytesT, BytesT, IntT, argsTuple] e
-    _                -> throwError BadCase
+    [ CaseAlt con n e] | con == boxPrimCon -> inferScopeN n [BytesT, BytesT, IntT, argsTuple] e
+    _                                      -> throwError BadCase
+  -- Maybe
+  MonoType (MaybeT t) -> getResultType =<< traverse (inferMaybeAlt t) alts
+  -- Unit
+  MonoType UnitT -> getResultType =<< traverse inferUnitAlt alts
+  -- Sum
+  MonoType (SumT tsA) -> case alts of
+    [ CaseAlt (ConSum idx tsB) n e] | tsA == V.toList tsB -> case tsB V.!? idx of
+        Just ty -> inferScopeN n [ty] e
+        Nothing -> throwError BadCase
   _ -> throwError BadCase
   where
-    inferListAlt _  (CaseAlt 0 n e) = inferScopeN n []             e
-    inferListAlt ty (CaseAlt 1 n e) = inferScopeN n [ty, ListT ty] e
-    inferListAlt _   _              = throwError BadCase
+    inferListAlt ty (CaseAlt (ConNil tB) n e)  | ty == tB = inferScopeN n [] e
+    inferListAlt ty (CaseAlt (ConCons tB) n e) | ty == tB = inferScopeN n [ty, ListT ty] e
+    inferListAlt _   _                                    = throwError BadCase
     --
     getResultType = \case
       []   -> throwError EmptyCaseExpression
       t:ts -> foldM unifyMonoType t ts
+
+    inferMaybeAlt ty = \case
+      CaseAlt (ConNothing tB) n e | ty == tB -> inferScopeN n [] e
+      CaseAlt (ConJust tB) n e    | ty == tB -> inferScopeN n [ty] e
+      _                                      -> throwError BadCase
+
+    inferUnitAlt = \case
+      CaseAlt ConUnit n e -> inferScopeN n [] e
+      _                   -> throwError BadCase
+
+
+
+
 
 
 inferIf :: Core v -> Core v -> Core v -> Check v MonoType

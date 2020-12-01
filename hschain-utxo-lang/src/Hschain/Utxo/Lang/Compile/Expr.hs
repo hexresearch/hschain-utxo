@@ -31,7 +31,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
 
 import Data.Fix
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
+import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp, PrimCon)
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
 
 import qualified Type.Check.HM as H
@@ -99,7 +99,7 @@ data ExprLamF bind a
   -- ^ if expressions
   | ECase !Loc a [CaseAlt bind a]
   -- ^ case alternatives
-  | EConstr !Loc !(H.Type () Name) !Int
+  | EConstr !Loc (PrimCon (H.Type () Name) )
   -- ^ constructor with tag id, also we should provide the type
   -- of constructor as a function for a type-checker
   | EAssertType !Loc a !(H.Type () Name)
@@ -112,13 +112,11 @@ data ExprLamF bind a
 data CaseAlt bind a = CaseAlt
   { caseAlt'loc   :: !Loc
   -- ^ source code location of the expression
-  , caseAlt'tag   :: !Int
+  , caseAlt'tag   :: !(PrimCon (H.Type () Name))
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
   , caseAlt'args  :: [Typed (H.Type () Name) Name]
   -- ^ arguments of the pattern matching
-  , caseAlt'constrType :: H.Type () Name
-  -- ^ Type of right hand side, it's the type that constructor belongs to
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative
   }
@@ -149,7 +147,7 @@ instance H.HasLoc (ExprLamF bind a) where
     ELam loc _ _        -> loc
     EIf loc _ _ _       -> loc
     ECase loc _ _       -> loc
-    EConstr loc _ _     -> loc
+    EConstr loc _       -> loc
     EAssertType loc _ _ -> loc
     EBottom loc         -> loc
 

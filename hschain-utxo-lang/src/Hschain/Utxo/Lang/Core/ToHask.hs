@@ -49,7 +49,8 @@ toHaskExprCore = \case
     in  H.Let () (toBinds bs) (rec expr)
   EIf c t e          -> H.If () (rec c) (rec t) (rec e)
   ECase e alts       -> H.Case () (rec e) (fmap fromAlt alts)
-  EConstr ty n       -> H.ExpTypeSig () (H.Con () (toQName $ "Con" <> showt n )) (fromType ty)
+  EConstr con        -> let hcon = H.Con () (toQName $ conName con)
+                        in  maybe hcon ((\t -> H.ExpTypeSig () hcon t) . fromType) (conType con)
   EBottom            -> H.Var () (toQName "bottom")
   where
     rec = toHaskExprCore
