@@ -89,18 +89,18 @@ runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
 -- | Standard configuration for testnet
 data TestNet
 
-instance UtxoPOWCongig TestNet where
+instance UtxoPOWConfig TestNet where
   powConfig _ = POW.defaultPOWConfig
 
 -- | Configuration that disables checking of work at all. This primarily useful for testing
 data MockChain
 
-instance UtxoPOWCongig MockChain where
+instance UtxoPOWConfig MockChain where
   powConfig      _ = POW.defaultPOWConfig
   checkBlockWork _ = False
 
 
-runApp :: UtxoPOWCongig t => POW.Block (UTXOBlock t) -> IO ()
+runApp :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> IO ()
 runApp genesis = do
   hSetBuffering stderr LineBuffering
   hSetBuffering stdout LineBuffering
@@ -151,7 +151,7 @@ genesisMock = POW.Block
 -------------------------------------------------------------------------------
 -- Node.
 
-runNode :: UtxoPOWCongig t => POW.Block (UTXOBlock t) -> POW.Cfg -> Maybe c -> IO ()
+runNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> POW.Cfg -> Maybe c -> IO ()
 runNode genesisBlk POW.Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
@@ -211,7 +211,7 @@ data UtxoRestAPI route = UtxoRestAPI
   deriving (Generic)
 
 utxoRestServer
-  :: (MonadIO m, MonadReadDB m, UtxoPOWCongig t)
+  :: (MonadIO m, MonadReadDB m, UtxoPOWConfig t)
   => POW.MempoolAPI (UtxoState m t) -> UtxoRestAPI (Servant.AsServerT m)
 utxoRestServer mempool = UtxoRestAPI
   { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
