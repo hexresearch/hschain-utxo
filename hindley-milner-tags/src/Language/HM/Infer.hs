@@ -1,18 +1,6 @@
-{-# Language AllowAmbiguousTypes #-}
-{-# Language TypeFamilyDependencies #-}
 -- | Defines type-inference algorithm.
 module Language.HM.Infer(
-    Lang(..)
-  , TypeOf
-  , TermOf
-  , TyTermOf
-  , ContextOf
-  , SubstOf
-  , ErrorOf
-  , Context(..)
-  , insertContext
-  , lookupCtx
-  , inferType
+    inferType
   , inferTerm
   , subtypeOf
   , unifyTypes
@@ -28,9 +16,9 @@ import Control.Monad.State.Strict
 import Data.Bifunctor (bimap)
 import Data.Fix
 import Data.Function (on)
-import Data.Map.Strict (Map)
 import Data.Maybe
 
+import Language.HM.Lang
 import Language.HM.Term
 import Language.HM.Subst
 import Language.HM.Type
@@ -78,22 +66,6 @@ type SignatureOf' q = Signature (Origin (Src q)) (Name (Var q))
 type SubstOf' q = Subst (Origin (Src q)) (Name (Var q))
 type BindOf' q a = Bind (Origin (Src q)) (Name (Var q)) a
 type CaseAltOf' q = CaseAlt (Origin (Src q)) (Name (Var q))
-
--- | Context holds map of proven signatures for free variables in the expression.
-newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
-  deriving (Show, Eq, Semigroup, Monoid)
-
-insertContext :: Ord v => v -> Type loc v -> Context loc v -> Context loc v
-insertContext v ty (Context m) = Context $ M.insert v (monoT ty) m
-
-instance CanApply Context where
-  apply subst = Context . fmap (apply subst) . unContext
-
-insertCtx :: Ord v => v -> Signature loc v ->  Context loc v -> Context loc v
-insertCtx v sign (Context ctx) = Context $ M.insert v sign ctx
-
-lookupCtx :: Ord v => v -> Context loc v -> Maybe (Signature loc v)
-lookupCtx v (Context ctx) = M.lookup v ctx
 
 -- | We leave in the context only terms that are truly needed.
 -- To check the term we need only variables that are free in the term.
@@ -158,24 +130,6 @@ newtype InferM loc var a = InferM (StateT Int (Except (TypeError loc (Name var))
 -- | Runs inference monad.
 runInferM :: InferM loc var a -> Either (TypeError loc (Name var)) a
 runInferM (InferM m) = runExcept $ evalStateT m 0
-
-class
-  ( IsVar (Var q)
-  , Show (Src q)
-  , Eq (Src q)
-  ) => Lang q where
-  type Var q = r | r -> q
-  type Src q
-  type Prim q
-
-  getPrimType :: Prim q -> TypeOf q
-
-type TypeOf q = Type (Src q) (Var q)
-type TermOf q = Term (Prim q) (Src q) (Var q)
-type TyTermOf q = TyTerm (Prim q) (Src q) (Var q)
-type ErrorOf q = TypeError (Src q) (Var q)
-type ContextOf q = Context (Src q) (Var q)
-type SubstOf q = Subst (Src q) (Var q)
 
 type InferOf q = InferM (Src q) (Var q) (Out (Prim q) (Src q) (Var q))
 

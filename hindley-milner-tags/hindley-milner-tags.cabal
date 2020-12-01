@@ -1,14 +1,14 @@
 name:                   hindley-milner-tags
 version:                0.1.0.0
-synopsis:               Template for Hindley-Milner based languages
+synopsis:               Type inference for Hindley-Milner based languages
 description:
     This package contains an implemention of Hindley-Milner and Algorithm W as
     a starting point for derived languages.
 
 
 license: MIT
-author:                 Michael B. Galem, Anton Kholomiov
-maintainer:             michael.gale@cl.cam.ac.uk
+author:                 Anton Kholomiov
+maintainer:             anton.kholomiov@gmail.com
 category:               Language
 build-type:             Simple
 cabal-version:          >=1.10
@@ -22,6 +22,7 @@ library
   exposed-modules:
     Language.HM,
     Language.HM.Infer,
+    Language.HM.Lang
     Language.HM.Pretty,
     Language.HM.Subst,
     Language.HM.Term,
@@ -41,8 +42,7 @@ library
     mtl,
     prettyprinter,
     pretty-show,
-    text,
-    transformers
+    text
 
   -- Directories containing source files.
   hs-source-dirs:       src
