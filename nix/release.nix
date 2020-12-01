@@ -43,23 +43,23 @@ let
       callInternal = name: path: args: hsPkgs: (
         lib.dontHaddock (hsPkgs.callCabal2nix name path args ));
     in {
-      "hex-common"              = callInternal "hex-common"              ../hex-common              {};
-      "hindley-milner-tags"     = callInternal "hindley-milner-tags"     ../hindley-milner-tags     {};
-      "hschain-utxo-blockchain" = callInternal "hschain-utxo-blockchain" ../hschain-utxo-blockchain {};
-      "hschain-utxo-state"      = callInternal "hschain-utxo-state"      ../hschain-utxo-state      {};
-      "hschain-utxo-compiler"   = callInternal "hschain-utxo-compiler"   ../hschain-utxo-compiler   {};
-      "hschain-utxo-repl"       = callInternal "hschain-utxo-repl"       ../hschain-utxo-repl       {};
-      "hschain-utxo-lang"       = callInternal "hschain-utxo-lang"       ../hschain-utxo-lang       {};
+      "hex-common"                = callInternal "hex-common"                 ../hex-common              {};
+      "hindley-milner-type-check" = callInternal "hindley-milner-type-check"  ../hindley-milner-type-check     {};
+      "hschain-utxo-blockchain"   = callInternal "hschain-utxo-blockchain"    ../hschain-utxo-blockchain {};
+      "hschain-utxo-state"        = callInternal "hschain-utxo-state"         ../hschain-utxo-state      {};
+      "hschain-utxo-compiler"     = callInternal "hschain-utxo-compiler"      ../hschain-utxo-compiler   {};
+      "hschain-utxo-repl"         = callInternal "hschain-utxo-repl"          ../hschain-utxo-repl       {};
+      "hschain-utxo-lang"         = callInternal "hschain-utxo-lang"          ../hschain-utxo-lang       {};
       # PBFT node
-      "hschain-utxo-api-rest"   = callInternal "hschain-utxo-api-rest"   ../hschain-utxo-api/hschain-utxo-api-rest {};
-      "hschain-utxo-api-client" = callInternal "hschain-utxo-api-client" ../hschain-utxo-api/hschain-utxo-api-client {};
-      "hschain-utxo-service"    = callInternal "hschain-utxo-service"    ../hschain-utxo-service    {};
-      "hschain-utxo-test"       = callInternal "hschain-utxo-test"       ../hschain-utxo-test       {};
-      "hschain-utxo"            = callInternal "hschain-utxo"            ../hschain-utxo            {};
+      "hschain-utxo-api-rest"     = callInternal "hschain-utxo-api-rest"      ../hschain-utxo-api/hschain-utxo-api-rest {};
+      "hschain-utxo-api-client"   = callInternal "hschain-utxo-api-client"    ../hschain-utxo-api/hschain-utxo-api-client {};
+      "hschain-utxo-service"      = callInternal "hschain-utxo-service"       ../hschain-utxo-service    {};
+      "hschain-utxo-test"         = callInternal "hschain-utxo-test"          ../hschain-utxo-test       {};
+      "hschain-utxo"              = callInternal "hschain-utxo"               ../hschain-utxo            {};
       # PoW node
-      "hschain-utxo-pow-node"   = callInternal "hschain-utxo-pow-node"   ../hschain-utxo-pow-node   {};
-      "hschain-pow-func"        = callInternal "hschain-pow-func"        ../hschain-pow-func        {};
-      "hschain-pow-check"       = callInternal "hschain-pow-check"       ../hschain-pow-check       {};
+      "hschain-utxo-pow-node"     = callInternal "hschain-utxo-pow-node"      ../hschain-utxo-pow-node   {};
+      "hschain-pow-func"          = callInternal "hschain-pow-func"           ../hschain-pow-func        {};
+      "hschain-pow-check"         = callInternal "hschain-pow-check"          ../hschain-pow-check       {};
     };
   haskellOverrides = hsNew: hsOld:
     let

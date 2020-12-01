@@ -32,10 +32,9 @@ import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext, baseLibExecCtx)
 import Hschain.Utxo.Lang.Exec.Module (trimModuleByMain)
-import Hschain.Utxo.Lang.Pretty (renderText)
 
-import qualified Language.HM       as H
-import qualified Language.HM.Subst as H
+import qualified Type.Check.HM       as H
+import qualified Type.Check.HM.Subst as H
 
 import qualified Hschain.Utxo.Lang.Core.Compile.Expr as Core
 
@@ -130,7 +129,7 @@ toCoreExpr = go
       ELam _ xs body       -> toLambda ctx xs body
       EIf _ c t e          -> Core.EIf <$> go ctx c <*> go ctx t <*> go ctx e
       ECase _ e alts       -> Core.ECase <$> go ctx e <*> traverse (convertAlt ctx) alts
-      EConstr _ consTy m _ -> do ty <- toCoreType consTy
+      EConstr _ consTy m   -> do ty <- toCoreType consTy
                                  pure $ Core.EConstr (resultType ty) m
       EAssertType _ e _    -> go ctx e
       EBottom _            -> pure $ Core.EBottom

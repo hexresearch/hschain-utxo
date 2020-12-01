@@ -34,7 +34,7 @@ import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp)
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 
 -- | Programms annotated with types
 type TypedLamProg = AnnLamProg (H.Type () Name) TypedName
@@ -99,9 +99,9 @@ data ExprLamF bind a
   -- ^ if expressions
   | ECase !Loc a [CaseAlt bind a]
   -- ^ case alternatives
-  | EConstr !Loc !(H.Type () Name) !Int !Int
-  -- ^ constructor with tag and arity, also we should provide the type
-  -- of constructor as afunction for a type-checker
+  | EConstr !Loc !(H.Type () Name) !Int
+  -- ^ constructor with tag id, also we should provide the type
+  -- of constructor as a function for a type-checker
   | EAssertType !Loc a !(H.Type () Name)
   -- ^ Explicit type annotations
   | EBottom Loc
@@ -149,7 +149,7 @@ instance H.HasLoc (ExprLamF bind a) where
     ELam loc _ _        -> loc
     EIf loc _ _ _       -> loc
     ECase loc _ _       -> loc
-    EConstr loc _ _ _   -> loc
+    EConstr loc _ _     -> loc
     EAssertType loc _ _ -> loc
     EBottom loc         -> loc
 

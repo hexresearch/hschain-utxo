@@ -18,9 +18,9 @@ import qualified Data.Vector as V
 import HSChain.Crypto.Classes (encodeBase58)
 import qualified Language.Haskell.Exts.Syntax as H
 
-import Language.HM.Type() -- import instances
+import Type.Check.HM.Type() -- import instances
 
-import qualified Language.HM as HM
+import qualified Type.Check.HM as HM
 
 import qualified Hschain.Utxo.Lang.Const as Const
 

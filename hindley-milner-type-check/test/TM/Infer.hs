@@ -1,29 +1,25 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE EmptyDataDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 -- |
 module TM.Infer (tests) where
 
-import Control.Monad
 import Data.Text (Text)
-import Data.String (IsString(..))
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Language.HM
-import Language.HM.Pretty
+import Type.Check.HM
 
 tests :: TestTree
 tests = testGroup "infer"
   [ testCase "SKI:I"
-  $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termI)
+  $ Right (var "a" --> var "a") @=? (inferType mempty termI)
   , testCase "SKI:K"
-  $ Right (var "a" --> (var "b" --> var "a")) @=? fmap fst (inferTerm mempty termK)
+  $ Right (var "a" --> (var "b" --> var "a")) @=? (inferType mempty termK)
   , testCase "let-chain-case"
-  $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termLetChain)
+  $ Right (var "a" --> var "a") @=? (inferType mempty termLetChain)
   , testCase "let-rec-chain-case"
-  $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termLetRecChain)
+  $ Right (var "a" --> var "a") @=? (inferType mempty termLetRecChain)
   ]
   where
     a --> b = arrowT () a b
@@ -33,9 +29,12 @@ tests = testGroup "infer"
 data NoPrim
   deriving (Show)
 
-instance IsPrim NoPrim where
-  type PrimLoc NoPrim = ()
-  type PrimVar NoPrim = Text
+data TestLang
+
+instance Lang TestLang where
+  type Src  TestLang = ()
+  type Var  TestLang = Text
+  type Prim TestLang = NoPrim
   getPrimType _ = error "No primops"
 
 -- I combinator
@@ -57,12 +56,3 @@ termLetRecChain = lamE () "x" $ letRecE ()
   ]
   (varE () "b")
 
-----------------------------------------------------------------
--- Orphans
-
-instance IsVar Text where
-  intToVar n = fromString $ "$$" ++ show n
-  prettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
-
-instance HasPrefix Text where
-  getFixity = const Nothing

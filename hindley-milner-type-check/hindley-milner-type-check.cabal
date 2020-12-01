@@ -1,33 +1,36 @@
-name:                   hindley-milner-tags
+name:                   hindley-milner-type-check
 version:                0.1.0.0
-synopsis:               Template for Hindley-Milner based languages
+synopsis:               Type inference for Hindley-Milner based languages
 description:
-    This package contains an implemention of Hindley-Milner and Algorithm W as
-    a starting point for derived languages.
+    This package contains an implemention of Hindley-Milner inference algorithm.
+    It supports reporting of source code locations for errors.
+    Language for type inference is labda-calculus augmented with primitive
+    functions, let-expressions,  case-expressions and bottom.
 
 
 license: MIT
-author:                 Michael B. Galem, Anton Kholomiov
-maintainer:             michael.gale@cl.cam.ac.uk
+author:                 Anton Kholomiov, Aleksey Khudyakov
+maintainer:             anton.kholomiov@gmail.com
 category:               Language
 build-type:             Simple
-cabal-version:          >=1.10
+cabal-version:          >=1.22
 
 source-repository head
   type:                 git
-  location:             https://github.com/mbg/hindley-milner
+  location:             https://github.com/hex/hindleymilner-type-check
 
 library
   ghc-options:  -Wall
   exposed-modules:
-    Language.HM,
-    Language.HM.Infer,
-    Language.HM.Pretty,
-    Language.HM.Subst,
-    Language.HM.Term,
-    Language.HM.Type,
-    Language.HM.TypeError,
-    Language.HM.TyTerm
+    Type.Check.HM,
+    Type.Check.HM.Infer,
+    Type.Check.HM.Lang
+    Type.Check.HM.Pretty,
+    Type.Check.HM.Subst,
+    Type.Check.HM.Term,
+    Type.Check.HM.Type,
+    Type.Check.HM.TypeError,
+    Type.Check.HM.TyTerm
 
   other-modules:
 
@@ -40,9 +43,7 @@ library
     data-fix,
     mtl,
     prettyprinter,
-    pretty-show,
-    text,
-    transformers
+    text
 
   -- Directories containing source files.
   hs-source-dirs:       src
@@ -76,7 +77,7 @@ test-suite hindley-milner-tests
   Ghc-options:         -Wall -threaded -rtsopts
   Default-Language:    Haskell2010
   Build-Depends:       base              >=4.9 && <5
-                     , hindley-milner-tags
+                     , hindley-milner-type-check
                      , text
                      , data-fix
                      , tasty

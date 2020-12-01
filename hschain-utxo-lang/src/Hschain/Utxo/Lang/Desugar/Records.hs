@@ -15,7 +15,7 @@ import Hschain.Utxo.Lang.Monad
 import Data.Fix
 import Data.Maybe
 
-import Language.HM (getLoc)
+import Type.Check.HM (getLoc)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V

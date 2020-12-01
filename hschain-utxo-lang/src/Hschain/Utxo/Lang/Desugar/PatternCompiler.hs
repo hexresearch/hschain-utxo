@@ -17,7 +17,7 @@ import Data.Function (on)
 import Data.Maybe
 import Data.Vector (Vector)
 
-import Language.HM (getLoc)
+import Type.Check.HM (getLoc)
 
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
@@ -29,7 +29,7 @@ import Hschain.Utxo.Lang.Monad
 import qualified Data.List   as L
 import qualified Data.Vector as V
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 
 altGroupToTupleModule :: MonadLang m => Module -> m Module
 altGroupToTupleModule m@Module{..} = do

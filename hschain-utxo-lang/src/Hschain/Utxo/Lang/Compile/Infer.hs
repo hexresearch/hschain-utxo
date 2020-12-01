@@ -20,11 +20,19 @@ import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, f
                               , arrowT, intT, boolT, bytesT, sigmaT
                               , monoPrimopNameMap)
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Data.Sequence as S
 
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
+data HschainLang
+
+instance H.Lang HschainLang where
+  type Src  HschainLang = Loc
+  type Var  HschainLang = Tag
+  type Prim HschainLang = PrimLoc
+
+  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
 
 -- | We need this type for type-inference algorithm
 data Tag
@@ -34,8 +42,7 @@ data Tag
   deriving (Show, Eq, Ord)
 
 instance H.IsVar Tag where
-  intToVar n = VarTag $ mappend "$$" (showt n)
-  prettyLetters = fmap (VarTag . fromString) $ [1..] >>= flip replicateM ['a'..'z']
+  prettyLetters = fmap VarTag H.prettyLetters
 
 -- todo: ugly hack, something wrong with this function
 -- do we really need it
@@ -47,12 +54,6 @@ fromTag = \case
 
 instance IsString Tag where
   fromString = VarTag . fromString
-
-instance H.IsPrim PrimLoc where
-  type PrimLoc PrimLoc = Loc
-  type PrimVar PrimLoc = Tag
-
-  getPrimType (PrimLoc loc p) = eraseWith loc $ typeCoreToType $ primToType p
 
 eraseWith :: Loc -> H.Type () Name -> H.Type Loc Tag
 eraseWith loc = H.setLoc loc . fmap VarTag
@@ -67,14 +68,14 @@ annotateTypes =
   where
     go (ctx, prog) comb = do
       (combT, combTyped) <- typeDef ctx comb
-      return (H.insertContext (VarTag $ varName'name $ def'name comb) combT ctx, combTyped : prog)
+      return (H.insertCtx (VarTag $ varName'name $ def'name comb) (H.monoT combT) ctx, combTyped : prog)
 
     typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, TypedDef)
     typeDef ctx comb = do
-      (combT, term) <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
+      term <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
       body <- fromInferExpr term
       let (bodyExpr, args) = collectArgs S.empty body
-      return $ (combT, comb
+      return $ (H.termType term, comb
         { def'args = args
         , def'body = bodyExpr
         })
@@ -94,17 +95,17 @@ annotateTypes =
 
     toInferExpr :: ExprLam Name -> H.Term PrimLoc Loc Tag
     toInferExpr = cata $ \case
-      EVar loc name   -> H.varE loc (VarTag name)
-      EPrim loc prim  -> H.primE loc prim
-      EPrimOp{}       -> error "No primop are accessible before type checking"
-      EAp loc a b     -> H.appE loc a b
-      ELam loc args e -> foldr (H.lamE loc) e (fmap VarTag args)
-      EIf loc a b c   -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
-      EBottom loc     -> H.bottomE loc
-      EConstr loc ty tag arity -> H.constrE loc (eraseWith loc ty) (ConstrTag tag) arity
-      ELet loc bs e   -> foldr (\b rhs -> H.letE loc (fromBind loc b) rhs) e bs
+      EVar loc name        -> H.varE loc (VarTag name)
+      EPrim loc prim       -> H.primE loc prim
+      EPrimOp{}            -> error "No primop are accessible before type checking"
+      EAp loc a b          -> H.appE loc a b
+      ELam loc args e      -> foldr (H.lamE loc) e (fmap VarTag args)
+      EIf loc a b c        -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
+      EBottom loc          -> H.bottomE loc
+      EConstr loc ty tag   -> H.constrE loc (eraseWith loc ty) (ConstrTag tag)
+      ELet loc bs e        -> foldr (\b rhs -> H.letE loc (fromBind loc b) rhs) e bs
       EAssertType loc e ty -> H.assertTypeE loc e (eraseWith loc ty)
-      ECase loc e alts -> H.caseE loc e (fmap fromAlt alts)
+      ECase loc e alts     -> H.caseE loc e (fmap fromAlt alts)
 
     -- todo: we do need to use VarName to keep info on bind locations
     --  for now we write wrong locations...
@@ -138,9 +139,9 @@ annotateTypes =
         H.Let loc bs e -> toLet loc bs e
         H.LetRec loc bs e -> toLetRec loc bs e
         H.Case loc e alts -> fmap (ECase loc e) (mapM toAlt alts)
-        H.Constr loc conTy tag n ->
+        H.Constr loc conTy tag ->
           case tag of
-            ConstrTag m -> pure $ EConstr loc (toType conTy) m n
+            ConstrTag m -> pure $ EConstr loc (toType conTy) m
             _           -> throwError $ InternalError $ NonIntegerConstrTag (fromTag tag)
 
     toAlt alt =

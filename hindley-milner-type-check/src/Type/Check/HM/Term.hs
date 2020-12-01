@@ -1,10 +1,9 @@
 -- | This module contains the abstract syntax tree of the term language.
-module Language.HM.Term(
+module Type.Check.HM.Term(
     Term(..)
   , TermF(..)
   , CaseAlt(..)
   , Bind(..)
-  , IsPrim(..)
   , varE
   , primE
   , appE
@@ -24,8 +23,8 @@ import Data.Data
 import Data.Fix
 import Data.Set (Set)
 
-import Language.HM.Subst
-import Language.HM.Type
+import Type.Check.HM.Subst
+import Type.Check.HM.Type
 
 import qualified Data.Set as S
 
@@ -40,16 +39,10 @@ data TermF prim loc v r
     | LetRec loc [Bind loc v r] r     -- ^ Recursive  let bindings
     | AssertType loc r (Type loc v)   -- ^ Assert type.
     | Case loc r [CaseAlt loc v r]    -- ^ case alternatives
-    | Constr loc (Type loc v) v !Int  -- ^ constructor with tag and arity, also we should provide the type
-                                      --   of constructor as afunction for a type-checker
+    | Constr loc (Type loc v) v       -- ^ constructor with tag and arity, also we should provide the type
+                                      --   of constructor as a function for a type-checker
     | Bottom loc                      -- ^ value of any type that means failed programm.
     deriving (Show, Eq, Functor, Foldable, Traversable, Data)
-
-class Show prim => IsPrim prim where
-  type PrimLoc prim :: *
-  type PrimVar prim :: *
-
-  getPrimType :: prim -> Type (PrimLoc prim) (PrimVar prim)
 
 -- | Case alternatives
 data CaseAlt loc v a = CaseAlt
@@ -91,7 +84,7 @@ instance Functor (Term prim loc) where
         LetRec loc vs a -> Fix $ LetRec loc (fmap (\b ->  b { bind'lhs = f $ bind'lhs b }) vs) a
         AssertType loc r sig -> Fix $ AssertType loc r (fmap f sig)
         Case loc a alts -> Fix $ Case loc a $ fmap (mapAlt f) alts
-        Constr loc ty v arity -> Fix $ Constr loc (fmap f ty) (f v) arity
+        Constr loc ty v -> Fix $ Constr loc (fmap f ty) (f v)
         Bottom loc -> Fix $ Bottom loc
 
       mapAlt g alt@CaseAlt{..} = alt
@@ -135,8 +128,8 @@ caseE :: loc -> Term prim loc v -> [CaseAlt loc v (Term prim loc v)] -> Term pri
 caseE loc (Term e) alts = Term $ Fix $ Case loc e $ fmap (fmap unTerm) alts
 
 -- | 'constrE' @loc ty tag arity@ constructs constructor tag expression.
-constrE :: loc -> Type loc v -> v -> Int -> Term prim loc v
-constrE loc ty tag arity = Term $ Fix $ Constr loc ty tag arity
+constrE :: loc -> Type loc v -> v -> Term prim loc v
+constrE loc ty tag = Term $ Fix $ Constr loc ty tag
 
 -- | 'bottomE' @loc@ constructs bottom value.
 bottomE :: loc -> Term prim loc v
@@ -155,7 +148,7 @@ instance HasLoc (Term prim loc v) where
     Let loc _ _ -> loc
     LetRec loc _ _ -> loc
     AssertType loc _ _ -> loc
-    Constr loc _ _ _ -> loc
+    Constr loc _ _ -> loc
     Case loc _ _ -> loc
     Bottom loc -> loc
 
@@ -170,7 +163,7 @@ instance LocFunctor (Term prim) where
         Let loc v a  -> Fix $ Let (f loc) (v { bind'loc = f $ bind'loc v }) a
         LetRec loc vs a -> Fix $ LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> Fix $ AssertType (f loc) r (mapLoc f sig)
-        Constr loc ty v arity -> Fix $ Constr (f loc) (mapLoc f ty) v arity
+        Constr loc ty v -> Fix $ Constr (f loc) (mapLoc f ty) v
         Case loc e alts -> Fix $ Case (f loc) e (fmap mapAlt alts)
         Bottom loc -> Fix $ Bottom (f loc)
 
@@ -198,7 +191,7 @@ freeVars = cata go . unTerm
                              in  (mappend (freeBinds binds) body) `S.difference` lhs
       AssertType _ a _    -> a
       Case _ e alts       -> mappend e (foldMap freeVarAlts alts)
-      Constr _ _ _ _      -> mempty
+      Constr _ _ _        -> mempty
       Bottom _            -> mempty
 
     freeBinds = foldMap bind'rhs
@@ -209,7 +202,7 @@ instance TypeFunctor (Term prim) where
   mapType f (Term term) = Term $ cata go term
     where
       go = \case
-        Constr loc ty cons arity -> Fix $ Constr loc (f ty) cons arity
+        Constr loc ty cons       -> Fix $ Constr loc (f ty) cons
         Case loc e alts          -> Fix $ Case loc e $ fmap applyAlt alts
         other                    -> Fix other
 
@@ -219,7 +212,6 @@ instance TypeFunctor (Term prim) where
         }
 
       applyTyped ty@Typed{..} = ty { typed'type = f typed'type }
-
 
 instance CanApply (Term prim) where
   apply subst term = mapType (apply subst) term

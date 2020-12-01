@@ -23,7 +23,7 @@ let
 in project [
     (packages [ 
       "hex-common"
-      "hindley-milner-tags"
+      "hindley-milner-type-check"
       "hschain-utxo"
       "hschain-utxo-compiler"
       "hschain-utxo-lang"

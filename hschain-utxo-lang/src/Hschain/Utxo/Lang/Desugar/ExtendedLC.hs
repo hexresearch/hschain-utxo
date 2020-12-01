@@ -33,7 +33,7 @@ import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Core.Types as P
 import qualified Hschain.Utxo.Lang.Const as Const
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Data.Text as T
 
 -- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.
@@ -95,7 +95,7 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromConstrName loc name = do
       ConsInfo{..} <- getConsInfo typeCtx name
-      return $ Fix $ EConstr loc (fromType consInfo'type) consInfo'tagId consInfo'arity
+      return $ Fix $ EConstr loc (fromType consInfo'type) consInfo'tagId
 
     fromCaseOf loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
 
@@ -144,7 +144,7 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
-    fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId arity) $ V.toList args
+    fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId) $ V.toList args
       where
         arity = V.length args
         ty    = foldr (\v rhs -> arrowT v rhs) tyRhs vs
@@ -156,8 +156,8 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromList loc args = pure $ V.foldr cons nil args
       where
-        cons a as = ap2 loc (Fix $ EConstr loc consTy 1 2) a as
-        nil = Fix $ EConstr loc nilTy 0 0
+        cons a as = ap2 loc (Fix $ EConstr loc consTy 1) a as
+        nil = Fix $ EConstr loc nilTy 0
 
         nilTy  = listT (varT "a")
         consTy = arrowT (varT "a") (arrowT (listT (varT "a")) (listT (varT "a")))

@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- | Pretty printer for types and terms.
-module Language.HM.Pretty(
+module Type.Check.HM.Pretty(
     HasPrefix(..)
   , PrintCons(..)
   , OpFix(..)
@@ -13,12 +13,21 @@ import Data.Maybe
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
 
-import Language.HM.Type
-import Language.HM.Term
+import Type.Check.HM.Type
+import Type.Check.HM.Term
 
 -- | Class to querry fixity of infix operations.
 class IsVar v => HasPrefix v where
   getFixity :: v -> Maybe OpFix
+
+instance HasPrefix Text where
+  getFixity = const Nothing
+
+instance HasPrefix String where
+  getFixity = const Nothing
+
+instance HasPrefix Int where
+  getFixity = const Nothing
 
 -- | This class is useful to define the way to print special cases
 -- like constructors for tuples or lists.
@@ -160,7 +169,7 @@ instance (HasPrefix v, PrintCons v, Pretty v, Pretty prim) => Pretty (Term prim 
         Let _ v a          -> onLet [v] a
         LetRec _ vs a      -> onLet vs a
         AssertType _ r sig -> parens $ hsep [r, "::", pretty sig]
-        Constr _ _ tag _   -> pretty tag
+        Constr _ _ tag     -> pretty tag
         Case _ e alts      -> vcat [ hsep ["case", e, "of"], indent 4 $ vcat $ fmap onAlt alts]
         Bottom _           -> "_|_"
         where

@@ -4,7 +4,6 @@
 -- SKI calculus examples
 module Examples.Simple where
 
-import Data.Functor.Identity
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Types
 

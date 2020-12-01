@@ -27,7 +27,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import qualified Language.HM as HM
+import qualified Type.Check.HM as HM
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Pretty as H

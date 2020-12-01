@@ -1,5 +1,5 @@
 -- | This module contains type annotations for terms of the language.
-module Language.HM.TyTerm(
+module Type.Check.HM.TyTerm(
     Ann(..)
   , TyTerm(..)
   , termType
@@ -20,9 +20,9 @@ import Control.Arrow
 
 import Data.Fix
 
-import Language.HM.Subst
-import Language.HM.Type
-import Language.HM.Term
+import Type.Check.HM.Subst
+import Type.Check.HM.Type
+import Type.Check.HM.Term
 
 -- | Type to annotate nodes of AST.
 -- We use it for type annotations.
@@ -76,8 +76,8 @@ tyCaseE :: Type loc v -> loc -> TyTerm prim loc v -> [CaseAlt loc v (TyTerm prim
 tyCaseE ty loc (TyTerm e) alts = tyTerm ty $ Case loc e $ fmap (fmap unTyTerm) alts
 
 -- | 'constrE' @loc ty tag arity@ constructs constructor tag expression.
-tyConstrE :: loc -> Type loc v -> v -> Int -> TyTerm prim loc v
-tyConstrE loc ty tag arity = tyTerm ty $ Constr loc ty tag arity
+tyConstrE :: loc -> Type loc v -> v -> TyTerm prim loc v
+tyConstrE loc ty tag = tyTerm ty $ Constr loc ty tag
 
 -- | 'bottomE' @loc@ constructs bottom value.
 tyBottomE :: Type loc v -> loc -> TyTerm prim loc v
@@ -94,7 +94,7 @@ instance LocFunctor (TyTerm prim) where
         Let loc v a  -> Let (f loc) (v { bind'loc = f $ bind'loc v }) a
         LetRec loc vs a -> LetRec (f loc) (fmap (\b ->  b { bind'loc = f $ bind'loc b }) vs) a
         AssertType loc r sig -> AssertType (f loc) r (mapLoc f sig)
-        Constr loc ty v arity -> Constr (f loc) (mapLoc f ty) v arity
+        Constr loc ty v -> Constr (f loc) (mapLoc f ty) v
         Case loc e alts -> Case (f loc) e (fmap (mapAlt f) alts)
         Bottom loc -> Bottom (f loc)
 
@@ -111,7 +111,7 @@ instance TypeFunctor (TyTerm prim) where
     where
       go (Ann ty term) = Fix $ Ann (f ty) $
         case term of
-          Constr loc cty cons arity -> Constr loc (f cty) cons arity
+          Constr loc cty cons -> Constr loc (f cty) cons
           Case loc e alts          -> Case loc e $ fmap applyAlt alts
           other                    -> other
 

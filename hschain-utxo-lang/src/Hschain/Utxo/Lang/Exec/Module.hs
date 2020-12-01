@@ -22,7 +22,7 @@ import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Lib.Base (baseNames)
 
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V

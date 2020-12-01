@@ -88,7 +88,7 @@ import Hschain.Utxo.Lang.Build (mainExprModule)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Language.Haskell.Exts.SrcLoc as P
-import qualified Language.HM as H
+import qualified Type.Check.HM as H
 import qualified Data.ByteString.Char8 as C
 
 -- | Creates values of type Script from quasi-quoted code

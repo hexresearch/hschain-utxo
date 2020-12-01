@@ -1,8 +1,6 @@
 -- | This module contains the abstract syntax of Hindley-Milner types.
-module Language.HM.Type (
+module Type.Check.HM.Type (
     IsVar(..),
-    stringIntToVar,
-    stringPrettyLetters,
     HasLoc(..),
     DefLoc(..),
     -- * Monomorphic types.
@@ -58,6 +56,7 @@ import Data.Map.Strict (Map)
 import Data.Monoid
 import Data.String
 import Data.Tuple (swap)
+import Data.Text (Text)
 
 import GHC.Generics
 
@@ -82,9 +81,6 @@ class DefLoc f where
 
 -- | Functions we need for variables to do type-inference.
 class (Show v, Ord v) => IsVar v where
-  -- | Way to allocate fresh variables from integer count
-  intToVar      :: Int -> v
-
   -- | Canonical leters for pretty output
   prettyLetters :: [v]
 
@@ -94,13 +90,17 @@ data Typed loc v a = Typed
   , typed'value :: a
   } deriving (Show, Eq, Functor, Foldable, Traversable, Data)
 
+instance IsVar String where
+  prettyLetters = stringPrettyLetters
 
-stringIntToVar :: IsString a => Int -> a
-stringIntToVar n = fromString $ mappend "$$" (show n)
+instance IsVar Text where
+  prettyLetters = stringPrettyLetters
+
+instance IsVar Int where
+  prettyLetters = [0..]
 
 stringPrettyLetters :: IsString a => [a]
 stringPrettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
-
 
 instance DefLoc () where
   defLoc = ()
