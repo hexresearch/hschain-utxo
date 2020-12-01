@@ -13,7 +13,7 @@ module Hschain.Utxo.Pow.App.Types
   , ubDataL
   , ubTargetL
   , ubNonceL
-  , UtxoPOWCongig(..)
+  , UtxoPOWConfig(..)
   , utxoStateView
   , miningRewardAmount
     -- * Working with state
@@ -32,6 +32,7 @@ import Hex.Common.Aeson
 
 import Codec.Serialise
 import Control.Arrow ((&&&))
+import Control.Concurrent (threadDelay)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch hiding (Handler)
@@ -58,7 +59,7 @@ import qualified Database.SQLite.Simple           as SQL
 import qualified Database.SQLite.Simple.ToField   as SQL
 import qualified Database.SQLite.Simple.FromField as SQL
 import qualified Database.SQLite.Simple.FromRow   as SQL
-
+import System.Random (randomIO)
 import GHC.Generics (Generic)
 
 import HSChain.Crypto.Classes
@@ -99,10 +100,20 @@ data UTXOBlock t f = UTXOBlock
 
 -- | Configuration of PoW function for given tag. It allows to pick
 --   concrete set of parameters of disable work check at all
-class Typeable t => UtxoPOWCongig t where
+class Typeable t => UtxoPOWConfig t where
+  -- | Parameters for work function
   powConfig :: Proxy t -> POW.POWConfig
+  -- | Whether we want to check block work. Disabling it mostly useful
+  --   for testing
   checkBlockWork :: Proxy t -> Bool
   checkBlockWork _ = True
+  -- | Interval between blocks. Default is 1 minute
+  blockInterval :: Proxy t -> POW.DTime
+  blockInterval _ = POW.timeMinutes 1
+  -- | Number of blocks between adjustments. Default is 1 day
+  adjustmentInterval :: Proxy t -> POW.Height
+  adjustmentInterval _ = POW.Height (24 * 60)
+
 
 deriving stock instance (Show1 f)    => Show (UTXOBlock t f)
 deriving stock instance (IsMerkle f) => Eq   (UTXOBlock t f)
@@ -152,7 +163,7 @@ data UtxoException
   deriving anyclass (Exception,JSON.ToJSON)
 
 
-instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
+instance UtxoPOWConfig t => POW.BlockData (UTXOBlock t) where
   --
   newtype BlockID (UTXOBlock t) = UB'BID (Crypto.Hash SHA256)
     deriving newtype
@@ -191,12 +202,12 @@ instance UtxoPOWCongig t => POW.BlockData (UTXOBlock t) where
   validateBlock         = pure . validateBlockContextFree
   validateTxContextFree = validateTransactionContextFree
 
-  blockWork b = POW.Work $ fromIntegral $ ((2^(256 :: Int)) `div`)
-                         $ POW.targetInteger $ ubTarget
-                         $ POW.blockData b
-
-  blockTargetThreshold b = POW.Target $ POW.targetInteger $ ubTarget $ POW.blockData b
-
+  blockWork            = POW.Work . fromIntegral . ((2^(256 :: Int)) `div`)
+                       . POW.targetInteger . ubTarget . POW.blockData
+  blockTargetThreshold = POW.Target
+                       . POW.targetInteger . ubTarget . POW.blockData
+  targetAdjustmentInfo _ = ( adjustmentInterval (Proxy @t)
+                           , blockInterval      (Proxy @t))
 
 instance MerkleMap (UTXOBlock t) where
   merkleMap f = ubDataL %~ mapMerkleNode f
@@ -222,7 +233,7 @@ blockIdBuilder (POW.Block{blockData = UTXOBlock{..}, ..})
 miningRewardAmount :: Money
 miningRewardAmount = 100
 
-checkPuzzle :: forall t f. (UtxoPOWCongig t) => POW.GBlock (UTXOBlock t) f -> IO Bool
+checkPuzzle :: forall t f. (UtxoPOWConfig t) => POW.GBlock (UTXOBlock t) f -> IO Bool
 checkPuzzle b = POW.check bs nonce h powCfg
   where
     bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b
@@ -233,13 +244,24 @@ checkPuzzle b = POW.check bs nonce h powCfg
       }
     Hash h = hashBlob @SHA256 $ nonce <> bs
 
-instance (UtxoPOWCongig t) => POW.Mineable (UTXOBlock t) where
-  adjustPuzzle b0@POW.Block{..} = do
-    (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
-    return ( do answer <- maybeAnswer
-                pure $ b0 & POW.blockDataL . ubNonceL .~ answer
-           , POW.hash256AsTarget hashR
-           )
+instance (UtxoPOWConfig t) => POW.Mineable (UTXOBlock t) where
+  adjustPuzzle b0@POW.Block{..} =
+    case checkBlockWork (Proxy @t) of
+      -- If we're running mock net let just wait allotted time
+      False -> liftIO $ do
+        p <- liftIO randomIO
+        let POW.DTime meanT = blockInterval (Proxy @t)
+            t = - log p * fromIntegral meanT * 1000 :: Double
+        threadDelay $ round t
+        pure ( Just b0
+             , POW.Target $ 2^(256::Int) - 1
+             )
+      -- Attempt to solve puzzle
+      True  -> do
+        (maybeAnswer, hashR) <- liftIO $ POW.solve [bs] powCfg
+        return ( traverseOf (POW.blockDataL . ubNonceL) (const maybeAnswer) b0
+               , POW.hash256AsTarget hashR
+               )
     where
       bs     = LBS.toStrict $ toLazyByteString $ blockIdBuilder b0
       powCfg = (powConfig (Proxy @t))
@@ -262,7 +284,7 @@ stateOverlayL = lens stateOverlay (\x o -> x { stateOverlay = o })
 -- | Create triple: block storage, block index, state view using
 --   current database state.
 utxoStateView
-  :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m, UtxoPOWCongig t)
+  :: (MonadThrow m, MonadDB m, MonadIO m, MonadDB m, UtxoPOWConfig t)
   => POW.Block (UTXOBlock t)
   -> m ( POW.BlockDB m (UTXOBlock t)
        , POW.BlockIndex (UTXOBlock t)
@@ -276,7 +298,7 @@ utxoStateView genesis = do
   return (utxoBlockDB, bIdx, st)
 
 initializeStateView
-  :: (MonadDB m, MonadThrow m, MonadQueryRW q, MonadIO m, UtxoPOWCongig t)
+  :: (MonadDB m, MonadThrow m, MonadQueryRW q, MonadIO m, UtxoPOWConfig t)
   => POW.Block      (UTXOBlock t)       -- ^ Genesis block
   -> POW.BlockIndex (UTXOBlock t)       -- ^ Block index
   -> q (UtxoState m t)
@@ -293,7 +315,7 @@ initializeStateView genesis bIdx = do
         (Only bid)
       return $ UtxoState bIdx (emptyOverlay bh)
 
-instance (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t) => POW.StateView (UtxoState m t) where
+instance (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWConfig t) => POW.StateView (UtxoState m t) where
   type BlockType (UtxoState m t) = UTXOBlock t
   type MonadOf   (UtxoState m t) = m
   stateBID      = POW.bhBID . overlayTip . stateOverlay
@@ -327,7 +349,7 @@ instance (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t) => POW.StateView 
 
 -- | Validate and apply block to current state view. Returns Left on failed validation
 applyUtxoBlock
-  :: forall m t. (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWCongig t)
+  :: forall m t. (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWConfig t)
   => StateOverlay t
   -> POW.BlockIndex (UTXOBlock t)
   -> POW.BH (UTXOBlock t)
@@ -409,7 +431,7 @@ coinbaseTxArg _ _ _ = throwError $ InternalErr "Invalid coinbase"
 
 
 createUtxoCandidate
-  :: (MonadReadDB m, MonadIO m, UtxoPOWCongig t)
+  :: (MonadReadDB m, MonadIO m, UtxoPOWConfig t)
   => UtxoState m t
   -> POW.BH (UTXOBlock t)
   -> Script
@@ -744,7 +766,7 @@ dumpOverlay OverlayBase{} = return ()
 ----------------------------------------------------------------
 
 -- | Database-backed storage for blocks
-utxoBlockDB :: (MonadIO m, MonadDB m, MonadThrow m, UtxoPOWCongig t) => POW.BlockDB m (UTXOBlock t)
+utxoBlockDB :: (MonadIO m, MonadDB m, MonadThrow m, UtxoPOWConfig t) => POW.BlockDB m (UTXOBlock t)
 utxoBlockDB = POW.BlockDB
   { storeBlock         = storeUTXOBlock
   , retrieveBlock      = retrieveUTXOBlock
@@ -772,7 +794,7 @@ retrieveUTXOBlock bid
     "SELECT height, time, prev, blockData FROM utxo_blocks WHERE bid = ?"
     (Only bid)
 
-storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m, UtxoPOWCongig t) => POW.Block (UTXOBlock t) -> m ()
+storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m, UtxoPOWConfig t) => POW.Block (UTXOBlock t) -> m ()
 storeUTXOBlock b@POW.Block{POW.blockData=blk, ..} = mustQueryRW $ do
   let bid = POW.blockID b
   basicExecute

@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedLists #-}
 -- |
 module TM.BCH.Util
-  ( Test
+  ( MockNet
   , Blk
     -- * Mining utils
   , Mine
@@ -40,7 +40,6 @@ import HSChain.PoW.Tests
 import HSChain.PoW.BlockIndex
 import HSChain.PoW.P2P
 import HSChain.PoW.P2P.Types
-import qualified HSChain.POW            as POW
 import HSChain.Network.Types
 import HSChain.Network.Mock
 import HSChain.PoW.Consensus
@@ -51,6 +50,7 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Pow.App.Types
+import Hschain.Utxo.Pow.App (MockChain)
 import qualified Hschain.Utxo.Lang.Sigma as Sigma
 
 
@@ -58,18 +58,11 @@ import qualified Hschain.Utxo.Lang.Sigma as Sigma
 -- Parameters for test blockchain
 ----------------------------------------------------------------
 
--- | Work function parameters for testing. We disable work checks in
---   order to be able to create new block as fast as we want
-data Test
-
 -- | Block type used in tests
-type Blk = UTXOBlock Test
+type Blk = UTXOBlock MockChain
 
-instance UtxoPOWCongig Test where
-  powConfig      _ = POW.defaultPOWConfig
-  checkBlockWork _ = False
 
-genesis :: Block (UTXOBlock Test)
+genesis :: Block (UTXOBlock MockChain)
 genesis = Block
   { blockHeight = Height 0
   , blockTime   = Time   0
@@ -92,11 +85,11 @@ genesis = Block
 
 -- | Monad for manual creation of blocks. It tracks blockchain head
 -- and able to create new block on request.
-newtype Mine a = Mine (ReaderT ( Src (BH Blk, UtxoState (HSChainT IO) Test)
-                               , PoW (UtxoState (HSChainT IO) Test)
+newtype Mine a = Mine (ReaderT ( Src (BH Blk, UtxoState (HSChainT IO) MockChain)
+                               , PoW (UtxoState (HSChainT IO) MockChain)
                                , BlockDB (HSChainT IO) Blk
                                )
-                        (StateT (BH (UTXOBlock Test))
+                        (StateT (BH (UTXOBlock MockChain))
                           (HSChainT IO))
                         a)
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadFail)
@@ -119,7 +112,6 @@ runMiner (Mine action) = withHSChainT $ evalContT $ do
     netcfg = NetCfg { nKnownPeers     = 3
                     , nConnectedPeers = 3
                     }
-
 
 -- | Create block with coinbase spendable by given public key. If
 --   @Nothing@ is provided coinbase will be spendable by anyone. If

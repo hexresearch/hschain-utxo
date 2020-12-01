@@ -1,5 +1,5 @@
 import Hschain.Utxo.Pow.App
 
 main :: IO ()
-main = runApp genesisTest
+main = runApp genesisMock
 

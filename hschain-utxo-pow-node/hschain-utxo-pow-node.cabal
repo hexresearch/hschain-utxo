@@ -43,6 +43,7 @@ library
                      , monad-control
                      , katip
                      , mtl
+                     , random
                      , optparse-applicative
                      , serialise
                      , servant
@@ -83,11 +84,18 @@ library
     FlexibleInstances
 
 
-executable hschain-utxo-pow-node-app
+executable hschain-utxo-pow-testnet
   main-is:             Main.hs
   Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
-  -- other-modules:
-  -- other-extensions:
+  build-depends:       base >=4.11 && <5
+                     , hschain-utxo
+                     , hschain-utxo-pow-node
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+
+executable hschain-utxo-pow-mocknet
+  main-is:             Mock.hs
+  Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
   build-depends:       base >=4.11 && <5
                      , hschain-utxo
                      , hschain-utxo-pow-node

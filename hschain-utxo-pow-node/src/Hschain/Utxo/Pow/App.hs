@@ -10,7 +10,10 @@
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
+  , genesisTest
+  , genesisMock
   , TestNet
+  , MockChain
   , UtxoRestAPI(..)
     -- * Monad for running
   , UTXOT(..)
@@ -83,17 +86,25 @@ runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
 runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
 
 
+-- | Standard configuration for testnet
 data TestNet
 
-instance UtxoPOWCongig TestNet where
+instance UtxoPOWConfig TestNet where
   powConfig _ = POW.defaultPOWConfig
 
+-- | Configuration that disables checking of work at all. This primarily useful for testing
+data MockChain
 
-runApp :: IO ()
-runApp = do
-  hSetBuffering stderr NoBuffering
-  hSetBuffering stdout NoBuffering
-  -- Parse configuration
+instance UtxoPOWConfig MockChain where
+  powConfig      _ = POW.defaultPOWConfig
+  checkBlockWork _ = False
+
+
+runApp :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> IO ()
+runApp genesis = do
+  hSetBuffering stderr LineBuffering
+  hSetBuffering stdout LineBuffering
+  -- Parse configurationx
   command <- readCommandOptions
   case command of
     GenerateKey {..} -> do
@@ -102,8 +113,25 @@ runApp = do
       config <- loadYamlSettings runnode'config [] requireEnv
       runNode genesis config runnode'nodeSecret
 
-genesis :: POW.Block (UTXOBlock TestNet)
-genesis = POW.Block
+genesisTest :: POW.Block (UTXOBlock TestNet)
+genesisTest = POW.Block
+  { blockHeight = POW.Height 0
+  , blockTime   = POW.Time   0
+  , prevBlock   = Nothing
+  , blockData   = UTXOBlock
+    { ubNonce  = ""
+    , ubData   = createMerkleTreeNE1 $ coinbase :| []
+    , ubTarget = POW.Target $ 2^(256::Int) - 1
+    }
+  }
+  where
+    coinbase = Tx { tx'inputs     = mempty
+                  , tx'outputs    = mempty
+                  , tx'dataInputs = mempty
+                  }
+
+genesisMock :: POW.Block (UTXOBlock MockChain)
+genesisMock = POW.Block
   { blockHeight = POW.Height 0
   , blockTime   = POW.Time   0
   , prevBlock   = Nothing
@@ -123,7 +151,7 @@ genesis = POW.Block
 -------------------------------------------------------------------------------
 -- Node.
 
-runNode :: POW.Block (UTXOBlock TestNet) -> POW.Cfg -> Maybe c -> IO ()
+runNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> POW.Cfg -> Maybe c -> IO ()
 runNode genesisBlk POW.Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
@@ -132,24 +160,26 @@ runNode genesisBlk POW.Cfg{..} maybePrivK = do
                           }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
     withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
+      -- Initialize PoW node
       (db, bIdx, sView) <- lift $ utxoStateView genesisBlk
       c0  <- lift $ POW.createConsensus db sView bIdx
       pow <- POW.startNode netcfg net cfgPeers db c0
-      -- report progress
+      -- Report progress
       void $ liftIO $ forkIO $ do
         ch <- HControl.atomicallyIO (POW.chainUpdate pow)
         forever $ do (bh,_) <- HControl.awaitIO ch
                      print (POW.bhHeight bh, POW.bhBID bh)
                      print $ POW.retarget bh
-      utxoEnv <- lift ask
-      liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
+      -- Start web API
       forM_ cfgWebAPI $ \port -> do
+        utxoEnv <- lift ask
         let run :: UTXOT IO a -> Servant.Handler a
             run (UTXOT x) = liftIO $ runReaderT x utxoEnv
         liftIO $ hPutStrLn stderr $ "starting server at "++show port
         HControl.cforkLinkedIO $ do
           hPutStrLn stderr $ "server started at "++show port
           Warp.run port $ Servant.genericServeT run $ utxoRestServer (POW.mempoolAPI pow)
+      -- Mining loop
       case maybePrivK of
         Just _privk -> do
           -- FIXME: add sensible spend script
@@ -181,8 +211,8 @@ data UtxoRestAPI route = UtxoRestAPI
   deriving (Generic)
 
 utxoRestServer
-  :: (MonadIO m, MonadReadDB m)
-  => POW.MempoolAPI (UtxoState m TestNet) -> UtxoRestAPI (Servant.AsServerT m)
+  :: (MonadIO m, MonadReadDB m, UtxoPOWConfig t)
+  => POW.MempoolAPI (UtxoState m t) -> UtxoRestAPI (Servant.AsServerT m)
 utxoRestServer mempool = UtxoRestAPI
   { utxoMempoolAPI = Servant.toServant $ mempoolApiServer mempool
   , endpointGetBox = endpointGetBoxImpl
