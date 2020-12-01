@@ -72,10 +72,10 @@ annotateTypes =
 
     typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, TypedDef)
     typeDef ctx comb = do
-      (combT, term) <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
+      term <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
       body <- fromInferExpr term
       let (bodyExpr, args) = collectArgs S.empty body
-      return $ (combT, comb
+      return $ (H.termType term, comb
         { def'args = args
         , def'body = bodyExpr
         })

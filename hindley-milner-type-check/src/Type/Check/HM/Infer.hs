@@ -1,4 +1,40 @@
 -- | Defines type-inference algorithm.
+--
+-- For type inference we have to define instance of the Lang class:
+--
+-- > data NoPrim
+-- >   deriving (Show)
+-- >
+-- > data TestLang
+-- >
+-- > instance Lang TestLang where
+-- >   type Src  TestLang = ()
+-- >   type Var  TestLang = Text
+-- >   type Prim TestLang = NoPrim
+-- >   getPrimType _ = error "No primops"
+--
+-- Also we define context for type inference that holds types for all known variables
+-- Often it defines types for all global variables or functions that are external.
+--
+-- > context = Context $ Map.fromList [...]
+--
+-- Then we can use inference to derive type for given term with @inferType@ or
+-- we can derive types for all sub-expressions of given term with @inferTerm@.
+-- See module in the test "TM.Infer" for examples of the usage.
+--
+-- > termI,termK :: Term NoPrim () Text
+-- >
+-- > -- I combinator
+-- > termI = lamE () "x" $ varE () "x"
+-- > -- K combinator
+-- > termK = lamE () "x" $ lamE () "y" $ varE () "x"
+-- >
+-- > -- Let's infer types
+-- > typeI = inferType mempty termI
+-- > typeK = inferType mempty termK
+--
+-- There are functions to check that two types unify (@unifyTypes@) or that one type
+-- is subtype of another one (@subtypeOf@).
 module Type.Check.HM.Infer(
   -- * Context
     Context(..)
@@ -159,18 +195,15 @@ type InferOf q = InferM (Src q) (Var q) (Out (Prim q) (Src q) (Var q))
 -- | Type-inference function.
 -- We provide a context of already proven type-signatures and term to infer the type.
 inferType :: Lang q => ContextOf q -> TermOf q -> Either (ErrorOf q) (TypeOf q)
-inferType ctx term = join $
-  bimap (fromTypeErrorNameVar . normaliseType) (fromTypeNameVar . normaliseType . mapLoc fromOrigin . (\(_, t) -> termType t)) $
-    runInferM $ infer (wrapContextNames $ markProven $ restrictContext term ctx) (wrapTermNames $ markUserCode term)
+inferType ctx term = fmap termType $ inferTerm ctx term
 
 -- | Infers types for all subexpressions of the given term.
 -- We provide a context of already proven type-signatures and term to infer the type.
-inferTerm :: Lang q => ContextOf q -> TermOf q -> Either (ErrorOf q) (TypeOf q, TyTermOf q)
+inferTerm :: Lang q => ContextOf q -> TermOf q -> Either (ErrorOf q) (TyTermOf q)
 inferTerm ctx term = join $
-  bimap (fromTypeErrorNameVar . normaliseType) ((\(_, tyTerm) -> liftA2 (,) (toType tyTerm) (toTyTerm tyTerm))) $
+  bimap (fromTypeErrorNameVar . normaliseType) ((\(_, tyTerm) -> toTyTerm tyTerm)) $
     runInferM $ infer (wrapContextNames $ markProven $ restrictContext term ctx) (wrapTermNames $ markUserCode term)
   where
-    toType   = fromTypeNameVar . normaliseType . mapLoc fromOrigin . termType
     toTyTerm = fromTyTermNameVar . mapType normaliseType . mapLoc fromOrigin
 
 type Out prim loc var = ( Subst (Origin loc) (Name var)

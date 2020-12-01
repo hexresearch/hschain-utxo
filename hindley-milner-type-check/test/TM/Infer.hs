@@ -13,13 +13,13 @@ import Type.Check.HM
 tests :: TestTree
 tests = testGroup "infer"
   [ testCase "SKI:I"
-  $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termI)
+  $ Right (var "a" --> var "a") @=? (inferType mempty termI)
   , testCase "SKI:K"
-  $ Right (var "a" --> (var "b" --> var "a")) @=? fmap fst (inferTerm mempty termK)
+  $ Right (var "a" --> (var "b" --> var "a")) @=? (inferType mempty termK)
   , testCase "let-chain-case"
-  $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termLetChain)
+  $ Right (var "a" --> var "a") @=? (inferType mempty termLetChain)
   , testCase "let-rec-chain-case"
-  $ Right (var "a" --> var "a") @=? fmap fst (inferTerm mempty termLetRecChain)
+  $ Right (var "a" --> var "a") @=? (inferType mempty termLetRecChain)
   ]
   where
     a --> b = arrowT () a b
