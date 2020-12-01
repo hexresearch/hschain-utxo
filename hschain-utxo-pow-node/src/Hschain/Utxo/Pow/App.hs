@@ -141,24 +141,26 @@ runNode genesisBlk POW.Cfg{..} maybePrivK = do
                           }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
     withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
+      -- Initialize PoW node
       (db, bIdx, sView) <- lift $ utxoStateView genesisBlk
       c0  <- lift $ POW.createConsensus db sView bIdx
       pow <- POW.startNode netcfg net cfgPeers db c0
-      -- report progress
+      -- Report progress
       void $ liftIO $ forkIO $ do
         ch <- HControl.atomicallyIO (POW.chainUpdate pow)
         forever $ do (bh,_) <- HControl.awaitIO ch
                      print (POW.bhHeight bh, POW.bhBID bh)
                      print $ POW.retarget bh
-      utxoEnv <- lift ask
-      liftIO $ hPutStrLn stderr $ "web API port: "++show cfgWebAPI
+      -- Start web API
       forM_ cfgWebAPI $ \port -> do
+        utxoEnv <- lift ask
         let run :: UTXOT IO a -> Servant.Handler a
             run (UTXOT x) = liftIO $ runReaderT x utxoEnv
         liftIO $ hPutStrLn stderr $ "starting server at "++show port
         HControl.cforkLinkedIO $ do
           hPutStrLn stderr $ "server started at "++show port
           Warp.run port $ Servant.genericServeT run $ utxoRestServer (POW.mempoolAPI pow)
+      -- Mining loop
       case maybePrivK of
         Just _privk -> do
           -- FIXME: add sensible spend script
