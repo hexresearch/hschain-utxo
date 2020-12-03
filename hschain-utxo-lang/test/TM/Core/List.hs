@@ -47,8 +47,8 @@ tests = testGroup "core-lists"
 listToExpr :: TypeCore -> [Core Name] -> Core Name
 listToExpr ty = foldr cons nil
   where
-    nil      = EConstr (ListT ty) 0
-    cons a b = ap (EConstr (ListT ty) 1) [a, b]
+    nil      = EConstr (ConNil ty)
+    cons a b = ap (EConstr (ConCons ty)) [a, b]
 
 listConsts :: Core Name -> Core Name
 listConsts

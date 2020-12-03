@@ -6,7 +6,9 @@
 module Hschain.Utxo.Lang.Core.Compile.Expr(
     PrimOp(..)
   , PrimCon(..)
+  , TermVal(..)
   , conArity
+  , conCoreType
   , conType
   , conName
   , boxPrimCon
@@ -48,6 +50,7 @@ import Hschain.Utxo.Lang.Types (Script(..),ArgType)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import qualified Type.Check.HM as H
 
 coreProgToScript :: Core Void -> Script
 coreProgToScript = Script . LB.toStrict . serialise
@@ -134,7 +137,7 @@ data PrimCon a
   | ConUnit               -- ^ unit type
   | ConTuple (Vector a)   -- ^ tuple constructor of arity N
   | ConSum Int (Vector a) -- ^ Nth constructor for generic sum type
-  deriving stock (Show, Eq, Generic, Functor, Foldable, Traversable)
+  deriving stock (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
 conArity :: PrimCon a -> Int
@@ -157,8 +160,8 @@ conName = \case
   ConTuple ts  -> mconcat ["Tuple", T.pack $ show $ V.length ts]
   ConSum n ts  -> mconcat ["Sum", T.pack $ show $ V.length ts, "_", T.pack $ show n]
 
-conType :: PrimCon TypeCore -> Maybe TypeCore
-conType = \case
+conCoreType :: PrimCon TypeCore -> Maybe TypeCore
+conCoreType = \case
   ConNil a     -> Just $ ListT a
   ConCons a    -> Just $ a :-> ListT a :-> ListT a
   ConNothing a -> Just $ MaybeT a
@@ -166,6 +169,19 @@ conType = \case
   ConUnit      -> Just UnitT
   ConTuple ts  -> Just $ V.foldr (:->) (TupleT $ V.toList ts) ts
   ConSum n ts  -> fmap (\arg -> arg :-> (SumT $ V.toList ts)) (ts V.!? n)
+
+conType :: PrimCon (H.Type () Name) -> Maybe (H.Type () Name)
+conType = \case
+  ConNil a     -> Just $ H.listT () a
+  ConCons a    -> Just $ H.arrowT () a $ H.arrowT () (H.listT () a) (H.listT () a)
+  ConNothing a -> Just $ maybeT a
+  ConJust a    -> Just $ H.arrowT () a $ maybeT a
+  ConUnit      -> Just $ H.conT () "Unit" []
+  ConTuple ts  -> Just $ V.foldr (H.arrowT ()) (H.tupleT () $ V.toList ts) ts
+  ConSum n ts  -> fmap (\arg -> H.arrowT () arg (sumT $ V.toList ts)) (ts V.!? n)
+  where
+    maybeT a = H.conT () "Maybe" [a]
+    sumT = undefined
 
 boxPrimCon :: PrimCon TypeCore
 boxPrimCon = ConTuple $ V.fromList [BytesT, BytesT, IntT, argsTuple, IntT]

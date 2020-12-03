@@ -120,3 +120,9 @@ instance Pretty TypeCore where
         ListT  a  -> brackets $ go False a
         TupleT xs -> parens $ hsep $ punctuate comma $ go False <$> xs
         BoxT      -> "Box"
+        UnitT     -> "Unit"
+        MaybeT a  -> hsep ["Maybe", (go True a)]
+        SumT ts   -> hsep $ ("Sum" <> pretty (length ts)) : fmap (go True) ts
+
+
+

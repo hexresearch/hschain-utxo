@@ -53,7 +53,7 @@ data CaseAlt loc v a = CaseAlt
   , caseAlt'args  :: [Typed loc v (loc, v)]
   -- ^ arguments of the pattern matching
   , caseAlt'constrType :: Type loc v
-  -- ^ type of the matched expression, they should be the same for all cases
+  -- ^ type of the result expression, they should be the same for all cases
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative
   }
