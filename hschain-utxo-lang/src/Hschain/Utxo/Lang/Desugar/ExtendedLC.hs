@@ -223,6 +223,7 @@ removeTopLevelLambdasDef def@Def{..} =
                                         }
     _                      -> def
 
+-- | TODO: convert user defined types
 getCoreCons :: MonadLang m => ConsName -> m (PrimCon (H.Type () Name))
 getCoreCons = undefined
 
