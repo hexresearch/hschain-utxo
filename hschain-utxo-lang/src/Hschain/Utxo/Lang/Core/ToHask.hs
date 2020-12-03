@@ -3,6 +3,7 @@
 module Hschain.Utxo.Lang.Core.ToHask(
     toHaskExprCore
   , IsVarName
+  , fromTypeCore
 ) where
 
 import Hex.Common.Text (showt)
@@ -50,15 +51,13 @@ toHaskExprCore = \case
   EIf c t e          -> H.If () (rec c) (rec t) (rec e)
   ECase e alts       -> H.Case () (rec e) (fmap fromAlt alts)
   EConstr con        -> let hcon = H.Con () (toQName $ conName con)
-                        in  maybe hcon ((\t -> H.ExpTypeSig () hcon t) . fromType) (conType con)
+                        in  maybe hcon ((\t -> H.ExpTypeSig () hcon t) . fromTypeCore) (conCoreType con)
   EBottom            -> H.Var () (toQName "bottom")
   where
     rec = toHaskExprCore
 
-    toQName name = H.UnQual () $ toName name
-    toName name = H.Ident () $ T.unpack name
     toVar = H.Var () . toQName
-    toPat name ty = H.PatTypeSig () (H.PVar () (toName name)) (fromType ty)
+    toPat name ty = H.PatTypeSig () (H.PVar () (toName name)) (fromTypeCore ty)
 
     getLamPats res = \case
       ELam ty body -> getLamPats (("_", ty) : res) body
@@ -120,21 +119,7 @@ toHaskExprCore = \case
       OpNE a                              -> Const.nonEquals =: a
       other                               -> showt other
       where
-        (=:) name t = mconcat [name, "@", T.pack $ H.prettyPrint $ fromType t]
-
-    fromType :: TypeCore -> H.Type ()
-    fromType = \case
-      IntT     -> tyCon "Int"
-      BoolT    -> tyCon "Bool"
-      BytesT   -> tyCon "Bytes"
-      TextT    -> tyCon "Text"
-      SigmaT   -> tyCon "Sigma"
-      a :-> b  -> H.TyFun () (fromType a) (fromType b)
-      ListT t  -> H.TyList () (fromType t)
-      TupleT ts -> H.TyTuple () H.Boxed (fmap fromType ts)
-      BoxT      -> tyCon "Box"
-      where
-        tyCon = H.TyCon () . toQName
+        (=:) name t = mconcat [name, "@", T.pack $ H.prettyPrint $ fromTypeCore t]
 
     fromAlt CaseAlt{..} = H.Alt () (H.PApp () cons pats) (toRhs caseAlt'rhs) Nothing
       where
@@ -147,3 +132,26 @@ toHaskExprCore = \case
           [H.Match () (toName name) [] (H.UnGuardedRhs () $ rec expr) Nothing]
 
     toRhs expr = H.UnGuardedRhs () $ rec expr
+
+fromTypeCore :: TypeCore -> H.Type ()
+fromTypeCore = \case
+  IntT     -> tyCon "Int"
+  BoolT    -> tyCon "Bool"
+  BytesT   -> tyCon "Bytes"
+  TextT    -> tyCon "Text"
+  SigmaT   -> tyCon "Sigma"
+  a :-> b  -> H.TyFun () (fromTypeCore a) (fromTypeCore b)
+  ListT t  -> H.TyList () (fromTypeCore t)
+  TupleT ts -> H.TyTuple () H.Boxed (fmap fromTypeCore ts)
+  BoxT      -> tyCon "Box"
+  UnitT     -> H.TyTuple () H.Boxed []
+  MaybeT a  -> H.TyApp () (tyCon "Maybe") (fromTypeCore a)
+  SumT ts   -> foldl (H.TyApp ()) (tyCon $ "Sum" <> showt (length ts)) $ fmap fromTypeCore ts
+  where
+    tyCon = H.TyCon () . toQName
+
+toQName :: Text -> H.QName ()
+toQName name = H.UnQual () $ toName name
+
+toName :: Text -> H.Name ()
+toName name = H.Ident () $ T.unpack name

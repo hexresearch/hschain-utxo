@@ -15,6 +15,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr (PrimCon(..), conType)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
 import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, funT, listT
                               , arrowT, intT, boolT, bytesT, sigmaT
@@ -22,6 +23,7 @@ import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, f
 
 import qualified Type.Check.HM as H
 import qualified Data.Sequence as S
+import qualified Data.Vector   as V
 
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
@@ -36,9 +38,9 @@ instance H.Lang HschainLang where
 
 -- | We need this type for type-inference algorithm
 data Tag
-  = VarTag !Name    -- ^ simple variables
-  | IfTag           -- ^ if-expressions
-  | ConstrTag !Int  -- ^ integer tags for constructors
+  = VarTag !Name                           -- ^ simple variables
+  | IfTag                                  -- ^ if-expressions
+  | ConstrTag !(PrimCon (H.Type () Name))  -- ^ integer tags for constructors
   deriving (Show, Eq, Ord)
 
 instance H.IsVar Tag where
@@ -72,7 +74,8 @@ annotateTypes =
 
     typeDef :: H.Context Loc Tag -> Comb Name -> m (H.Type Loc Tag, TypedDef)
     typeDef ctx comb = do
-      term <- liftEither $ either fromErr Right $ H.inferTerm ctx (toInferExpr $ getCombExpr comb)
+      infExpr <- toInferExpr $ getCombExpr comb
+      term <- liftEither $ either fromErr Right $ H.inferTerm ctx infExpr
       body <- fromInferExpr term
       let (bodyExpr, args) = collectArgs S.empty body
       return $ (H.termType term, comb
@@ -93,19 +96,19 @@ annotateTypes =
       | otherwise     = Fix $ ELam (H.getLoc def'name) def'args def'body
                          -- todo consider to add locations to definitions
 
-    toInferExpr :: ExprLam Name -> H.Term PrimLoc Loc Tag
-    toInferExpr = cata $ \case
-      EVar loc name        -> H.varE loc (VarTag name)
-      EPrim loc prim       -> H.primE loc prim
-      EPrimOp{}            -> error "No primop are accessible before type checking"
-      EAp loc a b          -> H.appE loc a b
-      ELam loc args e      -> foldr (H.lamE loc) e (fmap VarTag args)
-      EIf loc a b c        -> H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
-      EBottom loc          -> H.bottomE loc
-      EConstr loc ty tag   -> H.constrE loc (eraseWith loc ty) (ConstrTag tag)
-      ELet loc bs e        -> foldr (\b rhs -> H.letE loc (fromBind loc b) rhs) e bs
-      EAssertType loc e ty -> H.assertTypeE loc e (eraseWith loc ty)
-      ECase loc e alts     -> H.caseE loc e (fmap fromAlt alts)
+    toInferExpr :: ExprLam Name -> m (H.Term PrimLoc Loc Tag)
+    toInferExpr = cataM $ \case
+      EVar loc name        -> pure $ H.varE loc (VarTag name)
+      EPrim loc prim       -> pure $ H.primE loc prim
+      EPrimOp{}            -> unexpected "No primop are accessible before type checking"
+      EAp loc a b          -> pure $ H.appE loc a b
+      ELam loc args e      -> pure $ foldr (H.lamE loc) e (fmap VarTag args)
+      EIf loc a b c        -> pure $ H.appE loc (H.appE loc (H.appE loc (H.varE loc IfTag) a) b) c
+      EBottom loc          -> pure $ H.bottomE loc
+      EConstr loc tag      -> maybe failedToConverType (\ty -> pure $ H.constrE loc (fmap VarTag $ H.setLoc loc ty) (ConstrTag tag)) $ conType tag
+      ELet loc bs e        -> pure $ foldr (\b rhs -> H.letE loc (fromBind loc b) rhs) e bs
+      EAssertType loc e ty -> pure $ H.assertTypeE loc e (eraseWith loc ty)
+      ECase loc e alts     -> fmap (H.caseE loc e) (mapM fromAlt alts)
 
     -- todo: we do need to use VarName to keep info on bind locations
     --  for now we write wrong locations...
@@ -115,47 +118,83 @@ annotateTypes =
       , H.bind'rhs = e
       }
 
-    fromAlt CaseAlt{..} = H.CaseAlt
-      { H.caseAlt'loc        = caseAlt'loc
-      , H.caseAlt'tag        = ConstrTag caseAlt'tag
-      , H.caseAlt'args       = fmap toArg caseAlt'args
-      , H.caseAlt'constrType = eraseWith caseAlt'loc $ caseAlt'constrType
-      , H.caseAlt'rhs        = caseAlt'rhs
-      }
+    failedToConverType = unexpected "Failed to convert type"
+
+    fromAlt CaseAlt{..} = do
+      constrType <- maybe failedToConverType pure $ conResultType caseAlt'tag
+      return $ H.CaseAlt
+        { H.caseAlt'loc        = caseAlt'loc
+        , H.caseAlt'tag        = ConstrTag caseAlt'tag
+        , H.caseAlt'args       = fmap toArg caseAlt'args
+        , H.caseAlt'constrType = fmap VarTag $ H.setLoc caseAlt'loc constrType
+        , H.caseAlt'rhs        = caseAlt'rhs
+        }
       where
         -- we need to know the types of the constructors on this stage:
         toArg (Typed val ty) = H.Typed (eraseWith caseAlt'loc ty) (caseAlt'loc, VarTag val)
 
+    conResultType = fmap getArrowResult . conType
+
+    getArrowResult t = maybe t snd $ H.extractArrow t
+
     fromInferExpr :: H.TyTerm PrimLoc Loc Tag -> m TypedExprLam
     fromInferExpr (H.TyTerm x) = flip cataM x $ \case
-      H.Ann ty expr -> fmap (Fix . Ann (toType ty)) $ case expr of
-        H.Var loc name -> pure $ EVar loc (fromTag name)
-        H.Prim loc p   -> pure $ EPrim loc p
-        H.App _ (Fix (Ann _ (EAp _ (Fix (Ann _ (EAp _ (Fix (Ann _ (EVar vloc "if"))) c))) t))) e -> pure $ EIf vloc c t e
-        H.App loc a b -> pure $ EAp loc a b
-        H.Lam loc arg e -> fmap (\t -> ELam loc [Typed (fromTag arg) (toType t)] e) $ getLamArgType ty
-        H.Bottom loc -> pure $ EBottom loc
-        H.AssertType _ (Fix (Ann _ a)) _ -> pure $ a
-        H.Let loc bs e -> toLet loc bs e
-        H.LetRec loc bs e -> toLetRec loc bs e
-        H.Case loc e alts -> fmap (ECase loc e) (mapM toAlt alts)
-        H.Constr loc conTy tag ->
-          case tag of
-            ConstrTag m -> pure $ EConstr loc (toType conTy) m
-            _           -> throwError $ InternalError $ NonIntegerConstrTag (fromTag tag)
+      H.Ann tyTag expr ->
+        let ty = toType tyTag
+        in  fmap (Fix . Ann ty) $ case expr of
+              H.Var loc name -> pure $ EVar loc (fromTag name)
+              H.Prim loc p   -> pure $ EPrim loc p
+              H.App _ (Fix (Ann _ (EAp _ (Fix (Ann _ (EAp _ (Fix (Ann _ (EVar vloc "if"))) c))) t))) e -> pure $ EIf vloc c t e
+              H.App loc a b -> pure $ EAp loc a b
+              H.Lam loc arg e -> fmap (\t -> ELam loc [Typed (fromTag arg) t] e) $ getLamArgType ty
+              H.Bottom loc -> pure $ EBottom loc
+              H.AssertType _ (Fix (Ann _ a)) _ -> pure $ a
+              H.Let loc bs e -> toLet loc bs e
+              H.LetRec loc bs e -> toLetRec loc bs e
+              H.Case loc e alts -> fmap (ECase loc e) (mapM (toAlt ty) alts)
+              H.Constr loc _conTy tag ->
+                case tag of
+                  ConstrTag m -> fmap (EConstr loc) $ specifyConstr ty m
+                  _           -> throwError $ InternalError $ NonIntegerConstrTag (fromTag tag)
 
-    toAlt alt =
+    toAlt ty alt =
       case H.caseAlt'tag alt of
-        ConstrTag tagId -> pure $
-          CaseAlt
+        ConstrTag polyCon -> do
+          monoCon <- specifyCaseAlt ty polyCon
+          pure $ CaseAlt
             { caseAlt'loc        = H.caseAlt'loc alt
-            , caseAlt'tag        = tagId
+            , caseAlt'tag        = monoCon
             , caseAlt'args       = fmap (\t -> Typed (fromTag $ snd $ H.typed'value t) (toType $ H.typed'type t)) $ H.caseAlt'args alt
-            , caseAlt'constrType = toType $ H.caseAlt'constrType alt
             , caseAlt'rhs        = H.caseAlt'rhs alt
             }
         other -> throwError $ InternalError $ NonIntegerConstrTag (fromTag other)
 
+    specifyConstr :: H.Type () Name -> PrimCon (H.Type () Name) -> m (PrimCon (H.Type () Name))
+    specifyConstr ty = specifyCaseAlt (snd $ H.extractFunType ty)
+
+    -- | We substitute polymorphic vars inside PrimCons
+    -- with concrete monomorphic types that were derived.
+    specifyCaseAlt :: H.Type () Name -> PrimCon (H.Type () Name) -> m (PrimCon (H.Type () Name))
+    specifyCaseAlt (H.Type (Fix ty)) = \case
+      ConNil  _    -> fromList ConNil
+      ConCons _    -> fromList ConCons
+      ConNothing _ -> fromMaybe ConNothing
+      ConJust _    -> fromMaybe ConJust
+      ConUnit      -> pure ConUnit
+      ConTuple _   -> case ty of
+                        H.TupleT _ ts -> pure $ ConTuple $ fmap H.Type $ V.fromList ts
+                        _             -> unexpected "Expected tuple"
+      ConSum n _   -> case ty of
+                        H.ConT _ _ ts -> pure $ ConSum n $ fmap H.Type $ V.fromList ts
+                        _             -> unexpected "Expected sum-type"
+      where
+        fromList con = case ty of
+            H.ListT _ a -> pure $ con $ H.Type a
+            _           -> unexpected "Expected list"
+
+        fromMaybe con = case ty of
+                    H.ConT _ "Maybe" [a] -> pure $ con $ H.Type a
+                    _                    -> unexpected "Expected maybe"
 
     toLet loc bind body = pure $ ELet loc [toBind bind] body
     toLetRec loc binds body = pure $ ELet loc (fmap toBind binds) body

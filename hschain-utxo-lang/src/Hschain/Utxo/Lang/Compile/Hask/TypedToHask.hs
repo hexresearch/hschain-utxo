@@ -8,12 +8,11 @@ module Hschain.Utxo.Lang.Compile.Hask.TypedToHask(
 
 import Control.Applicative
 
-import Hex.Common.Text (showt)
-
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Hask.Utils
 import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..), monoPrimopName, polyPrimOpName)
 import Hschain.Utxo.Lang.Core.Types (Prim(..), Typed(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr (conName)
 
 import Data.Fix
 
@@ -63,7 +62,7 @@ toHaskExpr = cata $ \case
     ELam loc args a            -> toLam loc args a
     EIf loc c t e              -> toIf loc c t e
     ECase loc e alts           -> toCase loc e alts
-    EConstr loc ty tag         -> toConstr loc ty tag
+    EConstr loc tag            -> toConstr loc tag
     EAssertType loc e ty       -> toAssertType loc e ty
     EBottom loc                -> toBottom loc
     EPrimOp loc op             -> maybe (errOp op) (toVar loc) $ monoPrimopName op <|> polyPrimOpName op
@@ -91,13 +90,11 @@ toHaskExpr = cata $ \case
 
     toCase loc e alts = H.Case loc e $ fmap toAlt alts
 
-    toConstr loc ty tag = H.ExpTypeSig loc (H.Con loc (toQName $ VarName loc $ constrName tag)) (toType loc ty)
+    toConstr loc tag = H.Con loc (toQName $ VarName loc $ conName tag)
 
     toAssertType loc e ty = H.ExpTypeSig loc e (toType loc ty)
 
     toBottom loc = toVar loc "undefined"
-
-    constrName tag = mconcat ["Con_", showt tag]
 
     toTypeSig loc tyName = H.TypeSig loc [toName $ VarName loc name] (toType loc ty)
       where
@@ -111,7 +108,7 @@ toHaskExpr = cata $ \case
 
     toAlt CaseAlt{..} = H.Alt loc pat rhs Nothing
       where
-        pat = H.PatTypeSig loc (H.PApp loc (toQName $ VarName loc $ constrName caseAlt'tag) (fmap (toTypedPat loc)  caseAlt'args)) (toType loc caseAlt'constrType)
+        pat = H.PApp loc (toQName $ VarName loc $ conName caseAlt'tag) (fmap (toTypedPat loc)  caseAlt'args)
         loc = caseAlt'loc
         rhs = H.UnGuardedRhs loc caseAlt'rhs
 

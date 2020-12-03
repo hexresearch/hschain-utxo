@@ -99,7 +99,7 @@ data ExprLamF bind a
   -- ^ if expressions
   | ECase !Loc a [CaseAlt bind a]
   -- ^ case alternatives
-  | EConstr !Loc (PrimCon (H.Type () Name) )
+  | EConstr !Loc (PrimCon (H.Type () Name))
   -- ^ constructor with tag id, also we should provide the type
   -- of constructor as a function for a type-checker
   | EAssertType !Loc a !(H.Type () Name)

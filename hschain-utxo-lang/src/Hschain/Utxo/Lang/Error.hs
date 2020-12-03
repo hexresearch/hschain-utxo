@@ -56,6 +56,7 @@ data InternalError
   = FailedToEliminate Text
   | NonIntegerConstrTag Text
   | NonLamType
+  | Unexpected Text
   deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
 
@@ -99,6 +100,9 @@ noCasesLeft = throwError $ PatError $ NoCasesLeft
 
 failedToEliminate :: MonadError Error m => Text -> m a
 failedToEliminate msg = throwError $ InternalError $ FailedToEliminate msg
+
+unexpected :: MonadError Error m => Text -> m a
+unexpected msg = throwError $ InternalError $ Unexpected msg
 
 unboundVariable :: MonadError Error m => VarName -> m a
 unboundVariable = unboundVariables . return

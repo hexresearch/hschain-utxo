@@ -69,7 +69,7 @@ inferExpr = \case
       AnyType      -> pure $ AnyType
     ELet  e body   -> inferLet  e body
     ECase e alts   -> inferCase e alts
-    EConstr con    -> fmap MonoType $ maybe (throwError BadConstructor) pure $ conType con
+    EConstr con    -> fmap MonoType $ maybe (throwError BadConstructor) pure $ conCoreType con
     EIf c t e      -> inferIf c t e
     EBottom        -> pure AnyType
 
@@ -126,6 +126,7 @@ inferCase expr alts = inferExpr expr >>= \case
     [ CaseAlt (ConSum idx tsB) n e] | tsA == V.toList tsB -> case tsB V.!? idx of
         Just ty -> inferScopeN n [ty] e
         Nothing -> throwError BadCase
+    _ -> throwError BadCase
   _ -> throwError BadCase
   where
     inferListAlt ty (CaseAlt (ConNil tB) n e)  | ty == tB = inferScopeN n [] e
