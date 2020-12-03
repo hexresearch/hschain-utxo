@@ -18,7 +18,7 @@ lam  nm ty  = ELam ty . abstract1 nm
 let_ :: Eq a => a -> Core a -> Core a -> Core a
 let_ nm e   = ELet e  . abstract1 nm
 
-alt :: Eq a => Int -> [a] -> Core a -> CaseAlt a
+alt :: Eq a => PrimCon TypeCore -> [a] -> Core a -> CaseAlt a
 alt i names = CaseAlt i (length names) . abstractN names
 
 -- | I Combinator. We should use monomorphic types as arguments.

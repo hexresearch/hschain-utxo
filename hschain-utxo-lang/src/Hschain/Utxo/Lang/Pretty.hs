@@ -292,6 +292,7 @@ instance Pretty InternalError where
     FailedToEliminate txt -> hsep ["Failed to eliminate expression:", pretty txt]
     NonIntegerConstrTag txt -> hsep ["Non-integer constr tag after type inference", pretty txt]
     NonLamType -> "Not a lambda argument type"
+    Unexpected msg -> hsep ["Unexpected has happened:", pretty msg]
 
 instance Pretty MonoError where
   pretty = \case

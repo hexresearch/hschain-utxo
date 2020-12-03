@@ -28,7 +28,7 @@ freeVars = cata $ \case
   ELam _ as e       -> e `S.difference` (S.fromList as)
   EIf _ a b c       -> a <> b <> c
   ECase _ e alts    -> e <> foldMap freeAlts alts
-  EConstr _ _ _     -> mempty
+  EConstr _ _       -> mempty
   EAssertType _ e _ -> e
   EBottom _         -> mempty
   where

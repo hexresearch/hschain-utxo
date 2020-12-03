@@ -24,6 +24,7 @@ import Hschain.Utxo.Lang.Desugar (bindBodyToExpr)
 import Hschain.Utxo.Lang.Desugar.Case
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
+import Hschain.Utxo.Lang.Core.Compile.Expr (PrimCon(..))
 import Hschain.Utxo.Lang.Core.Types (Name)
 import Hschain.Utxo.Lang.Sigma (mapPkM)
 
@@ -95,21 +96,21 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromConstrName loc name = do
       ConsInfo{..} <- getConsInfo typeCtx name
-      return $ Fix $ EConstr loc (fromType consInfo'type) consInfo'tagId
+      con <- getCoreCons name
+      return $ Fix $ EConstr loc con
 
     fromCaseOf loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
 
     fromCaseAlt CaseExpr{..} = case caseExpr'lhs of
       PCons loc cons ps -> do
+        tag <- getCoreCons cons
         info <- getConsInfo typeCtx cons
-        let tagId = consInfo'tagId info
-            (argsTy, rhsT) = H.extractFunType $ consInfo'type info
+        let  (argsTy, _rhsT) = H.extractFunType $ consInfo'type info
         args  <- mapM fromPat ps
         return $ CaseAlt
                   { caseAlt'loc        = loc
-                  , caseAlt'tag        = tagId
+                  , caseAlt'tag        = tag
                   , caseAlt'args       = zipWith P.Typed args $ fmap fromType argsTy
-                  , caseAlt'constrType = fromType rhsT
                   , caseAlt'rhs        = caseExpr'rhs
                   }
       PTuple loc ps -> do
@@ -117,15 +118,13 @@ exprToExtendedLC typeCtx = cataM $ \case
         let arity = length ps
         return $ CaseAlt
                   { caseAlt'loc        = loc
-                  , caseAlt'tag        = 0
+                  , caseAlt'tag        = ConTuple $ V.fromList $ tupleArgsT arity
                   , caseAlt'args       = zipWith P.Typed args $ tupleArgsT arity
-                  , caseAlt'constrType = tupleConstrT arity
                   , caseAlt'rhs        = caseExpr'rhs
                   }
       _ -> failedToEliminate "Non-constructor case in case alternative"
       where
         tupleArgsT   arity = vs arity
-        tupleConstrT arity = H.tupleT () $ vs arity
         vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
 
 
@@ -144,24 +143,17 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
-    fromTuple loc args = pure $ fun loc (Fix $ EConstr loc ty tagId) $ V.toList args
+    fromTuple loc args = pure $ fun loc (Fix $ EConstr loc (ConTuple ts)) $ V.toList args
       where
         arity = V.length args
-        ty    = foldr (\v rhs -> arrowT v rhs) tyRhs vs
-        tyRhs = tupleT vs
-        vs    = fmap (varT . mappend "a" . showt) [1 .. arity]
-        tagId = 0
+        ts    = V.fromList $ fmap (varT . mappend "a" . showt) [1 .. arity]
 
     fromNegApp loc a = pure $ ap1 loc (var loc Const.negate) a
 
     fromList loc args = pure $ V.foldr cons nil args
       where
-        cons a as = ap2 loc (Fix $ EConstr loc consTy 1) a as
-        nil = Fix $ EConstr loc nilTy 0
-
-        nilTy  = listT (varT "a")
-        consTy = arrowT (varT "a") (arrowT (listT (varT "a")) (listT (varT "a")))
-
+        cons a as = ap2 loc (Fix $ EConstr loc (ConCons (varT "a"))) a as
+        nil = Fix $ EConstr loc (ConNil (varT "a"))
 
 getConsInfo :: MonadLang m => UserTypeCtx -> ConsName -> m ConsInfo
 getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
@@ -230,4 +222,8 @@ removeTopLevelLambdasDef def@Def{..} =
                                         , def'body = body
                                         }
     _                      -> def
+
+-- | TODO: convert user defined types
+getCoreCons :: MonadLang m => ConsName -> m (PrimCon (H.Type () Name))
+getCoreCons = undefined
 

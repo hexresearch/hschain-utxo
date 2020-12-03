@@ -5,6 +5,14 @@
 -- | Types for core language and its compiled form.
 module Hschain.Utxo.Lang.Core.Compile.Expr(
     PrimOp(..)
+  , PrimCon(..)
+  , TermVal(..)
+  , conArity
+  , conCoreType
+  , conType
+  , conName
+  , boxPrimCon
+  , argsPrimCon
   , Typed(..)
   , TypeCore
   , Core(..)
@@ -32,13 +40,17 @@ import Data.String
 import Data.List (elemIndex)
 import Data.Functor.Identity
 import Data.Proxy
+import Data.Text (Text)
+import Data.Vector (Vector)
 import Data.Void
-import GHC.Generics
+import GHC.Generics (Generic, Rep, M1(..), (:+:)(..), (:*:)(..), D, C, U1, S, from)
 
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Types (Script(..),ArgType)
 import qualified Data.ByteString.Lazy as LB
-
+import qualified Data.Text as T
+import qualified Data.Vector as V
+import qualified Type.Check.HM as H
 
 coreProgToScript :: Core Void -> Script
 coreProgToScript = Script . LB.toStrict . serialise
@@ -116,6 +128,72 @@ data PrimOp a
   deriving stock    (Show, Eq, Generic , Functor, Foldable, Traversable)
   deriving anyclass (Serialise)
 
+-- | Primitive constructors for all data-types in Core language.
+data PrimCon a
+  = ConNil a              -- ^ empty list
+  | ConCons a             -- ^ list cons
+  | ConNothing a          -- ^ maybe nothing
+  | ConJust a             -- ^ maybe just
+  | ConUnit               -- ^ unit type
+  | ConTuple (Vector a)   -- ^ tuple constructor of arity N
+  | ConSum Int (Vector a) -- ^ Nth constructor for generic sum type
+  deriving stock (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
+  deriving anyclass (Serialise)
+
+conArity :: PrimCon a -> Int
+conArity = \case
+  ConNil _     -> 0
+  ConCons _    -> 2
+  ConNothing _ -> 0
+  ConJust _    -> 1
+  ConTuple ts  -> V.length ts
+  ConSum _ _   -> 1
+  ConUnit      -> 0
+
+conName :: PrimCon a -> Text
+conName = \case
+  ConNil _     -> "[]"
+  ConCons _    -> "Cons"
+  ConNothing _ -> "Nothing"
+  ConJust _    -> "Just"
+  ConUnit      -> "()"
+  ConTuple ts  -> mconcat ["Tuple", T.pack $ show $ V.length ts]
+  ConSum n ts  -> mconcat ["Sum", T.pack $ show $ V.length ts, "_", T.pack $ show n]
+
+conCoreType :: PrimCon TypeCore -> Maybe TypeCore
+conCoreType = \case
+  ConNil a     -> Just $ ListT a
+  ConCons a    -> Just $ a :-> ListT a :-> ListT a
+  ConNothing a -> Just $ MaybeT a
+  ConJust a    -> Just $ a :-> MaybeT a
+  ConUnit      -> Just UnitT
+  ConTuple ts  -> Just $ V.foldr (:->) (TupleT $ V.toList ts) ts
+  ConSum n ts  -> fmap (\arg -> arg :-> (SumT $ V.toList ts)) (ts V.!? n)
+
+conType :: PrimCon (H.Type () Name) -> Maybe (H.Type () Name)
+conType = \case
+  ConNil a     -> Just $ H.listT () a
+  ConCons a    -> Just $ H.arrowT () a $ H.arrowT () (H.listT () a) (H.listT () a)
+  ConNothing a -> Just $ maybeT a
+  ConJust a    -> Just $ H.arrowT () a $ maybeT a
+  ConUnit      -> Just $ H.conT () "Unit" []
+  ConTuple ts  -> Just $ V.foldr (H.arrowT ()) (H.tupleT () $ V.toList ts) ts
+  ConSum n ts  -> fmap (\arg -> H.arrowT () arg (sumT $ V.toList ts)) (ts V.!? n)
+  where
+    maybeT a = H.conT () "Maybe" [a]
+    sumT = undefined
+
+boxPrimCon :: PrimCon TypeCore
+boxPrimCon = ConTuple $ V.fromList [BytesT, BytesT, IntT, argsTuple, IntT]
+
+argsPrimCon :: PrimCon TypeCore
+argsPrimCon = ConTuple $ V.fromList $ fmap ListT [IntT, TextT, BoolT, BytesT ]
+
+-- | Terminal constant value for the language
+data TermVal
+  = PrimVal !Prim
+  | ConVal (PrimCon TypeCore) (Vector TermVal)
+
 -- | Expressions of the Core-language
 data Core a
   = EVar !a
@@ -136,7 +214,7 @@ data Core a
   -- ^ If expressions
   | ECase !(Core a) [CaseAlt a]
   -- ^ Case expression
-  | EConstr TypeCore !Int
+  | EConstr !(PrimCon TypeCore)
   -- ^ Constructor of ADT. First field is a type of value being
   --   constructed. For example both constructors of @ListT IntT@ will
   --   have that type as parameter. Second is constructor's tag.
@@ -149,7 +227,7 @@ instance IsString a => IsString (Core a) where
 
 -- | Case alternatives
 data CaseAlt a = CaseAlt
-  { caseAlt'tag   :: !Int
+  { caseAlt'tag   :: !(PrimCon TypeCore)
   -- ^ Tag of the constructor. Instead of names we use numbers
   , caseAlt'nVars :: !Int
   -- ^ Number of variables bound in the expression
@@ -240,7 +318,7 @@ instance ( Serialise v) => Serialise (Core v) where
     ELet e body  -> encode e  <> encode body
     EIf c t f    -> encode c  <> encode t <> encode f
     ECase e alts -> encode e  <> encode alts
-    EConstr ty i -> encode ty <> encode i
+    EConstr t    -> encode t
     EBottom      -> mempty
     where
       (conN,numFld) = constructorInfo expr
@@ -261,7 +339,7 @@ instance ( Serialise v) => Serialise (Core v) where
       (6 ,3) -> ELet    <$> decode <*> decode
       (7 ,4) -> EIf     <$> decode <*> decode <*> decode
       (8 ,3) -> ECase   <$> decode <*> decode
-      (9 ,3) -> EConstr <$> decode <*> decode
+      (9 ,2) -> EConstr <$> decode
       (10,1) -> pure EBottom
       _     -> fail "Invalid encoding"
 

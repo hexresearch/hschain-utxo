@@ -192,6 +192,12 @@ data VarName = VarName
   , varName'name  :: !Text  -- ^ variable name
   } deriving (Show, Data, Typeable)
 
+instance Eq VarName where
+  (==) = (==) `on` varName'name
+
+instance Ord VarName where
+  compare = compare `on` varName'name
+
 instance IsString VarName where
   fromString = VarName noLoc . fromString
 
@@ -200,6 +206,13 @@ data ConsName = ConsName
   { consName'loc  :: !Loc   -- ^ source code location
   , consName'name :: !Text  -- ^ constructor name
   } deriving (Show, Data, Typeable)
+
+instance Eq ConsName where
+  (==) = (==) `on` consName'name
+
+instance Ord ConsName where
+  compare = compare `on` consName'name
+
 
 instance IsString ConsName where
   fromString = ConsName noLoc . fromString
@@ -379,6 +392,16 @@ data E a
   -- ^ reference to external vriables (used in quasi quoting)
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
 
+-- | Types that we can inline to quasi-quoted code
+data QuoteType
+  = PrimQ ArgType
+  | SigmaQ
+  | PublicKeyQ
+  | ScriptQ
+  | ListQ QuoteType
+  | TupleQ [QuoteType]
+  deriving (Show, Eq, Data)
+
 -- | Built-in unary operators
 data UnOp
   = Not   -- ^ logical not
@@ -533,7 +556,7 @@ instance FromJSON Prim where
 ---------------------------------
 -- type constants
 
-intT, boolT, boxT, scriptT, textT, sigmaT, bytesT :: (IsString v, H.DefLoc loc) => H.Type loc v
+intT, boolT, boxT, scriptT, textT, sigmaT, bytesT, unitT :: (IsString v, H.DefLoc loc) => H.Type loc v
 intT    = intT'    H.defLoc
 boolT   = boolT'   H.defLoc
 bytesT  = bytesT'  H.defLoc
@@ -541,12 +564,19 @@ boxT    = boxT'    H.defLoc
 scriptT = scriptT' H.defLoc
 textT   = textT'   H.defLoc
 sigmaT  = sigmaT'  H.defLoc
+unitT   = unitT'   H.defLoc
 
 tupleT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v
 tupleT = tupleT' H.defLoc
 
+sumT :: IsString v => H.DefLoc loc => [H.Type loc v] -> H.Type loc v
+sumT = sumT' H.defLoc
+
 listT :: H.DefLoc loc => H.Type loc v -> H.Type loc v
 listT = listT' H.defLoc
+
+maybeT :: IsString v => H.DefLoc loc => H.Type loc v -> H.Type loc v
+maybeT = maybeT' H.defLoc
 
 arrowT :: H.DefLoc loc => H.Type loc v -> H.Type loc v -> H.Type loc v
 arrowT = H.arrowT H.defLoc
@@ -560,11 +590,10 @@ funT args resT = foldr arrowT resT args
 argsT :: (IsString v, H.DefLoc loc) => H.Type loc v
 argsT = typeCoreToType argsTuple
 
-
 constType :: v -> loc -> H.Type loc v
 constType name loc = H.conT loc name []
 
-intT', boolT', boxT', scriptT', textT', sigmaT', bytesT' :: (IsString v, H.DefLoc loc) => loc -> H.Type loc v
+intT', boolT', boxT', scriptT', textT', sigmaT', bytesT', unitT' :: (IsString v, H.DefLoc loc) => loc -> H.Type loc v
 boxT'    = constType "Box"
 textT'   = constType "Text"
 bytesT'  = constType "Bytes"
@@ -572,12 +601,19 @@ intT'    = constType "Int"
 boolT'   = constType "Bool"
 sigmaT'  = constType "Sigma"
 scriptT' = constType "Script"
+unitT'   = constType "Unit"
 
 listT' :: loc -> H.Type loc v -> H.Type loc v
 listT' loc a = H.listT loc a
 
+maybeT' :: IsString v => loc -> H.Type loc v -> H.Type loc v
+maybeT' loc a = H.conT loc "Maybe" [a]
+
 tupleT' :: loc -> [H.Type loc v] -> H.Type loc v
 tupleT' loc ts = H.tupleT loc ts
+
+sumT' :: IsString v => loc -> [H.Type loc v] -> H.Type loc v
+sumT' loc ts = H.conT loc "Sum" ts
 
 arrowT' :: loc -> H.Type loc v -> H.Type loc v -> H.Type loc v
 arrowT' = H.arrowT
@@ -654,22 +690,6 @@ instance H.HasLoc (Bind a) where
   type Loc (Bind a) = Loc
   getLoc = H.getLoc . bind'name
 
-
--------------------------------------------------------------------
--- unique instances for Eq and Ord (ingnores source location)
---
-
-instance Eq VarName where
-  (==) = (==) `on` varName'name
-
-instance Ord VarName where
-  compare = compare `on` varName'name
-
-instance Eq ConsName where
-  (==) = (==) `on` consName'name
-
-instance Ord ConsName where
-  compare = compare `on` consName'name
 
 -------------------------------------------------------------------
 
@@ -755,6 +775,9 @@ typeCoreToType = \case
   a :-> b   -> (arrowT `on` typeCoreToType) a b
   ListT a   -> listT (typeCoreToType a)
   TupleT xs -> tupleT $ typeCoreToType <$> xs
+  UnitT     -> unitT
+  MaybeT a  -> maybeT (typeCoreToType a)
+  SumT ts   -> sumT (fmap typeCoreToType ts)
 
 ----------------------------------------------------------------
 -- Names
@@ -879,16 +902,6 @@ monoPrimopNameMap = M.fromList
 
 
 -------------------------------------------------------------------
-
--- | Types that we can inline to quasi-quoted code
-data QuoteType
-  = PrimQ ArgType
-  | SigmaQ
-  | PublicKeyQ
-  | ScriptQ
-  | ListQ QuoteType
-  | TupleQ [QuoteType]
-  deriving (Show, Eq, Data)
 
 class ToLang a where
   toLang :: Loc -> a -> Lang

@@ -43,7 +43,7 @@ data Val
   | ValF  (Val -> Eval Val)               -- ^ Unary function
   | Val2F (Val -> Val -> Eval Val)        -- ^ Binary function. Added in order to make defining primops easier
   | Val3F (Val -> Val -> Val -> Eval Val) -- ^ Ternary function. Added in order to make defining primops easier
-  | ValCon Int [Val]                      -- ^ Constructor cell
+  | ValCon (PrimCon TypeCore) [Val]       -- ^ Constructor cell
 
 instance Show Val where
   showsPrec n v
@@ -88,8 +88,8 @@ evalProg env prog =
                                 $ con2list i xs
     Left err -> EvalFail err
   where
-    con2list 0 []                   = Just []
-    con2list 1 [ValP p,ValCon i xs] = (p :) <$> con2list i xs
+    con2list (ConNil _)  []                   = Just []
+    con2list (ConCons _) [ValP p,ValCon i xs] = (p :) <$> con2list i xs
     con2list _ _                    = Nothing
 
 -- | Monad for evaluation of core expressions
@@ -154,20 +154,17 @@ evalExpr inpEnv = recur
                       | otherwise          = matchCase cs
                     matchCase [] = throwError $ EvalErr "No match in case"
                 _             -> throwError TypeMismatch
-            EConstr (TupleT ts) 0 -> pure $ constr 0 (length ts)
-            EConstr (ListT  _ ) 0 -> pure $ constr 0 0
-            EConstr (ListT  _ ) 1 -> pure $ constr 1 2
-            EConstr _           _ -> throwError "Invalid constructor"
+            EConstr con  -> pure $ constr con
             --
             EBottom{} -> throwError "Bottom encountered"
 
 -- Generate constructor
-constr :: Int -> Int -> Val
-constr tag arity = build
+constr :: PrimCon TypeCore -> Val
+constr tag = build
   (\v xs -> xs . (v:))
   (\f    -> ValCon tag (f []))
   id
-  arity
+  (conArity tag)
 
 build :: (Val -> a -> a) -> (a -> Val) -> a -> Int -> Val
 build step fini = go
@@ -272,23 +269,24 @@ evalPrimOp env = \case
     where
       Args{..} = inputEnv'args env
   OpGetBoxId -> pure $ evalLift1 $ \case
-    ValCon 0 [b,_,_,_,_] -> pure $ b
+
+    ValCon _ [b,_,_,_,_] -> pure $ b
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
   OpGetBoxScript -> pure $ evalLift1 $ \case
-    ValCon 0 [_,b,_,_,_] -> pure $ b
+    ValCon _ [_,b,_,_,_] -> pure $ b
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
   OpGetBoxValue -> pure $ evalLift1 $ \case
-    ValCon 0 [_,_,i,_,_] -> pure $ i
+    ValCon _ [_,_,i,_,_] -> pure $ i
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
   OpGetBoxArgs t -> pure $ ValF $ \x -> case x of
-    ValCon 0 [_,_,_, ValCon 0 [ints, txts, bools, bytes],_] -> case t of
+    ValCon _ [_,_,_, ValCon _ [ints, txts, bools, bytes],_] -> case t of
       IntArg   -> pure $ ints
       TextArg  -> pure $ txts
       BoolArg  -> pure $ bools
       BytesArg -> pure $ bytes
     p -> throwError $ EvalErr $ "Not a box. Got " ++ show p
   OpGetBoxPostHeight -> pure $ evalLift1 $ \case
-    ValCon 0 [_,_,_,_,b] -> pure $ b
+    ValCon _ [_,_,_,_,b] -> pure $ b
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
   --
   OpEnvGetHeight     -> pure $ ValP $ PrimInt $ inputEnv'height env
@@ -434,11 +432,19 @@ instance MatchPrim (Val -> Eval Val) where
     ValF      f -> pure f
     Val2F     f -> pure $ pure . ValF . f
     Val3F     f -> pure $ pure . Val2F . f
-    v           -> throwError $ EvalErr $ "Expecting function, got " ++ conName v
+    v           -> throwError $ EvalErr $ "Expecting function, got " ++ toName v
+    where
+      toName :: Val -> String
+      toName = \case
+        ValP p      -> "Primitive: " ++ show p
+        ValF{}      -> "ValF"
+        Val2F{}     -> "Val2F"
+        Val3F{}     -> "Val3F"
+        ValCon{}    -> "ValCon"
 
 instance (Typeable a, MatchPrim a) => MatchPrim [a] where
-  match (ValCon 0 [])     = pure []
-  match (ValCon 1 [x,xs]) = liftA2 (:) (match x) (match xs)
+  match (ValCon (ConNil _)  [])     = pure []
+  match (ValCon (ConCons _) [x,xs]) = liftA2 (:) (match x) (match xs)
   match p = throwError $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
 
 instance InjPrim Val           where inj = id
@@ -453,8 +459,8 @@ instance k ~ PublicKey => InjPrim (Sigma k) where
   inj = ValP . PrimSigma
 
 instance InjPrim a => InjPrim [a] where
-  inj []     = ValCon 0 []
-  inj (x:xs) = ValCon 1 [ inj x, inj xs ]
+  inj []     = ValCon (ConNil UnitT)  []
+  inj (x:xs) = ValCon (ConCons UnitT) [ inj x, inj xs ]
 
 instance InjPrim a => InjPrim (V.Vector a) where
   inj = inj . V.toList
@@ -463,7 +469,7 @@ instance InjPrim BoxId where
   inj (BoxId a) = inj a
 
 instance InjPrim (BoxId, PostBox) where
-  inj (boxId, PostBox{..}) = ValCon 0
+  inj (boxId, PostBox{..}) = ValCon boxPrimCon
     [ inj boxId
     , inj $ unScript $ box'script postBox'content
     , inj $ box'value postBox'content
@@ -480,7 +486,7 @@ instance InjPrim BoxOutput where
   inj BoxOutput{..} = inj (boxOutput'id, boxOutput'box)
 
 instance InjPrim Args where
-  inj Args{..} = ValCon 0
+  inj Args{..} = ValCon argsPrimCon
     [ inj args'ints
     , inj args'texts
     , inj args'bools
@@ -511,12 +517,4 @@ evalLift3 :: (MatchPrim a, MatchPrim b, MatchPrim c, InjPrim d) => (a -> b -> c 
 evalLift3 f = Val3F $ \a b c -> go a b c
   where
     go a b c = fmap inj $ join $ f <$> match a <*> match b <*>  match c
-
-conName :: Val -> String
-conName = \case
-  ValP p      -> "Primitive: " ++ show p
-  ValF{}      -> "ValF"
-  Val2F{}     -> "Val2F"
-  Val3F{}     -> "Val3F"
-  ValCon{}    -> "ValCon"
 

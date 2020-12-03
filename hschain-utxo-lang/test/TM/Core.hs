@@ -68,18 +68,18 @@ progListCase
   `EAp` safeHead nil
   `EAp` safeHead (cons `EAp` EPrim (PrimInt 123) `EAp` nil)
   where
-    cons = EConstr (ListT IntT) 1
-    nil  = EConstr (ListT IntT) 0
+    cons = EConstr (ConCons IntT)
+    nil  = EConstr (ConNil  IntT)
     safeHead e = ECase e
-      [ alt 0 []          (EPrim (PrimInt 0))
-      , alt 1 ["x", "xs"] (EVar "x")
+      [ alt (ConNil IntT)  []          (EPrim (PrimInt 0))
+      , alt (ConCons IntT) ["x", "xs"] (EVar "x")
       ]
 
 badListCase :: Core Name
 badListCase = ECase nil
-  [ alt 0 ["x"]       zero
-  , alt 1 ["x", "xs"] zero
+  [ alt (ConNil IntT)  ["x"]       zero
+  , alt (ConCons IntT) ["x", "xs"] zero
   ]
   where
     zero = EPrim   (PrimInt 0)
-    nil  = EConstr (ListT IntT) 0
+    nil  = EConstr (ConNil IntT)

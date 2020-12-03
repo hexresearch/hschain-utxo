@@ -129,16 +129,18 @@ toCoreExpr = go
       ELam _ xs body       -> toLambda ctx xs body
       EIf _ c t e          -> Core.EIf <$> go ctx c <*> go ctx t <*> go ctx e
       ECase _ e alts       -> Core.ECase <$> go ctx e <*> traverse (convertAlt ctx) alts
-      EConstr _ consTy m   -> do ty <- toCoreType consTy
-                                 pure $ Core.EConstr (resultType ty) m
+      EConstr _ m          -> do m' <- mapM toCoreType m
+                                 pure $ Core.EConstr m'
       EAssertType _ e _    -> go ctx e
       EBottom _            -> pure $ Core.EBottom
 
     convertAlt ctx CaseAlt{..} = do
       e <- go (fmap typed'value caseAlt'args <> ctx) caseAlt'rhs
+      tag <- mapM toCoreType caseAlt'tag
       pure Core.CaseAlt
         { caseAlt'nVars = length caseAlt'args
         , caseAlt'rhs   = e
+        , caseAlt'tag   = tag
         , ..
         }
     toLet ctx [] body = go ctx body
@@ -154,10 +156,6 @@ toCoreExpr = go
       pure $ Core.ELam ty' e
 
     typeCtx = baseLibTypeContext
-
-resultType :: TypeCore -> TypeCore
-resultType (_ :-> b) = resultType b
-resultType  a        = a
 
 -- | TODO: now we check only prelude functions.
 -- But it would be great to be able for user also to write polymorphic functions.
@@ -185,19 +183,22 @@ specifyPolyFun loc ctx ty name = do
         Nothing -> failedToFindMonoType loc name
 
 
-toCoreType :: MonadLang m => H.Type loc Name -> m TypeCore
+toCoreType :: MonadLang m => H.Type () Name -> m TypeCore
 toCoreType (H.Type ty) = cataM go ty
   where
     -- FIXME: add sane error messages
     go = \case
-      H.ArrowT _ a b      -> pure $ a :-> b
-      H.VarT _ _          -> failedToFindMonoType noLoc "Type variable encountered"
-      H.TupleT _ xs       -> pure $ TupleT xs
-      H.ListT  _ a        -> pure $ ListT a
-      H.ConT _ "Int"   [] -> pure IntT
-      H.ConT _ "Bool"  [] -> pure BoolT
-      H.ConT _ "Text"  [] -> pure TextT
-      H.ConT _ "Bytes" [] -> pure BytesT
-      H.ConT _ "Sigma" [] -> pure SigmaT
-      H.ConT _ "Box"   [] -> pure BoxT
-      H.ConT _ _ _        -> failedToFindMonoType noLoc "Unknown type"
+      H.ArrowT _ a b       -> pure $ a :-> b
+      H.VarT _ _           -> failedToFindMonoType noLoc "Type variable encountered"
+      H.TupleT _ xs        -> pure $ TupleT xs
+      H.ListT  _ a         -> pure $ ListT a
+      H.ConT _ "Int"   []  -> pure IntT
+      H.ConT _ "Bool"  []  -> pure BoolT
+      H.ConT _ "Text"  []  -> pure TextT
+      H.ConT _ "Bytes" []  -> pure BytesT
+      H.ConT _ "Sigma" []  -> pure SigmaT
+      H.ConT _ "Box"   []  -> pure BoxT
+      H.ConT _ "Unit"  []  -> pure UnitT
+      H.ConT _ "Maybe" [a] -> pure $ MaybeT a
+      H.ConT _  con ts | "Sum" `T.isPrefixOf` con -> pure $ SumT ts
+      H.ConT _ _ _         -> failedToFindMonoType noLoc "Unknown type"
