@@ -38,6 +38,7 @@ import qualified Codec.Serialise.Encoding as CBOR
 import qualified Codec.Serialise.Decoding as CBOR
 -- import Control.DeepSeq
 import Control.Monad.Except
+import Data.Data (Data)
 import Data.String
 import Data.List (elemIndex)
 import Data.Functor.Identity
@@ -139,7 +140,7 @@ data PrimCon a
   | ConUnit               -- ^ unit type
   | ConTuple (Vector a)   -- ^ tuple constructor of arity N
   | ConSum Int (Vector a) -- ^ Nth constructor for generic sum type
-  deriving stock (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
+  deriving stock (Show, Eq, Ord, Generic, Functor, Foldable, Traversable, Data)
   deriving anyclass (Serialise)
 
 conArity :: PrimCon a -> Int

@@ -94,16 +94,47 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromAscr loc e t = pure $ Fix $ EAssertType loc  e (fromType $ H.stripSignature t)
 
-    fromConstrName loc name = do
-      ConsInfo{..} <- getConsInfo typeCtx name
-      con <- getCoreCons name
-      return $ Fix $ EConstr loc con
+    fromConstrName loc name
+      | consName'name name == "Nothing" = pure $ Fix $ EConstr loc $ ConNothing (H.varT () "a")
+      | consName'name name == "Just"    = pure $ Fix $ EConstr loc $ ConJust    (H.varT () "a")
+      | otherwise = do
+          coreDef <- fmap consInfo'coreDef $ getConsInfo typeCtx name
+          return $ mkConstr loc coreDef
+
+    mkConstr loc CoreConsDef{..}
+      | arity == 0 = sumCon $ Fix $ EConstr loc ConUnit
+      | arity == 1 = Fix $ ELam loc ["x"] $ sumCon $ Fix $ EVar loc "x"
+      | otherwise  = Fix $ ELam loc args $  sumCon $ fun loc (Fix $ EConstr loc (ConTuple coreConsDef'tuple)) (fmap (Fix . EVar loc) args)
+      where
+        arity = V.length coreConsDef'tuple
+
+        args = fmap v [1 .. arity]
+        v n = T.pack $ "v" <> show n
+
+        sumCon = case coreConsDef'sum of
+          Nothing      -> id
+          Just (n, ts) -> \x -> Fix $ EAp loc (Fix $ EConstr loc (ConSum n ts)) x
 
     fromCaseOf loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
 
     fromCaseAlt CaseExpr{..} = case caseExpr'lhs of
+      PCons loc cons _ | consName'name cons == "Nothing" ->
+        return $ CaseAlt
+                  { caseAlt'loc  = loc
+                  , caseAlt'tag  = ConNothing (H.varT () "a")
+                  , caseAlt'args = []
+                  , caseAlt'rhs  = caseExpr'rhs
+                  }
+      PCons loc cons ps | consName'name cons == "Just"    -> do
+        args <- mapM fromPat ps
+        return $ CaseAlt
+                  { caseAlt'loc  = loc
+                  , caseAlt'tag  = ConJust (H.varT () "a")
+                  , caseAlt'args = zipWith P.Typed args [H.varT () "a"]
+                  , caseAlt'rhs  = caseExpr'rhs
+                  }
       PCons loc cons ps -> do
-        tag <- getCoreCons cons
+        tag <- getCoreCons typeCtx cons
         info <- getConsInfo typeCtx cons
         let  (argsTy, _rhsT) = H.extractFunType $ consInfo'type info
         args  <- mapM fromPat ps
@@ -112,6 +143,13 @@ exprToExtendedLC typeCtx = cataM $ \case
                   , caseAlt'tag        = tag
                   , caseAlt'args       = zipWith P.Typed args $ fmap fromType argsTy
                   , caseAlt'rhs        = caseExpr'rhs
+                  }
+      PTuple loc [] -> do
+        return $ CaseAlt
+                  { caseAlt'loc  = loc
+                  , caseAlt'tag  = ConUnit
+                  , caseAlt'args = []
+                  , caseAlt'rhs  = caseExpr'rhs
                   }
       PTuple loc ps -> do
         args <- mapM fromPat ps
@@ -224,6 +262,8 @@ removeTopLevelLambdasDef def@Def{..} =
     _                      -> def
 
 -- | TODO: convert user defined types
-getCoreCons :: MonadLang m => ConsName -> m (PrimCon (H.Type () Name))
+getCoreCons :: MonadLang m => UserTypeCtx -> ConsName -> m (PrimCon (H.Type () Name))
 getCoreCons = undefined
+
+
 

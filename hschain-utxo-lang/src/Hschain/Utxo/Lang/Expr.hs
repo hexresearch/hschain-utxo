@@ -32,7 +32,7 @@ import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
 import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes, Script(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..), PrimCon(..))
 import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
@@ -88,11 +88,14 @@ setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'typ
         tyArgs = userType'args userT
 
         info = ConsInfo
-                { consInfo'tagId = tagId
-                , consInfo'arity = arity
-                , consInfo'type  = consTy
-                , consInfo'def   = userT
+                { consInfo'tagId   = tagId
+                , consInfo'arity   = arity
+                , consInfo'type    = consTy
+                , consInfo'def     = userT
+                , consInfo'coreDef = coreUserType'cases coreUserT M.! name
                 }
+
+        coreUserT = userTypeToCore userT
 
         arity = V.length consArgs
 
@@ -141,6 +144,23 @@ data UserType = UserType
   , userType'cases      :: !(Map ConsName ConsDef) -- ^ List of constructors
   } deriving (Show, Eq, Data, Typeable)
 
+data CoreUserType = CoreUserType
+  { coreUserType'args   :: ![VarName]
+  , coreUserType'cases  :: !(Map ConsName CoreConsDef)
+  , coreUserType'type   :: !(H.Type () Name)
+  } deriving (Show, Eq, Data)
+
+userTypeToCore :: UserType -> CoreUserType
+userTypeToCore = undefined
+
+-- | Every user constructor is transformed
+-- to combination of tuple and sum type constructors
+data CoreConsDef = CoreConsDef
+  { coreConsDef'sum   :: Maybe (Int, Vector (H.Type () Name))
+  , coreConsDef'tuple :: Vector (H.Type () Name)
+  } deriving (Show, Eq, Data)
+
+
 getConsTypes :: ConsDef -> Vector Type
 getConsTypes = \case
   ConsDef ts        -> ts
@@ -162,10 +182,11 @@ data RecordField = RecordField
 -- We need to know it's type, arity and integer tag that is unique within
 -- its group of constructor for a given type (global uniqueness is not needed)
 data ConsInfo = ConsInfo
-  { consInfo'type  :: !Type      -- ^ type of the constructor as a function
-  , consInfo'tagId :: !Int       -- ^ unique integer identifier (within the type scope)
-  , consInfo'arity :: !Int       -- ^ arity of constructor
-  , consInfo'def   :: !UserType  -- ^ definition where constructor is defined
+  { consInfo'type    :: !Type        -- ^ type of the constructor as a function
+  , consInfo'tagId   :: !Int         -- ^ unique integer identifier (within the type scope)
+  , consInfo'arity   :: !Int         -- ^ arity of constructor
+  , consInfo'def     :: !UserType    -- ^ definition where constructor is defined
+  , consInfo'coreDef :: !CoreConsDef -- ^ core constructor definition
   } deriving (Show, Eq, Data, Typeable)
 
 -- | Order of names in the record constructor.
