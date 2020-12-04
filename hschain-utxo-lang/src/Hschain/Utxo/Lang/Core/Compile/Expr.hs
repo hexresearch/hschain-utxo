@@ -31,6 +31,8 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , Void
   ) where
 
+import Hex.Common.Text (showt)
+
 import Codec.Serialise
 import qualified Codec.Serialise.Encoding as CBOR
 import qualified Codec.Serialise.Decoding as CBOR
@@ -178,10 +180,13 @@ conType = \case
   ConJust a    -> Just $ H.arrowT () a $ maybeT a
   ConUnit      -> Just $ H.conT () "Unit" []
   ConTuple ts  -> Just $ V.foldr (H.arrowT ()) (H.tupleT () $ V.toList ts) ts
-  ConSum n ts  -> fmap (\arg -> H.arrowT () arg (sumT $ V.toList ts)) (ts V.!? n)
+  ConSum n ts  -> fmap (\arg -> H.arrowT () arg (sumT ts)) (ts V.!? n)
   where
     maybeT a = H.conT () "Maybe" [a]
-    sumT = undefined
+
+    sumT ts = H.conT () ("Sum" <> showt arity) $ V.toList ts
+      where
+        arity = V.length ts
 
 boxPrimCon :: PrimCon TypeCore
 boxPrimCon = ConTuple $ V.fromList [BytesT, BytesT, IntT, argsTuple, IntT]
