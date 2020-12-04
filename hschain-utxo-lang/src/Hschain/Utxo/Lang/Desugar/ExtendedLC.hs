@@ -99,7 +99,7 @@ exprToExtendedLC typeCtx = cataM $ \case
       | consName'name name == "Nothing" = pure $ Fix $ EConstr loc $ ConNothing (H.varT () "a")
       | consName'name name == "Just"    = pure $ Fix $ EConstr loc $ ConJust    (H.varT () "a")
       | otherwise = do
-          coreDef <- fmap consInfo'coreDef $ getConsInfo typeCtx name
+          coreDef <- getCoreConsDef typeCtx name
           return $ mkConstr loc coreDef
 
     mkConstr loc CoreConsDef{..}
@@ -120,7 +120,7 @@ exprToExtendedLC typeCtx = cataM $ \case
       case alts of
         [alt] -> case caseExpr'lhs alt of
           PCons _ cons [p] -> do
-            coreDef <- fmap consInfo'coreDef $ getConsInfo typeCtx cons
+            coreDef <- getCoreConsDef typeCtx cons
             if isSingleCons coreDef
               then do
                 arg <- fromPat p
@@ -150,7 +150,7 @@ exprToExtendedLC typeCtx = cataM $ \case
                   , caseAlt'rhs  = caseExpr'rhs
                   }
       PCons loc cons ps -> do
-        coreDef <- fmap consInfo'coreDef $ getConsInfo typeCtx cons
+        coreDef <- getCoreConsDef typeCtx cons
         args  <- mapM fromPat ps
         fromCoreCase loc coreDef args caseExpr'rhs
       PTuple loc [] -> do
@@ -235,10 +235,11 @@ exprToExtendedLC typeCtx = cataM $ \case
         cons a as = ap2 loc (Fix $ EConstr loc (ConCons (varT "a"))) a as
         nil = Fix $ EConstr loc (ConNil (varT "a"))
 
-getConsInfo :: MonadLang m => UserTypeCtx -> ConsName -> m ConsInfo
-getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
-      Just info -> pure info
-      Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
+getCoreConsDef :: MonadLang m => UserTypeCtx -> ConsName -> m CoreConsDef
+getCoreConsDef UserTypeCtx{..} cons@ConsName{..} =
+  maybe err pure $ M.lookup consName'name $ userCoreTypeCtx'constrs userTypeCtx'core
+  where
+    err = throwError $ ExecError $ UnboundVariables [consToVarName cons]
 
 fromType :: H.Type loc v -> H.Type () v
 fromType = H.mapLoc (const ())

@@ -3,9 +3,11 @@
 module Hschain.Utxo.Lang.Expr where
 
 import Hex.Common.Aeson
+import Hex.Common.Text
 
 import Control.Applicative
 import Control.DeepSeq (NFData)
+import Control.Monad.State.Strict
 
 import Codec.Serialise
 
@@ -64,13 +66,98 @@ data UserTypeCtx = UserTypeCtx
   , userTypeCtx'constrs    :: Map ConsName ConsInfo          -- ^ Map from constructor names to it's low-level data, for further compilation
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
+  , userTypeCtx'core       :: UserCoreTypeCtx
   }
   deriving (Show, Eq, Generic, Data, Typeable)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
+data UserCoreTypeCtx = UserCoreTypeCtx
+  { userCoreTypeCtx'types   :: Map Name (H.Type () Name)
+  , userCoreTypeCtx'constrs :: Map Name CoreConsDef
+  }
+  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserCoreTypeCtx
+
+userCoreTypeMap :: Map Name UserType -> UserCoreTypeCtx
+userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty mempty)
+  where
+    go :: (Name, UserType) -> State UserCoreTypeCtx ()
+    go (name, def) = do
+      st <- get
+      case M.lookup name $ userCoreTypeCtx'types st of
+        Just _   -> return ()
+        Nothing  -> do
+          t <- convertUserType def
+          put $ st { userCoreTypeCtx'types = M.insert name t $ userCoreTypeCtx'types st }
+
+    convertUserType UserType{..} = do
+      mapM_ addCons constrs
+      case constrs of
+        []         -> pure unitT
+        [(_, def)] -> defToTuple def
+        _          -> fmap (H.conT () ("Sum" <> showt (length constrs))) $ mapM (defToTuple . snd) constrs
+      where
+        constrs = M.toList userType'cases
+        constrOrderMap = M.fromList $ zipWith (\n (name, _) -> (name, n)) [0..] constrs
+
+        getOrder n = M.lookup n constrOrderMap
+
+        defToTuple x = case V.toList $ getConsTypes x of
+          []  -> pure unitT
+          [t] -> convertType $ eraseLoc t
+          tys -> fmap tupleT $ mapM (convertType . eraseLoc) tys
+
+        getSumTs
+          | length constrs < 2 = pure Nothing
+          | otherwise          = fmap (Just . V.fromList) $ mapM (toSumArg . snd) constrs
+
+        toSumArg :: ConsDef -> State UserCoreTypeCtx (H.Type () Name)
+        toSumArg def
+          | arity == 0 = pure unitT
+          | arity == 1 = convertType $ eraseLoc $ V.head tys
+          | otherwise  = fmap (tupleT . V.toList) $ mapM (convertType . eraseLoc) tys
+          where
+            arity = V.length tys
+            tys = getConsTypes def
+
+        toTup = mapM (convertType . eraseLoc) . getConsTypes
+
+        addCons (name, def) = do
+          sumTs <- getSumTs
+          tupleTs <- toTup def
+          let coreDef = CoreConsDef
+                { coreConsDef'sum   = liftA2 (,) (getOrder name) sumTs
+                , coreConsDef'tuple = tupleTs
+                }
+          modify' $ \st -> st { userCoreTypeCtx'constrs = M.insert (consName'name name) coreDef $ userCoreTypeCtx'constrs st }
+
+    convertType :: H.Type () Name -> State UserCoreTypeCtx (H.Type () Name)
+    convertType (H.Type x) = fmap H.Type $ cataM tfm x
+      where
+        tfm = \case
+          H.ConT loc con args | isUserType con -> do
+            st <- get
+            case M.lookup con $ userCoreTypeCtx'types st of
+              Just t  -> pure $ H.unType t
+              Nothing -> case M.lookup con ts of
+                           Just defn -> do
+                             t <- convertUserType defn
+                             put $ st { userCoreTypeCtx'types = M.insert con t $ userCoreTypeCtx'types st }
+                             return (H.unType t)
+                           Nothing -> pure $ Fix $ H.ConT loc con args
+          other               -> pure $ Fix $ other
+
+    isUserType x = Set.member x allTypeNames
+    allTypeNames = Set.fromList $ M.keys ts
+
+    eraseLoc = H.setLoc ()
+
 
 setupUserTypeInfo :: UserTypeCtx -> UserTypeCtx
-setupUserTypeInfo = setupConsInfo . setupUserRecords
+setupUserTypeInfo = setupCoreTypeInfo . setupConsInfo . setupUserRecords
+
+setupCoreTypeInfo :: UserTypeCtx -> UserTypeCtx
+setupCoreTypeInfo t = t { userTypeCtx'core = userCoreTypeMap $ M.mapKeys varName'name $ userTypeCtx'types t }
 
 setupConsInfo :: UserTypeCtx -> UserTypeCtx
 setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'types ctx }
@@ -92,10 +179,7 @@ setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'typ
                 , consInfo'arity   = arity
                 , consInfo'type    = consTy
                 , consInfo'def     = userT
-                , consInfo'coreDef = coreUserType'cases coreUserT M.! name
                 }
-
-        coreUserT = userTypeToCore userT
 
         arity = V.length consArgs
 
@@ -212,7 +296,6 @@ data ConsInfo = ConsInfo
   , consInfo'tagId   :: !Int         -- ^ unique integer identifier (within the type scope)
   , consInfo'arity   :: !Int         -- ^ arity of constructor
   , consInfo'def     :: !UserType    -- ^ definition where constructor is defined
-  , consInfo'coreDef :: !CoreConsDef -- ^ core constructor definition
   } deriving (Show, Eq, Data, Typeable)
 
 -- | Order of names in the record constructor.

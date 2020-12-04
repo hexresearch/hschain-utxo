@@ -253,7 +253,7 @@ failCaseVar = secretVar "failCase"
 -- | Extract type-context for constructors that are defined by the user
 -- or record getters and modifiers.
 userTypesToTypeContext :: UserTypeCtx -> TypeContext
-userTypesToTypeContext (UserTypeCtx m _ _ _) =
+userTypesToTypeContext (UserTypeCtx m _ _ _ _) =
      foldMap fromUserType m
   <> foldMap getSelectors m
   where
