@@ -115,7 +115,7 @@ data CaseAlt bind a = CaseAlt
   , caseAlt'tag   :: !(PrimCon (H.Type () Name))
   -- ^ integer tag of the constructor
   -- (integer substitution for the name of constructor)
-  , caseAlt'args  :: [Typed (H.Type () Name) Name]
+  , caseAlt'args  :: [Name]
   -- ^ arguments of the pattern matching
   , caseAlt'rhs   :: a
   -- ^ right-hand side of the case-alternative

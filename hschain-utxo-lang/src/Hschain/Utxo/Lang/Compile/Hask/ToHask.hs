@@ -82,7 +82,7 @@ toHaskExpr = cata $ \case
 
     toAlt CaseAlt{..} = H.Alt loc pat rhs Nothing
       where
-        pat = H.PApp loc (toQName $ VarName loc $ conName caseAlt'tag) (fmap (toTypedPat loc)  caseAlt'args)
+        pat = H.PApp loc (toQName $ VarName loc $ conName caseAlt'tag) (fmap (H.PVar loc . toName . VarName loc)  caseAlt'args)
         loc = caseAlt'loc
         rhs = H.UnGuardedRhs loc caseAlt'rhs
 

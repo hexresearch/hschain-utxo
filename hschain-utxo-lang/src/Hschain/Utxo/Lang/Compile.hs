@@ -135,7 +135,7 @@ toCoreExpr = go
       EBottom _            -> pure $ Core.EBottom
 
     convertAlt ctx CaseAlt{..} = do
-      e <- go (fmap typed'value caseAlt'args <> ctx) caseAlt'rhs
+      e <- go (caseAlt'args <> ctx) caseAlt'rhs
       tag <- mapM toCoreType caseAlt'tag
       pure Core.CaseAlt
         { caseAlt'nVars = length caseAlt'args

@@ -121,21 +121,14 @@ annotateTypes =
     failedToConverType = unexpected "Failed to convert type"
 
     fromAlt CaseAlt{..} = do
-      constrType <- maybe failedToConverType pure $ conResultType caseAlt'tag
+      (argTypes, constrType) <- maybe failedToConverType (pure . H.extractFunType) $ conType caseAlt'tag
       return $ H.CaseAlt
         { H.caseAlt'loc        = caseAlt'loc
         , H.caseAlt'tag        = ConstrTag caseAlt'tag
-        , H.caseAlt'args       = fmap toArg caseAlt'args
+        , H.caseAlt'args       = zipWith H.Typed (fmap (eraseWith caseAlt'loc) argTypes) $ fmap (\val -> (caseAlt'loc, VarTag val)) caseAlt'args
         , H.caseAlt'constrType = fmap VarTag $ H.setLoc caseAlt'loc constrType
         , H.caseAlt'rhs        = caseAlt'rhs
         }
-      where
-        -- we need to know the types of the constructors on this stage:
-        toArg (Typed val ty) = H.Typed (eraseWith caseAlt'loc ty) (caseAlt'loc, VarTag val)
-
-    conResultType = fmap getArrowResult . conType
-
-    getArrowResult t = maybe t snd $ H.extractArrow t
 
     fromInferExpr :: H.TyTerm PrimLoc Loc Tag -> m TypedExprLam
     fromInferExpr (H.TyTerm x) = flip cataM x $ \case
@@ -164,7 +157,7 @@ annotateTypes =
           pure $ CaseAlt
             { caseAlt'loc        = H.caseAlt'loc alt
             , caseAlt'tag        = monoCon
-            , caseAlt'args       = fmap (\t -> Typed (fromTag $ snd $ H.typed'value t) (toType $ H.typed'type t)) $ H.caseAlt'args alt
+            , caseAlt'args       = fmap (\t -> fromTag $ snd $ H.typed'value t) $ H.caseAlt'args alt
             , caseAlt'rhs        = H.caseAlt'rhs alt
             }
         other -> throwError $ InternalError $ NonIntegerConstrTag (fromTag other)

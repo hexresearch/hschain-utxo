@@ -32,7 +32,7 @@ import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
 import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes, Script(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..), PrimCon(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
@@ -144,14 +144,40 @@ data UserType = UserType
   , userType'cases      :: !(Map ConsName ConsDef) -- ^ List of constructors
   } deriving (Show, Eq, Data, Typeable)
 
-data CoreUserType = CoreUserType
-  { coreUserType'args   :: ![VarName]
-  , coreUserType'cases  :: !(Map ConsName CoreConsDef)
-  , coreUserType'type   :: !(H.Type () Name)
+newtype CoreUserType = CoreUserType
+  { coreUserType'cases  :: Map ConsName CoreConsDef
   } deriving (Show, Eq, Data)
 
 userTypeToCore :: UserType -> CoreUserType
-userTypeToCore = undefined
+userTypeToCore utype = CoreUserType
+  { coreUserType'cases = M.mapWithKey (\name def -> CoreConsDef
+      { coreConsDef'sum   = liftA2 (,) (getOrder name) sumTs
+      , coreConsDef'tuple = toTup def
+      }) $ userType'cases utype
+  }
+  where
+    sumTs
+      | length constrs < 2 = Nothing
+      | otherwise          = Just $ V.fromList $ fmap (toSumArg . snd) constrs
+
+    constrs = M.toList $ userType'cases utype
+    constrOrderMap = M.fromList $ zipWith (\n (name, _) -> (name, n)) [0..] constrs
+
+    toTup = fmap eraseLoc . getConsTypes
+
+    toSumArg :: ConsDef -> H.Type () Name
+    toSumArg def
+      | arity == 0 = unitT
+      | arity == 1 = eraseLoc $ V.head ts
+      | otherwise  = tupleT $ V.toList $ fmap eraseLoc ts
+      where
+        arity = V.length ts
+        ts = getConsTypes def
+
+    eraseLoc = H.setLoc ()
+
+    getOrder n = M.lookup n constrOrderMap
+
 
 -- | Every user constructor is transformed
 -- to combination of tuple and sum type constructors
