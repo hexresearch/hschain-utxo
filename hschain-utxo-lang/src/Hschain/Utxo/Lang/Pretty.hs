@@ -70,7 +70,7 @@ instance Pretty BoxId where
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of
     Left  _ -> "Left: " <> pretty (encodeBase58 bs)
-    Right e -> pretty $ show (e :: Core Void)
+    Right e -> pretty $ prettyPrint $ toHaskExprCore (e :: Core Void)
 
 instance IsVarName a => Pretty (Core a) where
   pretty = pretty . prettyPrint . toHaskExprCore

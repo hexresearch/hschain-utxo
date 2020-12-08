@@ -28,7 +28,6 @@ import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Sequence as Seq
 
-
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
 evalModule :: TypeContext -> Module -> Either Error ModuleCtx
@@ -186,7 +185,8 @@ trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fro
     getFreeVars :: Bind Lang -> Seq.Seq VarName
     getFreeVars  = Seq.fromList . S.toList . freeVarsBg . fmap (fmap freeVars) . pure
 
-    baseNamesSet = S.fromList baseNames
+    baseNamesSet = S.fromList $ constrNames <> baseNames
     isPreludeFun v = S.member (varName'name v) baseNamesSet
+    constrNames = fmap consName'name $ M.keys $ userTypeCtx'constrs $ module'userTypes m
 
 

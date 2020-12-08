@@ -44,7 +44,6 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Const as Const
 
-
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
@@ -88,7 +87,7 @@ userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty 
         Just _   -> return ()
         Nothing  -> do
           t <- convertUserType def
-          put $ st { userCoreTypeCtx'types = M.insert name t $ userCoreTypeCtx'types st }
+          modify' $ \env -> env { userCoreTypeCtx'types = M.insert name t $ userCoreTypeCtx'types env }
 
     convertUserType UserType{..} = do
       mapM_ addCons constrs
