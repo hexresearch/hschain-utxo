@@ -230,7 +230,9 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
-    fromTuple loc args = pure $ fun loc (Fix $ EConstr loc (ConTuple ts)) $ V.toList args
+    fromTuple loc args
+      | V.null args = pure $ Fix $ EConstr loc ConUnit
+      | otherwise   = pure $ fun loc (Fix $ EConstr loc (ConTuple ts)) $ V.toList args
       where
         arity = V.length args
         ts    = V.fromList $ fmap (varT . mappend "a" . showt) [1 .. arity]

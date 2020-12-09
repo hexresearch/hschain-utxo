@@ -718,7 +718,7 @@ intT'    = constType "Int"
 boolT'   = constType "Bool"
 sigmaT'  = constType "Sigma"
 scriptT' = constType "Script"
-unitT'   = constType "Unit"
+unitT'   = constType "()"
 
 listT' :: loc -> H.Type loc v -> H.Type loc v
 listT' loc a = H.listT loc a
