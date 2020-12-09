@@ -27,9 +27,11 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Trans.Cont
 
+import qualified Data.Aeson as JSON
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Yaml.Config (loadYamlSettings, requireEnv)
+import Data.Yaml.Config   (loadYamlSettings, requireEnv)
+import Data.Word
 import GHC.Generics
 
 import Servant.API         ((:>),Capture,Summary,Get,JSON)
@@ -47,7 +49,9 @@ import HSChain.Control.Class
 import HSChain.Crypto.Classes
 import HSChain.Store.Query
 import HSChain.Logger
+import HSChain.Config
 import HSChain.Types.Merkle.Tree
+import HSChain.Network.Types
 import HSChain.Network.TCP
 import HSChain.PoW.API
 import qualified HSChain.Control.Channels as HControl
@@ -68,6 +72,17 @@ import Hschain.Utxo.Pow.App.Types
  
 -------------------------------------------------------------------------------
 -- Executable part.
+
+-- |Node's configuration.
+data Cfg = Cfg
+  { cfgPort    :: Word16
+  , cfgPeers   :: [NetAddr]
+  , cfgLog     :: [ScribeSpec]
+  , cfgDB      :: Maybe FilePath
+  , cfgWebAPI  :: Maybe Int
+  }
+  deriving stock (Show, Generic)
+  deriving (JSON.FromJSON) via SnakeCase (DropSmart (Config Cfg))
 
 data UTXOEnv = UTXOEnv
   { ueLogEnv      :: !LogEnv
@@ -151,23 +166,24 @@ genesisMock = POW.Block
 -------------------------------------------------------------------------------
 -- Node.
 
-runNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> POW.Cfg -> Maybe c -> IO ()
-runNode genesisBlk POW.Cfg{..} maybePrivK = do
+runNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> Cfg -> Maybe c -> IO ()
+runNode genesisBlk Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
-      netcfg = POW.NetCfg { POW.nKnownPeers     = 3
-                          , POW.nConnectedPeers = 3
-                          }
+      netcfg = POW.NodeCfg { POW.nKnownPeers     = 3
+                           , POW.nConnectedPeers = 3
+                           , POW.initialPeers    = cfgPeers
+                           }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
     withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv -> runUTXOT logEnv conn $ evalContT $ do
       -- Initialize PoW node
       (db, bIdx, sView) <- lift $ utxoStateView genesisBlk
       c0  <- lift $ POW.createConsensus db sView bIdx
-      pow <- POW.startNode netcfg net cfgPeers db c0
+      pow <- POW.startNode netcfg net db c0
       -- Report progress
       void $ liftIO $ forkIO $ do
         ch <- HControl.atomicallyIO (POW.chainUpdate pow)
-        forever $ do (bh,_) <- HControl.awaitIO ch
+        forever $ do bh <- POW.stateBH <$> HControl.awaitIO ch
                      print (POW.bhHeight bh, POW.bhBID bh)
                      print $ POW.retarget bh
       -- Start web API
@@ -184,9 +200,9 @@ runNode genesisBlk POW.Cfg{..} maybePrivK = do
         Just _privk -> do
           -- FIXME: add sensible spend script
           let script = coreProgToScript $ EPrim (PrimBool True)
-              mine st bh t txs = do
-                bData <- createUtxoCandidate st bh script txs
-                pure $ POW.createCandidateBlock bh t bData
+              mine st t txs = do
+                bData <- createUtxoCandidate st script txs
+                pure $ POW.createCandidateBlock (POW.stateBH st) t bData
           HControl.cforkLinked $ POW.genericMiningLoop mine pow
         Nothing -> return ()
       -- Wait forever

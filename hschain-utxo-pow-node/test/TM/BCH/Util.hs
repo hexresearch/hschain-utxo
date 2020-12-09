@@ -85,7 +85,7 @@ genesis = Block
 
 -- | Monad for manual creation of blocks. It tracks blockchain head
 -- and able to create new block on request.
-newtype Mine a = Mine (ReaderT ( Src (BH Blk, UtxoState (HSChainT IO) MockChain)
+newtype Mine a = Mine (ReaderT ( Src (UtxoState (HSChainT IO) MockChain)
                                , PoW (UtxoState (HSChainT IO) MockChain)
                                , BlockDB (HSChainT IO) Blk
                                )
@@ -101,7 +101,7 @@ runMiner (Mine action) = withHSChainT $ evalContT $ do
   mock <- liftIO newMockNet
   (db, bIdx, sView) <- lift $ utxoStateView genesis
   cns <- lift $ createConsensus db sView bIdx
-  pow <- startNode netcfg (createMockNode mock (NetAddrV4 1 1000)) [] db cns
+  pow <- startNode netcfg (createMockNode mock (NetAddrV4 1 1000)) db cns
   -- Start node and
   lift $ do
     upd <- atomicallyIO $ chainUpdate pow
@@ -109,9 +109,10 @@ runMiner (Mine action) = withHSChainT $ evalContT $ do
     flip evalStateT bh
       $ runReaderT action (upd, pow, db)
   where
-    netcfg = NetCfg { nKnownPeers     = 3
-                    , nConnectedPeers = 3
-                    }
+    netcfg = NodeCfg { nKnownPeers     = 3
+                     , nConnectedPeers = 3
+                     , initialPeers    = []
+                     }
 
 -- | Create block with coinbase spendable by given public key. If
 --   @Nothing@ is provided coinbase will be spendable by anyone. If
@@ -181,9 +182,9 @@ mineBlockE mpk mFee txs = Mine $ do
   case res of
     Left  e  -> pure $ Left e
     Right () -> do
-      liftIO (timeout 1e6 (atomically $ await upd)) >>= \case
-        Nothing      -> error "Blockchain timed out"
-        Just (bh',_) -> do
+      liftIO (timeout 1e6 (atomically $ stateBH <$> await upd)) >>= \case
+        Nothing  -> error "Blockchain timed out"
+        Just bh' -> do
           -- Check total balance of live UTXO
           r <- queryRO $ basicQuery_
             "SELECT box \
