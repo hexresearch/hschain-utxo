@@ -185,8 +185,10 @@ trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fro
     getFreeVars :: Bind Lang -> Seq.Seq VarName
     getFreeVars  = Seq.fromList . S.toList . freeVarsBg . fmap (fmap freeVars) . pure
 
-    baseNamesSet = S.fromList $ constrNames <> baseNames
+    baseNamesSet = S.fromList $ constrNames <> recordFieldNames <> baseNames
     isPreludeFun v = S.member (varName'name v) baseNamesSet
+
     constrNames = fmap consName'name $ M.keys $ userTypeCtx'constrs $ module'userTypes m
+    recordFieldNames = M.keys $ userTypeCtx'recFields $ module'userTypes m
 
 

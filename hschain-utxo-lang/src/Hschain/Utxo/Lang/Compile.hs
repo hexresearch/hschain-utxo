@@ -56,8 +56,9 @@ compile
  <=< trimModuleByMain
 
 -- | Inlines all prelude functions
+-- and all record field selectors
 inlinePrelude :: Module -> Module
-inlinePrelude = inlineExecCtx baseLibExecCtx
+inlinePrelude m = inlineExecCtx (baseLibExecCtx <> recFieldExecCtx (module'userTypes m)) m
 
 -- | Reduces all simple applications:
 --

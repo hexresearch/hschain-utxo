@@ -254,9 +254,20 @@ failCaseVar = secretVar "failCase"
 -- or record getters and modifiers.
 userTypesToTypeContext :: UserTypeCtx -> TypeContext
 userTypesToTypeContext (UserTypeCtx m _ _ _ _) =
-     foldMap fromUserType m
-  <> foldMap getSelectors m
+     foldMap fromUserType userWithPreludeTypes
+  <> foldMap getSelectors userWithPreludeTypes
   where
+    userWithPreludeTypes = maybeType <> m
+
+    maybeType = M.singleton "Maybe" $ UserType
+      { userType'name  = "Maybe"
+      , userType'args  = ["a"]
+      , userType'cases = M.fromList
+          [ ("Nothing", ConsDef mempty)
+          , ("Just",    ConsDef $ V.singleton $ varT "a")
+          ]
+      }
+
     fromUserType u@UserType{..} = H.Context $ M.fromList $ fromCase =<< M.toList userType'cases
       where
         resT = toResT u

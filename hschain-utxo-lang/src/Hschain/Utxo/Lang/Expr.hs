@@ -151,6 +151,17 @@ userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty 
 
     eraseLoc = H.setLoc ()
 
+recFieldExecCtx :: UserTypeCtx -> ExecCtx
+recFieldExecCtx UserTypeCtx{..} =
+  ExecCtx $ M.mapKeys (VarName noLoc) $ M.mapWithKey recSelectorExpr userTypeCtx'recFields
+
+recSelectorExpr :: Text -> (ConsName, RecordFieldOrder) -> Lang
+recSelectorExpr field (cons, RecordFieldOrder fields) =
+  Fix $ Lam noLoc (PCons noLoc cons args) $ Fix $ Var noLoc v
+  where
+    v = VarName noLoc "$v"
+    args = fmap (\x -> if (field == x) then (PVar noLoc v) else PWildCard noLoc) fields
+
 
 setupUserTypeInfo :: UserTypeCtx -> UserTypeCtx
 setupUserTypeInfo = setupCoreTypeInfo . setupConsInfo . setupUserRecords
@@ -227,46 +238,18 @@ data UserType = UserType
   , userType'cases      :: !(Map ConsName ConsDef) -- ^ List of constructors
   } deriving (Show, Eq, Data, Typeable)
 
+-- | Core representation of user data-types with constructors.
 newtype CoreUserType = CoreUserType
   { coreUserType'cases  :: Map ConsName CoreConsDef
   } deriving (Show, Eq, Data)
 
-userTypeToCore :: UserType -> CoreUserType
-userTypeToCore utype = CoreUserType
-  { coreUserType'cases = M.mapWithKey (\name def -> CoreConsDef
-      { coreConsDef'sum   = liftA2 (,) (getOrder name) sumTs
-      , coreConsDef'tuple = toTup def
-      }) $ userType'cases utype
-  }
-  where
-    sumTs
-      | length constrs < 2 = Nothing
-      | otherwise          = Just $ V.fromList $ fmap (toSumArg . snd) constrs
-
-    constrs = M.toList $ userType'cases utype
-    constrOrderMap = M.fromList $ zipWith (\n (name, _) -> (name, n)) [0..] constrs
-
-    toTup = fmap eraseLoc . getConsTypes
-
-    toSumArg :: ConsDef -> H.Type () Name
-    toSumArg def
-      | arity == 0 = unitT
-      | arity == 1 = eraseLoc $ V.head ts
-      | otherwise  = tupleT $ V.toList $ fmap eraseLoc ts
-      where
-        arity = V.length ts
-        ts = getConsTypes def
-
-    eraseLoc = H.setLoc ()
-
-    getOrder n = M.lookup n constrOrderMap
-
-
 -- | Every user constructor is transformed
 -- to combination of tuple and sum type constructors
 data CoreConsDef = CoreConsDef
-  { coreConsDef'sum   :: Maybe (Int, Vector (H.Type () Name))
-  , coreConsDef'tuple :: Vector (H.Type () Name)
+  { coreConsDef'sum   :: Maybe (Int, Vector (H.Type () Name)) -- ^ sum type constructor spec
+                                                              --  sometimes we do not need sum nad tuple is enough
+                                                              --  then it's omited (value Nothing)
+  , coreConsDef'tuple :: Vector (H.Type () Name)              -- ^ Multiple arguments are enocded as tuples
   } deriving (Show, Eq, Data)
 
 
