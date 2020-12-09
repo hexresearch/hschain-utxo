@@ -69,7 +69,9 @@ maxTupleSize = 6
 -- and expression ot infer the type.
 inferExpr :: InferCtx -> Lang -> InferM Type
 inferExpr (InferCtx typeCtx userTypes) =
-  (InferM . lift . eitherTypeError . H.inferType (baseLibTypeContext <> defaultContext <> typeCtx)) <=< reduceExpr userTypes
+  (InferM . lift . eitherTypeError . H.inferType (baseLibTypeContext <> userTypesCtx <> defaultContext <> typeCtx)) <=< reduceExpr userTypes
+  where
+    userTypesCtx = userTypesToTypeContext userTypes
 
 -- | Convert expression of our language to term of simpler language
 -- that can be type-checked by the library.
@@ -254,20 +256,9 @@ failCaseVar = secretVar "failCase"
 -- or record getters and modifiers.
 userTypesToTypeContext :: UserTypeCtx -> TypeContext
 userTypesToTypeContext (UserTypeCtx m _ _ _ _) =
-     foldMap fromUserType userWithPreludeTypes
-  <> foldMap getSelectors userWithPreludeTypes
+     foldMap fromUserType m
+  <> foldMap getSelectors m
   where
-    userWithPreludeTypes = maybeType <> m
-
-    maybeType = M.singleton "Maybe" $ UserType
-      { userType'name  = "Maybe"
-      , userType'args  = ["a"]
-      , userType'cases = M.fromList
-          [ ("Nothing", ConsDef mempty)
-          , ("Just",    ConsDef $ V.singleton $ varT "a")
-          ]
-      }
-
     fromUserType u@UserType{..} = H.Context $ M.fromList $ fromCase =<< M.toList userType'cases
       where
         resT = toResT u

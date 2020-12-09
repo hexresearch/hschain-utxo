@@ -81,13 +81,18 @@ userCoreTypeMap :: Map Name UserType -> UserCoreTypeCtx
 userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty mempty)
   where
     go :: (Name, UserType) -> State UserCoreTypeCtx ()
-    go (name, def) = do
-      st <- get
-      case M.lookup name $ userCoreTypeCtx'types st of
-        Just _   -> return ()
-        Nothing  -> do
-          t <- convertUserType def
-          modify' $ \env -> env { userCoreTypeCtx'types = M.insert name t $ userCoreTypeCtx'types env }
+    go (name, def)
+      | isBaseType name = return ()
+      | otherwise       = do
+          st <- get
+          case M.lookup name $ userCoreTypeCtx'types st of
+            Just _   -> return ()
+            Nothing  -> do
+              t <- convertUserType def
+              modify' $ \env -> env { userCoreTypeCtx'types = M.insert name t $ userCoreTypeCtx'types env }
+
+    isBaseType x = Set.member x baseTypes
+    baseTypes = Set.fromList ["Maybe"]
 
     convertUserType UserType{..} = do
       mapM_ addCons constrs

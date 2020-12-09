@@ -22,6 +22,7 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypes)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -142,7 +143,7 @@ fromDecls loc ds = do
 
 toUserTypes :: [Decl] -> UserTypeCtx
 toUserTypes ds =
-  setupUserTypeInfo $ (\ts -> UserTypeCtx ts mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
+  setupUserTypeInfo $ (\ts -> UserTypeCtx (baseLibTypes <> ts) mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
   where
     getTypeDecl = \case
       DataDecl userType -> Just userType

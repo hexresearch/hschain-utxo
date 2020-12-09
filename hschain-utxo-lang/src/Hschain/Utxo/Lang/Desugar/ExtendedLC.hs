@@ -38,6 +38,8 @@ import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Type.Check.HM as H
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
 toExtendedLC :: MonadLang m => Module -> m LamProg
@@ -119,6 +121,8 @@ exprToExtendedLC typeCtx = cataM $ \case
     fromCaseOf loc expr alts =
       case alts of
         [alt] -> case caseExpr'lhs alt of
+          PCons ploc cons _  | consName'name cons == "Nothing" -> return $ Fix $ ECase loc expr $ pure $ nothingCaseAlt ploc alt
+          PCons ploc cons ps | consName'name cons == "Just"    -> fmap (Fix . ECase loc expr . pure) $ justCaseAlt ploc alt ps
           PCons _ cons [p] -> do
             coreDef <- getCoreConsDef typeCtx cons
             if isSingleCons coreDef
@@ -133,22 +137,9 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromCaseOfMultiAlts loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
 
-    fromCaseAlt CaseExpr{..} = case caseExpr'lhs of
-      PCons loc cons _ | consName'name cons == "Nothing" ->
-        return $ CaseAlt
-                  { caseAlt'loc  = loc
-                  , caseAlt'tag  = ConNothing (H.varT () "a")
-                  , caseAlt'args = []
-                  , caseAlt'rhs  = caseExpr'rhs
-                  }
-      PCons loc cons ps | consName'name cons == "Just"    -> do
-        args <- mapM fromPat ps
-        return $ CaseAlt
-                  { caseAlt'loc  = loc
-                  , caseAlt'tag  = ConJust (H.varT () "a")
-                  , caseAlt'args = args
-                  , caseAlt'rhs  = caseExpr'rhs
-                  }
+    fromCaseAlt cexpr@CaseExpr{..} = case caseExpr'lhs of
+      PCons loc cons _  | consName'name cons == "Nothing" -> return $ nothingCaseAlt loc cexpr
+      PCons loc cons ps | consName'name cons == "Just"    -> justCaseAlt loc cexpr ps
       PCons loc cons ps -> do
         coreDef <- getCoreConsDef typeCtx cons
         args  <- mapM fromPat ps
@@ -173,6 +164,22 @@ exprToExtendedLC typeCtx = cataM $ \case
       where
         tupleArgsT   arity = vs arity
         vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
+
+    nothingCaseAlt loc CaseExpr{..} = CaseAlt
+                  { caseAlt'loc  = loc
+                  , caseAlt'tag  = ConNothing (H.varT () "a")
+                  , caseAlt'args = []
+                  , caseAlt'rhs  = caseExpr'rhs
+                  }
+
+    justCaseAlt loc CaseExpr{..} ps = do
+      args <- mapM fromPat ps
+      pure $ CaseAlt
+              { caseAlt'loc  = loc
+              , caseAlt'tag  = ConJust (H.varT () "a")
+              , caseAlt'args = args
+              , caseAlt'rhs  = caseExpr'rhs
+              }
 
     fromCoreCase :: MonadLang m => Loc -> CoreConsDef -> [Name] -> ExprLam Text -> m (CaseAlt Text (ExprLam Text))
     fromCoreCase loc CoreConsDef{..} args rhs = case coreConsDef'sum of
@@ -239,7 +246,7 @@ getCoreConsDef :: MonadLang m => UserTypeCtx -> ConsName -> m CoreConsDef
 getCoreConsDef UserTypeCtx{..} cons@ConsName{..} =
   maybe err pure $ M.lookup consName'name $ userCoreTypeCtx'constrs userTypeCtx'core
   where
-    err = throwError $ ExecError $ UnboundVariables [consToVarName cons]
+    err = throwError $ trace "\n\nXXX" $ ExecError $ UnboundVariables [consToVarName cons]
 
 fromType :: H.Type loc v -> H.Type () v
 fromType = H.mapLoc (const ())

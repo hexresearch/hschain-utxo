@@ -5,9 +5,15 @@ import qualified TM.Core.Bytes
 import qualified TM.Core.Int
 import qualified TM.Core.List
 import qualified TM.Lang.Scripts
+import qualified TM.Lang.UserTypes
 import qualified TM.Tx.Sigma
 import qualified TM.Tx.Sign
 
+main :: IO ()
+main = defaultMain $ testGroup "lang"
+  [ TM.Lang.UserTypes.tests ]
+
+{-
 main :: IO ()
 main = defaultMain $ testGroup "lang"
   [ TM.Core.tests
@@ -16,6 +22,8 @@ main = defaultMain $ testGroup "lang"
   , TM.Core.Int.tests
   , TM.Core.List.tests
   , TM.Lang.Scripts.tests
+  , TM.Lang.UserTypes.tests
   , TM.Tx.Sigma.tests
   , TM.Tx.Sign.tests
   ]
+-}
