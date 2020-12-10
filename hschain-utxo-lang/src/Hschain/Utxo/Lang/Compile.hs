@@ -190,7 +190,7 @@ toCoreType (H.Type ty) = cataM go ty
     -- FIXME: add sane error messages
     go = \case
       H.ArrowT _ a b       -> pure $ a :-> b
-      H.VarT _ _           -> failedToFindMonoType noLoc "Type variable encountered"
+      H.VarT _ _           -> failedToFindMonoType noLoc $ "Type variable encountered: " <> renderText (H.Type ty)
       H.TupleT _ xs        -> pure $ TupleT xs
       H.ListT  _ a         -> pure $ ListT a
       H.ConT _ "Int"   []  -> pure IntT

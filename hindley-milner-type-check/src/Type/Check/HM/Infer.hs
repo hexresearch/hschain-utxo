@@ -306,7 +306,8 @@ inferAssertType :: Lang q => ContextOf' q -> Origin (Src q) -> TermOf' q -> Type
 inferAssertType ctx loc a ty = do
   (phi, aTyTerm) <- infer ctx a
   subst <- genSubtypeOf phi ty (termType aTyTerm)
-  return (phi <> subst, tyAssertTypeE loc aTyTerm ty)
+  let subst' = phi <> subst
+  return (subst', apply subst' $ tyAssertTypeE loc aTyTerm ty)
 
 inferConstr :: Lang q => Origin (Src q) -> TypeOf' q -> Name (Var q) -> InferOf q
 inferConstr loc ty tag = do
