@@ -31,6 +31,7 @@ library
                      , hex-common
                      , hschain-crypto
                      , hschain-db
+                     , hschain-config
                      , hschain-merkle
                      , hschain-utxo-lang
                      , hschain-PoW
