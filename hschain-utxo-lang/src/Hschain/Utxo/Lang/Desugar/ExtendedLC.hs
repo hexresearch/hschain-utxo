@@ -38,8 +38,6 @@ import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Type.Check.HM as H
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- | Transforms script-language programms so that they are defined in terms of the  limited lambda-calculus.
 -- Desugars syntax in many ways (like elimination of records, guards, pattern-matchings)
 toExtendedLC :: MonadLang m => Module -> m LamProg
@@ -248,7 +246,7 @@ getCoreConsDef :: MonadLang m => UserTypeCtx -> ConsName -> m CoreConsDef
 getCoreConsDef UserTypeCtx{..} cons@ConsName{..} =
   maybe err pure $ M.lookup consName'name $ userCoreTypeCtx'constrs userTypeCtx'core
   where
-    err = throwError $ trace "\n\nXXX" $ ExecError $ UnboundVariables [consToVarName cons]
+    err = throwError $ ExecError $ UnboundVariables [consToVarName cons]
 
 fromType :: H.Type loc v -> H.Type () v
 fromType = H.mapLoc (const ())

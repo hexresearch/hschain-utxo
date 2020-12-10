@@ -11,11 +11,6 @@ import qualified TM.Tx.Sign
 
 main :: IO ()
 main = defaultMain $ testGroup "lang"
-  [ TM.Lang.UserTypes.tests ]
-
-{-
-main :: IO ()
-main = defaultMain $ testGroup "lang"
   [ TM.Core.tests
   , TM.Core.Box.tests
   , TM.Core.Bytes.tests
@@ -26,4 +21,3 @@ main = defaultMain $ testGroup "lang"
   , TM.Tx.Sigma.tests
   , TM.Tx.Sign.tests
   ]
--}

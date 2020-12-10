@@ -44,6 +44,7 @@ baseLibExecCtx = ExecCtx
       , bind "otherwise"    (Fix $ PrimE noLoc $ PrimBool P.True)
       , bind "fst"          (lamPair $ var' "a")
       , bind "snd"          (lamPair $ var' "b")
+      -- maybe funs
       , bind "maybe"        maybeDefn
       , bind "mapMaybe"     mapMaybeDefn
       , bind "fromJust"     fromJustDefn
@@ -104,7 +105,7 @@ baseLibExecCtx = ExecCtx
     fromJustDefn = lam' ["x"] $ Fix $ CaseOf noLoc (var' "x")
       [ CaseExpr
           { caseExpr'lhs = PCons noLoc "Just" [PVar noLoc "a"]
-          , caseExpr'rhs = var' "x"
+          , caseExpr'rhs = var' "a"
           }
       ]
 
@@ -249,7 +250,8 @@ baseLibTypeContext = H.Context $ M.fromList $
 
 baseLibTypes :: Map VarName UserType
 baseLibTypes = M.fromList
-  [("Maybe", maybeType)]
+  [("Maybe", maybeType)
+  ,("[]", listType) ]
   where
     maybeType = UserType
       { userType'name  = "Maybe"
