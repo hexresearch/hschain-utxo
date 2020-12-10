@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 -- | Converts ExprCore to haskell expression.
 -- We ues it to borrow pretty-printer from haskell-src-exts
 module Hschain.Utxo.Lang.Core.ToHask(
@@ -10,7 +11,10 @@ import Hex.Common.Text (showt)
 
 import Data.ByteString (ByteString)
 import Data.Fix
+import Data.Char
+import Data.List (unfoldr,nub)
 import Data.Void
+import Data.Word
 import Data.Text (Text)
 
 import HSChain.Crypto.Classes (ByteRepr(..), encodeBase58)
@@ -155,3 +159,65 @@ toQName name = H.UnQual () $ toName name
 
 toName :: Text -> H.Name ()
 toName name = H.Ident () $ T.unpack name
+
+
+-- LGC name generator
+--
+-- We need way to conjure names for variables and sequential numbering
+-- is too repetitive. So we use LCG in order to generate sequence of
+-- non-repeating N-grams for use as identifiers. Here's definition of
+-- LCG:
+--
+-- > x[n+1] = a·x[n] + c  `mod` m
+--
+-- Since we want to generate N-grams we should choose `m` as 26^n and
+-- for a suitable choice of `a` & `c` we'll get full period generator
+-- which will produce 26^n N-grams shuffled in some way. They will
+-- appear random for reader which is quite sufficient for our purposes
+--
+-- Here is requirements on choice of coefficients (Hull–Dobell Theorem):
+--
+--  1. `m` and `c` are relatively prime,
+--  2. `a − 1` is divisible by all prime factors of `m`
+--  3. `a − 1` is divisible by 4 if `m` is divisible by 4.
+--
+-- They could be satisfied by following choices:
+--
+--   m = 26^n
+--   a = 26^(n-1) + 1
+--   c = 17^n
+--
+-- This is not the best generator but sequence looks random enough and
+-- what important there's no duplicates!
+
+-- Effectively infinite stream of unique names
+identifierStream :: [String]
+identifierStream = concat [ randomNames (lcgName n) | n <- [4..10]]
+
+data LCGName = LCGName
+  { lcgM :: !Word64
+  , lcgA :: !Word64
+  , lcgC :: !Word64
+  , lcgN :: !Int
+  }
+
+lcgName :: Int -> LCGName
+lcgName n
+  | n < 3     = error "lcgName: we won't get full period"
+  | n > 13    = error "lcgName: Word64 will overflow"
+  | otherwise = LCGName { lcgM = 26^n
+                        , lcgA = 26^(n-1) + 1
+                        , lcgC = 17^n
+                        , lcgN = n
+                        }
+
+randomNames :: LCGName -> [String]
+randomNames lcg@LCGName{..}
+  = map (toIdent lcg) $ take (26^lcgN) $ iterate step 0
+  where
+    step x = (lcgA*x + lcgC) `mod` lcgM
+
+toIdent :: LCGName -> Word64 -> String
+toIdent LCGName{lcgN=n} = take n . unfoldr toC
+  where
+    toC ((`divMod` 26) -> (x',c)) = Just (chr $ ord 'a' + fromIntegral c, x')
