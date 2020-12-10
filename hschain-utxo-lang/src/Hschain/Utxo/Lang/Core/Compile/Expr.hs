@@ -179,7 +179,7 @@ conType = \case
   ConCons a    -> Just $ H.arrowT () a $ H.arrowT () (H.listT () a) (H.listT () a)
   ConNothing a -> Just $ maybeT a
   ConJust a    -> Just $ H.arrowT () a $ maybeT a
-  ConUnit      -> Just $ H.conT () "Unit" []
+  ConUnit      -> Just $ H.conT () "()" []
   ConTuple ts  -> Just $ V.foldr (H.arrowT ()) (H.tupleT () $ V.toList ts) ts
   ConSum n ts  -> fmap (\arg -> H.arrowT () arg (sumT ts)) (ts V.!? n)
   where

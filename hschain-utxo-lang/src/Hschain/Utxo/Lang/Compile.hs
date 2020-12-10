@@ -199,7 +199,7 @@ toCoreType (H.Type ty) = cataM go ty
       H.ConT _ "Bytes" []  -> pure BytesT
       H.ConT _ "Sigma" []  -> pure SigmaT
       H.ConT _ "Box"   []  -> pure BoxT
-      H.ConT _ "Unit"  []  -> pure UnitT
+      H.ConT _ "()"    []  -> pure UnitT
       H.ConT _ "Maybe" [a] -> pure $ MaybeT a
       H.ConT _  con ts | "Sum" `T.isPrefixOf` con -> pure $ SumT ts
       H.ConT _ _ _         -> failedToFindMonoType noLoc "Unknown type"
