@@ -250,8 +250,7 @@ baseLibTypeContext = H.Context $ M.fromList $
 
 baseLibTypes :: Map VarName UserType
 baseLibTypes = M.fromList
-  [("Maybe", maybeType)
-  ,("[]", listType) ]
+  [("Maybe", maybeType) ]
   where
     maybeType = UserType
       { userType'name  = "Maybe"
