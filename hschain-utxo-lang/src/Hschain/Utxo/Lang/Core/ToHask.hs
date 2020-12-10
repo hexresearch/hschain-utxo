@@ -9,10 +9,11 @@ module Hschain.Utxo.Lang.Core.ToHask(
 
 import Hex.Common.Text (showt)
 
+import Control.Monad.State.Strict
 import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Char
-import Data.List (unfoldr,nub)
+import Data.List (unfoldr)
 import Data.Void
 import Data.Word
 import Data.Text (Text)
@@ -40,36 +41,47 @@ instance IsVarName Void where
   toVarName = absurd
 
 toHaskExprCore :: IsVarName a => Core a -> H.Exp ()
-toHaskExprCore = \case
-  EVar v             -> toVar $ toVarName v
-  BVar i             -> toVar $ T.pack $ "@" ++ show i
-  EPrim p            -> fromPrim p
-  EPrimOp op         -> toVar $ toOpName op
-  ELam ty body ->
-    let (ps, expr) = getLamPats [("_", ty)] body
-    in  H.Lambda () (fmap (uncurry toPat) ps) $ rec expr
-  EAp f a            -> H.App () (rec f) (rec a)
-  ELet rhs body ->
-    let (bs, expr) = getLetBinds [("_", rhs)] body
-    in  H.Let () (toBinds bs) (rec expr)
-  EIf c t e          -> H.If () (rec c) (rec t) (rec e)
-  ECase e alts       -> H.Case () (rec e) (fmap fromAlt alts)
-  EConstr con        -> let hcon = H.Con () (toQName $ conName con)
-                        in  maybe hcon ((\t -> H.ExpTypeSig () hcon t) . fromTypeCore) (conCoreType con)
-  EBottom            -> H.Var () (toQName "bottom")
+toHaskExprCore = flip evalState (T.pack . ("x_"++) <$> identifierStream) . go
   where
-    rec = toHaskExprCore
+    go = \case
+      EVar v     -> pure $ toVar $ toVarName v
+      BVar i     -> do x <- freshName
+                       pure $ toVar $ x <> "@" <> showt i
+      EPrim p    -> pure $ fromPrim p
+      EPrimOp op -> pure $ toVar $ toOpName op
+      ELam ty body -> do
+        (pats, expr) <- getLamPats ty body
+        H.Lambda () (fmap (uncurry toPat) pats) <$> go expr
+      EAp f a            -> H.App () <$> go f <*> go a
+      ELet rhs body -> do
+        (binds, expr) <- getLetBinds rhs body
+        H.Let () <$> toBinds binds <*> go expr
+      EIf c t e          -> H.If () <$> go c <*> go t <*> go e
+      ECase e alts       -> H.Case () <$> go e <*> traverse fromAlt alts
+      EConstr con        -> let hcon = H.Con () (toQName $ conName con)
+                            in pure $  maybe hcon ((\t -> H.ExpTypeSig () hcon t) . fromTypeCore) (conCoreType con)
+      EBottom            -> pure $ H.Var () (toQName "bottom")
+
+    freshName = get >>= \case
+      []   -> error "toHaskExprCore: out of names"
+      n:ns -> n <$ put ns
 
     toVar = H.Var () . toQName
     toPat name ty = H.PatTypeSig () (H.PVar () (toName name)) (fromTypeCore ty)
 
-    getLamPats res = \case
-      ELam ty body -> getLamPats (("_", ty) : res) body
-      other        -> (reverse res, other)
+    getLamPats ty expr = do
+      x <- freshName
+      case expr of
+        ELam ty' body -> do (pats,e) <- getLamPats ty' body
+                            pure ((x,ty):pats, e)
+        _             -> pure ([(x,ty)], expr)
 
-    getLetBinds res = \case
-      ELet rhs body -> getLetBinds (("_", rhs) : res) body
-      other         -> (reverse res, other)
+    getLetBinds rhs expr = do
+      x <- freshName
+      case expr of
+        ELet rhs' body -> do (binds,e) <- getLetBinds rhs' body
+                             pure ((x,rhs):binds, e)
+        _              -> pure ([(x,rhs)], expr)
 
     fromPrim = \case
       PrimInt n     -> H.Lit () $ H.Int () (fromIntegral n) (show n)
@@ -85,16 +97,16 @@ toHaskExprCore = \case
     fromBool b = H.Con () $ if b then toQName "True" else toQName "False"
 
     fromSigma :: Sigma ByteString -> H.Exp ()
-    fromSigma x = cata go x
+    fromSigma = cata rec
       where
-        go = \case
+        rec = \case
           SigmaPk pkey -> let keyTxt = encodeBase58 pkey
-                          in  ap Const.pk $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
+                          in  ap1 Const.pk $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
           SigmaAnd as  -> foldl1 (ap2 Const.sigmaAnd) as
           SigmaOr  as  -> foldl1 (ap2 Const.sigmaOr) as
           SigmaBool b  -> fromBool b
 
-        ap f a = H.App () (toVar f) a
+        ap1 f a = H.App () (toVar f) a
         ap2 f a b = H.App src (H.App () (toVar f) a) b
 
         lit = H.Lit ()
@@ -125,17 +137,19 @@ toHaskExprCore = \case
       where
         (=:) name t = mconcat [name, "@", T.pack $ H.prettyPrint $ fromTypeCore t]
 
-    fromAlt CaseAlt{..} = H.Alt () (H.PApp () cons pats) (toRhs caseAlt'rhs) Nothing
+    fromAlt CaseAlt{..} = do
+      pats <- fmap (H.PVar () . toName) <$> replicateM caseAlt'nVars freshName
+      rhs  <- H.UnGuardedRhs () <$> go caseAlt'rhs
+      pure $ H.Alt () (H.PApp () cons pats) rhs Nothing
       where
         cons = toQName $ "Con" <> showt caseAlt'tag
-        pats = fmap (H.PVar () . toName) $ replicate caseAlt'nVars "_"
 
-    toBinds xs = H.BDecls () $ fmap toBind xs
+    toBinds xs = H.BDecls () <$> traverse toBind xs
       where
-        toBind (name, expr) = H.FunBind ()
-          [H.Match () (toName name) [] (H.UnGuardedRhs () $ rec expr) Nothing]
+        toBind (name, expr) = do
+          hs <- go expr
+          pure $ H.FunBind () [H.Match () (toName name) [] (H.UnGuardedRhs () hs) Nothing]
 
-    toRhs expr = H.UnGuardedRhs () $ rec expr
 
 fromTypeCore :: TypeCore -> H.Type ()
 fromTypeCore = \case
