@@ -22,6 +22,9 @@ import Control.Arrow
 import Data.Data
 import Data.Fix
 import Data.Set (Set)
+import Data.Eq.Deriving
+import Data.Ord.Deriving
+import Text.Show.Deriving
 
 import Type.Check.HM.Subst
 import Type.Check.HM.Type
@@ -67,6 +70,16 @@ data Bind loc var r = Bind
   , bind'lhs :: var             -- ^ Variable name
   , bind'rhs :: r               -- ^ Definition (right-hand side)
   } deriving (Show, Eq, Functor, Foldable, Traversable, Data)
+
+$(deriveShow1 ''TermF)
+$(deriveEq1   ''TermF)
+$(deriveOrd1  ''TermF)
+$(deriveShow1 ''Bind)
+$(deriveEq1   ''Bind)
+$(deriveOrd1  ''Bind)
+$(deriveShow1 ''CaseAlt)
+$(deriveEq1   ''CaseAlt)
+$(deriveOrd1  ''CaseAlt)
 
 -- | The type of terms.
 newtype Term prim loc v = Term { unTerm :: Fix (TermF prim loc v) }

@@ -19,6 +19,9 @@ module Type.Check.HM.TyTerm(
 import Control.Arrow
 
 import Data.Fix
+import Data.Eq.Deriving
+import Data.Ord.Deriving
+import Text.Show.Deriving
 
 import Type.Check.HM.Subst
 import Type.Check.HM.Type
@@ -30,6 +33,11 @@ data Ann note f a = Ann
   { ann'note  :: note
   , ann'value :: f a
   } deriving (Show, Eq, Functor, Foldable, Traversable)
+
+$(deriveShow1 ''Ann)
+$(deriveEq1   ''Ann)
+$(deriveOrd1  ''Ann)
+
 
 -- | Terms with type annotations for all subexpressions.
 newtype TyTerm prim loc v = TyTerm { unTyTerm :: Fix (Ann (Type loc v) (TermF prim loc v)) }

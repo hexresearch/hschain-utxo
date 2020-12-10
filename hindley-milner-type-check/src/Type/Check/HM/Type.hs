@@ -84,12 +84,6 @@ class (Show v, Ord v) => IsVar v where
   -- | Canonical leters for pretty output
   prettyLetters :: [v]
 
--- | Values that are tagged explicitly with their type.
-data Typed loc v a = Typed
-  { typed'type  :: Type loc v
-  , typed'value :: a
-  } deriving (Show, Eq, Functor, Foldable, Traversable, Data)
-
 instance IsVar String where
   prettyLetters = stringPrettyLetters
 
@@ -104,25 +98,6 @@ stringPrettyLetters = fmap fromString $ [1..] >>= flip replicateM ['a'..'z']
 
 instance DefLoc () where
   defLoc = ()
-
-instance HasLoc (Type loc v) where
-  type Loc (Type loc v) = loc
-
-  getLoc (Type (Fix x)) = case x of
-    VarT   loc _   -> loc
-    ConT   loc _ _ -> loc
-    ArrowT loc _ _ -> loc
-    TupleT loc _   -> loc
-    ListT  loc _   -> loc
-
-instance HasLoc (Signature loc var) where
-  type Loc (Signature loc var) = loc
-
-  getLoc (Signature x) = cata go x
-    where
-      go = \case
-        MonoT ty        -> getLoc ty
-        ForAllT loc _ _ -> loc
 
 -- | Type functor. Arguments are
 --
@@ -142,9 +117,28 @@ data TypeF loc var r
     | ListT loc r       -- ^ Special case of ConT that is rendered as [a]
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Data)
 
+$(deriveShow1 ''TypeF)
+$(deriveEq1   ''TypeF)
+$(deriveOrd1  ''TypeF)
+
+-- | Values that are tagged explicitly with their type.
+data Typed loc v a = Typed
+  { typed'type  :: Type loc v
+  , typed'value :: a
+  } deriving (Show, Eq, Ord, Functor, Foldable, Traversable, Data)
+
 -- | Monomorphic types.
 newtype Type loc var = Type { unType :: Fix (TypeF loc var) }
   deriving (Show, Eq, Ord, Generic, Data)
+
+instance HasLoc (Type loc v) where
+  type Loc (Type loc v) = loc
+  getLoc (Type (Fix x)) = case x of
+    VarT   loc _   -> loc
+    ConT   loc _ _ -> loc
+    ArrowT loc _ _ -> loc
+    TupleT loc _   -> loc
+    ListT  loc _   -> loc
 
 instance (NFData loc, NFData var) => NFData (Type loc var) where
   rnf (Type m) = cata go m where
@@ -184,6 +178,10 @@ data SignatureF loc var r
     | MonoT (Type loc var)  -- ^ contains the type
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Data)
 
+$(deriveShow1 ''SignatureF)
+$(deriveEq1   ''SignatureF)
+$(deriveOrd1  ''SignatureF)
+
 -- | Signaure is a special type that we need for type inference algorithm.
 -- We specify which variables in the type are schematic (non-free).
 newtype Signature loc var = Signature { unSignature :: Fix (SignatureF loc var)
@@ -205,6 +203,14 @@ instance Functor (Type a) where
         ArrowT loc a b     -> Fix $ ArrowT loc a b
         TupleT loc as      -> Fix $ TupleT loc as
         ListT loc a        -> Fix $ ListT loc a
+
+instance HasLoc (Signature loc var) where
+  type Loc (Signature loc var) = loc
+  getLoc (Signature x) = cata go x
+    where
+      go = \case
+        MonoT ty        -> getLoc ty
+        ForAllT loc _ _ -> loc
 
 -- | Mapping over source code locations. It's like functor but for source code locations.
 class LocFunctor f where
@@ -359,15 +365,3 @@ isMono (Type t) = getAll $ flip cata t $ \case
 -- | Checks that type is polymorphic.
 isPoly :: Type loc var -> Bool
 isPoly = not . isMono
-
-------------------------------------
--- instances
-
-$(deriveShow1 ''TypeF)
-$(deriveShow1 ''SignatureF)
-$(deriveEq1 ''TypeF)
-$(deriveEq1 ''SignatureF)
-$(deriveOrd1 ''TypeF)
-$(deriveOrd1 ''SignatureF)
-
-
