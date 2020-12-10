@@ -41,23 +41,22 @@ instance IsVarName Void where
   toVarName = absurd
 
 toHaskExprCore :: IsVarName a => Core a -> H.Exp ()
-toHaskExprCore = flip evalState (T.pack . ("x_"++) <$> identifierStream) . go
+toHaskExprCore = flip evalState (T.pack . ("x_"++) <$> identifierStream) . go []
   where
-    go = \case
+    go env = \case
       EVar v     -> pure $ toVar $ toVarName v
-      BVar i     -> do x <- freshName
-                       pure $ toVar $ x <> "@" <> showt i
+      BVar i     -> pure $ toVar $ env !! i <> "@" <> showt i
       EPrim p    -> pure $ fromPrim p
       EPrimOp op -> pure $ toVar $ toOpName op
       ELam ty body -> do
-        (pats, expr) <- getLamPats ty body
-        H.Lambda () (fmap (uncurry toPat) pats) <$> go expr
-      EAp f a            -> H.App () <$> go f <*> go a
+        (pats, expr) <- getLamPats env ty body
+        pure $ H.Lambda () pats expr
+      EAp f a       -> H.App () <$> go env f <*> go env a
       ELet rhs body -> do
-        (binds, expr) <- getLetBinds rhs body
-        H.Let () <$> toBinds binds <*> go expr
-      EIf c t e          -> H.If () <$> go c <*> go t <*> go e
-      ECase e alts       -> H.Case () <$> go e <*> traverse fromAlt alts
+        (binds, expr) <- getLetBinds env rhs body
+        pure $ H.Let () (H.BDecls () binds) expr
+      EIf c t e          -> H.If () <$> go env c <*> go env t <*> go env e
+      ECase e alts       -> H.Case () <$> go env e <*> traverse (fromAlt env) alts
       EConstr con        -> let hcon = H.Con () (toQName $ conName con)
                             in pure $  maybe hcon ((\t -> H.ExpTypeSig () hcon t) . fromTypeCore) (conCoreType con)
       EBottom            -> pure $ H.Var () (toQName "bottom")
@@ -69,19 +68,22 @@ toHaskExprCore = flip evalState (T.pack . ("x_"++) <$> identifierStream) . go
     toVar = H.Var () . toQName
     toPat name ty = H.PatTypeSig () (H.PVar () (toName name)) (fromTypeCore ty)
 
-    getLamPats ty expr = do
+    getLamPats env ty expr = do
       x <- freshName
       case expr of
-        ELam ty' body -> do (pats,e) <- getLamPats ty' body
-                            pure ((x,ty):pats, e)
-        _             -> pure ([(x,ty)], expr)
+        ELam ty' body -> do (pats,e) <- getLamPats (x:env) ty' body
+                            pure (toPat x ty:pats, e)
+        _             -> do e <- go (x:env) expr
+                            pure ([toPat x ty], e)
 
-    getLetBinds rhs expr = do
-      x <- freshName
+    getLetBinds env rhs expr = do
+      x    <- freshName
+      bind <- toBind env x rhs
       case expr of
-        ELet rhs' body -> do (binds,e) <- getLetBinds rhs' body
-                             pure ((x,rhs):binds, e)
-        _              -> pure ([(x,rhs)], expr)
+        ELet rhs' body -> do (binds,e) <- getLetBinds (x:env) rhs' body
+                             pure (bind:binds, e)
+        _              -> do e <- go (x:env) expr
+                             pure ([bind], e)
 
     fromPrim = \case
       PrimInt n     -> H.Lit () $ H.Int () (fromIntegral n) (show n)
@@ -137,18 +139,19 @@ toHaskExprCore = flip evalState (T.pack . ("x_"++) <$> identifierStream) . go
       where
         (=:) name t = mconcat [name, "@", T.pack $ H.prettyPrint $ fromTypeCore t]
 
-    fromAlt CaseAlt{..} = do
-      pats <- fmap (H.PVar () . toName) <$> replicateM caseAlt'nVars freshName
-      rhs  <- H.UnGuardedRhs () <$> go caseAlt'rhs
+    fromAlt env CaseAlt{..} = do
+      names <- replicateM caseAlt'nVars freshName
+      let pats = H.PVar () . toName <$> names
+      rhs  <- H.UnGuardedRhs () <$> go (names <> env) caseAlt'rhs
       pure $ H.Alt () (H.PApp () cons pats) rhs Nothing
       where
         cons = toQName $ "Con" <> showt caseAlt'tag
 
-    toBinds xs = H.BDecls () <$> traverse toBind xs
-      where
-        toBind (name, expr) = do
-          hs <- go expr
-          pure $ H.FunBind () [H.Match () (toName name) [] (H.UnGuardedRhs () hs) Nothing]
+    -- toBinds xs = H.BDecls () <$> traverse toBind xs
+    --   where
+    toBind env name expr = do
+      hs <- go env expr
+      pure $ H.FunBind () [H.Match () (toName name) [] (H.UnGuardedRhs () hs) Nothing]
 
 
 fromTypeCore :: TypeCore -> H.Type ()
