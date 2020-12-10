@@ -3,9 +3,11 @@
 module Hschain.Utxo.Lang.Expr where
 
 import Hex.Common.Aeson
+import Hex.Common.Text
 
 import Control.Applicative
 import Control.DeepSeq (NFData)
+import Control.Monad.State.Strict
 
 import Codec.Serialise
 
@@ -42,7 +44,6 @@ import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Const as Const
 
-
 type Loc = Hask.SrcSpanInfo
 type Type = H.Type Loc Text
 type TypeError = H.TypeError Loc Text
@@ -64,13 +65,114 @@ data UserTypeCtx = UserTypeCtx
   , userTypeCtx'constrs    :: Map ConsName ConsInfo          -- ^ Map from constructor names to it's low-level data, for further compilation
   , userTypeCtx'recConstrs :: Map ConsName RecordFieldOrder  -- ^ Order of fields for records
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
+  , userTypeCtx'core       :: UserCoreTypeCtx
   }
   deriving (Show, Eq, Generic, Data, Typeable)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
+data UserCoreTypeCtx = UserCoreTypeCtx
+  { userCoreTypeCtx'types   :: Map Name (H.Type () Name)
+  , userCoreTypeCtx'constrs :: Map Name CoreConsDef
+  }
+  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserCoreTypeCtx
+
+userCoreTypeMap :: Map Name UserType -> UserCoreTypeCtx
+userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty mempty)
+  where
+    go :: (Name, UserType) -> State UserCoreTypeCtx ()
+    go (name, def)
+      | isBaseType name = return ()
+      | otherwise       = do
+          st <- get
+          case M.lookup name $ userCoreTypeCtx'types st of
+            Just _   -> return ()
+            Nothing  -> do
+              t <- convertUserType def
+              modify' $ \env -> env { userCoreTypeCtx'types = M.insert name t $ userCoreTypeCtx'types env }
+
+    isBaseType x = Set.member x baseTypes
+    baseTypes = Set.fromList ["Maybe"]
+
+    convertUserType UserType{..} = do
+      mapM_ addCons constrs
+      case constrs of
+        []         -> pure unitT
+        [(_, def)] -> defToTuple def
+        _          -> fmap (H.conT () ("Sum" <> showt (length constrs))) $ mapM (defToTuple . snd) constrs
+      where
+        constrs = M.toList userType'cases
+        constrOrderMap = M.fromList $ zipWith (\n (name, _) -> (name, n)) [0..] constrs
+
+        getOrder n = M.lookup n constrOrderMap
+
+        defToTuple x = case V.toList $ getConsTypes x of
+          []  -> pure unitT
+          [t] -> convertType $ eraseLoc t
+          tys -> fmap tupleT $ mapM (convertType . eraseLoc) tys
+
+        getSumTs
+          | length constrs < 2 = pure Nothing
+          | otherwise          = fmap (Just . V.fromList) $ mapM (toSumArg . snd) constrs
+
+        toSumArg :: ConsDef -> State UserCoreTypeCtx (H.Type () Name)
+        toSumArg def
+          | arity == 0 = pure unitT
+          | arity == 1 = convertType $ eraseLoc $ V.head tys
+          | otherwise  = fmap (tupleT . V.toList) $ mapM (convertType . eraseLoc) tys
+          where
+            arity = V.length tys
+            tys = getConsTypes def
+
+        toTup = mapM (convertType . eraseLoc) . getConsTypes
+
+        addCons (name, def) = do
+          sumTs <- getSumTs
+          tupleTs <- toTup def
+          let coreDef = CoreConsDef
+                { coreConsDef'sum   = liftA2 (,) (getOrder name) sumTs
+                , coreConsDef'tuple = tupleTs
+                }
+          modify' $ \st -> st { userCoreTypeCtx'constrs = M.insert (consName'name name) coreDef $ userCoreTypeCtx'constrs st }
+
+    convertType :: H.Type () Name -> State UserCoreTypeCtx (H.Type () Name)
+    convertType (H.Type x) = fmap H.Type $ cataM tfm x
+      where
+        tfm = \case
+          H.ConT loc con args | isUserType con -> do
+            st <- get
+            case M.lookup con $ userCoreTypeCtx'types st of
+              Just t  -> pure $ H.unType t
+              Nothing -> case M.lookup con ts of
+                           Just defn -> do
+                             t <- convertUserType defn
+                             put $ st { userCoreTypeCtx'types = M.insert con t $ userCoreTypeCtx'types st }
+                             return (H.unType t)
+                           Nothing -> pure $ Fix $ H.ConT loc con args
+          other               -> pure $ Fix $ other
+
+    isUserType x = Set.member x allTypeNames
+    allTypeNames = Set.fromList $ M.keys ts
+
+    eraseLoc = H.setLoc ()
+
+recFieldExecCtx :: UserTypeCtx -> ExecCtx
+recFieldExecCtx UserTypeCtx{..} =
+  ExecCtx $ M.mapKeys (VarName noLoc) $ M.mapWithKey recSelectorExpr userTypeCtx'recFields
+
+recSelectorExpr :: Text -> (ConsName, RecordFieldOrder) -> Lang
+recSelectorExpr field (cons, RecordFieldOrder fields) =
+  Fix $ Lam noLoc (PCons noLoc cons args) $ Fix $ Var noLoc v
+  where
+    v = VarName noLoc "$v"
+    args = fmap (\x -> if (field == x) then (PVar noLoc v) else PWildCard noLoc) fields
+
 
 setupUserTypeInfo :: UserTypeCtx -> UserTypeCtx
-setupUserTypeInfo = setupConsInfo . setupUserRecords
+setupUserTypeInfo = setupCoreTypeInfo . setupConsInfo . setupUserRecords
+
+setupCoreTypeInfo :: UserTypeCtx -> UserTypeCtx
+setupCoreTypeInfo t = t { userTypeCtx'core = userCoreTypeMap $ M.mapKeys varName'name $ userTypeCtx'types t }
 
 setupConsInfo :: UserTypeCtx -> UserTypeCtx
 setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'types ctx }
@@ -88,10 +190,10 @@ setupConsInfo ctx = ctx { userTypeCtx'constrs = getConsInfoMap $ userTypeCtx'typ
         tyArgs = userType'args userT
 
         info = ConsInfo
-                { consInfo'tagId = tagId
-                , consInfo'arity = arity
-                , consInfo'type  = consTy
-                , consInfo'def   = userT
+                { consInfo'tagId   = tagId
+                , consInfo'arity   = arity
+                , consInfo'type    = consTy
+                , consInfo'def     = userT
                 }
 
         arity = V.length consArgs
@@ -141,6 +243,21 @@ data UserType = UserType
   , userType'cases      :: !(Map ConsName ConsDef) -- ^ List of constructors
   } deriving (Show, Eq, Data, Typeable)
 
+-- | Core representation of user data-types with constructors.
+newtype CoreUserType = CoreUserType
+  { coreUserType'cases  :: Map ConsName CoreConsDef
+  } deriving (Show, Eq, Data)
+
+-- | Every user constructor is transformed
+-- to combination of tuple and sum type constructors
+data CoreConsDef = CoreConsDef
+  { coreConsDef'sum   :: Maybe (Int, Vector (H.Type () Name)) -- ^ sum type constructor spec
+                                                              --  sometimes we do not need sum nad tuple is enough
+                                                              --  then it's omited (value Nothing)
+  , coreConsDef'tuple :: Vector (H.Type () Name)              -- ^ Multiple arguments are enocded as tuples
+  } deriving (Show, Eq, Data)
+
+
 getConsTypes :: ConsDef -> Vector Type
 getConsTypes = \case
   ConsDef ts        -> ts
@@ -162,10 +279,10 @@ data RecordField = RecordField
 -- We need to know it's type, arity and integer tag that is unique within
 -- its group of constructor for a given type (global uniqueness is not needed)
 data ConsInfo = ConsInfo
-  { consInfo'type  :: !Type      -- ^ type of the constructor as a function
-  , consInfo'tagId :: !Int       -- ^ unique integer identifier (within the type scope)
-  , consInfo'arity :: !Int       -- ^ arity of constructor
-  , consInfo'def   :: !UserType  -- ^ definition where constructor is defined
+  { consInfo'type    :: !Type        -- ^ type of the constructor as a function
+  , consInfo'tagId   :: !Int         -- ^ unique integer identifier (within the type scope)
+  , consInfo'arity   :: !Int         -- ^ arity of constructor
+  , consInfo'def     :: !UserType    -- ^ definition where constructor is defined
   } deriving (Show, Eq, Data, Typeable)
 
 -- | Order of names in the record constructor.
@@ -601,7 +718,7 @@ intT'    = constType "Int"
 boolT'   = constType "Bool"
 sigmaT'  = constType "Sigma"
 scriptT' = constType "Script"
-unitT'   = constType "Unit"
+unitT'   = constType "()"
 
 listT' :: loc -> H.Type loc v -> H.Type loc v
 listT' loc a = H.listT loc a

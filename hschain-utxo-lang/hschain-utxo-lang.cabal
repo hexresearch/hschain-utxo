@@ -167,6 +167,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Int
                        TM.Core.List
                        TM.Lang.Scripts
+                       TM.Lang.UserTypes
                        TM.Tx.Sigma
                        TM.Tx.Sign
                        Examples.SKI

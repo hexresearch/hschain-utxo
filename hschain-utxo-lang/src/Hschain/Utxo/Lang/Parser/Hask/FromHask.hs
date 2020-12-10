@@ -22,6 +22,7 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
+import Hschain.Utxo.Lang.Lib.Base (baseLibTypes)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -59,6 +60,7 @@ fromHaskExp topExp = case topExp of
   H.Lit loc lit -> fmap (Fix . PrimE loc) $ fromLit lit
   H.If loc a b c -> liftA3 (\x y z -> Fix $ If loc x y z) (rec a) (rec b) (rec c)
   H.Tuple loc H.Boxed es -> fmap (Fix . Tuple loc . V.fromList) (mapM rec es)
+  H.Con loc (H.Special _ (H.UnitCon _)) -> pure $ Fix $ Tuple loc V.empty
   H.Con loc qname -> do
     n <- fromQName qname
     let bool b = Fix $ PrimE loc $ PrimBool b
@@ -142,7 +144,7 @@ fromDecls loc ds = do
 
 toUserTypes :: [Decl] -> UserTypeCtx
 toUserTypes ds =
-  setupUserTypeInfo $ (\ts -> UserTypeCtx ts mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
+  setupUserTypeInfo $ (\ts -> UserTypeCtx (baseLibTypes <> ts) mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) $ mapMaybe getTypeDecl ds
   where
     getTypeDecl = \case
       DataDecl userType -> Just userType
@@ -240,6 +242,7 @@ fromPat :: H.Pat Loc -> ParseResult Pat
 fromPat topPat = case topPat of
   H.PVar loc name -> return $ PVar loc (toName name)
   H.PLit loc _ lit -> fmap (PPrim loc) (fromLit lit)
+  H.PApp loc (H.Special _ (H.UnitCon _)) [] -> pure $ PTuple loc []
   H.PApp loc name ps -> do
       cons <- toConsName name
       case consName'name cons of

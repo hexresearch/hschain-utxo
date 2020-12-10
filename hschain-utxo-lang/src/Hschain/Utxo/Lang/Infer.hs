@@ -45,7 +45,7 @@ instance H.Lang HschainLang where
   type Var  HschainLang = Text
   type Prim HschainLang = EmptyPrim
 
-  getPrimType EmptyPrim = H.conT noLoc "Unit" []
+  getPrimType EmptyPrim = unitT
 
 -- | Monad for type-inference.
 newtype InferM a = InferM (FreshVar (Either Error) a)
@@ -69,7 +69,9 @@ maxTupleSize = 6
 -- and expression ot infer the type.
 inferExpr :: InferCtx -> Lang -> InferM Type
 inferExpr (InferCtx typeCtx userTypes) =
-  (InferM . lift . eitherTypeError . H.inferType (baseLibTypeContext <> defaultContext <> typeCtx)) <=< reduceExpr userTypes
+  (InferM . lift . eitherTypeError . H.inferType (baseLibTypeContext <> userTypesCtx <> defaultContext <> typeCtx)) <=< reduceExpr userTypes
+  where
+    userTypesCtx = userTypesToTypeContext userTypes
 
 -- | Convert expression of our language to term of simpler language
 -- that can be type-checked by the library.
@@ -180,13 +182,14 @@ defaultContext = H.Context $ M.fromList $
   -- lists
   , (nilVecVar,  forA $ monoT $ listT a)
   , (consVecVar, forA $ monoT $ a `arr` (listT a `arr` listT a))
+  , (tupleConVar 0, monoT unitT)
   ] ++ tupleConVars ++ tupleAtVars
   where
     forA = forAllT noLoc "a"
     a = varT "a"
     arr = arrowT
 
-    tupleConVars = fmap toTuple [2..maxTupleSize]
+    tupleConVars = fmap toTuple $ [2..maxTupleSize]
       where
         toTuple :: Int -> (Text, Signature)
         toTuple size = (tupleConVar size, tupleConType size)
@@ -253,7 +256,7 @@ failCaseVar = secretVar "failCase"
 -- | Extract type-context for constructors that are defined by the user
 -- or record getters and modifiers.
 userTypesToTypeContext :: UserTypeCtx -> TypeContext
-userTypesToTypeContext (UserTypeCtx m _ _ _) =
+userTypesToTypeContext (UserTypeCtx m _ _ _ _) =
      foldMap fromUserType m
   <> foldMap getSelectors m
   where
@@ -342,6 +345,7 @@ caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix 
         case pats of
           [] -> constCons ploc cons
           _  -> argCons ploc cons pats
+      PTuple ploc [] -> return $ Fix $ If ploc (eqUnit ploc var) caseExpr'rhs failCase
       PTuple ploc pats -> do
         (vs, rhs') <- reduceSubPats pats caseExpr'rhs
         let size = length vs
@@ -364,6 +368,8 @@ caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix 
     failCase = Fix $ FailCase topLoc
 
     eqPrim ploc v p = Fix $ InfixApply ploc (toVarExpr ploc v) (VarName ploc Const.equals) (Fix $ PrimE ploc p)
+
+    eqUnit ploc v = Fix $ InfixApply ploc (toVarExpr ploc v) (VarName ploc Const.equals) (Fix $ Tuple ploc V.empty)
 
 reduceSubPats :: forall m . MonadLang m => [Pat] -> Lang -> m ([VarName], Lang)
 reduceSubPats pats rhs = runStateT (mapM go pats) rhs

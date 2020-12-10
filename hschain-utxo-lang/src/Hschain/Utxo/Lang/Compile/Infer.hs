@@ -121,21 +121,14 @@ annotateTypes =
     failedToConverType = unexpected "Failed to convert type"
 
     fromAlt CaseAlt{..} = do
-      constrType <- maybe failedToConverType pure $ conResultType caseAlt'tag
+      (argTypes, constrType) <- maybe failedToConverType (pure . H.extractFunType) $ conType caseAlt'tag
       return $ H.CaseAlt
         { H.caseAlt'loc        = caseAlt'loc
         , H.caseAlt'tag        = ConstrTag caseAlt'tag
-        , H.caseAlt'args       = fmap toArg caseAlt'args
+        , H.caseAlt'args       = zipWith H.Typed (fmap (eraseWith caseAlt'loc) argTypes) $ fmap (\val -> (caseAlt'loc, VarTag val)) caseAlt'args
         , H.caseAlt'constrType = fmap VarTag $ H.setLoc caseAlt'loc constrType
         , H.caseAlt'rhs        = caseAlt'rhs
         }
-      where
-        -- we need to know the types of the constructors on this stage:
-        toArg (Typed val ty) = H.Typed (eraseWith caseAlt'loc ty) (caseAlt'loc, VarTag val)
-
-    conResultType = fmap getArrowResult . conType
-
-    getArrowResult t = maybe t snd $ H.extractArrow t
 
     fromInferExpr :: H.TyTerm PrimLoc Loc Tag -> m TypedExprLam
     fromInferExpr (H.TyTerm x) = flip cataM x $ \case
@@ -151,23 +144,25 @@ annotateTypes =
               H.AssertType _ (Fix (Ann _ a)) _ -> pure $ a
               H.Let loc bs e -> toLet loc bs e
               H.LetRec loc bs e -> toLetRec loc bs e
-              H.Case loc e alts -> fmap (ECase loc e) (mapM (toAlt ty) alts)
-              H.Constr loc _conTy tag ->
+              H.Case loc e alts -> fmap (ECase loc e) (mapM toAlt alts)
+              H.Constr loc conTy tag ->
                 case tag of
-                  ConstrTag m -> fmap (EConstr loc) $ specifyConstr ty m
+                  ConstrTag m -> fmap (EConstr loc) $ specifyConstr (toType conTy) m
                   _           -> throwError $ InternalError $ NonIntegerConstrTag (fromTag tag)
 
-    toAlt ty alt =
+    toAlt alt =
       case H.caseAlt'tag alt of
         ConstrTag polyCon -> do
           monoCon <- specifyCaseAlt ty polyCon
           pure $ CaseAlt
             { caseAlt'loc        = H.caseAlt'loc alt
             , caseAlt'tag        = monoCon
-            , caseAlt'args       = fmap (\t -> Typed (fromTag $ snd $ H.typed'value t) (toType $ H.typed'type t)) $ H.caseAlt'args alt
+            , caseAlt'args       = fmap (\t -> fromTag $ snd $ H.typed'value t) $ H.caseAlt'args alt
             , caseAlt'rhs        = H.caseAlt'rhs alt
             }
         other -> throwError $ InternalError $ NonIntegerConstrTag (fromTag other)
+      where
+        ty = toType $ H.caseAlt'constrType alt
 
     specifyConstr :: H.Type () Name -> PrimCon (H.Type () Name) -> m (PrimCon (H.Type () Name))
     specifyConstr ty = specifyCaseAlt (snd $ H.extractFunType ty)
@@ -183,18 +178,18 @@ annotateTypes =
       ConUnit      -> pure ConUnit
       ConTuple _   -> case ty of
                         H.TupleT _ ts -> pure $ ConTuple $ fmap H.Type $ V.fromList ts
-                        _             -> unexpected "Expected tuple"
+                        other         -> unexpected $ "Expected tuple, got: " <> showt other
       ConSum n _   -> case ty of
                         H.ConT _ _ ts -> pure $ ConSum n $ fmap H.Type $ V.fromList ts
-                        _             -> unexpected "Expected sum-type"
+                        other         -> unexpected $ "Expected sum-type, got: " <> showt other
       where
         fromList con = case ty of
             H.ListT _ a -> pure $ con $ H.Type a
-            _           -> unexpected "Expected list"
+            other       -> unexpected $ "Expected list, got: " <> showt other
 
         fromMaybe con = case ty of
                     H.ConT _ "Maybe" [a] -> pure $ con $ H.Type a
-                    _                    -> unexpected "Expected maybe"
+                    other                -> unexpected $ "Expected maybe, got: " <> showt other
 
     toLet loc bind body = pure $ ELet loc [toBind bind] body
     toLetRec loc binds body = pure $ ELet loc (fmap toBind binds) body

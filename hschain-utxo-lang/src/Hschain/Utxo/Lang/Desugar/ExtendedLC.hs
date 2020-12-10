@@ -11,6 +11,7 @@ import Hex.Common.Text (showt)
 import Control.Arrow (first)
 
 import Data.Fix
+import Data.Maybe
 import Data.Text (Text)
 
 import HSChain.Crypto (ByteRepr(..), encodeBase58)
@@ -94,24 +95,59 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromAscr loc e t = pure $ Fix $ EAssertType loc  e (fromType $ H.stripSignature t)
 
-    fromConstrName loc name = do
-      ConsInfo{..} <- getConsInfo typeCtx name
-      con <- getCoreCons name
-      return $ Fix $ EConstr loc con
+    fromConstrName loc name
+      | consName'name name == "Nothing" = pure $ Fix $ EConstr loc $ ConNothing (H.varT () "a")
+      | consName'name name == "Just"    = pure $ Fix $ EConstr loc $ ConJust    (H.varT () "a")
+      | otherwise = do
+          coreDef <- getCoreConsDef typeCtx name
+          return $ mkConstr loc coreDef
 
-    fromCaseOf loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
+    mkConstr loc CoreConsDef{..}
+      | arity == 0 = sumCon $ Fix $ EConstr loc ConUnit
+      | arity == 1 = Fix $ ELam loc ["x"] $ sumCon $ Fix $ EVar loc "x"
+      | otherwise  = Fix $ ELam loc args $  sumCon $ fun loc (Fix $ EConstr loc (ConTuple coreConsDef'tuple)) (fmap (Fix . EVar loc) args)
+      where
+        arity = V.length coreConsDef'tuple
 
-    fromCaseAlt CaseExpr{..} = case caseExpr'lhs of
+        args = fmap v [1 .. arity]
+        v n = T.pack $ "v" <> show n
+
+        sumCon = case coreConsDef'sum of
+          Nothing      -> id
+          Just (n, ts) -> \x -> Fix $ EAp loc (Fix $ EConstr loc (ConSum n ts)) x
+
+    fromCaseOf loc expr alts =
+      case alts of
+        [alt] -> case caseExpr'lhs alt of
+          PCons ploc cons _  | consName'name cons == "Nothing" -> return $ Fix $ ECase loc expr $ pure $ nothingCaseAlt ploc alt
+          PCons ploc cons ps | consName'name cons == "Just"    -> fmap (Fix . ECase loc expr . pure) $ justCaseAlt ploc alt ps
+          PCons _ cons [p] -> do
+            coreDef <- getCoreConsDef typeCtx cons
+            if isSingleCons coreDef
+              then do
+                arg <- fromPat p
+                return $ Fix $ ELet loc [(arg, expr)] $ caseExpr'rhs alt
+              else fromCaseOfMultiAlts loc expr alts
+          _ -> fromCaseOfMultiAlts loc expr alts
+        _ -> fromCaseOfMultiAlts loc expr alts
+
+    isSingleCons CoreConsDef{..} = V.length coreConsDef'tuple == 1 && isNothing coreConsDef'sum
+
+    fromCaseOfMultiAlts loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
+
+    fromCaseAlt cexpr@CaseExpr{..} = case caseExpr'lhs of
+      PCons loc cons _  | consName'name cons == "Nothing" -> return $ nothingCaseAlt loc cexpr
+      PCons loc cons ps | consName'name cons == "Just"    -> justCaseAlt loc cexpr ps
       PCons loc cons ps -> do
-        tag <- getCoreCons cons
-        info <- getConsInfo typeCtx cons
-        let  (argsTy, _rhsT) = H.extractFunType $ consInfo'type info
+        coreDef <- getCoreConsDef typeCtx cons
         args  <- mapM fromPat ps
+        fromCoreCase loc coreDef args caseExpr'rhs
+      PTuple loc [] -> do
         return $ CaseAlt
-                  { caseAlt'loc        = loc
-                  , caseAlt'tag        = tag
-                  , caseAlt'args       = zipWith P.Typed args $ fmap fromType argsTy
-                  , caseAlt'rhs        = caseExpr'rhs
+                  { caseAlt'loc  = loc
+                  , caseAlt'tag  = ConUnit
+                  , caseAlt'args = []
+                  , caseAlt'rhs  = caseExpr'rhs
                   }
       PTuple loc ps -> do
         args <- mapM fromPat ps
@@ -119,7 +155,7 @@ exprToExtendedLC typeCtx = cataM $ \case
         return $ CaseAlt
                   { caseAlt'loc        = loc
                   , caseAlt'tag        = ConTuple $ V.fromList $ tupleArgsT arity
-                  , caseAlt'args       = zipWith P.Typed args $ tupleArgsT arity
+                  , caseAlt'args       = args
                   , caseAlt'rhs        = caseExpr'rhs
                   }
       _ -> failedToEliminate "Non-constructor case in case alternative"
@@ -127,6 +163,55 @@ exprToExtendedLC typeCtx = cataM $ \case
         tupleArgsT   arity = vs arity
         vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
 
+    nothingCaseAlt loc CaseExpr{..} = CaseAlt
+                  { caseAlt'loc  = loc
+                  , caseAlt'tag  = ConNothing (H.varT () "a")
+                  , caseAlt'args = []
+                  , caseAlt'rhs  = caseExpr'rhs
+                  }
+
+    justCaseAlt loc CaseExpr{..} ps = do
+      args <- mapM fromPat ps
+      pure $ CaseAlt
+              { caseAlt'loc  = loc
+              , caseAlt'tag  = ConJust (H.varT () "a")
+              , caseAlt'args = args
+              , caseAlt'rhs  = caseExpr'rhs
+              }
+
+    fromCoreCase :: MonadLang m => Loc -> CoreConsDef -> [Name] -> ExprLam Text -> m (CaseAlt Text (ExprLam Text))
+    fromCoreCase loc CoreConsDef{..} args rhs = case coreConsDef'sum of
+      Nothing  | arity == 0 -> pure unitAlt
+      Nothing  | arity == 1 -> unexpected "Newtype wrapper should be single element in the list"
+      Nothing               -> pure tupleAlt
+      Just (n, ts) -> do
+        v <- getFreshVarName
+        return $ CaseAlt
+                   { caseAlt'loc  = loc
+                   , caseAlt'tag  = ConSum n ts
+                   , caseAlt'args = [v]
+                   , caseAlt'rhs  = tupleCase $ Fix $ EVar loc v
+                   }
+      where
+        tupleCase expr
+          | arity == 0 = Fix $ ECase loc expr $ pure unitAlt
+          | arity == 1 = rhs
+          | otherwise  = Fix $ ECase loc expr $ pure $ tupleAlt
+
+        unitAlt = CaseAlt
+                    { caseAlt'loc  = loc
+                    , caseAlt'tag  = ConUnit
+                    , caseAlt'args = []
+                    , caseAlt'rhs  = rhs
+                    }
+        tupleAlt = CaseAlt
+                    { caseAlt'loc  = loc
+                    , caseAlt'tag  = ConTuple coreConsDef'tuple
+                    , caseAlt'args = args
+                    , caseAlt'rhs  = rhs
+                    }
+
+        arity = V.length coreConsDef'tuple
 
     fromAlt _ _ _ = failedToEliminate "AltE expression. It should not be there (we need it only for type-inference check)"
 
@@ -143,7 +228,9 @@ exprToExtendedLC typeCtx = cataM $ \case
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
-    fromTuple loc args = pure $ fun loc (Fix $ EConstr loc (ConTuple ts)) $ V.toList args
+    fromTuple loc args
+      | V.null args = pure $ Fix $ EConstr loc ConUnit
+      | otherwise   = pure $ fun loc (Fix $ EConstr loc (ConTuple ts)) $ V.toList args
       where
         arity = V.length args
         ts    = V.fromList $ fmap (varT . mappend "a" . showt) [1 .. arity]
@@ -155,10 +242,11 @@ exprToExtendedLC typeCtx = cataM $ \case
         cons a as = ap2 loc (Fix $ EConstr loc (ConCons (varT "a"))) a as
         nil = Fix $ EConstr loc (ConNil (varT "a"))
 
-getConsInfo :: MonadLang m => UserTypeCtx -> ConsName -> m ConsInfo
-getConsInfo typeCtx name = case M.lookup name $ userTypeCtx'constrs typeCtx of
-      Just info -> pure info
-      Nothing   -> throwError $ ExecError $ UnboundVariables [consToVarName name]
+getCoreConsDef :: MonadLang m => UserTypeCtx -> ConsName -> m CoreConsDef
+getCoreConsDef UserTypeCtx{..} cons@ConsName{..} =
+  maybe err pure $ M.lookup consName'name $ userCoreTypeCtx'constrs userTypeCtx'core
+  where
+    err = throwError $ ExecError $ UnboundVariables [consToVarName cons]
 
 fromType :: H.Type loc v -> H.Type () v
 fromType = H.mapLoc (const ())
@@ -223,7 +311,5 @@ removeTopLevelLambdasDef def@Def{..} =
                                         }
     _                      -> def
 
--- | TODO: convert user defined types
-getCoreCons :: MonadLang m => ConsName -> m (PrimCon (H.Type () Name))
-getCoreCons = undefined
+
 

@@ -56,8 +56,9 @@ compile
  <=< trimModuleByMain
 
 -- | Inlines all prelude functions
+-- and all record field selectors
 inlinePrelude :: Module -> Module
-inlinePrelude = inlineExecCtx baseLibExecCtx
+inlinePrelude m = inlineExecCtx (baseLibExecCtx <> recFieldExecCtx (module'userTypes m)) m
 
 -- | Reduces all simple applications:
 --
@@ -135,7 +136,7 @@ toCoreExpr = go
       EBottom _            -> pure $ Core.EBottom
 
     convertAlt ctx CaseAlt{..} = do
-      e <- go (fmap typed'value caseAlt'args <> ctx) caseAlt'rhs
+      e <- go (caseAlt'args <> ctx) caseAlt'rhs
       tag <- mapM toCoreType caseAlt'tag
       pure Core.CaseAlt
         { caseAlt'nVars = length caseAlt'args
@@ -189,7 +190,7 @@ toCoreType (H.Type ty) = cataM go ty
     -- FIXME: add sane error messages
     go = \case
       H.ArrowT _ a b       -> pure $ a :-> b
-      H.VarT _ _           -> failedToFindMonoType noLoc "Type variable encountered"
+      H.VarT _ _           -> failedToFindMonoType noLoc $ "Type variable encountered: " <> renderText (H.Type ty)
       H.TupleT _ xs        -> pure $ TupleT xs
       H.ListT  _ a         -> pure $ ListT a
       H.ConT _ "Int"   []  -> pure IntT
@@ -198,7 +199,7 @@ toCoreType (H.Type ty) = cataM go ty
       H.ConT _ "Bytes" []  -> pure BytesT
       H.ConT _ "Sigma" []  -> pure SigmaT
       H.ConT _ "Box"   []  -> pure BoxT
-      H.ConT _ "Unit"  []  -> pure UnitT
+      H.ConT _ "()"    []  -> pure UnitT
       H.ConT _ "Maybe" [a] -> pure $ MaybeT a
       H.ConT _  con ts | "Sum" `T.isPrefixOf` con -> pure $ SumT ts
       H.ConT _ _ _         -> failedToFindMonoType noLoc "Unknown type"

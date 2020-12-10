@@ -3,6 +3,7 @@ module Hschain.Utxo.Lang.Lib.Base(
   , baseLibTypeContext
   , baseLibExecCtx
   , baseLibInferCtx
+  , baseLibTypes
 {-    importBase
   , langTypeContext
   , baseModuleCtx
@@ -14,6 +15,7 @@ import Prelude ((.), fmap, ($), Monoid(..))
 import qualified Prelude as P
 
 import Data.Fix hiding ((~>))
+import Data.Map.Strict (Map)
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr
@@ -23,6 +25,7 @@ import Type.Check.HM (monoT, forAllT)
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Data.Map as M
 import qualified Type.Check.HM as H
+import qualified Data.Vector as V
 
 infixr 6 ~>
 
@@ -41,6 +44,12 @@ baseLibExecCtx = ExecCtx
       , bind "otherwise"    (Fix $ PrimE noLoc $ PrimBool P.True)
       , bind "fst"          (lamPair $ var' "a")
       , bind "snd"          (lamPair $ var' "b")
+      -- maybe funs
+      , bind "maybe"        maybeDefn
+      , bind "mapMaybe"     mapMaybeDefn
+      , bind "fromJust"     fromJustDefn
+      , bind "isNothing"    isNothingDefn
+      , bind "isJust"       isJustDefn
       ] P.++ sigCmps
   }
   where
@@ -71,14 +80,65 @@ baseLibExecCtx = ExecCtx
 
     bind var body = (VarName noLoc var, body)
 
+    maybeDefn = lam' ["nothing", "f", "x"] $ Fix $ CaseOf noLoc (var' "x")
+      [ CaseExpr
+          { caseExpr'lhs = PCons noLoc "Just" [PVar noLoc "a"]
+          , caseExpr'rhs = ap1 "f" $ var' "a"
+          }
+      , CaseExpr
+          { caseExpr'lhs = PCons noLoc "Nothing" []
+          , caseExpr'rhs = var' "nothing"
+          }
+      ]
+
+    mapMaybeDefn = lam' ["f", "x"] $ Fix $ CaseOf noLoc (var' "x")
+      [ CaseExpr
+          { caseExpr'lhs = PCons noLoc "Just" [PVar noLoc "a"]
+          , caseExpr'rhs = Fix $ Cons noLoc "Just" $ V.singleton $ ap1 "f" $ var' "a"
+          }
+      , CaseExpr
+          { caseExpr'lhs = PCons noLoc "Nothing" []
+          , caseExpr'rhs = Fix $ Cons noLoc "Nothing" V.empty
+          }
+      ]
+
+    fromJustDefn = lam' ["x"] $ Fix $ CaseOf noLoc (var' "x")
+      [ CaseExpr
+          { caseExpr'lhs = PCons noLoc "Just" [PVar noLoc "a"]
+          , caseExpr'rhs = var' "a"
+          }
+      ]
+
+    isNothingDefn = lam' ["x"] $ Fix $ CaseOf noLoc (var' "x")
+      [ CaseExpr
+          { caseExpr'lhs = PCons noLoc "Just" [PVar noLoc "a"]
+          , caseExpr'rhs = Fix $ PrimE noLoc $ PrimBool P.False
+          }
+      , CaseExpr
+          { caseExpr'lhs = PCons noLoc "Nothing" []
+          , caseExpr'rhs = Fix $ PrimE noLoc $ PrimBool P.True
+          }
+      ]
+
+    isJustDefn = lam' ["x"] $ Fix $ CaseOf noLoc (var' "x")
+      [ CaseExpr
+          { caseExpr'lhs = PCons noLoc "Just" [PVar noLoc "a"]
+          , caseExpr'rhs = Fix $ PrimE noLoc $ PrimBool P.True
+          }
+      , CaseExpr
+          { caseExpr'lhs = PCons noLoc "Nothing" []
+          , caseExpr'rhs = Fix $ PrimE noLoc $ PrimBool P.False
+          }
+      ]
+
 baseLibInferCtx :: InferCtx
 baseLibInferCtx = InferCtx
   { inferCtx'binds = baseLibTypeContext
-  , inferCtx'types = mempty
+  , inferCtx'types = setupUserTypeInfo $ mempty { userTypeCtx'types = baseLibTypes }
   }
 
 baseNames :: [Text]
-baseNames = M.keys $ H.unContext $ baseLibTypeContext
+baseNames = ["Just", "Nothing"] P.++ (M.keys $ H.unContext $ baseLibTypeContext)
 
 (~>) :: Type -> Type -> Type
 (~>) a b = H.arrowT noLoc a b
@@ -91,7 +151,12 @@ assumeType idx ty = (idx, ty)
 
 baseLibTypeContext :: TypeContext
 baseLibTypeContext = H.Context $ M.fromList $
-  [ assumeType "and" (monoT $ listT boolT ~> boolT)
+  [ assumeType "maybe" (forAB $ bT ~> (aT ~> bT) ~> maybeT aT ~> bT)
+  , assumeType "mapMaybe" (forAB $ (aT ~> bT) ~> maybeT aT ~> maybeT bT)
+  , assumeType "fromJust" (forA $ maybeT aT ~> aT)
+  , assumeType "isNothing" (forA $ maybeT aT ~> boolT)
+  , assumeType "isJust" (forA $ maybeT aT ~> boolT)
+  , assumeType "and" (monoT $ listT boolT ~> boolT)
   , assumeType "or" (monoT $ listT boolT ~> boolT)
   , assumeType "andSigma" (monoT $ listT sigmaT ~> sigmaT)
   , assumeType "orSigma" (monoT $ listT sigmaT ~> sigmaT)
@@ -182,4 +247,17 @@ baseLibTypeContext = H.Context $ M.fromList $
     aT = varT "a"
     bT = varT "b"
     cT = varT "c"
+
+baseLibTypes :: Map VarName UserType
+baseLibTypes = M.fromList
+  [("Maybe", maybeType) ]
+  where
+    maybeType = UserType
+      { userType'name  = "Maybe"
+      , userType'args  = ["a"]
+      , userType'cases = M.fromList
+          [ ("Nothing", ConsDef mempty)
+          , ("Just",    ConsDef $ V.singleton $ varT "a")
+          ]
+      }
 
