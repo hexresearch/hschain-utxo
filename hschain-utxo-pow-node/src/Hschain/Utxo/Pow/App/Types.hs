@@ -318,7 +318,7 @@ initializeStateView genesis bIdx = do
 instance (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWConfig t) => POW.StateView (UtxoState m t) where
   type BlockType (UtxoState m t) = UTXOBlock t
   type MonadOf   (UtxoState m t) = m
-  stateBID      = POW.bhBID . overlayTip . stateOverlay
+  stateBH       = overlayTip . stateOverlay
   revertBlock   = pure . (stateOverlayL %~ rollbackOverlay)
   applyBlock st = applyUtxoBlock (stateOverlay st)
   flushState UtxoState{..} = mustQueryRW $ do
@@ -431,13 +431,12 @@ coinbaseTxArg _ _ _ = throwError $ InternalErr "Invalid coinbase"
 
 
 createUtxoCandidate
-  :: (MonadReadDB m, MonadIO m, UtxoPOWConfig t)
+  :: (MonadDB m, MonadThrow m, MonadIO m, UtxoPOWConfig t)
   => UtxoState m t
-  -> POW.BH (UTXOBlock t)
   -> Script
   -> [Tx]
   -> m (UTXOBlock t Identity)
-createUtxoCandidate (UtxoState bIdx overlay) bh script txlist = queryRO $ do
+createUtxoCandidate st@(UtxoState bIdx overlay) script txlist = queryRO $ do
   pathInDB <- do
     Just stateBid <- retrieveCurrentStateBlock
     let Just bhState = POW.lookupIdx stateBid bIdx
@@ -485,6 +484,7 @@ createUtxoCandidate (UtxoState bIdx overlay) bh script txlist = queryRO $ do
     }
   where
     env = Env $ fromIntegral (h + 1) where POW.Height h = POW.bhHeight bh
+    bh  = POW.stateBH st
 
 -- | Check that block preserves value. Individual transactions will
 --   leave part of value as reward for miners. So transactions do
@@ -769,6 +769,7 @@ dumpOverlay OverlayBase{} = return ()
 utxoBlockDB :: (MonadIO m, MonadDB m, MonadThrow m, UtxoPOWConfig t) => POW.BlockDB m (UTXOBlock t)
 utxoBlockDB = POW.BlockDB
   { storeBlock         = storeUTXOBlock
+  , storeHeader        = storeUTXOHeader
   , retrieveBlock      = retrieveUTXOBlock
   , retrieveHeader     = retrieveUTXOHeader
   , retrieveAllHeaders = retrieveAllUTXOHeaders
@@ -796,18 +797,38 @@ retrieveUTXOBlock bid
 
 storeUTXOBlock :: (MonadThrow m, MonadIO m, MonadDB m, UtxoPOWConfig t) => POW.Block (UTXOBlock t) -> m ()
 storeUTXOBlock b@POW.Block{POW.blockData=blk, ..} = mustQueryRW $ do
-  let bid = POW.blockID b
+  exists <- basicQuery "SELECT blockData IS NULL FROM utxo_blocks WHERE bid = ?" (Only bid)
+  case exists of
+    [] -> basicExecute
+      "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
+      ( bid
+      , blockHeight
+      , blockTime
+      , prevBlock
+      , ByteRepred $ merkleHash $ ubData blk
+      , CBORed blk
+      , CBORed $ ubTarget blk
+      , ubNonce blk
+      )
+    [Only True] -> basicExecute
+      "UPDATE utxo_blocks SET blockData = ? WHERE bid = ?"
+      (CBORed blk, bid)
+    _ -> return ()
+  where bid = POW.blockID b
+
+storeUTXOHeader :: (MonadThrow m, MonadIO m, MonadDB m, UtxoPOWConfig t) => POW.Header (UTXOBlock t) -> m ()
+storeUTXOHeader b@POW.Block{POW.blockData=blk, ..} = mustQueryRW $ do
   basicExecute
-    "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT OR IGNORE INTO utxo_blocks VALUES (NULL, ?, ?, ?, ?, ?, NULL, ?, ?)"
     ( bid
     , blockHeight
     , blockTime
     , prevBlock
     , ByteRepred $ merkleHash $ ubData blk
-    , CBORed blk
     , CBORed $ ubTarget blk
     , ubNonce blk
     )
+  where bid = POW.blockID b
 
 utxoBlockDecoder :: SQL.RowParser (POW.Block (UTXOBlock t))
 utxoBlockDecoder = do
@@ -846,7 +867,7 @@ initUTXODB = mustQueryRW $ do
     \  , time       INTEGER NUT NULL \
     \  , prev       BLOB NULL \
     \  , dataHash   BLOB NOT NULL \
-    \  , blockData  BLOB NOT NULL \
+    \  , blockData  BLOB NULL \
     \  , target     BLOB NOT NULL \
     \  , nonce      BLOB NOT NULL \
     \)"
