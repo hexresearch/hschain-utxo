@@ -263,7 +263,7 @@ inferLet ctx loc v body = do
   ctx1 <- addDecls [fmap (const tBind) v] (apply phi ctx)
   (subst, bodyTerm) <- infer ctx1 body
   let tyBind = v { bind'rhs = rhsTyTerm }
-  return ( subst <> phi
+  return ( phi <> subst
          , tyLetE (termType bodyTerm) loc tyBind bodyTerm
          )
 
@@ -300,13 +300,13 @@ inferLetRec ctx topLoc vs body = do
       ctx1 <- addDecls (zipWith (\loc (v, ty) -> Bind loc v ty) locBinds $ fmap (second $ oldBvar . apply subst) lhsCtx) $ apply subst context
       (phi, bodyTerm) <- infer ctx1 expr
       let tyBinds = zipWith (\bind rhs -> bind { bind'rhs = rhs }) vs termBinds
-      return (phi <> subst, tyLetRecE (termType bodyTerm) topLoc tyBinds bodyTerm)
+      return (subst <> phi, tyLetRecE (termType bodyTerm) topLoc tyBinds bodyTerm)
 
 inferAssertType :: Lang q => ContextOf' q -> Origin (Src q) -> TermOf' q -> TypeOf' q -> InferOf q
 inferAssertType ctx loc a ty = do
   (phi, aTyTerm) <- infer ctx a
   subst <- genSubtypeOf phi ty (termType aTyTerm)
-  return (subst <> phi, tyAssertTypeE loc aTyTerm ty)
+  return (phi <> subst, tyAssertTypeE loc aTyTerm ty)
 
 inferConstr :: Lang q => Origin (Src q) -> TypeOf' q -> Name (Var q) -> InferOf q
 inferConstr loc ty tag = do
@@ -318,7 +318,7 @@ inferCase :: forall q . Lang q
   -> InferOf q
 inferCase ctx loc e caseAlts = do
   (phi, tyTermE) <- infer ctx e
-  (psi, tRes, tyAlts) <- inferAlts phi (termType tyTermE) caseAlts
+  (psi, tRes, tyAlts) <- inferAlts phi (termType tyTermE) $ caseAlts
   return ( psi
          , apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
   where
@@ -327,8 +327,9 @@ inferCase ctx loc e caseAlts = do
       fmap (\(subst, _, tRes, as) -> (subst, tRes, L.reverse as)) $ foldM go (substE, tE, tE, []) alts
       where
         go (subst, tyTop, _, res) alt = do
-          (phi, tRes, alt') <- inferAlt alt
-          subst' <- unify (subst <> phi) (apply phi tyTop) (apply phi $ caseAlt'constrType alt')
+          subst1 <- unify (subst) (apply subst tyTop) (apply subst $ caseAlt'constrType alt)
+          (phi, tRes, alt') <- inferAlt (applyAlt subst1 alt)
+          let subst' = subst1 <> phi
           return (subst', apply subst' tyTop, apply subst' tRes, applyAlt subst' alt' : res)
 
 
@@ -408,7 +409,7 @@ inferTerms ctx ts = case ts of
     (phi, termA) <- infer ctx a
     let ta = termType termA
     (psi, tas) <- inferTerms (apply phi ctx) as
-    return ( psi <> phi
+    return ( phi <> psi
            , (apply psi ta, apply psi termA) : tas
            )
 
@@ -457,7 +458,7 @@ extend
 extend phi loc tvn ty
   | varT loc tvn `eqIgnoreLoc` ty = return phi
   | memberVarSet tvn (tyVars ty)  = throwError $ OccursErr (fromOrigin loc) (mapLoc fromOrigin ty)
-  | otherwise                     = return $ delta tvn ty <> phi
+  | otherwise                     = return $ phi <> delta tvn ty
 
 unifyl :: (IsVar v, Show loc, MonadError (TypeError loc (Name v)) m)
   => Subst' loc v
