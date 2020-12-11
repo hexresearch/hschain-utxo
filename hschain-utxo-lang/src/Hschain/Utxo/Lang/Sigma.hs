@@ -59,6 +59,9 @@ import Data.Functor.Classes (Eq1(..))
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
+import Data.Eq.Deriving
+import Data.Ord.Deriving
+import Text.Show.Deriving
 
 import GHC.Generics (Generic, Generic1)
 
@@ -399,4 +402,7 @@ checkChallenges :: Commitments -> Challenges -> SigMessage -> Bool
 checkChallenges commitments challenges message =
   Sigma.checkChallenges commitments challenges (encodeToBS message)
 
+
 $(deriveShow1 ''SigmaF)
+$(deriveEq1   ''SigmaF)
+$(deriveOrd1  ''SigmaF)
