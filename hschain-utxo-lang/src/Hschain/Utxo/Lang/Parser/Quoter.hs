@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- | QuasiQuoter for high level language.
 --
 -- With quasi quoter we can create scripts quote easily. We use prefix utxo:
@@ -63,6 +64,9 @@ module Hschain.Utxo.Lang.Parser.Quoter(
 ) where
 
 import Control.Monad.Writer.Strict
+#if !MIN_VERSION_base(4,13,0)
+import Control.Monad.Fail (MonadFail)
+#endif
 
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote
