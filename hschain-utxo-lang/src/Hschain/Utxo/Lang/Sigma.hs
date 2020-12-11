@@ -190,7 +190,7 @@ data SigmaF k a =
   deriving stock (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, Generic1, Data)
   deriving anyclass (NFData, NFData1, Serialise)
 
-instance Serialise k => Serialise (Sigma k)
+instance Serialise k => Serialise (Fix (SigmaF k))
 
 instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
   hashStep = genericHashStep Sigma.hashDomain
