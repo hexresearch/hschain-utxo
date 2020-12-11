@@ -16,7 +16,7 @@ import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
-import Data.Fix hiding ((~>))
+import Data.Fix
 import Data.Text (Text)
 
 import Type.Check.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)

@@ -61,7 +61,6 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Eq.Deriving
 import Data.Ord.Deriving
-import Text.Show.Deriving
 
 import GHC.Generics (Generic, Generic1)
 
