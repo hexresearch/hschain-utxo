@@ -44,7 +44,7 @@ module Hschain.Utxo.Lang.Sigma(
 import Hex.Common.Serialise
 
 import Control.Monad.Except
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData,NFData1)
 import Codec.Serialise
 
 import Data.Aeson
@@ -60,7 +60,7 @@ import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 
-import GHC.Generics
+import GHC.Generics (Generic, Generic1)
 
 import Text.Show.Deriving
 
@@ -181,15 +181,14 @@ instance Boolean (Sigma k) where
 sigmaPk :: k -> Sigma k
 sigmaPk k = Fix $ SigmaPk k
 
-deriving anyclass instance NFData k => NFData (Sigma k)
-
 -- | Sigma-expression
 data SigmaF k a =
     SigmaPk k      -- ownership of the key (contains public key)
   | SigmaAnd [a]   -- and-expression
   | SigmaOr  [a]   -- or-expression
   | SigmaBool Bool -- wraps boolean constants
-  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData, Data)
+  deriving stock (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, Generic1, Data)
+  deriving anyclass (NFData, NFData1)
 
 instance Serialise k => Serialise (Sigma k)
 instance (Serialise k, Serialise a) => Serialise (SigmaF k a)

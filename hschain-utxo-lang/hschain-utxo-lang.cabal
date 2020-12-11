@@ -87,7 +87,7 @@ library
                      , bytestring
                      , containers
                      , cryptonite
-                     , data-fix
+                     , data-fix                  >=0.3
                      , data-default
                      , deepseq
                      , deriving-compat
