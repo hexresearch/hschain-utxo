@@ -36,7 +36,7 @@ library
                      , aeson
                      , bytestring
                      , cryptonite
-                     , data-fix
+                     , data-fix                  >=0.3
                      , generic-lens
                      , lens
                      , mmorph
@@ -117,7 +117,7 @@ executable hschain-utxo-pow-node-cli
                      , text
                      , yaml
                      , vector
-                     , data-fix
+                     , data-fix                  >=0.3
                      , servant
                      , servant-client
                      , servant-client-core
@@ -151,7 +151,7 @@ Test-suite hschain-utxo-pow-node-tests
                      , Boolean
                      , mtl
                      , random
-                     , data-fix
+                     , data-fix                  >=0.3
                      , lens
                      , vector
                      , transformers

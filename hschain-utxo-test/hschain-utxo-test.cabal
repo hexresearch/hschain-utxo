@@ -52,7 +52,7 @@ library
                      , Boolean
                      , containers
                      , cryptonite
-                     , data-fix
+                     , data-fix                  >=0.3
                      , directory
                      , extra
                      , filepath

@@ -152,7 +152,7 @@ Test-suite hschain-utxo-lang-tests
                      , hschain-crypto
                      , cryptonite
                      , memory
-                     , data-fix
+                     , data-fix                  >=0.3
                      , data-default
                      , bytestring
                      , vector

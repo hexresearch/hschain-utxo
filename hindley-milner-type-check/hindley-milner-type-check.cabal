@@ -35,15 +35,14 @@ library
   other-modules:
 
   -- Other library packages from which modules are imported.
-  build-depends:
-    base >=4.8 && <5,
-    deepseq >=1.4,
-    containers >=0.5,
-    deriving-compat,
-    data-fix,
-    mtl,
-    prettyprinter,
-    text
+  build-depends: base                      >=4.8 && <5
+               , deepseq                   >=1.4
+               , containers                >=0.5
+               , deriving-compat
+               , data-fix                  >=0.3
+               , mtl
+               , prettyprinter
+               , text
 
   -- Directories containing source files.
   hs-source-dirs:       src
@@ -79,7 +78,7 @@ test-suite hindley-milner-tests
   Build-Depends:       base              >=4.9 && <5
                      , hindley-milner-type-check
                      , text
-                     , data-fix
+                     , data-fix                  >=0.3
                      , tasty
                      , tasty-hunit
                      , prettyprinter

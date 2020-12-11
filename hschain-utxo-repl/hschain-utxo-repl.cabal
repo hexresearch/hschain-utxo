@@ -30,7 +30,7 @@ library
                      , bytestring
                      , containers
                      , data-default
-                     , data-fix
+                     , data-fix                  >=0.3
                      , exceptions
                      , haskeline
                      , haskell-src-exts
