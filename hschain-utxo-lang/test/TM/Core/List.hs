@@ -29,15 +29,15 @@ tests = testGroup "core-lists"
     , testProgramFail "listAt out of bound"    (progListAt 4)
     , testProgramL    "Typecheck concat lists" progConcatList (fmap PrimInt [1..6])
     , testProgramL    "Typecheck map lists"    progMapList (fmap PrimInt [10, 20, 30])
-    , testProgramL    "Typecheck sum lists"    progSumList [PrimInt 21]
-    , testProgramL    "Typecheck or lists"     (progOrList 2) [PrimBool True]
-    , testProgramL    "Or lists is false"      (progOrList (-2)) [PrimBool False]
-    , testProgramL    "Any list"               (progAnyList 2) [PrimBool True]
-    , testProgramL    "All list"               (progAllList 2) [PrimBool False]
-    , testProgramL    "All sigma list"         progSigmaAllList
-      [PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)]))]
+    , testProgram     "Typecheck sum lists"    progSumList (PrimInt 21)
+    , testProgram     "Typecheck or lists"     (progOrList 2) (PrimBool True)
+    , testProgram     "Or lists is false"      (progOrList (-2)) (PrimBool False)
+    , testProgram     "Any list"               (progAnyList 2) (PrimBool True)
+    , testProgram     "All list"               (progAllList 2) (PrimBool False)
+    , testProgram     "All sigma list"         progSigmaAllList
+      (PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)])))
     , testProgramFail "Too many reductions"     (progBigListReduce bigSize)
-    , testProgramL    "Ok amount of reductions" (progBigListReduce okSize) [PrimInt (sum ([0 .. okSize] :: [Int64]))]
+    , testProgram     "Ok amount of reductions" (progBigListReduce okSize) (PrimInt (sum ([0 .. okSize] :: [Int64])))
     ]
   ]
   where

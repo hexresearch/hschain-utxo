@@ -5,7 +5,7 @@
 module Hschain.Utxo.Lang.Core.RefEval
   ( Val(..)
   , EvalErr(..)
-  , EvalResult(..)
+  , EvalResult
   , evalProg
   ) where
 
@@ -60,11 +60,7 @@ instance Show Val where
 
 -- | Result of evaluation. It exisit in current form in order to be
 --   able to test list based function.
-data EvalResult
-  = EvalPrim !Prim
-  | EvalList [Prim]
-  | EvalFail EvalErr
-  deriving (Show, Eq)
+type EvalResult = Either EvalErr TermVal
 
 -- | Evaluation error
 data EvalErr
@@ -77,20 +73,14 @@ instance IsString EvalErr where
 
 -- | Evaluate program
 evalProg :: InputEnv -> Core v -> EvalResult
-evalProg env prog =
-  case runEval (evalExpr env [] prog) of
-    Right val -> case val of
-                    ValP p      -> EvalPrim p
-                    ValF{}      -> EvalFail $ EvalErr "Returning function"
-                    Val2F{}     -> EvalFail $ EvalErr "Returning function"
-                    Val3F{}     -> EvalFail $ EvalErr "Returning function"
-                    ValCon i xs -> maybe (EvalFail $ EvalErr "Not a list") EvalList
-                                $ con2list i xs
-    Left err -> EvalFail err
+evalProg env prog = fromVal =<< runEval (evalExpr env [] prog)
   where
-    con2list (ConNil _)  []                   = Just []
-    con2list (ConCons _) [ValP p,ValCon i xs] = (p :) <$> con2list i xs
-    con2list _ _                    = Nothing
+    fromVal = \case
+      ValP p        -> Right $ PrimVal p
+      ValF{}        -> Left $ EvalErr "Returning function"
+      Val2F{}       -> Left $ EvalErr "Returning function"
+      Val3F{}       -> Left $ EvalErr "Returning function"
+      ValCon con xs -> fmap (ConVal con . V.fromList) $ mapM fromVal xs
 
 -- | Monad for evaluation of core expressions
 newtype Eval a = Eval (StateT EvalEnv (Either EvalErr) a)

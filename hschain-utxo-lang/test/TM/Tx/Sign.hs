@@ -62,7 +62,7 @@ testCheckSig = do
   let alicePubKey = getPublicKey alice
   env  <- inputEnv [alice] testMsg
   let script = checkSig (pkExpr alicePubKey) (int 0)
-  return $ evalProg env script == EvalPrim (PrimBool True)
+  return $ evalProg env script == Right (PrimVal (PrimBool True))
 
 -- | Checks for 2 of 3 multi-sig
 -- First argument is how many signatures to provide (use non zero, less than 4)
@@ -73,7 +73,7 @@ testCheckMultiSig sigCount = do
   -- all signatures but first dropCount keys are present, and we duplicate first signature as fill in
   env <- inputEnv (dupFirst $ dropPrivs privKeys) testMsg
   let script = checkMultiSig (int 2) (listExpr BytesT $ fmap pkExpr pubKeys) (listExpr IntT $ fmap int [0, 1, 2])
-  return $ evalProg env script == EvalPrim (PrimBool True)
+  return $ evalProg env script == Right (PrimVal (PrimBool True))
   where
     dropCount = 3 - sigCount
 

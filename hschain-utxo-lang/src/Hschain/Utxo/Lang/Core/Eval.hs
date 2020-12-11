@@ -13,7 +13,7 @@ import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (typeCheck)
-import Hschain.Utxo.Lang.Core.RefEval           (evalProg,EvalResult(..))
+import Hschain.Utxo.Lang.Core.RefEval           (evalProg)
 import Hschain.Utxo.Lang.Core.Types             (TypeCore(..),Prim(..))
 import Hschain.Utxo.Lang.Expr                   (BoolExprResult(..))
 import Hschain.Utxo.Lang.Error
@@ -35,11 +35,11 @@ execScriptToSigma env prog = do
     _      -> Left $ CoreScriptError ResultIsNotSigma
   -- Evaluate script
   case evalProg env prog of
-    EvalPrim (PrimBool  b) -> Right $ Fix $ SigmaBool b
-    EvalPrim (PrimSigma s) -> case eliminateSigmaBool s of
+    Right (PrimVal (PrimBool  b)) -> Right $ Fix $ SigmaBool b
+    Right (PrimVal (PrimSigma s)) -> case eliminateSigmaBool s of
       Left  b  -> Right $ Fix $ SigmaBool b
       Right s' -> Right   s'
-    EvalFail _             -> Right $ Fix $ SigmaBool False
+    Left _             -> Right $ Fix $ SigmaBool False
     _ -> error "Internal error:  Left $ E.CoreScriptError E.ResultIsNotSigma"
 
 

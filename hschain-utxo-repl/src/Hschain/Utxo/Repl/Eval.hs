@@ -22,8 +22,9 @@ import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Compile (compile)
 import Hschain.Utxo.Repl.Monad
 import Hschain.Utxo.Lang.Exec    (runExec)
-import Hschain.Utxo.Lang.Error   (Error)
+import Hschain.Utxo.Lang.Error   (Error, unexpected)
 import Hschain.Utxo.Lang.Core.RefEval
+import Hschain.Utxo.Lang.Core.Compile.Expr (TermVal)
 
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -61,10 +62,10 @@ evalExpr lang = do
         logError err
         liftIO $ T.putStrLn $ renderText err
 
-evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (EvalResult, T.Text)
+evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (TermVal, T.Text)
 evaluate env types expr = runExec $ do
   core <- compile main
-  return $ evalProg env core
+  either (unexpected . renderText) pure $ evalProg env core
   where
     main = Module
       { module'loc       = noLoc
