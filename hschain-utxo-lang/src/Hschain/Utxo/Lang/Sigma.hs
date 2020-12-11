@@ -188,10 +188,9 @@ data SigmaF k a =
   | SigmaOr  [a]   -- or-expression
   | SigmaBool Bool -- wraps boolean constants
   deriving stock (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, Generic1, Data)
-  deriving anyclass (NFData, NFData1)
+  deriving anyclass (NFData, NFData1, Serialise)
 
 instance Serialise k => Serialise (Sigma k)
-instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
 
 instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
   hashStep = genericHashStep Sigma.hashDomain
