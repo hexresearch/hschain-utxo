@@ -25,6 +25,8 @@ import Data.String
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
+import Data.Eq.Deriving
+import Data.Ord.Deriving
 import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import GHC.Generics
 
@@ -67,7 +69,7 @@ data UserTypeCtx = UserTypeCtx
   , userTypeCtx'recFields  :: Map Text     (ConsName, RecordFieldOrder)  -- ^ Maps record single field to the full lists of fields
   , userTypeCtx'core       :: UserCoreTypeCtx
   }
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Generic, Data, Typeable)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
 data UserCoreTypeCtx = UserCoreTypeCtx
@@ -301,7 +303,6 @@ newtype RecordFieldOrder = RecordFieldOrder
 --
 -- This is phantom type for covenience of type-checker.
 newtype Expr a = Expr Lang
-  deriving (Show, Eq)
 
 -- | Name of the variable.
 data VarName = VarName
@@ -395,7 +396,7 @@ data Module = Module
   { module'loc       :: !Loc          -- ^ source code location
   , module'userTypes :: !UserTypeCtx  -- ^ user-defined types
   , module'binds     :: ![Bind Lang]  -- ^ values (functions)
-  } deriving (Show, Data, Typeable)
+  } deriving (Data, Typeable)
 
 -- | Type context for inference algorithm
 type TypeContext = H.Context Loc Text
@@ -403,7 +404,7 @@ type TypeContext = H.Context Loc Text
 -- | Context for execution (reduction) of expressions of the language
 newtype ExecCtx = ExecCtx
   { execCtx'vars  :: Map VarName Lang  -- ^ bindings for free variables, outer scope of the execution
-  } deriving newtype (Show, Eq, Semigroup, Monoid)
+  } deriving newtype (Semigroup, Monoid)
 
 -- | Type-inference context.
 data InferCtx = InferCtx
@@ -411,7 +412,7 @@ data InferCtx = InferCtx
                                    -- all free variables in the expression
   , inferCtx'types :: UserTypeCtx  -- ^ User-defined types
   }
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Generic)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid InferCtx
 
 -- | Evaluated module
@@ -419,7 +420,7 @@ data ModuleCtx = ModuleCtx
   { moduleCtx'types  :: !InferCtx
   , moduleCtx'exprs  :: !ExecCtx
   }
-  deriving stock (Show, Eq, Generic)
+  deriving stock (Generic)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid ModuleCtx
 
 getModuleCtxNames :: ModuleCtx -> [Text]
@@ -1067,10 +1068,34 @@ toPrim loc p = Fix $ PrimE loc p
 
 -------------------------------------------------------------------
 
+$(deriveEq1   ''Alt)
+$(deriveOrd1  ''Alt)
 $(deriveShow1 ''Alt)
+$(deriveEq1   ''Rhs)
+$(deriveOrd1  ''Rhs)
 $(deriveShow1 ''Rhs)
+$(deriveEq1   ''Guard)
+$(deriveOrd1  ''Guard)
 $(deriveShow1 ''Guard)
+$(deriveEq1   ''Bind)
+$(deriveOrd1  ''Bind)
 $(deriveShow1 ''Bind)
-$(deriveShow1 ''E)
+$(deriveEq1   ''EnvId)
 $(deriveShow1 ''EnvId)
+$(deriveEq1   ''CaseExpr)
+$(deriveOrd1  ''CaseExpr)
 $(deriveShow1 ''CaseExpr)
+$(deriveEq1   ''E)
+$(deriveShow1 ''E)
+
+deriving newtype instance Show ExecCtx
+deriving newtype instance Eq   ExecCtx
+deriving stock   instance Show ModuleCtx
+deriving stock   instance Eq   ModuleCtx
+deriving stock   instance Show UserTypeCtx
+deriving stock   instance Eq   UserTypeCtx
+deriving stock   instance Show InferCtx
+deriving stock   instance Eq   InferCtx
+deriving stock   instance Show Module
+deriving stock   instance Show (Expr a)
+deriving stock   instance Eq   (Expr a)
