@@ -24,6 +24,9 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Cont
+-- NOTE: Necessary for GHC8.6. It's not possible to use CPP since it
+--       breaks multiline literals
+import Control.Monad.Fail (MonadFail)
 
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Fix
