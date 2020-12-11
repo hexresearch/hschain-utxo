@@ -138,7 +138,7 @@ userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty 
           modify' $ \st -> st { userCoreTypeCtx'constrs = M.insert (consName'name name) coreDef $ userCoreTypeCtx'constrs st }
 
     convertType :: H.Type () Name -> State UserCoreTypeCtx (H.Type () Name)
-    convertType (H.Type x) = fmap H.Type $ cataM tfm x
+    convertType (H.Type x) = fmap H.Type $ foldFixM tfm x
       where
         tfm = \case
           H.ConT loc con args | isUserType con -> do
@@ -813,7 +813,7 @@ instance H.HasLoc (Bind a) where
 
 -- | Get free0variables for expression
 freeVars :: Lang -> Set VarName
-freeVars = cata $ \case
+freeVars = foldFix $ \case
   Var _ v         -> Set.singleton v
   InfixApply _ a v b -> Set.singleton v <> a <> b
   Apply _ a b      -> a <> b

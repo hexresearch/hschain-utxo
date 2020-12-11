@@ -38,7 +38,7 @@ toHaskDecl Def{..} = H.FunBind defLoc [match]
     binds  = Nothing
 
 toHaskExpr :: ExprLam Name -> H.Exp Loc
-toHaskExpr = cata $ \case
+toHaskExpr = foldFix $ \case
   EVar loc name            -> toVar loc name
   EPrim _ (PrimLoc loc p)  -> toPrim loc p
   EAp loc f a              -> toAp loc f a

@@ -398,7 +398,7 @@ substWildCards p = do
       other         -> return other
 
 removeEmptyCases :: Lang -> Lang
-removeEmptyCases x = cata go x
+removeEmptyCases x = foldFix go x
   where
     go expr = case expr of
       CaseOf _ (Fix (Var _ _)) [CaseExpr (PWildCard _) next] -> next

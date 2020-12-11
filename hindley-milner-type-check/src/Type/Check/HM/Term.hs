@@ -86,7 +86,7 @@ newtype Term prim loc v = Term { unTerm :: Fix (TermF prim loc v) }
   deriving (Show, Eq, Data)
 
 instance Functor (Term prim loc) where
-  fmap f (Term x) =  Term $ cata go x
+  fmap f (Term x) =  Term $ foldFix go x
     where
       go = \case
         Var loc v    -> Fix $ Var loc (f v)
@@ -166,7 +166,7 @@ instance HasLoc (Term prim loc v) where
     Bottom loc -> loc
 
 instance LocFunctor (Term prim) where
-  mapLoc f (Term x) = Term $ cata go x
+  mapLoc f (Term x) = Term $ foldFix go x
     where
       go = \case
         Var loc v    -> Fix $ Var (f loc) v
@@ -190,7 +190,7 @@ instance LocFunctor (Term prim) where
 
 -- | Get free variables of the term.
 freeVars :: Ord v => Term lprim oc v -> Set v
-freeVars = cata go . unTerm
+freeVars = foldFix go . unTerm
   where
     go = \case
       Var    _ v          -> S.singleton v
@@ -212,7 +212,7 @@ freeVars = cata go . unTerm
     freeVarAlts CaseAlt{..} = caseAlt'rhs `S.difference` (S.fromList $ fmap (snd . typed'value) caseAlt'args)
 
 instance TypeFunctor (Term prim) where
-  mapType f (Term term) = Term $ cata go term
+  mapType f (Term term) = Term $ foldFix go term
     where
       go = \case
         Constr loc ty cons       -> Fix $ Constr loc (f ty) cons

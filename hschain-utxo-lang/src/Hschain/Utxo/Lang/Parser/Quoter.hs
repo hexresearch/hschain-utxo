@@ -181,7 +181,7 @@ substAntiQuoteExpr :: Lang -> (Lang, TypeContext)
 substAntiQuoteExpr lang = runWriter $ substAntiQuoteLang lang
 
 substAntiQuoteLang :: Lang -> Writer TypeContext Lang
-substAntiQuoteLang lang = cataM go lang
+substAntiQuoteLang lang = foldFixM go lang
   where
     go = \case
       AntiQuote loc mty v -> do

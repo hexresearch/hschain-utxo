@@ -44,7 +44,7 @@ isInfix :: HasPrefix v => v -> Bool
 isInfix  = not . isPrefix
 
 instance (Pretty v, PrintCons v, HasPrefix v) => Pretty (Signature loc v) where
-  pretty = cata go . unSignature
+  pretty = foldFix go . unSignature
     where
       go = \case
         ForAllT _ _ r -> r
@@ -159,7 +159,7 @@ fixity op = maybe FixNone opFix'fixity $ getFixityEnv op
 ---------------------------------------
 
 instance (HasPrefix v, PrintCons v, Pretty v, Pretty prim) => Pretty (Term prim loc v) where
-  pretty (Term x) = cata prettyTermF x
+  pretty (Term x) = foldFix prettyTermF x
     where
       prettyTermF = \case
         Var _ v            -> pretty v

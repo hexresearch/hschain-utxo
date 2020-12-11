@@ -92,7 +92,7 @@ tyBottomE :: Type loc v -> loc -> TyTerm prim loc v
 tyBottomE ty loc = tyTerm ty $ Bottom loc
 
 instance LocFunctor (TyTerm prim) where
-  mapLoc f (TyTerm x) = TyTerm $ cata go x
+  mapLoc f (TyTerm x) = TyTerm $ foldFix go x
     where
       go (Ann annTy term) = Fix $ Ann (mapLoc f annTy) $ case term of
         Var loc v    -> Var (f loc) v
@@ -115,7 +115,7 @@ instance LocFunctor (TyTerm prim) where
       mapTyped g (Typed ty val) = Typed (mapLoc g ty) (first g val)
 
 instance TypeFunctor (TyTerm prim) where
-  mapType f (TyTerm x) = TyTerm $ cata go x
+  mapType f (TyTerm x) = TyTerm $ foldFix go x
     where
       go (Ann ty term) = Fix $ Ann (f ty) $
         case term of

@@ -19,7 +19,7 @@ import qualified Data.Sequence as Seq
 
 -- | Finds free variables for expression
 freeVars :: ExprLam Name -> Set Name
-freeVars = cata $ \case
+freeVars = foldFix $ \case
   EVar _ var        -> S.singleton var
   EPrim _ _         -> mempty
   EPrimOp _ _       -> mempty

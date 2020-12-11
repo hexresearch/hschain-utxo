@@ -78,7 +78,7 @@ toLiteral loc = \case
     lit = H.Lit loc
 
     sigma :: Loc -> Sigma ByteString -> H.Exp Loc
-    sigma src x = cata go x
+    sigma src x = foldFix go x
       where
         go = \case
           SigmaPk pkey -> let keyTxt = encodeBase58 pkey
@@ -167,14 +167,14 @@ toType :: Signature -> H.Type Loc
 toType x = case splitToPreds x of
   (_, ty) -> toHaskType ty
   where
-    splitToPreds = cata go . HM.unSignature
+    splitToPreds = foldFix go . HM.unSignature
       where
         go = \case
           HM.MonoT ty                  -> ([], ty)
           HM.ForAllT _ name (xs, ty) -> (name : xs, ty)
 
 toHaskType :: Type -> H.Type Loc
-toHaskType = cata go . HM.unType
+toHaskType = foldFix go . HM.unType
   where
     go = \case
       HM.VarT loc var      -> H.TyVar loc (toIdentName $ VarName loc var)

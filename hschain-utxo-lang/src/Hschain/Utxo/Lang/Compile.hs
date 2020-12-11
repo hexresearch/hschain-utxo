@@ -64,7 +64,7 @@ inlinePrelude m = inlineExecCtx (baseLibExecCtx <> recFieldExecCtx (module'userT
 --
 -- > (\x -> e) a ==> e[x/a]
 simplifyLamApp :: Lang -> Lang
-simplifyLamApp = cata $ \case
+simplifyLamApp = foldFix $ \case
   Apply _ (Fix (Lam _ (PVar _ v) body)) expr -> subst body v expr
   Apply _ (Fix (LamList loc ((PVar _ v) : rest) body)) expr -> case rest of
     [] -> subst body v expr
@@ -74,7 +74,7 @@ simplifyLamApp = cata $ \case
 inlineExecCtx :: ExecCtx -> Module -> Module
 inlineExecCtx (ExecCtx funs) = mapBinds (simplifyLamApp . inlineLang)
   where
-    inlineLang = cata $ \case
+    inlineLang = foldFix $ \case
       Var _ v              | Just expr <- Map.lookup v funs -> inlineLang expr
       InfixApply loc a v b | Just expr <- Map.lookup v funs -> Fix $ Apply loc (Fix $ Apply loc (inlineLang expr) a) b
       other                                  -> Fix other
@@ -185,7 +185,7 @@ specifyPolyFun loc ctx ty name = do
 
 
 toCoreType :: MonadLang m => H.Type () Name -> m TypeCore
-toCoreType (H.Type ty) = cataM go ty
+toCoreType (H.Type ty) = foldFixM go ty
   where
     -- FIXME: add sane error messages
     go = \case

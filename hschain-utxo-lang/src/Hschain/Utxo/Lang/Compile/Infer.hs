@@ -97,7 +97,7 @@ annotateTypes =
                          -- todo consider to add locations to definitions
 
     toInferExpr :: ExprLam Name -> m (H.Term PrimLoc Loc Tag)
-    toInferExpr = cataM $ \case
+    toInferExpr = foldFixM $ \case
       EVar loc name        -> pure $ H.varE loc (VarTag name)
       EPrim loc prim       -> pure $ H.primE loc prim
       EPrimOp{}            -> unexpected "No primop are accessible before type checking"
@@ -131,7 +131,7 @@ annotateTypes =
         }
 
     fromInferExpr :: H.TyTerm PrimLoc Loc Tag -> m TypedExprLam
-    fromInferExpr (H.TyTerm x) = flip cataM x $ \case
+    fromInferExpr (H.TyTerm x) = flip foldFixM x $ \case
       H.Ann tyTag expr ->
         let ty = toType tyTag
         in  fmap (Fix . Ann ty) $ case expr of

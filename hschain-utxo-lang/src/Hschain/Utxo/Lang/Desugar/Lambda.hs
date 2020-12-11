@@ -38,7 +38,7 @@ desugarLambdaCalculus =
 --
 -- This step eliminates cases with single Lam argument completely
 joinLamArgs :: Lang -> Lang
-joinLamArgs = cata $ \case
+joinLamArgs = foldFix $ \case
   Lam     loc p1 (Fix (Lam     _ p2 body)) -> Fix $ LamList loc [p1, p2] body
   Lam     loc p1 (Fix (LamList _ p2 body)) -> Fix $ LamList loc (p1 : p2) body
   Lam     loc p1 body                      -> Fix $ LamList loc [p1] body
@@ -51,7 +51,7 @@ joinLamArgs = cata $ \case
 --
 -- > let x = expr1 in let y = expr2 in f x y  ===> let { x = expr1; y = expr2 } in f x y
 joinLetBinds :: Lang -> Lang
-joinLetBinds = cata $ \case
+joinLetBinds = foldFix $ \case
   Let loc bg1 (Fix (Let _ bg2 body)) -> Fix $ Let loc (bg1 ++ bg2) body
   other                              -> Fix other
 
@@ -59,7 +59,7 @@ joinLetBinds = cata $ \case
 --
 -- > a + b ===> (+ a b)
 removeInfixApply :: Lang -> Lang
-removeInfixApply = cata $ \case
+removeInfixApply = foldFix $ \case
   InfixApply loc a var b -> Fix (Apply loc (Fix (Apply loc (Fix $ Var loc var) a)) b)
   other                  -> Fix other
 
@@ -67,7 +67,7 @@ removeInfixApply = cata $ \case
 --
 -- > name = expr
 simplifyLet :: MonadLang m => Lang -> m Lang
-simplifyLet = cataM $ \case
+simplifyLet = foldFixM $ \case
   Let loc binds body -> do
     binds' <- mapM simplify (sortBindGroups binds)
     return $ Fix $ PrimLet loc binds' body
@@ -79,7 +79,7 @@ simplifyLet = cataM $ \case
 -- do this step after elimination of single Lams so
 -- that we can consider only cases with LamList
 substLamPats :: MonadLang m => Lang -> m Lang
-substLamPats = cataM $ \case
+substLamPats = foldFixM $ \case
   LamList loc ps body -> fromLamList loc ps body
   other               -> return $ Fix other
   where

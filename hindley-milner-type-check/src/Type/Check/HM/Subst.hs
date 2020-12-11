@@ -32,7 +32,7 @@ class CanApply f where
   apply :: Ord v => Subst loc v -> f loc v -> f loc v
 
 instance CanApply Type where
-  apply (Subst s) = cata go . unType
+  apply (Subst s) = foldFix go . unType
     where
       go = \case
         VarT loc v -> case M.lookup v s of

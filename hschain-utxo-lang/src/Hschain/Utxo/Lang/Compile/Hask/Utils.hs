@@ -45,7 +45,7 @@ toTypedPat :: Loc -> Typed (HM.Type () Name) Name -> H.Pat Loc
 toTypedPat loc (Typed name ty) = H.PatTypeSig loc (H.PVar loc $ toName $ VarName loc name) (toType loc ty)
 
 toSigma :: Loc -> Sigma PublicKey -> H.Exp Loc
-toSigma loc = cata $ \case
+toSigma loc = foldFix $ \case
   SigmaBool b  -> H.App loc (H.Var loc $ toQName $ VarName loc "toSigma") (toBool loc b)
   SigmaAnd  as -> sigmaOp "&&" as
   SigmaOr   as -> sigmaOp "||" as

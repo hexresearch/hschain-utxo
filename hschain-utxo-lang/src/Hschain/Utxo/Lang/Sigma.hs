@@ -160,14 +160,14 @@ verifyProof proof = Sigma.verifyProof proof . encodeToBS
 type Sigma k = Fix (SigmaF k)
 
 mapPk :: (a -> b) -> Sigma a -> Sigma b
-mapPk f = cata $ \case
+mapPk f = foldFix $ \case
   SigmaPk a   -> Fix $ SigmaPk (f a)
   SigmaAnd as -> Fix $ SigmaAnd as
   SigmaOr  as -> Fix $ SigmaOr  as
   SigmaBool b -> Fix $ SigmaBool b
 
 mapPkM :: Monad m => (a -> m b) -> Sigma a -> m (Sigma b)
-mapPkM f = cataM $ \case
+mapPkM f = foldFixM $ \case
   SigmaPk a   -> fmap (Fix . SigmaPk) (f a)
   SigmaAnd as -> pure $ Fix $ SigmaAnd as
   SigmaOr  as -> pure $ Fix $ SigmaOr  as
@@ -210,7 +210,7 @@ fromSigmaExpr = \case
 -- returns Left boolean if it's not possible
 -- to eliminate boolean constants.
 eliminateSigmaBool :: Sigma a -> Either Bool (Sigma a)
-eliminateSigmaBool = cata $ \case
+eliminateSigmaBool = foldFix $ \case
   SigmaBool b -> Left b
   SigmaPk pk  -> Right $ Fix $ SigmaPk pk
   SigmaAnd as ->
@@ -243,7 +243,7 @@ toSigmaExprOrFail a = bimap catchBoolean id $ toSigmaExpr a
     catchBoolean = const "Expression is constant boolean. It is not  a sigma-expression"
 
 toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
-toPrimSigmaExpr = cata $ \case
+toPrimSigmaExpr = foldFix $ \case
   SigmaPk k    -> Just $ Sigma.Leaf () k
   SigmaAnd as  -> fmap (Sigma.AND ()) $ sequence as
   SigmaOr  as  -> fmap (Sigma.OR  ()) $ sequence as
