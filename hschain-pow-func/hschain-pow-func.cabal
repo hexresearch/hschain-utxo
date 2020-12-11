@@ -8,6 +8,11 @@ author:              Serguey Zefirov
 maintainer:          sergueyz@gmail.com
 extra-source-files:  CHANGELOG.md
 
+Flag use-pkg-config
+    Description: Use pkg-config to find OpenSSL (macOS and linux only).
+    Default:     True
+    Manual:      True
+
 library
   Ghc-options:         -Wall
   exposed-modules:     HSChain.POW
@@ -15,7 +20,11 @@ library
                      , bytestring
                      , transformers
 
-  pkgconfig-depends:   openssl
+
+  if flag(use-pkg-config)
+    pkgconfig-depends: openssl
+  else
+    Extra-Libraries: ssl crypto
   hs-source-dirs:      src
   default-language:    Haskell2010
   c-sources:           cbits/evpow.c
