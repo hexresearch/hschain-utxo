@@ -57,7 +57,7 @@ toExtendedLC' Module{..} =
         }
 
 exprToExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (ExprLam Text)
-exprToExtendedLC typeCtx = cataM $ \case
+exprToExtendedLC typeCtx = foldFixM $ \case
   Var loc v               -> fromVar loc v
   Apply loc a b           -> fromApply loc a b
   LamList loc ps a        -> fromLamList loc ps a
@@ -283,7 +283,7 @@ substWildcards m = do
 
     substWheres = mapM substBind
 
-    substExpr = cataM $ \case
+    substExpr = foldFixM $ \case
       Lam loc pat e      -> fmap (\p -> Fix $ Lam loc p e) $ substPat pat
       LamList loc pats e -> fmap (\ps -> Fix $ LamList loc ps e) $ mapM substPat pats
       CaseOf loc e alts  -> fmap (\as -> Fix $ CaseOf loc e as) $ mapM substCaseExpr alts

@@ -61,7 +61,7 @@ executable hschain-utxo-generate-genesis
                      , bytestring
                      , containers
                      , data-default
-                     , data-fix
+                     , data-fix                  >=0.3
                      , hschain-utxo-lang
                      , vector
   hs-source-dirs:      app

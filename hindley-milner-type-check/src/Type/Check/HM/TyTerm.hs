@@ -19,6 +19,9 @@ module Type.Check.HM.TyTerm(
 import Control.Arrow
 
 import Data.Fix
+import Data.Eq.Deriving
+import Data.Ord.Deriving
+import Text.Show.Deriving
 
 import Type.Check.HM.Subst
 import Type.Check.HM.Type
@@ -30,6 +33,11 @@ data Ann note f a = Ann
   { ann'note  :: note
   , ann'value :: f a
   } deriving (Show, Eq, Functor, Foldable, Traversable)
+
+$(deriveShow1 ''Ann)
+$(deriveEq1   ''Ann)
+$(deriveOrd1  ''Ann)
+
 
 -- | Terms with type annotations for all subexpressions.
 newtype TyTerm prim loc v = TyTerm { unTyTerm :: Fix (Ann (Type loc v) (TermF prim loc v)) }
@@ -84,7 +92,7 @@ tyBottomE :: Type loc v -> loc -> TyTerm prim loc v
 tyBottomE ty loc = tyTerm ty $ Bottom loc
 
 instance LocFunctor (TyTerm prim) where
-  mapLoc f (TyTerm x) = TyTerm $ cata go x
+  mapLoc f (TyTerm x) = TyTerm $ foldFix go x
     where
       go (Ann annTy term) = Fix $ Ann (mapLoc f annTy) $ case term of
         Var loc v    -> Var (f loc) v
@@ -107,7 +115,7 @@ instance LocFunctor (TyTerm prim) where
       mapTyped g (Typed ty val) = Typed (mapLoc g ty) (first g val)
 
 instance TypeFunctor (TyTerm prim) where
-  mapType f (TyTerm x) = TyTerm $ cata go x
+  mapType f (TyTerm x) = TyTerm $ foldFix go x
     where
       go (Ann ty term) = Fix $ Ann (f ty) $
         case term of

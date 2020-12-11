@@ -33,7 +33,7 @@ import qualified Hschain.Utxo.Lang.Const as Const
 -- If it still remains polymorphic we throw an error
 -- that we have failed to specify the types.
 specifyOps :: MonadLang m => TypedLamProg -> m TypedLamProg
-specifyOps = liftTypedLamProg $ cataM $ \case
+specifyOps = liftTypedLamProg $ foldFixM $ \case
   Ann ty expr -> fmap (Fix . Ann ty) $ case expr of
     EVar loc name | Just op <- specPolyOp name ty -> pure $ EPrimOp loc op
     other -> pure other
@@ -127,7 +127,7 @@ inlineDefBody =
   local $ \defn -> fmap (\body -> defn { def'body = body }) $ inlineExpr $ def'body defn
 
 inlineExpr :: TypedExprLam -> Inline TypedExprLam
-inlineExpr = cataM $ \topVal@(Ann ty val) -> case val of
+inlineExpr = foldFixM $ \topVal@(Ann ty val) -> case val of
   EVar _ name -> do
     mSubst <- getSubst ty name
     return $ fromMaybe (Fix topVal) mSubst
@@ -165,7 +165,7 @@ local f a = do
   return res
 
 mapType :: (H.Type () Name -> H.Type () Name) -> TypedExprLam -> TypedExprLam
-mapType f = cata $ \(Ann ty val) -> Fix $ Ann (f ty) $ case val of
+mapType f = foldFix $ \(Ann ty val) -> Fix $ Ann (f ty) $ case val of
   ELet loc binds body -> ELet loc (fmap (first mapBind) binds) body
   EPrimOp loc p -> EPrimOp loc $ fmap f p
   ELam loc bs body -> ELam loc (fmap mapBind bs) body

@@ -29,7 +29,7 @@ removeRecords ctx = removeRecordCons ctx >=> removeRecordUpdate ctx
 -- | Substitutes record constructor application with named fields
 -- to ordinary constructor applications.
 removeRecordCons :: MonadError Error m => UserTypeCtx -> Lang -> m Lang
-removeRecordCons ctx = cataM $ \case
+removeRecordCons ctx = foldFixM $ \case
   RecConstr loc cons fields -> fmap (Fix . Cons loc cons . V.fromList) $ orderRecordFieldsFromContext ctx cons fields
   other                     -> return $ Fix other
 
@@ -57,7 +57,7 @@ orderRecordFields (RecordFieldOrder consOrder) cons fields =
 -- | Substitutes record updates syntax with updates
 -- with simple case-expressions
 removeRecordUpdate :: MonadError Error m => UserTypeCtx -> Lang -> m Lang
-removeRecordUpdate ctx = cataM $ \case
+removeRecordUpdate ctx = foldFixM $ \case
   RecUpdate loc expr fieldUpdates -> do
     mCaseExpr <- toRecUpdateCaseExpr ctx fieldUpdates
     return $ case mCaseExpr of

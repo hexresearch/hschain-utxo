@@ -39,7 +39,7 @@ desugarCaseExpr ctx = completeConsCaseExpr ctx <=< flatternCaseExpr
 -- | Completes missing case-expressions, and removes redundant cases
 -- like cases that are shadowed by previous catch-all cases.
 completeConsCaseExpr :: MonadLang m => UserTypeCtx -> Lang -> m Lang
-completeConsCaseExpr ctx = cataM $ \case
+completeConsCaseExpr ctx = foldFixM $ \case
   CaseOf loc e alts -> do
     substForVar e $ (\v -> substAlts ctx loc v alts)
   other             -> pure $ Fix other
@@ -48,7 +48,7 @@ completeConsCaseExpr ctx = cataM $ \case
 -- We reuse pattern compiler for functions to process case-expressions in similiar way.
 {-
 flatternCaseExpr :: MonadLang m => Lang -> m Lang
-flatternCaseExpr = cataM $ \case
+flatternCaseExpr = foldFixM $ \case
   CaseOf loc e caseAlts -> fmap (toResultExpr loc e) $ altGroupToExpr $ fmap toAlt caseAlts
   other                 -> pure $ Fix other
   where

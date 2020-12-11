@@ -290,7 +290,7 @@ inferLetRec ctx topLoc vs body = do
         lhsCtx1  = fmap (second $ apply phi) lhsCtx
         ts = fmap (oldBvar . snd) lhsCtx1
 
-    oldBvar = cata go . unSignature
+    oldBvar = foldFix go . unSignature
       where
         go  = \case
           MonoT t       -> t
@@ -385,7 +385,7 @@ inferBottom loc = do
   return (mempty, tyBottomE ty loc)
 
 newInstance :: IsVar v => Signature loc (Name v) -> InferM loc' v (Type loc (Name v))
-newInstance = fmap (uncurry apply) . cataM go . unSignature
+newInstance = fmap (uncurry apply) . foldFixM go . unSignature
   where
     go = \case
       MonoT ty -> return (mempty, ty)
@@ -571,7 +571,7 @@ fromTypeErrorNameVar = either id id . \case
     FreshNameFound       -> pure FreshNameFound
 
 fromTypeNameVar :: Type loc (Name var) -> Either (TypeError loc var) (Type loc var)
-fromTypeNameVar (Type x) = fmap Type $ cataM go x
+fromTypeNameVar (Type x) = fmap Type $ foldFixM go x
   where
     go :: TypeF loc (Name var) (Fix (TypeF loc var)) -> Either (TypeError loc var) (Fix (TypeF loc var))
     go = \case
@@ -582,7 +582,7 @@ fromTypeNameVar (Type x) = fmap Type $ cataM go x
       ListT loc as   -> pure $ Fix $ ListT loc as
 
 fromTyTermNameVar :: TyTerm prim loc (Name var) -> Either (TypeError loc var) (TyTerm prim loc var)
-fromTyTermNameVar (TyTerm x) = fmap TyTerm $ cataM go x
+fromTyTermNameVar (TyTerm x) = fmap TyTerm $ foldFixM go x
   where
     go (Ann annTy term) = liftA2 (\t val -> Fix $ Ann t val) (fromTypeNameVar annTy) $ case term of
       Var loc v           -> fmap (Var loc) $ fromNameVar v

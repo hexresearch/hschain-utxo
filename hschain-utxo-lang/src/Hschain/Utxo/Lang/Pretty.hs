@@ -166,7 +166,7 @@ instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof
 
 instance Pretty (S.Sigma S.PublicKey) where
-  pretty = cata $ \case
+  pretty = foldFix $ \case
       S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
       S.SigmaAnd as  -> parens $ hsep $ Const.sigmaAnd : as
       S.SigmaOr  as  -> parens $ hsep $ Const.sigmaOr  : as

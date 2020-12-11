@@ -44,7 +44,7 @@ module Hschain.Utxo.Lang.Sigma(
 import Hex.Common.Serialise
 
 import Control.Monad.Except
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData,NFData1)
 import Codec.Serialise
 
 import Data.Aeson
@@ -59,8 +59,10 @@ import Data.Functor.Classes (Eq1(..))
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
+import Data.Eq.Deriving
+import Data.Ord.Deriving
 
-import GHC.Generics
+import GHC.Generics (Generic, Generic1)
 
 import Text.Show.Deriving
 
@@ -157,14 +159,14 @@ verifyProof proof = Sigma.verifyProof proof . encodeToBS
 type Sigma k = Fix (SigmaF k)
 
 mapPk :: (a -> b) -> Sigma a -> Sigma b
-mapPk f = cata $ \case
+mapPk f = foldFix $ \case
   SigmaPk a   -> Fix $ SigmaPk (f a)
   SigmaAnd as -> Fix $ SigmaAnd as
   SigmaOr  as -> Fix $ SigmaOr  as
   SigmaBool b -> Fix $ SigmaBool b
 
 mapPkM :: Monad m => (a -> m b) -> Sigma a -> m (Sigma b)
-mapPkM f = cataM $ \case
+mapPkM f = foldFixM $ \case
   SigmaPk a   -> fmap (Fix . SigmaPk) (f a)
   SigmaAnd as -> pure $ Fix $ SigmaAnd as
   SigmaOr  as -> pure $ Fix $ SigmaOr  as
@@ -181,18 +183,16 @@ instance Boolean (Sigma k) where
 sigmaPk :: k -> Sigma k
 sigmaPk k = Fix $ SigmaPk k
 
-deriving anyclass instance NFData k => NFData (Sigma k)
-
 -- | Sigma-expression
 data SigmaF k a =
     SigmaPk k      -- ownership of the key (contains public key)
   | SigmaAnd [a]   -- and-expression
   | SigmaOr  [a]   -- or-expression
   | SigmaBool Bool -- wraps boolean constants
-  deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, NFData, Data)
+  deriving stock (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, Generic1, Data)
+  deriving anyclass (NFData, NFData1, Serialise)
 
-instance Serialise k => Serialise (Sigma k)
-instance (Serialise k, Serialise a) => Serialise (SigmaF k a)
+instance Serialise k => Serialise (Fix (SigmaF k))
 
 instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
   hashStep = genericHashStep Sigma.hashDomain
@@ -209,7 +209,7 @@ fromSigmaExpr = \case
 -- returns Left boolean if it's not possible
 -- to eliminate boolean constants.
 eliminateSigmaBool :: Sigma a -> Either Bool (Sigma a)
-eliminateSigmaBool = cata $ \case
+eliminateSigmaBool = foldFix $ \case
   SigmaBool b -> Left b
   SigmaPk pk  -> Right $ Fix $ SigmaPk pk
   SigmaAnd as ->
@@ -242,7 +242,7 @@ toSigmaExprOrFail a = bimap catchBoolean id $ toSigmaExpr a
     catchBoolean = const "Expression is constant boolean. It is not  a sigma-expression"
 
 toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
-toPrimSigmaExpr = cata $ \case
+toPrimSigmaExpr = foldFix $ \case
   SigmaPk k    -> Just $ Sigma.Leaf () k
   SigmaAnd as  -> fmap (Sigma.AND ()) $ sequence as
   SigmaOr  as  -> fmap (Sigma.OR  ()) $ sequence as
@@ -401,4 +401,7 @@ checkChallenges :: Commitments -> Challenges -> SigMessage -> Bool
 checkChallenges commitments challenges message =
   Sigma.checkChallenges commitments challenges (encodeToBS message)
 
+
 $(deriveShow1 ''SigmaF)
+$(deriveEq1   ''SigmaF)
+$(deriveOrd1  ''SigmaF)

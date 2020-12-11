@@ -76,6 +76,8 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , hindley-milner-type-check
+                     --
                      , hschain-crypto
                      , aeson
                      , array
@@ -85,7 +87,7 @@ library
                      , bytestring
                      , containers
                      , cryptonite
-                     , data-fix
+                     , data-fix                  >=0.3
                      , data-default
                      , deepseq
                      , deriving-compat
@@ -95,13 +97,12 @@ library
                      , groom
                      , haskell-src-exts
                      , hex-common
-                     , hindley-milner-type-check
                      , memory
                      , mtl
                      , pretty-show
                      , safe
                      , serialise
-                     , semigroups
+                     , semigroups                >=0.19.1
                      , prettyprinter
                      , serialise
                      , syb
@@ -151,7 +152,7 @@ Test-suite hschain-utxo-lang-tests
                      , hschain-crypto
                      , cryptonite
                      , memory
-                     , data-fix
+                     , data-fix                  >=0.3
                      , data-default
                      , bytestring
                      , vector

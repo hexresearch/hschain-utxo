@@ -21,24 +21,25 @@ library
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <5
+                     , hex-common
+                     , hschain-PoW
+                     , hschain-config
+                     , hschain-control
+                     , hschain-crypto
+                     , hschain-db
+                     , hschain-logger
+                     , hschain-merkle
+                     , hschain-net
+                     , hschain-pow-func
+                     , hschain-utxo-lang
+                     --
                      , aeson
                      , bytestring
                      , cryptonite
-                     , data-fix
+                     , data-fix                  >=0.3
                      , generic-lens
                      , lens
                      , mmorph
-                     , hex-common
-                     , hschain-crypto
-                     , hschain-db
-                     , hschain-config
-                     , hschain-merkle
-                     , hschain-utxo-lang
-                     , hschain-PoW
-                     , hschain-control
-                     , hschain-logger
-                     , hschain-net
-                     , hschain-pow-func
                      , containers
                      , exceptions
                      , monad-control
@@ -89,7 +90,6 @@ executable hschain-utxo-pow-testnet
   main-is:             Main.hs
   Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
   build-depends:       base >=4.11 && <5
-                     , hschain-utxo
                      , hschain-utxo-pow-node
   hs-source-dirs:      app
   default-language:    Haskell2010
@@ -98,7 +98,6 @@ executable hschain-utxo-pow-mocknet
   main-is:             Mock.hs
   Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
   build-depends:       base >=4.11 && <5
-                     , hschain-utxo
                      , hschain-utxo-pow-node
   hs-source-dirs:      app
   default-language:    Haskell2010
@@ -111,7 +110,6 @@ executable hschain-utxo-pow-node-cli
   build-depends:       base >=4.11 && <5
                      , hschain-crypto
                      , hschain-PoW
-                     , hschain-utxo
                      , hschain-utxo-lang
                      , hschain-utxo-pow-node
                      , containers
@@ -119,7 +117,7 @@ executable hschain-utxo-pow-node-cli
                      , text
                      , yaml
                      , vector
-                     , data-fix
+                     , data-fix                  >=0.3
                      , servant
                      , servant-client
                      , servant-client-core
@@ -153,7 +151,7 @@ Test-suite hschain-utxo-pow-node-tests
                      , Boolean
                      , mtl
                      , random
-                     , data-fix
+                     , data-fix                  >=0.3
                      , lens
                      , vector
                      , transformers

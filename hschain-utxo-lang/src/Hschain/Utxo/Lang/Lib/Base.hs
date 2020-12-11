@@ -14,7 +14,7 @@ module Hschain.Utxo.Lang.Lib.Base(
 import Prelude ((.), fmap, ($), Monoid(..))
 import qualified Prelude as P
 
-import Data.Fix hiding ((~>))
+import Data.Fix
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 
@@ -26,8 +26,6 @@ import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Data.Map as M
 import qualified Type.Check.HM as H
 import qualified Data.Vector as V
-
-infixr 6 ~>
 
 -- | Defines prelude functions.
 -- Note that we only need to define those functions that are combinations of primitive functions.
@@ -142,6 +140,7 @@ baseNames = ["Just", "Nothing"] P.++ (M.keys $ H.unContext $ baseLibTypeContext)
 
 (~>) :: Type -> Type -> Type
 (~>) a b = H.arrowT noLoc a b
+infixr 6 ~>
 
 forAllT' :: Text -> Signature -> Signature
 forAllT' = forAllT noLoc

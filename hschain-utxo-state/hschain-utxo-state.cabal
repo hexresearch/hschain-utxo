@@ -24,7 +24,7 @@ library
                      , hex-common
                      , hschain-crypto
                      , hschain-utxo-lang
-                     , data-fix
+                     , data-fix                  >=0.3
                      , lens
                      , bytestring
                      , containers

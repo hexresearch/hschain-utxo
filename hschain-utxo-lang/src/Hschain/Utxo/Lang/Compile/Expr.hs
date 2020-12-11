@@ -30,6 +30,9 @@ module Hschain.Utxo.Lang.Compile.Expr(
 ) where
 
 import Data.Fix
+import Data.Eq.Deriving
+import Data.Ord.Deriving
+import Text.Show.Deriving
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimOp, PrimCon)
 import Hschain.Utxo.Lang.Expr (Loc, VarName(..))
@@ -62,11 +65,9 @@ type ExprLam bind = Fix (ExprLamF bind)
 
 -- | Annotated programm.
 newtype AnnLamProg ann bind = AnnLamProg { unAnnLamProg :: [AnnComb ann bind] }
-  deriving (Show)
 
 -- | Extended lambda calculus programm
 newtype LamProg = LamProg { unLamProg :: [Comb Name] }
-  deriving (Show)
 
 -- | Annotated combinator
 type AnnComb ann bind = Def bind (AnnExprLam ann bind)
@@ -174,4 +175,13 @@ liftTypedLamProg f (AnnLamProg combs) =  fmap AnnLamProg $ mapM liftComb combs
       body <- f $ def'body def
       return $ def { def'body = body }
 
+$(deriveEq1   ''ExprLamF)
+$(deriveShow1 ''ExprLamF)
+$(deriveEq1   ''CaseAlt)
+$(deriveShow1 ''CaseAlt)
+$(deriveEq1   ''Ann)
+$(deriveOrd1  ''Ann)
+$(deriveShow1 ''Ann)
 
+deriving stock instance (Show bind, Show ann) => Show (AnnLamProg ann bind)
+deriving stock instance Show LamProg

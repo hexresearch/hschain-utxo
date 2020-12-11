@@ -31,7 +31,7 @@ library
                      , bytestring
                      , containers
                      , cryptonite
-                     , data-fix
+                     , data-fix                  >=0.3
                      , deepseq
                      , data-default-class
                      , directory

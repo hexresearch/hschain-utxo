@@ -97,7 +97,7 @@ toHaskExprCore = flip evalState (T.pack <$> stringPrettyLetters) . go []
     fromBool b = H.Con () $ if b then toQName "True" else toQName "False"
 
     fromSigma :: Sigma ByteString -> H.Exp ()
-    fromSigma = cata rec
+    fromSigma = foldFix rec
       where
         rec = \case
           SigmaPk pkey -> let keyTxt = encodeBase58 pkey

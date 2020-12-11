@@ -52,7 +52,7 @@ funDecl Def{..} = H.FunBind defLoc [match]
     binds  = Nothing
 
 toHaskExpr :: TypedExprLam -> H.Exp Loc
-toHaskExpr = cata $ \case
+toHaskExpr = foldFix $ \case
   Ann _ (EAp loc f a) -> toAp loc f a
   Ann exprTy expr -> withSig (H.getLoc expr) exprTy $ case expr of
     EVar loc name              -> toVar loc name
