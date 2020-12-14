@@ -5,7 +5,6 @@
 module Hschain.Utxo.Lang.Core.RefEval
   ( Val(..)
   , EvalErr(..)
-  , EvalResult
   , evalProg
   ) where
 
@@ -58,10 +57,6 @@ instance Show Val where
                      . showChar ' '
                      . showsPrec 11 xs
 
--- | Result of evaluation. It exisit in current form in order to be
---   able to test list based function.
-type EvalResult = Either EvalErr TermVal
-
 -- | Evaluation error
 data EvalErr
   = TypeMismatch    -- ^ Type error. Should never happen when evaluating well-typed program.
@@ -72,7 +67,7 @@ instance IsString EvalErr where
   fromString = EvalErr
 
 -- | Evaluate program
-evalProg :: InputEnv -> Core v -> EvalResult
+evalProg :: InputEnv -> Core v -> Either EvalErr TermVal
 evalProg env prog = fromVal =<< runEval (evalExpr env [] prog)
   where
     fromVal = \case
