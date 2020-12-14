@@ -20,6 +20,8 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Types
 
+import qualified Data.Vector as V
+
 env :: InputEnv
 env = InputEnv
   { inputEnv'height   = 123
@@ -60,29 +62,32 @@ mkBoxOutput height bid box = BoxOutput
   }
 
 testProgram :: String -> Core Name -> Prim -> TestTree
-testProgram nm prog r = testProgramBy nm prog (Right [r])
+testProgram nm prog r = testProgramBy nm prog (Right $ PrimVal r)
 
 testProgramL :: String -> Core Name -> [Prim] -> TestTree
-testProgramL nm prog r = testProgramBy nm prog (Right r)
+testProgramL nm prog r = testProgramBy nm prog (Right $ toPrimList r)
+  where
+    toPrimList = foldr (\a as -> ConVal (ConCons UnitT) (V.fromList [PrimVal a, as])) (ConVal (ConNil UnitT) mempty)
 
 testProgramFail :: String -> Core Name -> TestTree
 testProgramFail nm prog = testProgramBy nm prog (Left ())
 
-testProgramBy :: String -> Core Name -> Either e [Prim] -> TestTree
+testProgramBy :: String -> Core Name -> Either e TermVal -> TestTree
 testProgramBy nm prog res
   = testGroup nm
   $ testTypecheck
  ++ testEval
   where
     testTypecheck =
-      [ testCase "typeCheck dB" $ case typeCheck prog of
+      [ testCase "typeCheck" $ case typeCheck prog of
             Left  e -> assertFailure $ show e
             Right _ -> pure ()
       ]
     --
     testEval = case res of
       Left  _   -> []
-      Right [r] -> [ testCase "simple dB" $ EvalPrim r @=? evalProg env prog
-                   ]
-      Right r   -> [ testCase "simple dB" $ EvalList r @=? evalProg env prog
-                   ]
+      Right r   -> [ testCase "simple dB" $ Right r @=? evalProg env prog ]
+
+
+
+

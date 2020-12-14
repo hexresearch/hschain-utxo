@@ -17,6 +17,7 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
+import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Infer()
@@ -24,8 +25,8 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr (Core)
-import Hschain.Utxo.Lang.Core.RefEval (EvalResult(..), EvalErr(..))
+import Hschain.Utxo.Lang.Core.Compile.Expr (Core, TermVal(..), PrimCon(..))
+import Hschain.Utxo.Lang.Core.RefEval (EvalErr(..))
 import Hschain.Utxo.Lang.Core.ToHask
 import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam, TypedLamProg)
 import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr, toHaskProg)
@@ -317,11 +318,30 @@ instance Pretty Hask.SrcLoc where
     , pretty srcLine, ":"
     , pretty srcColumn ]
 
-instance Pretty EvalResult where
-  pretty = \case
-    EvalPrim p   -> pretty p
-    EvalList ps  -> brackets $ hsep $ punctuate comma $ fmap pretty ps
-    EvalFail err -> pretty err
+instance Pretty TermVal where
+  pretty = go False
+    where
+      go needParens term = case term of
+        PrimVal p        -> pretty p
+        ConVal con args  -> case con of
+          ConUnit      -> "()"
+          ConNil _     -> "[]"
+          ConCons _    -> maybe (pretty $ show term) pretty $ getList args
+          ConTuple _   -> parens $ hsep $ punctuate comma $ V.toList $ fmap pretty args
+          ConNothing _ -> "Nothing"
+          ConJust _    -> pCon "Just" args
+          ConSum n ts   -> pCon (hcat ["Sum", pretty $ V.length ts, "_", pretty n]) args
+        where
+          withParens = if needParens then parens else id
+          pCon name args = withParens $ hsep $ name : (fmap (go True) $ V.toList args)
+
+      getList :: Vector TermVal -> Maybe [TermVal]
+      getList args = case V.toList args of
+        [a, as] -> case as of
+                     ConVal (ConNil _) _     -> Just [a]
+                     ConVal (ConCons _) rest -> fmap (a :) $ getList rest
+                     _                       -> Nothing
+        _       -> Nothing
 
 instance Pretty Core.Prim where
   pretty = \case

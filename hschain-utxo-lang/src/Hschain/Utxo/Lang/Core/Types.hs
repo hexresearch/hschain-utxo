@@ -115,14 +115,15 @@ instance Pretty TypeCore where
         BytesT    -> "Bytes"
         TextT     -> "Text"
         SigmaT    -> "Sigma"
-        a :-> b   -> (if needParens then parens else id)
-                   $ go True a <> " -> " <> go False b
+        a :-> b   -> withParens $ go True a <> " -> " <> go False b
         ListT  a  -> brackets $ go False a
         TupleT xs -> parens $ hsep $ punctuate comma $ go False <$> xs
         BoxT      -> "Box"
         UnitT     -> "Unit"
-        MaybeT a  -> hsep ["Maybe", (go True a)]
-        SumT ts   -> hsep $ ("Sum" <> pretty (length ts)) : fmap (go True) ts
+        MaybeT a  -> withParens $ hsep ["Maybe", (go True a)]
+        SumT ts   -> withParens $ hsep $ ("Sum" <> pretty (length ts)) : fmap (go True) ts
+        where
+          withParens = if needParens then parens else id
 
 
 

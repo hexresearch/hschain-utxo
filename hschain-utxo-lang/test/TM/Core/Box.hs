@@ -82,7 +82,7 @@ testProg name res prog = testGroup name
   [ testCase "typecheck" $ case typeCheck prog of
       Left  e -> assertFailure $ show e
       Right _ -> pure ()
-  , testCase          "simple"    $ EvalPrim res  @=? evalProg txEnv prog
+  , testCase          "simple"    $ Right (PrimVal res)  @=? evalProg txEnv prog
   ]
 
 progGetHeight :: Core Name
