@@ -9,11 +9,9 @@ module Hschain.Utxo.Lang.Types
   , BoxId(..)
   , BoxInputRef(..)
   , Args(..)
-  , ArgType(..)
   , Script(..)
   , Money
   , computeBoxId
-  , argTypes
     -- * Blockchain state manipulation
   , InputEnv(..)
   , TxArg(..)
@@ -84,16 +82,6 @@ newtype Args = Args ByteString
   deriving anyclass (NFData, Serialise)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Args" ByteString)
-
--- | Types that we can store as arguments in transactions.
--- We store lists of them.
-data ArgType = IntArg | TextArg | BoolArg | BytesArg
-  deriving stock    (Show, Eq, Generic, Data, Typeable)
-  deriving anyclass (NFData, Serialise)
-
-argTypes :: [ArgType]
-argTypes = [IntArg, TextArg, BoolArg, BytesArg]
-
 
 -- | Identifier of TX. We can derive it from the PreTx.
 --  It equals to hash of serialised PreTx

@@ -35,7 +35,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
-import Hschain.Utxo.Lang.Types              (ArgType(..), Script(..))
+import Hschain.Utxo.Lang.Types              (Script(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -476,36 +476,16 @@ data E a
 
 -- | Types that we can inline to quasi-quoted code
 data QuoteType
-  = PrimQ ArgType
+  = IntQ
+  | BoolQ
+  | TextQ
+  | BytesQ
   | SigmaQ
   | PublicKeyQ
   | ScriptQ
   | ListQ QuoteType
   | TupleQ [QuoteType]
   deriving (Show, Eq, Data)
-
--- | Built-in unary operators
-data UnOp
-  = Not   -- ^ logical not
-  | Neg   -- ^ numeric negation
-  | TupleAt Int Int  -- ^ tuple field accessor. Arguments: @TupleAt tupleSize, field number@.
-  deriving (Show, Eq, Data, Typeable)
-
--- | Built-in binary operators
-data BinOp
-  = And                  -- ^ boolean AND
-  | Or                   -- ^ boolean OR
-  | Plus                 -- ^ numeric addition
-  | Minus                -- ^ numeric substraction
-  | Times                -- ^ numeric multiplication
-  | Div                  -- ^ numeric integer division
-  | Equals               -- ^ equality test
-  | NotEquals            -- ^ non-equality test
-  | LessThan             -- ^ @<@
-  | GreaterThan          -- ^ @>@
-  | LessThanEquals       -- ^ @<=@
-  | GreaterThanEquals    -- ^ @>=@
-  deriving (Show, Eq, Data, Typeable)
 
 -- | Case-alternative expression
 data CaseExpr a
@@ -514,36 +494,6 @@ data CaseExpr a
       , caseExpr'rhs :: a    -- ^ right-hand side expression
       }
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
--- | Expressions that operate on boxes.
-data BoxExpr a
-  = BoxAt Loc a BoxField -- ^ Box field getter
-  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
--- | It defines which values we can get from the box
-data BoxField
-  = BoxFieldId
-  -- ^ Get box identifier
-  | BoxFieldValue
-  -- ^ Get box value (or money)
-  | BoxFieldScript
-  -- ^ Get box script
-  | BoxFieldArgList ArgType
-  -- ^ Get box argument. It should be primitive value stored in the vector.
-  -- We get the vector of primitive values stored by primitive-value tag.
-  | BoxFieldPostHeight
-  -- ^ Get time at which box was posted. It's useful to create relative time bounds
-  deriving (Show, Eq, Data, Typeable)
-
-argTagToType :: ArgType -> Type
-argTagToType = argTagToType' H.defLoc
-
-argTagToType' :: Loc -> ArgType -> Type
-argTagToType' loc = \case
-  IntArg   -> intT' loc
-  TextArg  -> textT' loc
-  BoolArg  -> boolT' loc
-  BytesArg -> bytesT' loc
 
 -- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
 secretVar :: Text -> Text
@@ -581,35 +531,6 @@ instance FromJSON BoolExprResult where
   parseJSON = withObject "BoolExprResult" $ \obj ->
         (ConstBool <$> obj .: "bool")
     <|> (SigmaResult <$> obj .: "sigma")
-
-
--- | Environment fields. Info that we can query from blockchain state
-data EnvId a
-  = Height Loc
-  -- ^ Get blockchain height
-  | Input Loc  a
-  -- ^ Get input box of the script by index
-  | Output Loc a
-  -- ^ Get output box of the script by index
-  -- (those boxes that are created if transaction is comitted with success)
-  | Self Loc
-  -- ^ Get box of the current script
-  | Inputs Loc
-  -- ^ Get list of all input boxes
-  | Outputs Loc
-  -- ^ Get list of all output boxes
-  | DataInputs Loc
-  -- ^ Get list of all data-input boxes
-  | GetVar Loc ArgType
-  -- ^ Get argument of the transaction by name
-  deriving (Show, Eq, Functor, Foldable, Traversable, Data, Typeable)
-
-argTypeName :: ArgType -> Text
-argTypeName = \case
-  IntArg   -> "Int"
-  TextArg  -> "Text"
-  BoolArg  -> "Bool"
-  BytesArg -> "Bytes"
 
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
@@ -1040,8 +961,6 @@ $(deriveShow1 ''Guard)
 $(deriveEq1   ''Bind)
 $(deriveOrd1  ''Bind)
 $(deriveShow1 ''Bind)
-$(deriveEq1   ''EnvId)
-$(deriveShow1 ''EnvId)
 $(deriveEq1   ''CaseExpr)
 $(deriveOrd1  ''CaseExpr)
 $(deriveShow1 ''CaseExpr)

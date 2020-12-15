@@ -193,31 +193,6 @@ instance Pretty Prim where
     PrimSigma    s -> pretty $ show s
     PrimBytes    s -> pretty $ encodeBase58 s
 
-instance Pretty a => Pretty (EnvId a) where
-  pretty = prettyId . fmap pretty
-
-prettyId :: EnvId (Doc ann) -> Doc ann
-prettyId = \case
-    Height _         -> "HEIGHT"
-    Input _  a       -> prettyVec "input"  a
-    Output _ a       -> prettyVec "output" a
-    Inputs _         -> "INPUTS"
-    Outputs _        -> "OUTPUTS"
-    DataInputs _     -> "DATA-INPUTS"
-    Self _           -> hcat ["SELF"]
-    GetVar _ _       -> pretty Const.getArgs
-
-prettyVec :: Doc ann -> Doc ann -> Doc ann
-prettyVec name n = hcat [name, brackets n]
-
-instance Pretty BoxField where
-  pretty = \case
-    BoxFieldId          -> "id"
-    BoxFieldValue       -> "value"
-    BoxFieldScript      -> "script"
-    BoxFieldArgList _   -> pretty $ Const.getBoxArgs
-    BoxFieldPostHeight  -> "postHeight"
-
 instance Pretty Error where
   pretty = \case
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]

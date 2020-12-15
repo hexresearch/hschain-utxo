@@ -82,7 +82,7 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey)
-import Hschain.Utxo.Lang.Types (ArgType(..), Script)
+import Hschain.Utxo.Lang.Types (Script)
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base (baseLibInferCtx, baseLibTypeContext)
 import Hschain.Utxo.Lang.Parser.Hask
@@ -193,7 +193,10 @@ substAntiQuoteLang lang = foldFixM go lang
 
 quoteToType :: Loc -> QuoteType -> Type
 quoteToType loc = \case
-  PrimQ ty   -> argTagToType' loc ty
+  IntQ       -> intT' loc
+  BoolQ      -> boolT' loc
+  BytesQ     -> bytesT' loc
+  TextQ      -> textT' loc
   SigmaQ     -> sigmaT' loc
   PublicKeyQ -> bytesT' loc
   ScriptQ    -> bytesT' loc
@@ -204,11 +207,10 @@ quoteToType loc = \case
 
 quoteToHaskType :: QuoteType -> TH.TypeQ
 quoteToHaskType = \case
-  PrimQ t -> case t of
-    IntArg   -> [t|Int|]
-    BoolArg  -> [t|Bool|]
-    TextArg  -> [t|Text|]
-    BytesArg -> [t|ByteString|]
+  IntQ   -> [t|Int|]
+  BoolQ  -> [t|Bool|]
+  TextQ  -> [t|Text|]
+  BytesQ -> [t|ByteString|]
   SigmaQ -> [t|Sigma ByteString|]
   PublicKeyQ -> [t|PublicKey|]
   ScriptQ -> [t|Script|]

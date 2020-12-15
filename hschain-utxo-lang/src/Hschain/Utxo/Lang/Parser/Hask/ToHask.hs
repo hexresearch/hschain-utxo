@@ -10,7 +10,6 @@ import Data.Fix
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types
 
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -195,12 +194,12 @@ toSymbolQName x@(VarName loc _) = H.UnQual loc $ toSymbolName x
 toVar :: Loc -> VarName -> H.Exp Loc
 toVar loc name = H.Var loc (toQName name)
 
-fromArgType :: Loc -> ArgType -> H.QName Loc
-fromArgType loc ty = H.UnQual loc $ H.Ident loc $ T.unpack $ argTypeName ty
-
 fromQuoteType :: Loc -> QuoteType -> H.Type Loc
 fromQuoteType loc = \case
-  PrimQ ty   -> H.TyCon loc $ fromArgType loc ty
+  IntQ       -> primQ "Int"
+  TextQ      -> primQ "Text"
+  BytesQ     -> primQ "Bytes"
+  BoolQ      -> primQ "Bool"
   SigmaQ     -> primQ "Sigma"
   ScriptQ    -> primQ "Script"
   PublicKeyQ -> primQ "PublicKey"
