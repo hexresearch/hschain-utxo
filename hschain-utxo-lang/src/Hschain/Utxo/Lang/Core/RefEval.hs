@@ -16,7 +16,6 @@ import Control.Monad.State.Strict
 import Data.Int
 import Data.ByteString (ByteString)
 import Data.Bool
-import Data.String
 import Data.Text       (Text)
 import Data.Typeable
 import Data.Fix
@@ -26,11 +25,13 @@ import qualified Data.Text            as T
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LB
 
-import HSChain.Crypto     (Hash(..),hashBlob,ByteRepr(..), encodeBase58)
+import HSChain.Crypto     (Hash(..),hashBlob,ByteRepr(..))
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Pretty
+import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
 
 import qualified Hschain.Utxo.Lang.Const as Const
@@ -56,15 +57,6 @@ instance Show Val where
                      . showsPrec 11 i
                      . showChar ' '
                      . showsPrec 11 xs
-
--- | Evaluation error
-data EvalErr
-  = TypeMismatch    -- ^ Type error. Should never happen when evaluating well-typed program.
-  | EvalErr String  -- ^ Some other error
-  deriving (Show, Eq)
-
-instance IsString EvalErr where
-  fromString = EvalErr
 
 -- | Evaluate program
 evalProg :: InputEnv -> Core v -> Either EvalErr TermVal
@@ -227,13 +219,7 @@ evalPrimOp env = \case
   OpBytesAppend -> pure $ lift2 ((<>) @ByteString)
   OpSHA256      -> pure $ lift1 (hashBlob @SHA256)
   --
-  OpShow t
-    | t == IntT   -> pure $ lift1 (T.pack . show @Int64)
-    | t == BoolT  -> pure $ lift1 (T.pack . show @Bool)
-    | t == TextT  -> pure $ ValF pure
-    | t == BytesT -> pure $ lift1 (encodeBase58 @ByteString)
-    | t == SigmaT -> pure $ lift1 (T.pack . show @(Sigma PublicKey))
-    | otherwise  -> throwError "Invalid show. Show is defined only for primitive values"
+  OpShow _ -> pure $ liftTerm1 (PrimVal . PrimText . renderText)
   --
   OpToBytes   tag -> pure $ case tag of
     IntArg   -> lift1 $ serialise @Int64
@@ -506,6 +492,11 @@ injTerm :: TermVal -> Val
 injTerm = \case
   PrimVal p       -> ValP p
   ConVal con args -> ValCon con $ V.toList $ fmap injTerm args
+
+liftTerm1 :: (TermVal -> TermVal) -> Val
+liftTerm1 f = ValF $ go
+  where
+    go a = injTerm . f <$> matchTerm a
 
 liftTerm2 :: (TermVal -> TermVal -> TermVal) -> Val
 liftTerm2 f = Val2F $ \a b -> go a b

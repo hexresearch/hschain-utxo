@@ -26,7 +26,6 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr (Core, TermVal(..), PrimCon(..))
-import Hschain.Utxo.Lang.Core.RefEval (EvalErr(..))
 import Hschain.Utxo.Lang.Core.ToHask
 import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam, TypedLamProg)
 import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr, toHaskProg)

@@ -38,6 +38,16 @@ data ExecError
   | FailedToDecodeScript
   deriving stock    (Show,Eq,Generic,Data)
 
+-- | Evaluation error
+data EvalErr
+  = TypeMismatch    -- ^ Type error. Should never happen when evaluating well-typed program.
+  | EvalErr String  -- ^ Some other error
+  deriving (Show, Eq)
+
+instance IsString EvalErr where
+  fromString = EvalErr
+
+
 -- | Errors that can arise during transformation of patterns in the bindings
 -- to case-expressions.
 --
