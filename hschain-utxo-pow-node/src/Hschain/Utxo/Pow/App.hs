@@ -10,6 +10,7 @@
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
+  , runLightNode
   , genesisTest
   , genesisMock
   , TestNet
@@ -208,6 +209,30 @@ runNode genesisBlk Cfg{..} maybePrivK = do
       -- Wait forever
       liftIO $ forever $ threadDelay maxBound
 
+runLightNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> Cfg -> IO ()
+runLightNode genesisBlk Cfg{..} = do
+  -- Acquire resources
+  let net    = newNetworkTcp cfgPort
+      netcfg = POW.NodeCfg { POW.nKnownPeers     = 3
+                           , POW.nConnectedPeers = 3
+                           , POW.initialPeers    = cfgPeers
+                           }
+  withConnection (fromMaybe "" cfgDB) $ \conn ->
+    withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv ->
+      runUTXOT logEnv conn $ evalContT $ do
+        -- Initialize PoW node
+        (db, bIdx, _sView) <- lift $ utxoStateView genesisBlk
+        let c0 = POW.createLightConsensus genesisBlk bIdx
+        pow <- POW.lightNode netcfg net db c0
+        -- Report to stdout
+        void $ liftIO $ forkIO $ do
+          ch <- HControl.atomicallyIO $ POW.bestHeadUpdates pow
+          forever $ do bh <- fst . POW._bestLightHead <$> HControl.awaitIO ch
+                       print (POW.bhHeight bh, POW.bhBID bh)
+                       print $ POW.retarget bh
+        --
+        liftIO $ forever $ threadDelay maxBound
+  
 
 ----------------------------------------------------------------
 -- REST API for PoW node
