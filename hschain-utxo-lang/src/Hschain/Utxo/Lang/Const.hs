@@ -181,11 +181,11 @@ appendBytes = "appendBytes"
 lengthBytes :: Text
 lengthBytes = "lengthBytes"
 
-serialiseBytes :: Text -> Text
-serialiseBytes typeName = "serialise" <> typeName
+serialiseBytes :: Text
+serialiseBytes = "serialise"
 
-deserialiseBytes :: Text -> Text
-deserialiseBytes typeName = "deserialise" <> typeName
+deserialiseBytes :: Text
+deserialiseBytes = "deserialise"
 
 sha256 :: Text
 sha256 = "sha256"

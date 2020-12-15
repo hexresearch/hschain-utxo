@@ -218,9 +218,9 @@ primopToType = \case
   OpGetBoxPostHeight -> pure $ BoxT :-> IntT
   --
   OpShow      ty  -> showType ty
-  OpToBytes   tag -> pure $ argTypeToCore tag :-> BytesT
+  OpToBytes   ty  -> pure $ ty :-> BytesT
   -- FIXME: Function is in fact partial
-  OpFromBytes tag -> pure $ BytesT :-> (argTypeToCore tag)
+  OpFromBytes ty  -> pure $ BytesT :-> ty
   --
   OpEnvGetHeight     -> pure IntT
   OpEnvGetSelf       -> pure BoxT

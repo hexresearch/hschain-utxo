@@ -931,8 +931,8 @@ monoPrimopName = \case
   OpBytesLength -> Just Const.lengthBytes
   OpTextAppend  -> Just Const.appendText
   OpBytesAppend -> Just Const.appendBytes
-  OpToBytes   t -> Just $ Const.serialiseBytes $ argTypeName t
-  OpFromBytes t -> Just $ Const.deserialiseBytes $ argTypeName t
+  OpToBytes   _ -> Nothing
+  OpFromBytes _ -> Nothing
   --
   OpArgs t       -> Just $ "get" <> argTypeName t <> "Args"
   OpGetBoxId     -> Just Const.getBoxId
@@ -979,6 +979,9 @@ polyPrimOpName = \case
   OpLT _   -> Just "<"
   OpLE _   -> Just "<="
   --
+  OpFromBytes _ -> Just Const.deserialiseBytes
+  OpToBytes   _ -> Just Const.serialiseBytes
+  --
   OpListMap{}    -> Just "map"
   OpListAt{}     -> Just "listAt"
   OpListAppend{} -> Just "++"
@@ -1006,8 +1009,6 @@ monomorphicPrimops =
   , OpListAnd
   , OpListOr
   ]
-  ++ (OpToBytes <$> argTypes)
-  ++ (OpFromBytes <$> argTypes)
   ++ (OpGetBoxArgs <$> argTypes)
   ++ (OpArgs <$> argTypes)
 

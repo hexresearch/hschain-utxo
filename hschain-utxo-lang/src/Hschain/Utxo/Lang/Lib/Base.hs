@@ -224,7 +224,9 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumeType "undefined" $ forA aT
   , assumeType Const.checkSig $ monoT $ bytesT ~> intT ~> boolT
   , assumeType Const.checkMultiSig $ monoT $ intT ~> listT bytesT ~> listT intT ~> boolT
-  ] P.++ getBoxArgListTypes P.++ getEnvVarTypes P.++ serialiseTypes P.++ deserialiseTypes
+  , assumeType Const.serialiseBytes $ forA $ aT ~> bytesT
+  , assumeType Const.deserialiseBytes $ forA $ bytesT ~> aT
+  ] P.++ getBoxArgListTypes P.++ getEnvVarTypes
   where
     forA = forAllT' "a" . monoT
     forAB = forAllT' "a" . forAllT' "b" . monoT
@@ -235,12 +237,6 @@ baseLibTypeContext = H.Context $ M.fromList $
 
     getEnvVarTypes =
       fmap (\ty -> assumeType (getEnvVarName ty) (monoT $ listT (argTagToType ty))) argTypes
-
-    serialiseTypes =
-      fmap (\ty -> assumeType (Const.serialiseBytes $ argTypeName ty) (monoT $ argTagToType ty ~> bytesT)) argTypes
-
-    deserialiseTypes =
-      fmap (\ty -> assumeType (Const.deserialiseBytes $ argTypeName ty) (monoT $ bytesT ~> argTagToType ty)) argTypes
 
     aT, bT, cT :: Type
     aT = varT "a"

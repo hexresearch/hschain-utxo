@@ -70,7 +70,7 @@ import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Crypto.Signature
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
-import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Utils.Hash
 
 import qualified Data.List as L
 import qualified Data.Vector as V
@@ -491,7 +491,6 @@ newProofTxOrFail proofEnv tx = liftIO $ do
 -- | Claculate the hash of the script.
 hashScript :: Script -> ByteString
 hashScript = getSha256 . unScript
-
 
 --------------------------------------------
 -- useful utils

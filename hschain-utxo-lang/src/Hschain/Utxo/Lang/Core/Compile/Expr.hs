@@ -97,8 +97,8 @@ data PrimOp a
   | OpBytesLength         -- ^ Bytes length
   | OpTextAppend          -- ^ Text concatenation
   | OpBytesAppend         -- ^ Bytes concatenation
-  | OpToBytes   !ArgType
-  | OpFromBytes !ArgType
+  | OpToBytes   !a
+  | OpFromBytes !a
 
   | OpShow !a             -- ^ Polymorphic show
 
@@ -199,7 +199,7 @@ argsPrimCon = ConTuple $ V.fromList $ fmap ListT [IntT, TextT, BoolT, BytesT ]
 data TermVal
   = PrimVal !Prim
   | ConVal (PrimCon TypeCore) (Vector TermVal)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, Serialise)
 
 -- | Expressions of the Core-language
 data Core a

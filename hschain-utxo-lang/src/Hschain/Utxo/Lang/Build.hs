@@ -33,10 +33,7 @@ module Hschain.Utxo.Lang.Build(
   , lengthText
   , showExpr
   , sha256
-  , serialiseInt
-  , serialiseBytes
-  , serialiseBool
-  , serialiseText
+  , serialiseFrom
   , lengthBytes
   , pair
   , tuple3
@@ -357,20 +354,8 @@ showExpr = primAp1 Const.show
 sha256 :: Expr ByteString -> Expr ByteString
 sha256 = primAp1 Const.sha256
 
-serialiseInt :: Expr Int -> Expr ByteString
-serialiseInt = serialiseBy IntArg
-
-serialiseText :: Expr Text -> Expr ByteString
-serialiseText = serialiseBy TextArg
-
-serialiseBytes :: Expr ByteString -> Expr ByteString
-serialiseBytes = serialiseBy BytesArg
-
-serialiseBool :: Expr Bool -> Expr ByteString
-serialiseBool = serialiseBy BoolArg
-
-serialiseBy :: ArgType -> Expr a -> Expr ByteString
-serialiseBy tag = primAp1 $ Const.serialiseBytes (argTypeName tag)
+serialiseFrom :: Expr a -> Expr ByteString
+serialiseFrom = primAp1 $ Const.serialiseBytes
 
 lengthBytes :: Expr ByteString -> Expr Int
 lengthBytes = primAp1 Const.lengthBytes

@@ -221,16 +221,11 @@ evalPrimOp env = \case
   --
   OpShow _ -> pure $ liftTerm1 (PrimVal . PrimText . renderText)
   --
-  OpToBytes   tag -> pure $ case tag of
-    IntArg   -> lift1 $ serialise @Int64
-    TextArg  -> lift1 $ serialise @Text
-    BoolArg  -> lift1 $ serialise @Bool
-    BytesArg -> lift1 $ serialise @ByteString
-  OpFromBytes tag -> pure $ case tag of
-    IntArg   -> evalLift1 $ decode @Int64
-    TextArg  -> evalLift1 $ decode @Text
-    BoolArg  -> evalLift1 $ decode @Bool
-    BytesArg -> evalLift1 $ decode @ByteString
+  OpToBytes   _ -> pure $ liftTerm1 (PrimVal . PrimBytes . LB.toStrict . serialise)
+  OpFromBytes _  -> let getBS = \case
+                         PrimVal (PrimBytes bs) -> pure $ LB.fromStrict bs
+                         _                      -> throwError "Not a bytestring"
+                   in  pure $ evalLiftTerm1 $ (decode <=< getBS)
   --
   OpArgs tag -> pure $ case tag of
     IntArg   -> inj args'ints
@@ -481,12 +476,13 @@ evalLift3 f = Val3F $ \a b c -> go a b c
     go a b c = fmap inj $ join $ f <$> match a <*> match b <*>  match c
 
 -------------------------------------------
+-- match terms
 
 matchTerm :: Val -> Eval TermVal
 matchTerm = \case
   ValP p          -> pure $ PrimVal p
   ValCon con args -> fmap (ConVal con . V.fromList) $ mapM matchTerm args
-  _               -> throwError "Is not a term"
+  _               -> throwError "It is not a term"
 
 injTerm :: TermVal -> Val
 injTerm = \case
@@ -503,11 +499,8 @@ liftTerm2 f = Val2F $ \a b -> go a b
   where
     go a b = fmap injTerm $ f <$> matchTerm a <*> matchTerm b
 
-evalLiftTerm2 :: (TermVal -> TermVal -> Eval TermVal) -> Val
-evalLiftTerm2 f = Val2F $ \a b -> go a b
+evalLiftTerm1 :: (TermVal -> Eval TermVal) -> Val
+evalLiftTerm1 f = ValF $ go
   where
-    go a b = fmap injTerm $ join $ f <$> matchTerm a <*> matchTerm b
-
-
-
+    go a = fmap injTerm $ f =<< matchTerm a
 
