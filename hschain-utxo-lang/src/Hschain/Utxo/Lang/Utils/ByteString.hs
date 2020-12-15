@@ -3,6 +3,8 @@
 module Hschain.Utxo.Lang.Utils.ByteString(
     serialiseTerm
   , deserialiseTerm
+  , toArgs
+  , IsTerm(..)
 ) where
 
 import Control.Applicative
@@ -16,9 +18,13 @@ import Data.Text (Text)
 import Hschain.Utxo.Lang.Core.Compile.Expr (TermVal(..), PrimCon(..))
 import Hschain.Utxo.Lang.Core.Types (Prim(..), TypeCore(..))
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Types (Args(..))
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
+
+toArgs :: IsTerm a => a -> Args
+toArgs = Args . serialiseTerm
 
 serialiseTerm :: IsTerm a => a -> ByteString
 serialiseTerm = LB.toStrict . serialise . toTerm

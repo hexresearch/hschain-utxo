@@ -210,11 +210,11 @@ primopToType = \case
   OpLT ty -> compareType ty
   OpLE ty -> compareType ty
   --
-  OpArgs tag     -> pure $ ListT (argTypeToCore tag)
+  OpArgs t       -> pure $ t
   OpGetBoxId     -> pure $ BoxT :-> BytesT
   OpGetBoxScript -> pure $ BoxT :-> BytesT
   OpGetBoxValue  -> pure $ BoxT :-> IntT
-  OpGetBoxArgs t -> pure $ BoxT :-> ListT (argTypeToCore t)
+  OpGetBoxArgs t -> pure $ BoxT :-> t
   OpGetBoxPostHeight -> pure $ BoxT :-> IntT
   --
   OpShow      ty  -> showType ty

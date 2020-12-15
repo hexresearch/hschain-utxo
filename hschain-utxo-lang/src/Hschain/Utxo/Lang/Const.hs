@@ -101,14 +101,14 @@ getInput  = "getInput"
 getOutput = "getOutput"
 getDataInput = "getDataInput"
 
-getArgs :: Text -> Text
-getArgs typeName = mconcat ["get", typeName, "Args"]
+getArgs :: Text
+getArgs = "getArgs"
 
 -------------------------------------------------------------------
 -- boxes
 
-getBoxArgs :: Text -> Text
-getBoxArgs typeName = mconcat ["getBox", typeName, "Args"]
+getBoxArgs :: Text
+getBoxArgs = "getBoxArgs"
 
 getBoxId, getBoxScript, getBoxValue, getBoxPostHeight :: Text
 

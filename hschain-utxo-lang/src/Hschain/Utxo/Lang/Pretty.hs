@@ -88,12 +88,7 @@ prettyRecord name fields = vcat [name <> colon, indent 2 (vsep $ fmap ppField fi
     ppField (field, val) = hsep [hcat [pretty field, colon], val ]
 
 prettyArgs :: Args -> Doc ann
-prettyArgs Args{..} = prettyRecord "Args"
-  [ ("args'ints",  pretty $ V.toList args'ints)
-  , ("args'texts", pretty $ V.toList args'texts)
-  , ("args'bools", pretty $ V.toList args'bools)
-  , ("args'bytes", pretty $ V.toList $ fmap encodeBase58 args'bytes)
-  ]
+prettyArgs (Args bs) = pretty $ encodeBase58 bs
 
 instance Pretty TxHash where
   pretty (TxHash bs) = pretty $ serialiseToText bs
@@ -210,7 +205,7 @@ prettyId = \case
     Outputs _        -> "OUTPUTS"
     DataInputs _     -> "DATA-INPUTS"
     Self _           -> hcat ["SELF"]
-    GetVar _ ty      -> pretty $ getEnvVarName ty
+    GetVar _ _       -> pretty Const.getArgs
 
 prettyVec :: Doc ann -> Doc ann -> Doc ann
 prettyVec name n = hcat [name, brackets n]
@@ -220,7 +215,7 @@ instance Pretty BoxField where
     BoxFieldId          -> "id"
     BoxFieldValue       -> "value"
     BoxFieldScript      -> "script"
-    BoxFieldArgList tag -> pretty $ getBoxArgVar tag
+    BoxFieldArgList _   -> pretty $ Const.getBoxArgs
     BoxFieldPostHeight  -> "postHeight"
 
 instance Pretty Error where

@@ -17,19 +17,13 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
   , getBoxScript
   , getBoxValue
   , getBoxPostHeight
-  , getBoxIntArgs
-  , getBoxTextArgs
-  , getBoxByteArgs
-  , getBoxBoolArgs
+  , getBoxArgs
   , getInputs
   , getOutputs
   , getDataInputs
   , getSelf
   , getHeight
-  , getIntArgs
-  , getTextArgs
-  , getByteArgs
-  , getBoolArgs
+  , getArgs
   , checkSig
   , checkMultiSig
 ) where
@@ -39,7 +33,6 @@ import Data.Int
 import Data.Fix
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Types (ArgType(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Sigma
@@ -102,22 +95,18 @@ getBoxPostHeight = EAp (EPrimOp OpGetBoxPostHeight)
 getBoxScript :: Core v -> Core v
 getBoxScript = EAp (EPrimOp OpGetBoxScript)
 
-getBoxIntArgs,getBoxTextArgs,getBoxByteArgs,getBoxBoolArgs :: Core v -> Core v
-getBoxIntArgs  = EAp (EPrimOp $ OpGetBoxArgs IntArg)
-getBoxTextArgs = EAp (EPrimOp $ OpGetBoxArgs TextArg)
-getBoxByteArgs = EAp (EPrimOp $ OpGetBoxArgs BytesArg)
-getBoxBoolArgs = EAp (EPrimOp $ OpGetBoxArgs BoolArg)
+getBoxArgs :: TypeCore -> Core v -> Core v
+getBoxArgs ty = EAp (EPrimOp $ OpGetBoxArgs ty)
 
-getInputs,getOutputs,getSelf,getDataInputs,getHeight,getIntArgs,getTextArgs,getByteArgs,getBoolArgs :: Core v
+getInputs,getOutputs,getSelf,getDataInputs,getHeight :: Core v
 getInputs     = EPrimOp OpEnvGetInputs
 getOutputs    = EPrimOp OpEnvGetOutputs
 getSelf       = EPrimOp OpEnvGetSelf
 getDataInputs = EPrimOp OpEnvGetDataInputs
 getHeight     = EPrimOp OpEnvGetHeight
-getIntArgs    = EPrimOp $ OpArgs IntArg
-getTextArgs   = EPrimOp $ OpArgs TextArg
-getByteArgs   = EPrimOp $ OpArgs BytesArg
-getBoolArgs   = EPrimOp $ OpArgs BoolArg
+
+getArgs :: TypeCore -> Core v
+getArgs ty   = EPrimOp $ OpArgs ty
 
 checkSig :: Core v -> Core v -> Core v
 checkSig pk ix = ap (EPrimOp OpCheckSig) [pk, ix]

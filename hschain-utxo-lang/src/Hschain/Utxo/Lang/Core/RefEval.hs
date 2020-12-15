@@ -32,7 +32,7 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),Script(..),BoxId(..),InputEnv(..))
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
@@ -129,7 +129,8 @@ evalExpr inpEnv = recur
                         | length fields == caseAlt'nVars -> recur (fields <> lenv) caseAlt'rhs
                         | otherwise                      -> throwError TypeMismatch
                       | otherwise          = matchCase cs
-                    matchCase [] = throwError $ EvalErr "No match in case"
+                    matchCase [] = throwError $ EvalErr $ "No match in case with " <> (show tag)
+
                 _             -> throwError TypeMismatch
             EConstr con  -> pure $ constr con
             --
@@ -227,13 +228,10 @@ evalPrimOp env = \case
                          _                      -> throwError "Not a bytestring"
                    in  pure $ evalLiftTerm1 $ (decode <=< getBS)
   --
-  OpArgs tag -> pure $ case tag of
-    IntArg   -> inj args'ints
-    TextArg  -> inj args'texts
-    BoolArg  -> inj args'bools
-    BytesArg -> inj args'bytes
+  OpArgs _ -> fmap injTerm $ decode $ LB.fromStrict bs
     where
-      Args{..} = inputEnv'args env
+      Args bs = inputEnv'args env
+
   OpGetBoxId -> pure $ evalLift1 $ \case
 
     ValCon _ [b,_,_,_,_] -> pure $ b
@@ -244,12 +242,8 @@ evalPrimOp env = \case
   OpGetBoxValue -> pure $ evalLift1 $ \case
     ValCon _ [_,_,i,_,_] -> pure $ i
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
-  OpGetBoxArgs t -> pure $ ValF $ \x -> case x of
-    ValCon _ [_,_,_, ValCon _ [ints, txts, bools, bytes],_] -> case t of
-      IntArg   -> pure $ ints
-      TextArg  -> pure $ txts
-      BoolArg  -> pure $ bools
-      BytesArg -> pure $ bytes
+  OpGetBoxArgs _ -> pure $ ValF $ \x -> case x of
+    ValCon _ [_,_,_, ValP (PrimBytes bs), _] -> fmap injTerm $ decode $ LB.fromStrict bs
     p -> throwError $ EvalErr $ "Not a box. Got " ++ show p
   OpGetBoxPostHeight -> pure $ evalLift1 $ \case
     ValCon _ [_,_,_,_,b] -> pure $ b
@@ -443,12 +437,7 @@ instance InjPrim BoxOutput where
   inj BoxOutput{..} = inj (boxOutput'id, boxOutput'box)
 
 instance InjPrim Args where
-  inj Args{..} = ValCon argsPrimCon
-    [ inj args'ints
-    , inj args'texts
-    , inj args'bools
-    , inj args'bytes
-    ]
+  inj (Args bs) = inj bs
 
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
 lift1 f = ValF $ go

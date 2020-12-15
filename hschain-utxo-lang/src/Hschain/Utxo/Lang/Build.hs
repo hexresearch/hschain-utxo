@@ -16,9 +16,9 @@ module Hschain.Utxo.Lang.Build(
   , toSigma
   , getHeight
   , getSelf, getInput, getOutput
-  , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList, getBoxPostHeight
+  , getBoxId, getBoxValue, getBoxScript, getBoxArgs, getBoxPostHeight
   , getInputs, getOutputs, getDataInputs
-  , getIntVars, getBoolVars, getTextVars, getBytesVars
+  , getArgs
   , fromVec, mapVec, foldlVec, lengthVec, andVec, orVec, concatVec, listAt
   , andSigma, orSigma
   , checkSig
@@ -48,6 +48,7 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Types
+import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Data.Text   as T
 import Data.Boolean
@@ -205,32 +206,14 @@ getBoxScript = primAp1 Const.getBoxScript
 getBoxPostHeight :: Expr Box -> Expr Int
 getBoxPostHeight = primAp1 Const.getBoxPostHeight
 
-getBoxBytesArgList :: Expr Box -> Expr (Vector ByteString)
-getBoxBytesArgList = primAp1 $ Const.getBoxArgs (argTypeName BytesArg)
-
-getBoxIntArgList :: Expr Box -> Expr (Vector Int)
-getBoxIntArgList = primAp1 $ Const.getBoxArgs (argTypeName IntArg)
-
-getBoxTextArgList :: Expr Box -> Expr (Vector Text)
-getBoxTextArgList = primAp1 $ Const.getBoxArgs (argTypeName TextArg)
-
-getBoxBoolArgList :: Expr Box -> Expr (Vector Bool)
-getBoxBoolArgList = primAp1 $ Const.getBoxArgs (argTypeName BoolArg)
+getBoxArgs :: IsTerm a => Expr Box -> Expr a
+getBoxArgs = primAp1 $ Const.getBoxArgs
 
 getHeight :: Expr Int
 getHeight = primVar Const.getHeight
 
-getIntVars :: Expr (Vector Int)
-getIntVars = primVar $ Const.getArgs (argTypeName IntArg)
-
-getBoolVars :: Expr (Vector Bool)
-getBoolVars = primVar $ Const.getArgs (argTypeName BoolArg)
-
-getTextVars :: Expr (Vector Text)
-getTextVars = primVar $ Const.getArgs (argTypeName TextArg)
-
-getBytesVars :: Expr (Vector ByteString)
-getBytesVars = primVar $ Const.getArgs (argTypeName BytesArg)
+getArgs :: Expr (Vector Int)
+getArgs = primVar $ Const.getArgs
 
 getInputs :: Expr (Vector Box)
 getInputs = primVar Const.getInputs

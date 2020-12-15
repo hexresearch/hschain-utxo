@@ -35,7 +35,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
-import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes, Script(..))
+import Hschain.Utxo.Lang.Types              (ArgType(..), Script(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -343,42 +343,6 @@ consToVarName (ConsName loc name) = VarName loc name
 varToConsName :: VarName -> ConsName
 varToConsName VarName{..} = ConsName varName'loc varName'name
 
--- | Construct args that contain only integers
-intArgs :: [Int64] -> Args
-intArgs xs = Args
-  { args'ints  = V.fromList xs
-  , args'bools = mempty
-  , args'texts = mempty
-  , args'bytes = mempty
-  }
-
--- | Construct args that contain only booleans
-boolArgs :: [Bool] -> Args
-boolArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = V.fromList xs
-  , args'texts = mempty
-  , args'bytes = mempty
-  }
-
--- | Construct args that contain only texts
-textArgs :: [Text] -> Args
-textArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = mempty
-  , args'texts = V.fromList xs
-  , args'bytes = mempty
-  }
-
--- | Construct args that contain only bytestrings
-byteArgs :: [ByteString] -> Args
-byteArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = mempty
-  , args'texts = mempty
-  , args'bytes = V.fromList xs
-  }
-
 -- | Pattern matching elements (in the arguments or in cases)
 data Pat
   = PVar Loc VarName          -- ^ simple variable (anything matches)
@@ -581,9 +545,6 @@ argTagToType' loc = \case
   BoolArg  -> boolT' loc
   BytesArg -> bytesT' loc
 
-getBoxArgVar :: ArgType -> Text
-getBoxArgVar = Const.getBoxArgs . argTypeName
-
 -- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
 secretVar :: Text -> Text
 secretVar = flip mappend "___"
@@ -642,9 +603,6 @@ data EnvId a
   | GetVar Loc ArgType
   -- ^ Get argument of the transaction by name
   deriving (Show, Eq, Functor, Foldable, Traversable, Data, Typeable)
-
-getEnvVarName :: ArgType -> Text
-getEnvVarName ty = Const.getArgs $ argTypeName ty
 
 argTypeName :: ArgType -> Text
 argTypeName = \case
@@ -934,11 +892,11 @@ monoPrimopName = \case
   OpToBytes   _ -> Nothing
   OpFromBytes _ -> Nothing
   --
-  OpArgs t       -> Just $ "get" <> argTypeName t <> "Args"
+  OpArgs _       -> Nothing
   OpGetBoxId     -> Just Const.getBoxId
   OpGetBoxScript -> Just Const.getBoxScript
   OpGetBoxValue  -> Just Const.getBoxValue
-  OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
+  OpGetBoxArgs _ -> Nothing
   OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
   --
   OpEnvGetHeight  -> Just Const.getHeight
@@ -982,6 +940,9 @@ polyPrimOpName = \case
   OpFromBytes _ -> Just Const.deserialiseBytes
   OpToBytes   _ -> Just Const.serialiseBytes
   --
+  OpArgs _       -> Just $ Const.getArgs
+  OpGetBoxArgs _ -> Just $ Const.getBoxArgs
+  --
   OpListMap{}    -> Just "map"
   OpListAt{}     -> Just "listAt"
   OpListAppend{} -> Just "++"
@@ -1009,8 +970,6 @@ monomorphicPrimops =
   , OpListAnd
   , OpListOr
   ]
-  ++ (OpGetBoxArgs <$> argTypes)
-  ++ (OpArgs <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops
 monoPrimopNameMap :: M.Map Name (PrimOp a)

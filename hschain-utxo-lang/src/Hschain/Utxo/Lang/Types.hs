@@ -52,10 +52,8 @@ import Control.DeepSeq (NFData)
 import Control.Monad.Except
 
 import Codec.Serialise
-import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
 import Data.Bifunctor
-import Data.Coerce
 import Data.Data
 import Data.Fix
 import Data.Int
@@ -81,15 +79,11 @@ type Money = Int64
 -- | Argument for script in the transaction
 --
 -- It's Key-Value map from argument-names to primitive constant values.
-data Args = Args
-  { args'ints  :: Vector Int64
-  , args'bools :: Vector Bool
-  , args'texts :: Vector Text
-  , args'bytes :: Vector ByteString
-  }
+newtype Args = Args ByteString
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData, Serialise)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Args" ByteString)
 
 -- | Types that we can store as arguments in transactions.
 -- We store lists of them.
@@ -547,23 +541,6 @@ instance CryptoHashable Box where
 
 instance CryptoHashable Args where
   hashStep = genericHashStep hashDomain
-
-instance FromJSON Args where
-  parseJSON = withObject "Args" $ \o -> do
-    args'ints  <- o .: "ints"
-    args'bools <- o .: "bools"
-    args'texts <- o .: "texts"
-    bytes      <- o .: "bytes"
-    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
-               , ..
-               }
-instance ToJSON Args where
-  toJSON Args{..} = object
-    [ "ints"  .= args'ints
-    , "bools" .= args'bools
-    , "texts" .= args'texts
-    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
-    ]
 
 $(makeLensesWithL ''GTx)
 $(makeLensesWithL ''TxArg)

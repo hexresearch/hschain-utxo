@@ -84,7 +84,7 @@ getAliceBobKeys = do
 atomicSwap1 :: Int64 -> PublicKey -> PublicKey -> Module
 atomicSwap1 deadlineBob alicePubKey bobPubKey = [utxoModule|
   orSigma [ (getHeight >* $(deadlineBob)) &&* pk $(alicePubKey)
-          , pk $(bobPubKey) &&* (sha256 (listAt getBytesArgs 0) ==* listAt (getBoxBytesArgs getSelf) 0)
+          , pk $(bobPubKey) &&* (sha256 getArgs ==* getBoxArgs getSelf)
           ]
 |]
 
@@ -92,8 +92,8 @@ atomicSwap2 :: Int64 -> ByteString -> PublicKey -> PublicKey -> Module
 atomicSwap2 deadlineAlice swapHash alicePubKey bobPubKey = [utxoModule|
   orSigma [ (getHeight >* $(deadlineAlice)) &&* pk $(bobPubKey)
           , andSigma [ pk $(alicePubKey)
-                     , lengthBytes (listAt getBytesArgs 0) <* 33
-                     , sha256 (listAt getBytesArgs 0) ==* $(swapHash)
+                     , lengthBytes getArgs <* 33
+                     , sha256 getArgs ==* $(swapHash)
                      ]
           ]
 |]

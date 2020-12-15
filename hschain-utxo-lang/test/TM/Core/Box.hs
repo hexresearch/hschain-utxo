@@ -6,17 +6,22 @@ module TM.Core.Box(
 import Data.Default
 import Data.Int
 
+import Data.Text (Text)
+
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import HSChain.Crypto (Hash(..))
-import Hschain.Utxo.Lang.Expr (intArgs, textArgs, boolArgs)
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.RefEval
+import Hschain.Utxo.Lang.Utils.ByteString
 import TM.Core.Common (mkBoxInput, mkBoxOutput)
+import Examples.SKI (alt)
+
+import qualified Data.Vector as V
 
 blockChainHeight :: Int64
 blockChainHeight = 10
@@ -28,7 +33,7 @@ txEnv = InputEnv
   , inputEnv'inputs     = [in1, in2]
   , inputEnv'outputs    = [out1]
   , inputEnv'dataInputs = [din1, din2]
-  , inputEnv'args       = intArgs [1,2,3] <> textArgs ["alice", "bob"] <> boolArgs [True, False]
+  , inputEnv'args       = toArgs (([1,2,3], ["alice", "bob"], [True, False]) :: ([Int64], [Text], [Bool]))
   , inputEnv'sigs       = []
   , inputEnv'sigMsg     = def
   }
@@ -36,31 +41,31 @@ txEnv = InputEnv
     in1 = mkBoxInput (BoxId $ Hash "box-1") Box
       { box'value  = 1
       , box'script = Script "in1"
-      , box'args   = intArgs [4,5]
+      , box'args   = toArgs ([4,5] :: [Int64])
       }
 
     in2 = mkBoxInput (BoxId $ Hash "box-2") Box
       { box'value  = 2
       , box'script = Script "in2"
-      , box'args   = intArgs [6,7] <> textArgs ["john", "neil"]
+      , box'args   = toArgs (([6,7], ["john", "neil"]) :: ([Int64], [Text]))
       }
 
     out1 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-3") Box
       { box'value  = 3
       , box'script = Script "out1"
-      , box'args   = intArgs [8,9]
+      , box'args   = toArgs ([8,9] :: [Int64])
       }
 
     din1 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-4") Box
       { box'value  = 2
       , box'script = Script "out4"
-      , box'args   = intArgs [9, 10]
+      , box'args   = toArgs ([9, 10] :: [Int64])
       }
 
     din2 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-5") Box
       { box'value  = 2
       , box'script = Script "out5"
-      , box'args   = intArgs [11, 12] <> textArgs ["kate"]
+      , box'args   = toArgs (([11, 12], ["kate"]) :: ([Int64], [Text]))
       }
 
 tests :: TestTree
@@ -95,7 +100,9 @@ progGetSelfScript :: Core Name
 progGetSelfScript = getBoxScript getSelf
 
 progGetTxArg :: Core Name
-progGetTxArg = listAt IntT getIntArgs (int 1)
+progGetTxArg = ECase (getArgs (TupleT [ListT IntT, ListT TextT, ListT BoolT]))
+  [ alt (ConTuple (V.fromList [ListT IntT, ListT TextT, ListT BoolT])) ["a", "b", "c"] (listAt IntT (EVar "a") (int 1))
+  ]
 
 progGetInputId :: Core Name
 progGetInputId = getBoxId $ listAt BoxT getInputs (int 0)
@@ -107,13 +114,14 @@ progGetDataInputId :: Core Name
 progGetDataInputId = getBoxId $ listAt BoxT getDataInputs (int 0)
 
 progGetOutputLastIntArg :: Core Name
-progGetOutputLastIntArg
-  = listAt IntT (getBoxIntArgs $ listAt BoxT getOutputs (int 0)) (int 1)
+progGetOutputLastIntArg = listAt IntT (getBoxArgs (ListT IntT) $ listAt BoxT getOutputs (int 0)) (int 1)
 
 progGetInputLastTextArg :: Core Name
-progGetInputLastTextArg
-  = listAt TextT (getBoxTextArgs $ listAt BoxT getInputs (int 1)) (int 1)
+progGetInputLastTextArg = ECase (getBoxArgs (TupleT [ListT IntT, ListT TextT]) $ listAt BoxT getInputs (int 1))
+  [ alt (ConTuple $ V.fromList [ListT IntT, ListT TextT]) ["ints", "texts"] (listAt TextT (EVar "texts") (int 1))
+  ]
 
 progGetDataInputLastTextArg :: Core Name
-progGetDataInputLastTextArg
-  = listAt TextT (getBoxTextArgs $ listAt BoxT getDataInputs (int 1)) (int 0)
+progGetDataInputLastTextArg = ECase (getBoxArgs (TupleT [ListT IntT, ListT TextT]) $ listAt BoxT getDataInputs (int 1))
+  [ alt (ConTuple $ V.fromList [ListT IntT, ListT TextT]) ["ints", "texts"] (listAt TextT (EVar "texts") (int 0))
+  ]
