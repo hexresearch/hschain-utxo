@@ -199,7 +199,7 @@ argsPrimCon = ConTuple $ V.fromList $ fmap ListT [IntT, TextT, BoolT, BytesT ]
 data TermVal
   = PrimVal !Prim
   | ConVal (PrimCon TypeCore) (Vector TermVal)
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- | Expressions of the Core-language
 data Core a

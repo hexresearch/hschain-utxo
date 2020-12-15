@@ -355,17 +355,8 @@ evalPrimOp env = \case
     lookAt (x:_)  0 = pure x
     lookAt (_:xs) n = lookAt xs (n-1)
 
-opComparison :: (forall a. Ord a => a -> a -> Bool) -> Val
-opComparison (#) = evalLift2 go
-  where
-    go (PrimInt   a) (PrimInt   b) = pure $ ValP $ PrimBool $ a # b
-    go (PrimBool  a) (PrimBool  b) = pure $ ValP $ PrimBool $ a # b
-    go (PrimText  a) (PrimText  b) = pure $ ValP $ PrimBool $ a # b
-    go (PrimBytes a) (PrimBytes b) = pure $ ValP $ PrimBool $ a # b
-    -- FIXME: Comparison for sigma expressions?
-    go (PrimSigma _) (PrimSigma _) = throwError TypeMismatch
-    go  _             _            = throwError TypeMismatch
-
+opComparison :: (TermVal -> TermVal -> Bool) -> Val
+opComparison f = liftTerm2 (\a b -> PrimVal $ PrimBool $ f a b)
 
 parsePublicKey :: ByteString -> Eval PublicKey
 parsePublicKey = maybe err pure . decodeFromBS
@@ -502,4 +493,30 @@ evalLift3 :: (MatchPrim a, MatchPrim b, MatchPrim c, InjPrim d) => (a -> b -> c 
 evalLift3 f = Val3F $ \a b c -> go a b c
   where
     go a b c = fmap inj $ join $ f <$> match a <*> match b <*>  match c
+
+-------------------------------------------
+
+matchTerm :: Val -> Eval TermVal
+matchTerm = \case
+  ValP p          -> pure $ PrimVal p
+  ValCon con args -> fmap (ConVal con . V.fromList) $ mapM matchTerm args
+  _               -> throwError "Is not a term"
+
+injTerm :: TermVal -> Val
+injTerm = \case
+  PrimVal p       -> ValP p
+  ConVal con args -> ValCon con $ V.toList $ fmap injTerm args
+
+liftTerm2 :: (TermVal -> TermVal -> TermVal) -> Val
+liftTerm2 f = Val2F $ \a b -> go a b
+  where
+    go a b = fmap injTerm $ f <$> matchTerm a <*> matchTerm b
+
+evalLiftTerm2 :: (TermVal -> TermVal -> Eval TermVal) -> Val
+evalLiftTerm2 f = Val2F $ \a b -> go a b
+  where
+    go a b = fmap injTerm $ join $ f <$> matchTerm a <*> matchTerm b
+
+
+
 

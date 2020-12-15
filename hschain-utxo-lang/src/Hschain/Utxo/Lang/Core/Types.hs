@@ -79,7 +79,7 @@ data TypeCore
   | MaybeT TypeCore             -- ^ Maybe
   | BoxT
     -- ^ Box. 5-tuple of box ID, spend script, value of box, arguments and post-height
-  deriving stock    (Show, Eq, Generic,Data)
+  deriving stock    (Show, Eq, Ord, Generic,Data)
   deriving anyclass (NFData,Serialise)
 infixr 5 :->
 
