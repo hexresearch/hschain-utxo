@@ -99,6 +99,7 @@ newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
                    , MonadCatch, MonadThrow, MonadMask, MonadFork, MonadReader UTXOEnv)
   deriving (MonadLogger)          via LoggerByTypes  (ReaderT UTXOEnv m)
   deriving (MonadDB, MonadReadDB) via DatabaseByType (ReaderT UTXOEnv m)
+  deriving (MonadTrans)           via ReaderT UTXOEnv
 
 runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
 runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
