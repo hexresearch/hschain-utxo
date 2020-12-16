@@ -76,11 +76,13 @@ import Hschain.Utxo.Pow.App.Types
 
 -- |Node's configuration.
 data Cfg = Cfg
-  { cfgPort    :: Word16
-  , cfgPeers   :: [NetAddr]
-  , cfgLog     :: [ScribeSpec]
-  , cfgDB      :: Maybe FilePath
-  , cfgWebAPI  :: Maybe Int
+  { cfgPort           :: Word16
+  , cfgPeers          :: [NetAddr]
+  , cfgKnownPeers     :: Int
+  , cfgConnectedPeers :: Int
+  , cfgLog            :: [ScribeSpec]
+  , cfgDB             :: Maybe FilePath
+  , cfgWebAPI         :: Maybe Int
   }
   deriving stock (Show, Generic)
   deriving (JSON.FromJSON) via SnakeCase (DropSmart (Config Cfg))
@@ -171,8 +173,8 @@ runNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> Cfg -> Maybe c -> IO ()
 runNode genesisBlk Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
-      netcfg = POW.NodeCfg { POW.nKnownPeers     = 3
-                           , POW.nConnectedPeers = 3
+      netcfg = POW.NodeCfg { POW.nKnownPeers     = cfgKnownPeers
+                           , POW.nConnectedPeers = cfgConnectedPeers
                            , POW.initialPeers    = cfgPeers
                            }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
@@ -213,8 +215,8 @@ runLightNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> Cfg -> IO ()
 runLightNode genesisBlk Cfg{..} = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
-      netcfg = POW.NodeCfg { POW.nKnownPeers     = 3
-                           , POW.nConnectedPeers = 3
+      netcfg = POW.NodeCfg { POW.nKnownPeers     = cfgKnownPeers
+                           , POW.nConnectedPeers = cfgConnectedPeers
                            , POW.initialPeers    = cfgPeers
                            }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
