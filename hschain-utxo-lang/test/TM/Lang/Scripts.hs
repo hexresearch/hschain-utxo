@@ -121,7 +121,7 @@ halfGameScript fullGameScriptHash = [utxoModule|
 validBobInput b = (b == 0) || (b == 1)
 
 main = case (getBoxArgs out) of
-  (bobGuess, bobDeadline, _) -> andSigma
+  (bobGuess, bobDeadline) -> andSigma
       [ toSigma (validBobInput bobGuess)
       , sha256 (getBoxScript out) ==* $(fullGameScriptHash)
       , (length getOutputs ==* 1) ||* (length getOutputs ==* 2)

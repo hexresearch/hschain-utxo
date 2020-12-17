@@ -21,6 +21,7 @@ import Hschain.Utxo.Lang.Core.Types (Name, Typed(..))
 import Hschain.Utxo.Lang.Expr(VarName(..))
 
 import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 
 import qualified Type.Check.HM as H
 import qualified Type.Check.HM.Subst as H
@@ -160,7 +161,7 @@ getSubst ty name = do
   where
     specType expr = case ty `H.subtypeOf` (ann'note $ unFix expr) of
       Right subst -> pure $ mapType (H.apply subst) expr
-      Left _      -> inlineError H.defLoc $ renderText expr
+      Left err    -> inlineError H.defLoc $ T.unlines [renderText expr, renderText $ TypeError $ H.mapLoc (const H.defLoc) err]
 
 local :: (a -> Inline b) -> a -> Inline b
 local f a = do

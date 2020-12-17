@@ -725,7 +725,7 @@ freeVarsBg :: [Bind (Set VarName)] -> Set VarName
 freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
   where
     localFreeVarsAlt Alt{..} =
-      (freeVarsRhs alt'expr <> foldMap getBgNames alt'where)
+      (freeVarsRhs alt'expr `Set.difference` foldMap getBgNames alt'where)
       `Set.difference` (foldMap freeVarsPat alt'pats)
 
 getBgNames :: [Bind a] -> Set VarName

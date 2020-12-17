@@ -262,9 +262,10 @@ inferLet ctx loc v body = do
   let tBind = termType rhsTyTerm
   ctx1 <- addDecls [fmap (const tBind) v] (apply phi ctx)
   (subst, bodyTerm) <- infer ctx1 body
-  let tyBind = v { bind'rhs = rhsTyTerm }
-  return ( phi <> subst
-         , tyLetE (termType bodyTerm) loc tyBind bodyTerm
+  let subst1 = phi <> subst
+      tyBind = v { bind'rhs = apply subst1 rhsTyTerm }
+  return ( subst1
+         , apply subst1 $ tyLetE (termType bodyTerm) loc tyBind bodyTerm
          )
 
 inferLetRec :: forall q . Lang q
