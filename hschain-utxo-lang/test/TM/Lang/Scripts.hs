@@ -4,6 +4,8 @@ module TM.Lang.Scripts(
   , mkCoffeeScript
   , mkAtomicSwap1
   , mkAtomicSwap2
+  , mkFullGame
+  , mkHalfGame
 ) where
 
 import Data.ByteString (ByteString)
@@ -22,6 +24,8 @@ tests = testGroup "High level lang"
   , testScript "Pay for cofee script" mkCoffeeScript
   , testScript "Atomic swap 1"        mkAtomicSwap1
   , testScript "Atomic swap 2"        mkAtomicSwap2
+  , testScript "XOR half-game script" mkHalfGame
+  , testScript "XOR full-game script" mkFullGame
   ]
 
 testScript :: String -> IO Module -> TestTree
@@ -96,5 +100,48 @@ atomicSwap2 deadlineAlice swapHash alicePubKey bobPubKey = [utxoModule|
                      , sha256 getArgs ==* $(swapHash)
                      ]
           ]
+|]
+
+-----------------------------------------------------------------
+-- XOR-game scripts
+
+mkFullGame :: IO Module
+mkFullGame = do
+  alicePk <- fmap getPublicKey newSecret
+  return $ fullGameScript "1234"  alicePk
+
+mkHalfGame :: IO Module
+mkHalfGame = do
+  let fullGameHash = "1234"
+  return $ halfGameScript fullGameHash
+
+halfGameScript :: ByteString -> Module
+halfGameScript fullGameScriptHash = [utxoModule|
+
+validBobInput b = (b == 0) || (b == 1)
+
+main = case (getBoxArgs out) of
+  (bobGuess, bobDeadline, _) -> andSigma
+      [ toSigma (validBobInput bobGuess)
+      , sha256 (getBoxScript out) ==* $(fullGameScriptHash)
+      , (length getOutputs ==* 1) ||* (length getOutputs ==* 2)
+      , bobDeadline >=* (getHeight + 30)
+      , getBoxValue out >=* (2 * getBoxValue getSelf) ]
+  where
+    out = getOutput 0
+|]
+
+
+fullGameScript :: ByteString -> PublicKey -> Module
+fullGameScript commitmentHash alice = [utxoModule|
+
+main = case (getArgs, getBoxArgs getSelf) of
+  ((s, a), (b, bobDeadline, bob)) ->
+        (pk bob &&* (getHeight >* bobDeadline))
+    ||* (   (sha256 (appendBytes s (serialise (a :: Int))) ==* $(commitmentHash))
+        &&* (   (pk $(alice) &&* (a ==* b))
+            ||* (pk bob      &&* (a /=* b))
+            )
+        )
 |]
 

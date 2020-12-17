@@ -46,6 +46,15 @@ instance IsTerm Int64 where
     PrimVal (PrimInt n) -> Just n
     _                   -> Nothing
 
+instance IsTerm Int where
+  termType = const IntT
+
+  toTerm = PrimVal . PrimInt . fromIntegral
+
+  fromTerm = \case
+    PrimVal (PrimInt n) -> Just $ fromIntegral n
+    _                   -> Nothing
+
 instance IsTerm Text where
   termType = const TextT
 
@@ -54,6 +63,15 @@ instance IsTerm Text where
   fromTerm = \case
     PrimVal (PrimText n) -> Just n
     _                    -> Nothing
+
+instance IsTerm ByteString where
+  termType = const BytesT
+
+  toTerm = PrimVal . PrimBytes
+
+  fromTerm = \case
+    PrimVal (PrimBytes n) -> Just n
+    _                     -> Nothing
 
 instance IsTerm Bool where
   termType = const BoolT

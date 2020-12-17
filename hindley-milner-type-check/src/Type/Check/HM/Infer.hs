@@ -321,17 +321,17 @@ inferCase ctx loc e caseAlts = do
   (phi, tyTermE) <- infer ctx e
   (psi, tRes, tyAlts) <- inferAlts phi (termType tyTermE) $ caseAlts
   return ( psi
-         , apply psi $ tyCaseE tRes loc tyTermE $ fmap (applyAlt psi) tyAlts)
+         , apply psi $ tyCaseE tRes loc (apply psi tyTermE) $ fmap (applyAlt psi) tyAlts)
   where
     inferAlts :: SubstOf' q -> TypeOf' q -> [CaseAltOf' q (TermOf' q)] -> InferM (Src q) (Var q) (SubstOf' q, TypeOf' q, [CaseAltOf' q (TyTermOf' q)])
     inferAlts substE tE alts =
       fmap (\(subst, _, tRes, as) -> (subst, tRes, L.reverse as)) $ foldM go (substE, tE, tE, []) alts
       where
         go (subst, tyTop, _, res) alt = do
-          subst1 <- unify (subst) (apply subst tyTop) (apply subst $ caseAlt'constrType alt)
-          (phi, tRes, alt') <- inferAlt (applyAlt subst1 alt)
-          let subst' = subst1 <> phi
-          return (subst', apply subst' tyTop, apply subst' tRes, applyAlt subst' alt' : res)
+          (phi, tRes, alt1) <- inferAlt (applyAlt subst alt)
+          let subst1 = subst <> phi
+          subst2 <- unify subst1 (apply subst1 tyTop) (apply subst1 $ caseAlt'constrType alt1)
+          return (subst2, apply subst2 tyTop, apply subst2 tRes, applyAlt subst2 alt1 : res)
 
 
     inferAlt :: CaseAltOf' q (TermOf' q) -> InferM (Src q) (Var q) (SubstOf' q, TypeOf' q, CaseAltOf' q (TyTermOf' q))

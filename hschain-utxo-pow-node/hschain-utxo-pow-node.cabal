@@ -182,6 +182,7 @@ Test-suite hschain-utxo-pow-node-tests
     RecordWildCards
     OverloadedStrings
     TypeOperators
+    QuasiQuotes
     -- Types
     ScopedTypeVariables
     TypeApplications

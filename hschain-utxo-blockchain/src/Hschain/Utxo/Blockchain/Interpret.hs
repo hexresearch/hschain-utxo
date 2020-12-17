@@ -27,7 +27,7 @@ import HSChain.Types
 import HSChain.Types.Merkle.Types
 import HSChain.Internal.Types.Consensus
 
-import Hschain.Utxo.Lang hiding (Height)
+import Hschain.Utxo.Lang
 
 import Hschain.Utxo.Blockchain.Logic
 import Hschain.Utxo.Blockchain.Bchain

@@ -212,7 +212,7 @@ getBoxArgs = primAp1 $ Const.getBoxArgs
 getHeight :: Expr Int
 getHeight = primVar Const.getHeight
 
-getArgs :: Expr (Vector Int)
+getArgs :: IsTerm a => Expr a
 getArgs = primVar $ Const.getArgs
 
 getInputs :: Expr (Vector Box)

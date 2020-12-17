@@ -23,7 +23,7 @@ import HSChain.Internal.Types.Consensus
 import HSChain.Types
 import HSChain.Types.Merkle.Types
 
-import Hschain.Utxo.Lang hiding (Height)
+import Hschain.Utxo.Lang
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.State.React
 

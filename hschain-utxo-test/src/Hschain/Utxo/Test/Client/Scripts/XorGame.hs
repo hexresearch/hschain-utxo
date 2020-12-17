@@ -26,39 +26,14 @@ import qualified Hschain.Utxo.Test.Client.Monad as M
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
-import qualified Hschain.Utxo.Lang.Utils.ByteString as B
-
-bobGuessFieldId, bobDeadlineFieldId, bobPkFieldId :: Int
-
-bobGuessFieldId = 0
-bobDeadlineFieldId = 1
-bobPkFieldId = 0
-
-getBobGuess :: Expr Box -> Expr Int
-getBobGuess box = listAt (getBoxIntArgList box) (int bobGuessFieldId)
-
-getBobDeadline :: Expr Box -> Expr Int
-getBobDeadline box = listAt (getBoxIntArgList box) (int bobDeadlineFieldId)
-
-getBobPk :: Expr Box -> Expr ByteString
-getBobPk box = listAt (getBoxBytesArgList box) (int bobPkFieldId)
-
-getS :: Expr ByteString
-getS = listAt getBytesVars (int sFieldId)
-
-getA :: Expr Int
-getA = listAt getIntVars (int aFieldId)
-
-sFieldId, aFieldId :: Int
-sFieldId = 0
-aFieldId = 0
+import qualified Hschain.Utxo.Lang.Utils.Hash as H
 
 halfGameScript :: ByteString -> Script
 halfGameScript fullGameScriptHash = [utxo|
 
   out           = listAt getOutputs 0
-  b             = listAt (getBoxIntArgs out) $(bobGuessFieldId)
-  bobDeadline   = listAt (getBoxIntArgs out) $(bobDeadlineFieldId)
+  b             = fst (getBoxArgs out)
+  bobDeadline   = snd (getBoxArgs out)
   validBobInput = b == 0 || b == 1
 
   main = toSigma (and
@@ -88,17 +63,13 @@ halfGameScript' fullGameScriptHash =
 fullGameScript :: ByteString -> ByteString -> Script
 fullGameScript k alice = [utxo|
 
-  s           = listAt getBytesArgs $(sFieldId)
-  a           = listAt getIntArgs $(aFieldId)
-  b           = listAt (getBoxIntArgs getSelf) $(bobGuessFieldId)
-  bob         = listAt (getBoxBytesArgs getSelf) $(bobPkFieldId)
-  bobDeadline = listAt (getBoxIntArgs getSelf) $(bobDeadlineFieldId)
-
-  main = (pk bob &&* toSigma (getHeight > bobDeadline))
-     ||* ((toSigma (sha256 (appendBytes s (serialiseInt a)) == $(k)))
-          &&* (   pk $(alice) &&* (toSigma (a == b))
-              ||* pk bob      &&* (toSigma (a /= b))))
-
+  main =
+    case (getArgs, getBoxArgs getSelf) of
+      ((s, a), (b, bob, bobDeadline)) ->
+        (pk bob &&* toSigma (getHeight > bobDeadline))
+        ||* ((toSigma (sha256 (appendBytes s (serialise a)) == $(k)))
+              &&* (   pk $(alice) &&* (toSigma (a == b))
+                  ||* pk bob      &&* (toSigma (a /= b))))
 |]
 
 {-
@@ -251,7 +222,7 @@ xorGameRound Scene{..} game@Game{..} = do
                   , box'args   = mempty
                   }
 
-            makeArgs height = intArgs [guess, height + 35] <> byteArgs [encodeToBS $ getWalletPublicKey wallet]
+            makeArgs height = toArgs @(Int64, ByteString, Int64) (guess, encodeToBS $ getWalletPublicKey wallet, height + 35)
 
             extractOutputs tx = case tx'outputs tx of
               [_receiver]          -> (toBoxId 0, Nothing)
@@ -280,7 +251,7 @@ xorGameRound Scene{..} game@Game{..} = do
             , tx'dataInputs = []
             }
 
-        args = byteArgs [aliceSecret] <> intArgs [aliceGuess]
+        args = toArgs @(ByteString, Int64) (aliceSecret, aliceGuess)
 
         pubKey = getWalletPublicKey wallet
 
@@ -295,6 +266,6 @@ xorGameRound Scene{..} game@Game{..} = do
 makeAliceSecret :: MonadIO m => Int64 -> m (ByteString, ByteString)
 makeAliceSecret guess = liftIO $ do
   s <- fmap fromString $ sequence $ replicate 64 randomIO
-  let k = B.getSha256 $ s <> (B.serialiseInt guess)
+  let k = H.getSha256 $ s <> (serialiseTerm guess)
   return (k, s)
 

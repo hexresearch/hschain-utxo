@@ -6,8 +6,6 @@ module Hschain.Utxo.Lang.Desugar.ExtendedLC(
   , fromType
 ) where
 
-import Hex.Common.Text (showt)
-
 import Control.Arrow (first)
 
 import Data.Fix
@@ -96,8 +94,8 @@ exprToExtendedLC typeCtx = foldFixM $ \case
     fromAscr loc e t = pure $ Fix $ EAssertType loc  e (fromType $ H.stripSignature t)
 
     fromConstrName loc name
-      | consName'name name == "Nothing" = pure $ Fix $ EConstr loc $ ConNothing (H.varT () "a")
-      | consName'name name == "Just"    = pure $ Fix $ EConstr loc $ ConJust    (H.varT () "a")
+      | consName'name name == "Nothing" = fmap (Fix . EConstr loc . ConNothing) getFreshTypeName
+      | consName'name name == "Just"    = fmap (Fix . EConstr loc . ConJust)    getFreshTypeName
       | otherwise = do
           coreDef <- getCoreConsDef typeCtx name
           return $ mkConstr loc coreDef
@@ -119,7 +117,7 @@ exprToExtendedLC typeCtx = foldFixM $ \case
     fromCaseOf loc expr alts =
       case alts of
         [alt] -> case caseExpr'lhs alt of
-          PCons ploc cons _  | consName'name cons == "Nothing" -> return $ Fix $ ECase loc expr $ pure $ nothingCaseAlt ploc alt
+          PCons ploc cons _  | consName'name cons == "Nothing" -> fmap (Fix . ECase loc expr . pure) $ nothingCaseAlt ploc alt
           PCons ploc cons ps | consName'name cons == "Just"    -> fmap (Fix . ECase loc expr . pure) $ justCaseAlt ploc alt ps
           PCons _ cons [p] -> do
             coreDef <- getCoreConsDef typeCtx cons
@@ -136,7 +134,7 @@ exprToExtendedLC typeCtx = foldFixM $ \case
     fromCaseOfMultiAlts loc expr alts = fmap (Fix . ECase loc expr) $ mapM fromCaseAlt alts
 
     fromCaseAlt cexpr@CaseExpr{..} = case caseExpr'lhs of
-      PCons loc cons _  | consName'name cons == "Nothing" -> return $ nothingCaseAlt loc cexpr
+      PCons loc cons _  | consName'name cons == "Nothing" -> nothingCaseAlt loc cexpr
       PCons loc cons ps | consName'name cons == "Just"    -> justCaseAlt loc cexpr ps
       PCons loc cons ps -> do
         coreDef <- getCoreConsDef typeCtx cons
@@ -152,29 +150,30 @@ exprToExtendedLC typeCtx = foldFixM $ \case
       PTuple loc ps -> do
         args <- mapM fromPat ps
         let arity = length ps
+        tupleArgsT <- mapM (const getFreshTypeName) [1 .. arity]
         return $ CaseAlt
                   { caseAlt'loc        = loc
-                  , caseAlt'tag        = ConTuple $ V.fromList $ tupleArgsT arity
+                  , caseAlt'tag        = ConTuple $ V.fromList tupleArgsT
                   , caseAlt'args       = args
                   , caseAlt'rhs        = caseExpr'rhs
                   }
       _ -> failedToEliminate "Non-constructor case in case alternative"
-      where
-        tupleArgsT   arity = vs arity
-        vs arity = fmap (H.varT () . mappend "v" . showt) [1 .. arity]
 
-    nothingCaseAlt loc CaseExpr{..} = CaseAlt
+    nothingCaseAlt loc CaseExpr{..} = do
+      aT <- getFreshTypeName
+      pure $ CaseAlt
                   { caseAlt'loc  = loc
-                  , caseAlt'tag  = ConNothing (H.varT () "a")
+                  , caseAlt'tag  = ConNothing aT
                   , caseAlt'args = []
                   , caseAlt'rhs  = caseExpr'rhs
                   }
 
     justCaseAlt loc CaseExpr{..} ps = do
       args <- mapM fromPat ps
+      aT <- getFreshTypeName
       pure $ CaseAlt
               { caseAlt'loc  = loc
-              , caseAlt'tag  = ConJust (H.varT () "a")
+              , caseAlt'tag  = ConJust aT
               , caseAlt'args = args
               , caseAlt'rhs  = caseExpr'rhs
               }
@@ -230,17 +229,20 @@ exprToExtendedLC typeCtx = foldFixM $ \case
 
     fromTuple loc args
       | V.null args = pure $ Fix $ EConstr loc ConUnit
-      | otherwise   = pure $ fun loc (Fix $ EConstr loc (ConTuple ts)) $ V.toList args
+      | otherwise   = do
+          ts <- mapM (const getFreshTypeName) $ V.fromList [1 .. arity]
+          pure $ fun loc (Fix $ EConstr loc (ConTuple ts)) $ V.toList args
       where
         arity = V.length args
-        ts    = V.fromList $ fmap (varT . mappend "a" . showt) [1 .. arity]
 
     fromNegApp loc a = pure $ ap1 loc (var loc Const.negate) a
 
-    fromList loc args = pure $ V.foldr cons nil args
+    fromList loc args = do
+      aT <- getFreshTypeName
+      pure $ V.foldr (cons aT) (nil aT) args
       where
-        cons a as = ap2 loc (Fix $ EConstr loc (ConCons (varT "a"))) a as
-        nil = Fix $ EConstr loc (ConNil (varT "a"))
+        cons ty a as = ap2 loc (Fix $ EConstr loc (ConCons ty)) a as
+        nil ty = Fix $ EConstr loc (ConNil ty)
 
 getCoreConsDef :: MonadLang m => UserTypeCtx -> ConsName -> m CoreConsDef
 getCoreConsDef UserTypeCtx{..} cons@ConsName{..} =
@@ -312,4 +314,6 @@ removeTopLevelLambdasDef def@Def{..} =
     _                      -> def
 
 
+getFreshTypeName :: MonadLang m => m (H.Type () Text)
+getFreshTypeName = fmap varT getFreshVarName
 

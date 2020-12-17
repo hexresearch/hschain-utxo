@@ -11,7 +11,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Prelude hiding ((<*))
 
-import Hschain.Utxo.Lang.Expr (intArgs)
+import Hschain.Utxo.Lang.Utils.ByteString
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma.Types (generateKeyPair, KeyPair(..))
@@ -136,7 +136,7 @@ payforCoffee isBob = do
   -- H=1 Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []
   -- H=2 Alice sends reward to Bob with hash-lock
-  let getSpendHeight = listAt (getBoxIntArgList (getInput (int 0))) (int 0)
+  let getSpendHeight = getBoxArgs (getInput (int 0))
       -- receiver can get money only height is greater than specified limit
       receiverScript
         =   pk' pkBob
@@ -150,7 +150,7 @@ payforCoffee isBob = do
     , tx'outputs =
       [ Box { box'value  = 100
             , box'script = mainScriptUnsafe $ receiverScript ||* refundScript
-            , box'args   = intArgs [ 4 ]
+            , box'args   = toArgs (4 :: Int)
             }
       ]
     , tx'dataInputs = []
