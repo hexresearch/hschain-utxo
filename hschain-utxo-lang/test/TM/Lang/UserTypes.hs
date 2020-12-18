@@ -20,6 +20,7 @@ tests = testGroup "User types"
   , testScript "Prog with record types"  prog2
   , testScript "Prog with maybe types"   maybeProg
   , testScript "Encode user type"        encodeUserType
+  , testScript "Equality for user type"  genEquality
   ]
 
 testScript :: String -> Module -> TestTree
@@ -108,5 +109,20 @@ john = User
 johnBytes = serialise (Wrap john "ho")
 
 main = user'name (wrap'value (deserialise johnBytes :: Wrap User)) == "john"
+|]
+
+
+genEquality :: Module
+genEquality = [utxoModule|
+
+data User = User
+  { user'name :: Text
+  , user'age  :: Int
+  }
+
+john = User "john" 12
+mary = User "mary" 10
+
+main = john == mary
 |]
 
