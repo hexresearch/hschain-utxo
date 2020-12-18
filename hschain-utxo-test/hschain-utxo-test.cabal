@@ -31,7 +31,6 @@ library
                        Hschain.Utxo.Test.Client.Scripts.PayForCofee
                        Hschain.Utxo.Test.Client.Scripts.ReversibleAddress
                        Hschain.Utxo.Test.Client.Scripts.SimpleExchange
-                       Hschain.Utxo.Test.Client.Scripts.XorGame
                        Hschain.Utxo.Test.Client.Scripts.Utils
                        Hschain.Utxo.Test.Client.Wallet
   -- other-modules:

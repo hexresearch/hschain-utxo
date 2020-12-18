@@ -141,6 +141,7 @@ halfGameScript fullGameScriptHash = [utxo|
       out = getOutput 0
 |]
 
+fullGameScript :: ByteString -> ByteString -> Script
 fullGameScript commitmentHash alice = [utxo|
 
   main = case (getArgs, getBoxArgs getSelf) of
