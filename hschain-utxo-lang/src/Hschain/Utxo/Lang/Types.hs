@@ -91,8 +91,7 @@ newtype TxId = TxId { unTxId :: Hash SHA256 }
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
 
--- | Identifier of the box. Box holds value protected by the script.
--- It equals to the hash of Box-content.
+-- | Identifier of the 'Box'.
 newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
   deriving newtype  (Show, Eq, Ord, NFData, ByteRepr, CryptoHashable)
   deriving stock    (Generic)
