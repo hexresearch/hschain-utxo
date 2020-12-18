@@ -210,6 +210,8 @@ libTypeContext = (H.Context $ M.fromList
   , (VarTag "pk", H.monoT $ funT [bytesT] sigmaT)
   , (VarTag "listAt", H.forAllT noLoc "a" $ H.monoT $ funT [listT (varT "a"), intT] (varT "a"))
   , (VarTag "length", H.forAllT noLoc "a" $ H.monoT $ funT [listT (varT "a")] intT)
+  , (VarTag "getArgs", H.forAllT noLoc "a" $ H.monoT $ (varT "a"))
+  , (VarTag "getBoxArgs", H.forAllT noLoc "a" $ H.monoT $ funT [H.conT noLoc "Box" []] (varT "a"))
   ])
   <> genericCompareOps
   <> fromPrimOps

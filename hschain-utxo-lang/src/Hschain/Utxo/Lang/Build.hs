@@ -16,9 +16,9 @@ module Hschain.Utxo.Lang.Build(
   , toSigma
   , getHeight
   , getSelf, getInput, getOutput
-  , getBoxId, getBoxValue, getBoxScript, getBoxIntArgList, getBoxTextArgList, getBoxBoolArgList, getBoxBytesArgList, getBoxPostHeight
+  , getBoxId, getBoxValue, getBoxScript, getBoxArgs, getBoxPostHeight
   , getInputs, getOutputs, getDataInputs
-  , getIntVars, getBoolVars, getTextVars, getBytesVars
+  , getArgs
   , fromVec, mapVec, foldlVec, lengthVec, andVec, orVec, concatVec, listAt
   , andSigma, orSigma
   , checkSig
@@ -33,10 +33,7 @@ module Hschain.Utxo.Lang.Build(
   , lengthText
   , showExpr
   , sha256
-  , serialiseInt
-  , serialiseBytes
-  , serialiseBool
-  , serialiseText
+  , serialiseFrom
   , lengthBytes
   , pair
   , tuple3
@@ -51,6 +48,7 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Types
+import Hschain.Utxo.Lang.Utils.ByteString
 
 import qualified Data.Text   as T
 import Data.Boolean
@@ -208,32 +206,14 @@ getBoxScript = primAp1 Const.getBoxScript
 getBoxPostHeight :: Expr Box -> Expr Int
 getBoxPostHeight = primAp1 Const.getBoxPostHeight
 
-getBoxBytesArgList :: Expr Box -> Expr (Vector ByteString)
-getBoxBytesArgList = primAp1 $ Const.getBoxArgs (argTypeName BytesArg)
-
-getBoxIntArgList :: Expr Box -> Expr (Vector Int)
-getBoxIntArgList = primAp1 $ Const.getBoxArgs (argTypeName IntArg)
-
-getBoxTextArgList :: Expr Box -> Expr (Vector Text)
-getBoxTextArgList = primAp1 $ Const.getBoxArgs (argTypeName TextArg)
-
-getBoxBoolArgList :: Expr Box -> Expr (Vector Bool)
-getBoxBoolArgList = primAp1 $ Const.getBoxArgs (argTypeName BoolArg)
+getBoxArgs :: IsTerm a => Expr Box -> Expr a
+getBoxArgs = primAp1 $ Const.getBoxArgs
 
 getHeight :: Expr Int
 getHeight = primVar Const.getHeight
 
-getIntVars :: Expr (Vector Int)
-getIntVars = primVar $ Const.getArgs (argTypeName IntArg)
-
-getBoolVars :: Expr (Vector Bool)
-getBoolVars = primVar $ Const.getArgs (argTypeName BoolArg)
-
-getTextVars :: Expr (Vector Text)
-getTextVars = primVar $ Const.getArgs (argTypeName TextArg)
-
-getBytesVars :: Expr (Vector ByteString)
-getBytesVars = primVar $ Const.getArgs (argTypeName BytesArg)
+getArgs :: IsTerm a => Expr a
+getArgs = primVar $ Const.getArgs
 
 getInputs :: Expr (Vector Box)
 getInputs = primVar Const.getInputs
@@ -357,20 +337,8 @@ showExpr = primAp1 Const.show
 sha256 :: Expr ByteString -> Expr ByteString
 sha256 = primAp1 Const.sha256
 
-serialiseInt :: Expr Int -> Expr ByteString
-serialiseInt = serialiseBy IntArg
-
-serialiseText :: Expr Text -> Expr ByteString
-serialiseText = serialiseBy TextArg
-
-serialiseBytes :: Expr ByteString -> Expr ByteString
-serialiseBytes = serialiseBy BytesArg
-
-serialiseBool :: Expr Bool -> Expr ByteString
-serialiseBool = serialiseBy BoolArg
-
-serialiseBy :: ArgType -> Expr a -> Expr ByteString
-serialiseBy tag = primAp1 $ Const.serialiseBytes (argTypeName tag)
+serialiseFrom :: Expr a -> Expr ByteString
+serialiseFrom = primAp1 $ Const.serialiseBytes
 
 lengthBytes :: Expr ByteString -> Expr Int
 lengthBytes = primAp1 Const.lengthBytes

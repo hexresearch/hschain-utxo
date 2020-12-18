@@ -19,7 +19,6 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Types (argTypes)
 import Type.Check.HM (monoT, forAllT)
 
 import qualified Hschain.Utxo.Lang.Const as Const
@@ -224,23 +223,15 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumeType "undefined" $ forA aT
   , assumeType Const.checkSig $ monoT $ bytesT ~> intT ~> boolT
   , assumeType Const.checkMultiSig $ monoT $ intT ~> listT bytesT ~> listT intT ~> boolT
-  ] P.++ getBoxArgListTypes P.++ getEnvVarTypes P.++ serialiseTypes P.++ deserialiseTypes
+  , assumeType Const.serialiseBytes $ forA $ aT ~> bytesT
+  , assumeType Const.deserialiseBytes $ forA $ bytesT ~> aT
+  , assumeType Const.getArgs $ forA $ aT
+  , assumeType Const.getBoxArgs $ forA $ boxT ~> aT
+  ]
   where
     forA = forAllT' "a" . monoT
     forAB = forAllT' "a" . forAllT' "b" . monoT
     forABC = forAllT' "a" . forAllT' "b" . forAllT' "c" . monoT
-
-    getBoxArgListTypes =
-      fmap (\ty -> assumeType (getBoxArgVar ty) (monoT $ boxT ~> listT (argTagToType ty))) argTypes
-
-    getEnvVarTypes =
-      fmap (\ty -> assumeType (getEnvVarName ty) (monoT $ listT (argTagToType ty))) argTypes
-
-    serialiseTypes =
-      fmap (\ty -> assumeType (Const.serialiseBytes $ argTypeName ty) (monoT $ argTagToType ty ~> bytesT)) argTypes
-
-    deserialiseTypes =
-      fmap (\ty -> assumeType (Const.deserialiseBytes $ argTypeName ty) (monoT $ bytesT ~> argTagToType ty)) argTypes
 
     aT, bT, cT :: Type
     aT = varT "a"

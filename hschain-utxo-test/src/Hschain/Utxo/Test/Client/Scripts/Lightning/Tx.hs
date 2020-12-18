@@ -68,7 +68,7 @@ commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHas
               (pk' myPk &&* (toSigma $ getHeight >* getBoxPostHeight getSelf + int (fromIntegral spendDelay)))
           ||* (pk' otherPk &&* (toSigma $ sha256 readKey ==* bytes revokeHash))
 
-    readKey = listAt getBytesVars 0
+    readKey = getArgs
 
     otherBox = singleSpendBox otherValue otherPk
 

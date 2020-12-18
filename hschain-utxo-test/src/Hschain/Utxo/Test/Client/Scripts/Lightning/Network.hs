@@ -29,7 +29,7 @@ import Data.Maybe
 import Data.Time
 import Safe (headMay)
 
-import Hschain.Utxo.Lang.Utils.ByteString (getSha256)
+import Hschain.Utxo.Lang.Utils.Hash (getSha256)
 import Hschain.Utxo.Test.Client.Wallet (Wallet, getWalletPublicKey)
 import Hschain.Utxo.Lang hiding (Env)
 import Hschain.Utxo.Test.Client.Monad (App, randomBS, getBoxBalance, getHeight)

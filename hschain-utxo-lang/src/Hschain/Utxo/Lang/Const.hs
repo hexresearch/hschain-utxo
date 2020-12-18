@@ -101,14 +101,14 @@ getInput  = "getInput"
 getOutput = "getOutput"
 getDataInput = "getDataInput"
 
-getArgs :: Text -> Text
-getArgs typeName = mconcat ["get", typeName, "Args"]
+getArgs :: Text
+getArgs = "getArgs"
 
 -------------------------------------------------------------------
 -- boxes
 
-getBoxArgs :: Text -> Text
-getBoxArgs typeName = mconcat ["getBox", typeName, "Args"]
+getBoxArgs :: Text
+getBoxArgs = "getBoxArgs"
 
 getBoxId, getBoxScript, getBoxValue, getBoxPostHeight :: Text
 
@@ -181,11 +181,11 @@ appendBytes = "appendBytes"
 lengthBytes :: Text
 lengthBytes = "lengthBytes"
 
-serialiseBytes :: Text -> Text
-serialiseBytes typeName = "serialise" <> typeName
+serialiseBytes :: Text
+serialiseBytes = "serialise"
 
-deserialiseBytes :: Text -> Text
-deserialiseBytes typeName = "deserialise" <> typeName
+deserialiseBytes :: Text
+deserialiseBytes = "deserialise"
 
 sha256 :: Text
 sha256 = "sha256"

@@ -8,18 +8,17 @@ import Hschain.Utxo.Lang
 withdrawScript :: ByteString -> Script
 withdrawScript carol = [utxo|
 
-  bob         = listAt (getBoxBytesArgs getSelf) 0
-  bobDeadline = listAt (getBoxIntArgs getSelf) 0
-
   main =  (pk bob &&* (getHeight >* bobDeadline))
       ||* (pk $(carol) &&* (getHeight <=* bobDeadline))
-
+    where
+      bob         = fst (getBoxArgs getSelf)
+      bobDeadline = snd (getBoxArgs getSelf)
 |]
 
 reversibleAddressScript :: Int -> ByteString -> ByteString -> Script -> Int -> Script
 reversibleAddressScript blocksIn24h alice carol feeProposition maxFee = [utxo|
 
-  getBobDeadline box = listAt (getBoxIntArgs box) 0
+  getBobDeadline box = getBoxArgs box
 
   isChange   out = getBoxScript out == getBoxScript getSelf
   isWithdraw out = getBobDeadline out >= (getHeight + $(blocksIn24h))

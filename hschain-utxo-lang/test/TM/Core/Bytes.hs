@@ -7,8 +7,8 @@ import Data.Int
 
 import Test.Tasty
 
-import Hschain.Utxo.Lang.Types (ArgType(..))
 import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Utils.Hash
 import Hschain.Utxo.Lang.Core.Compile
 import Hschain.Utxo.Lang.Core.Compile.Build
 import Hschain.Utxo.Lang.Core.Types
@@ -19,8 +19,8 @@ tests :: TestTree
 tests = testGroup "core-bytes"
   [ testProgram "hash"               (progHash val)                     (PrimBool True)
   , testProgram "hash append"        (progHashAppend val 2)             (PrimBool True)
-  , testProgram "ser/deser id int"   (progConvertId int IntArg 100)     (PrimBool True)
-  , testProgram "ser/deser id text"  (progConvertId text TextArg "100") (PrimBool True)
+  , testProgram "ser/deser id int"   (progConvertId int IntT 100)     (PrimBool True)
+  , testProgram "ser/deser id text"  (progConvertId text TextT "100") (PrimBool True)
   ]
   where
     val = "hello bytes"
@@ -28,10 +28,10 @@ tests = testGroup "core-bytes"
 sha256V :: Core Name -> Core Name
 sha256V a = primOp OpSHA256 [a]
 
-serialise :: ArgType -> Core Name-> Core Name
+serialise :: TypeCore -> Core Name-> Core Name
 serialise ty a = primOp (OpToBytes ty) [a]
 
-deserialise :: ArgType -> Core Name -> Core Name
+deserialise :: TypeCore -> Core Name -> Core Name
 deserialise ty a = primOp (OpFromBytes ty) [a]
 
 appendBytes :: Core Name -> Core Name -> Core Name
@@ -43,10 +43,10 @@ progHash bs = equals BytesT (sha256V $ bytes bs) (bytes $ getSha256 bs)
 progHashAppend :: ByteString -> Int64 -> Core Name
 progHashAppend bs n
   = equals BytesT
-    (sha256V $ appendBytes (bytes bs) (serialise IntArg $ int n))
-    (bytes $ getSha256 $ bs <> serialiseInt n)
+    (sha256V $ appendBytes (bytes bs) (serialise IntT $ int n))
+    (bytes $ getSha256 $ bs <> serialiseTerm n)
 
-progConvertId :: (a -> Core Name) -> ArgType -> a -> Core Name
+progConvertId :: (a -> Core Name) -> TypeCore -> a -> Core Name
 progConvertId con ty n
-  = equals (argTypeToCore ty) (deserialise ty $ serialise ty $ con n) (con n)
+  = equals ty (deserialise ty $ serialise ty $ con n) (con n)
 

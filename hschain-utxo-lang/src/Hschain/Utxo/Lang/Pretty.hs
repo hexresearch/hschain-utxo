@@ -26,7 +26,6 @@ import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma (Proof)
 import Hschain.Utxo.Lang.Core.Types (TypeCoreError(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr (Core, TermVal(..), PrimCon(..))
-import Hschain.Utxo.Lang.Core.RefEval (EvalErr(..))
 import Hschain.Utxo.Lang.Core.ToHask
 import Hschain.Utxo.Lang.Compile.Expr (TypedExprLam, TypedLamProg)
 import Hschain.Utxo.Lang.Compile.Hask.TypedToHask (toHaskExpr, toHaskProg)
@@ -89,12 +88,7 @@ prettyRecord name fields = vcat [name <> colon, indent 2 (vsep $ fmap ppField fi
     ppField (field, val) = hsep [hcat [pretty field, colon], val ]
 
 prettyArgs :: Args -> Doc ann
-prettyArgs Args{..} = prettyRecord "Args"
-  [ ("args'ints",  pretty $ V.toList args'ints)
-  , ("args'texts", pretty $ V.toList args'texts)
-  , ("args'bools", pretty $ V.toList args'bools)
-  , ("args'bytes", pretty $ V.toList $ fmap encodeBase58 args'bytes)
-  ]
+prettyArgs (Args bs) = pretty $ encodeBase58 bs
 
 instance Pretty TxHash where
   pretty (TxHash bs) = pretty $ serialiseToText bs
@@ -198,31 +192,6 @@ instance Pretty Prim where
     PrimString   s -> hcat [dquote, pretty s, dquote]
     PrimSigma    s -> pretty $ show s
     PrimBytes    s -> pretty $ encodeBase58 s
-
-instance Pretty a => Pretty (EnvId a) where
-  pretty = prettyId . fmap pretty
-
-prettyId :: EnvId (Doc ann) -> Doc ann
-prettyId = \case
-    Height _         -> "HEIGHT"
-    Input _  a       -> prettyVec "input"  a
-    Output _ a       -> prettyVec "output" a
-    Inputs _         -> "INPUTS"
-    Outputs _        -> "OUTPUTS"
-    DataInputs _     -> "DATA-INPUTS"
-    Self _           -> hcat ["SELF"]
-    GetVar _ ty      -> pretty $ getEnvVarName ty
-
-prettyVec :: Doc ann -> Doc ann -> Doc ann
-prettyVec name n = hcat [name, brackets n]
-
-instance Pretty BoxField where
-  pretty = \case
-    BoxFieldId          -> "id"
-    BoxFieldValue       -> "value"
-    BoxFieldScript      -> "script"
-    BoxFieldArgList tag -> pretty $ getBoxArgVar tag
-    BoxFieldPostHeight  -> "postHeight"
 
 instance Pretty Error where
   pretty = \case

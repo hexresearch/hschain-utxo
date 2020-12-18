@@ -36,7 +36,7 @@ import Hschain.Utxo.Test.Client.Monad hiding (getHeight)
 import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, simpleSpendTo, spendCommonBoxTx)
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Utils.Hash
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.State.React (react)
 
@@ -439,7 +439,7 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
       where
         revoceHash = getSha256 revoceSecret
 
-    readKey = listAt getBytesVars 0
+    readKey = getArgs
 
     -- | Pays to partner right away
     partnerBox = Box
@@ -462,7 +462,7 @@ getRevoceTx wallet RevoceBox{..} =
 
     inputRef = BoxInputRef
       { boxInputRef'id = revoceBox'id
-      , boxInputRef'args = byteArgs [revoceBox'secret]
+      , boxInputRef'args = toArgs revoceBox'secret
       , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet
       , boxInputRef'sigs    = mempty
       , boxInputRef'sigMask = SigAll

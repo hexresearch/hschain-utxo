@@ -9,11 +9,9 @@ module Hschain.Utxo.Lang.Types
   , BoxId(..)
   , BoxInputRef(..)
   , Args(..)
-  , ArgType(..)
   , Script(..)
   , Money
   , computeBoxId
-  , argTypes
     -- * Blockchain state manipulation
   , InputEnv(..)
   , TxArg(..)
@@ -52,10 +50,8 @@ import Control.DeepSeq (NFData)
 import Control.Monad.Except
 
 import Codec.Serialise
-import Data.Aeson      ((.=),(.:),object,withObject)
 import Data.ByteString (ByteString)
 import Data.Bifunctor
-import Data.Coerce
 import Data.Data
 import Data.Fix
 import Data.Int
@@ -70,7 +66,7 @@ import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Crypto.Signature
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
-import Hschain.Utxo.Lang.Utils.ByteString
+import Hschain.Utxo.Lang.Utils.Hash
 
 import qualified Data.List as L
 import qualified Data.Vector as V
@@ -81,25 +77,11 @@ type Money = Int64
 -- | Argument for script in the transaction
 --
 -- It's Key-Value map from argument-names to primitive constant values.
-data Args = Args
-  { args'ints  :: Vector Int64
-  , args'bools :: Vector Bool
-  , args'texts :: Vector Text
-  , args'bytes :: Vector ByteString
-  }
+newtype Args = Args ByteString
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData, Serialise)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid Args
-
--- | Types that we can store as arguments in transactions.
--- We store lists of them.
-data ArgType = IntArg | TextArg | BoolArg | BytesArg
-  deriving stock    (Show, Eq, Generic, Data, Typeable)
-  deriving anyclass (NFData, Serialise)
-
-argTypes :: [ArgType]
-argTypes = [IntArg, TextArg, BoolArg, BytesArg]
-
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "Args" ByteString)
 
 -- | Identifier of TX. We can derive it from the PreTx.
 --  It equals to hash of serialised PreTx
@@ -492,7 +474,6 @@ newProofTxOrFail proofEnv tx = liftIO $ do
 hashScript :: Script -> ByteString
 hashScript = getSha256 . unScript
 
-
 --------------------------------------------
 -- useful utils
 
@@ -548,23 +529,6 @@ instance CryptoHashable Box where
 
 instance CryptoHashable Args where
   hashStep = genericHashStep hashDomain
-
-instance FromJSON Args where
-  parseJSON = withObject "Args" $ \o -> do
-    args'ints  <- o .: "ints"
-    args'bools <- o .: "bools"
-    args'texts <- o .: "texts"
-    bytes      <- o .: "bytes"
-    return Args{ args'bytes = coerce (bytes :: Vector (ViaBase58 "" ByteString))
-               , ..
-               }
-instance ToJSON Args where
-  toJSON Args{..} = object
-    [ "ints"  .= args'ints
-    , "bools" .= args'bools
-    , "texts" .= args'texts
-    , "bytes" .= (coerce args'bytes :: Vector (ViaBase58 "" ByteString))
-    ]
 
 $(makeLensesWithL ''GTx)
 $(makeLensesWithL ''TxArg)

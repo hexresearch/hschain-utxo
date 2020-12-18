@@ -14,7 +14,7 @@ import HSChain.Types.Blockchain
 import HSChain.Types.Merkle.Types
 import HSChain.Store
 
-import Hschain.Utxo.Lang hiding (Height)
+import Hschain.Utxo.Lang
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.Blockchain.Logic
 

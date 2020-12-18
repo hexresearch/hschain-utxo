@@ -21,6 +21,7 @@ import Hschain.Utxo.Lang.Core.Types (Name, Typed(..))
 import Hschain.Utxo.Lang.Expr(VarName(..))
 
 import qualified Data.Map.Strict as M
+import qualified Data.Text as T
 
 import qualified Type.Check.HM as H
 import qualified Type.Check.HM.Subst as H
@@ -57,6 +58,10 @@ specifyOps = liftTypedLamProg $ foldFixM $ \case
       | is Const.greaterEquals = OpGE                <$> cmpParam ty
       | is Const.allSigma      = OpSigListAll        <$> (getArrowParam1 =<< getArrowParam1 ty)
       | is Const.anySigma      = OpSigListAny        <$> (getArrowParam1 =<< getArrowParam1 ty)
+      | is Const.getArgs       = pure $ OpArgs ty
+      | is Const.getBoxArgs    = OpGetBoxArgs        <$> getArrowParam2 ty
+      | is Const.serialiseBytes = OpToBytes          <$> getArrowParam1 ty
+      | is Const.deserialiseBytes = OpFromBytes      <$> getArrowParam2 ty
       | otherwise              = Nothing
       where
         is = (name == )
@@ -84,6 +89,7 @@ specifyOps = liftTypedLamProg $ foldFixM $ \case
       _           -> Nothing
 
     getArrowParam1 = fmap fst . getArrowParam
+    getArrowParam2 = fmap snd . getArrowParam
 
 --------------------------------------------------------------------
 -- inline all polymorphic functions
@@ -155,7 +161,7 @@ getSubst ty name = do
   where
     specType expr = case ty `H.subtypeOf` (ann'note $ unFix expr) of
       Right subst -> pure $ mapType (H.apply subst) expr
-      Left _      -> inlineError H.defLoc $ renderText expr
+      Left err    -> inlineError H.defLoc $ T.unlines [renderText expr, renderText $ TypeError $ H.mapLoc (const H.defLoc) err]
 
 local :: (a -> Inline b) -> a -> Inline b
 local f a = do

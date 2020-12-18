@@ -18,7 +18,6 @@ import Language.Haskell.Exts.Parser (
 
 import HSChain.Crypto (decodeBase58)
 
-import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
@@ -345,10 +344,10 @@ toArgTypeName expr =
   case expr of
     H.TyCon _ tyName -> case tyName of
       H.UnQual _ (H.Ident _ name) -> case name of
-        "Int"       -> Just $ PrimQ IntArg
-        "Bool"      -> Just $ PrimQ BoolArg
-        "Text"      -> Just $ PrimQ TextArg
-        "Bytes"     -> Just $ PrimQ BytesArg
+        "Int"       -> Just IntQ
+        "Bool"      -> Just BoolQ
+        "Text"      -> Just TextQ
+        "Bytes"     -> Just BytesQ
         "Sigma"     -> Just SigmaQ
         "Script"    -> Just ScriptQ
         "PublicKey" -> Just PublicKeyQ

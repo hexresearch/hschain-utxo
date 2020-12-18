@@ -34,7 +34,7 @@ import Text.Show.Pretty
 
 import HSChain.Crypto.Classes (ByteRepr(..))
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Utils.ByteString (getSha256)
+import Hschain.Utxo.Lang.Utils.Hash (getSha256)
 import Hschain.Utxo.Test.Client.Monad
 import Hschain.Utxo.Test.Client.Wallet (Wallet(..), getWalletPublicKey, getWalletPrivateKey)
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol

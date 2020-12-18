@@ -7,7 +7,6 @@ module Hschain.Utxo.Lang.Core.Types (
   , Typed(..)
   , Prim(..)
   , TypeCoreError(..)
-  , argTypeToCore
     -- * Lens
   , typed'typeL
   , typed'valueL
@@ -25,7 +24,6 @@ import GHC.Generics (Generic)
 
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (ArgType(..))
 
 
 -- | Errors for core language type-checker.
@@ -79,7 +77,7 @@ data TypeCore
   | MaybeT TypeCore             -- ^ Maybe
   | BoxT
     -- ^ Box. 5-tuple of box ID, spend script, value of box, arguments and post-height
-  deriving stock    (Show, Eq, Generic,Data)
+  deriving stock    (Show, Eq, Ord, Generic,Data)
   deriving anyclass (NFData,Serialise)
 infixr 5 :->
 
@@ -92,15 +90,7 @@ argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
 -----------------------------------------------------
 -- instances
 
-
 $(makeLensesWithL ''Typed)
-
-argTypeToCore :: ArgType -> TypeCore
-argTypeToCore = \case
-  IntArg -> IntT
-  BoolArg -> BoolT
-  TextArg -> TextT
-  BytesArg -> BytesT
 
 ----------------------------------------------------------------
 -- Pretty-printing

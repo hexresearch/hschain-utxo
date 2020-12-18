@@ -19,6 +19,8 @@ module Type.Check.HM.TyTerm(
 import Control.Arrow
 
 import Data.Fix
+import Data.Containers.ListUtils (nubOrdOn)
+import Data.Foldable
 import Data.Eq.Deriving
 import Data.Ord.Deriving
 import Text.Show.Deriving
@@ -26,6 +28,8 @@ import Text.Show.Deriving
 import Type.Check.HM.Subst
 import Type.Check.HM.Type
 import Type.Check.HM.Term
+
+import qualified Data.DList as D
 
 -- | Type to annotate nodes of AST.
 -- We use it for type annotations.
@@ -132,5 +136,12 @@ instance TypeFunctor (TyTerm prim) where
 
 instance CanApply (TyTerm prim) where
   apply subst term = mapType (apply subst) term
+
+instance HasTypeVars (TyTerm prim) where
+  tyVars (TyTerm x) = foldFix (\(Ann ty term) -> tyVars ty <> fold term) x
+
+  tyVarsInOrder (TyTerm x) =
+    nubOrdOn fst $ D.toList $ foldFix (\(Ann ty term) -> D.fromList (tyVarsInOrder ty) <> fold term) x
+
 
 

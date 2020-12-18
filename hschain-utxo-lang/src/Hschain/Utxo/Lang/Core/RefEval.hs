@@ -16,7 +16,6 @@ import Control.Monad.State.Strict
 import Data.Int
 import Data.ByteString (ByteString)
 import Data.Bool
-import Data.String
 import Data.Text       (Text)
 import Data.Typeable
 import Data.Fix
@@ -26,12 +25,14 @@ import qualified Data.Text            as T
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as LB
 
-import HSChain.Crypto     (Hash(..),hashBlob,ByteRepr(..), encodeBase58)
+import HSChain.Crypto     (Hash(..),hashBlob,ByteRepr(..))
 import HSChain.Crypto.SHA (SHA256)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),ArgType(..),Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Pretty
+import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),Script(..),BoxId(..),InputEnv(..))
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
@@ -56,15 +57,6 @@ instance Show Val where
                      . showsPrec 11 i
                      . showChar ' '
                      . showsPrec 11 xs
-
--- | Evaluation error
-data EvalErr
-  = TypeMismatch    -- ^ Type error. Should never happen when evaluating well-typed program.
-  | EvalErr String  -- ^ Some other error
-  deriving (Show, Eq)
-
-instance IsString EvalErr where
-  fromString = EvalErr
 
 -- | Evaluate program
 evalProg :: InputEnv -> Core v -> Either EvalErr TermVal
@@ -137,7 +129,8 @@ evalExpr inpEnv = recur
                         | length fields == caseAlt'nVars -> recur (fields <> lenv) caseAlt'rhs
                         | otherwise                      -> throwError TypeMismatch
                       | otherwise          = matchCase cs
-                    matchCase [] = throwError $ EvalErr "No match in case"
+                    matchCase [] = throwError $ EvalErr $ "No match in case with " <> (show tag)
+
                 _             -> throwError TypeMismatch
             EConstr con  -> pure $ constr con
             --
@@ -227,32 +220,18 @@ evalPrimOp env = \case
   OpBytesAppend -> pure $ lift2 ((<>) @ByteString)
   OpSHA256      -> pure $ lift1 (hashBlob @SHA256)
   --
-  OpShow t
-    | t == IntT   -> pure $ lift1 (T.pack . show @Int64)
-    | t == BoolT  -> pure $ lift1 (T.pack . show @Bool)
-    | t == TextT  -> pure $ ValF pure
-    | t == BytesT -> pure $ lift1 (encodeBase58 @ByteString)
-    | t == SigmaT -> pure $ lift1 (T.pack . show @(Sigma PublicKey))
-    | otherwise  -> throwError "Invalid show. Show is defined only for primitive values"
+  OpShow _ -> pure $ liftTerm1 (PrimVal . PrimText . renderText)
   --
-  OpToBytes   tag -> pure $ case tag of
-    IntArg   -> lift1 $ serialise @Int64
-    TextArg  -> lift1 $ serialise @Text
-    BoolArg  -> lift1 $ serialise @Bool
-    BytesArg -> lift1 $ serialise @ByteString
-  OpFromBytes tag -> pure $ case tag of
-    IntArg   -> evalLift1 $ decode @Int64
-    TextArg  -> evalLift1 $ decode @Text
-    BoolArg  -> evalLift1 $ decode @Bool
-    BytesArg -> evalLift1 $ decode @ByteString
+  OpToBytes   _ -> pure $ liftTerm1 (PrimVal . PrimBytes . LB.toStrict . serialise)
+  OpFromBytes _  -> let getBS = \case
+                         PrimVal (PrimBytes bs) -> pure $ LB.fromStrict bs
+                         _                      -> throwError "Not a bytestring"
+                   in  pure $ evalLiftTerm1 $ (decode <=< getBS)
   --
-  OpArgs tag -> pure $ case tag of
-    IntArg   -> inj args'ints
-    TextArg  -> inj args'texts
-    BoolArg  -> inj args'bools
-    BytesArg -> inj args'bytes
+  OpArgs _ -> fmap injTerm $ decode $ LB.fromStrict bs
     where
-      Args{..} = inputEnv'args env
+      Args bs = inputEnv'args env
+
   OpGetBoxId -> pure $ evalLift1 $ \case
 
     ValCon _ [b,_,_,_,_] -> pure $ b
@@ -263,12 +242,8 @@ evalPrimOp env = \case
   OpGetBoxValue -> pure $ evalLift1 $ \case
     ValCon _ [_,_,i,_,_] -> pure $ i
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
-  OpGetBoxArgs t -> pure $ ValF $ \x -> case x of
-    ValCon _ [_,_,_, ValCon _ [ints, txts, bools, bytes],_] -> case t of
-      IntArg   -> pure $ ints
-      TextArg  -> pure $ txts
-      BoolArg  -> pure $ bools
-      BytesArg -> pure $ bytes
+  OpGetBoxArgs _ -> pure $ ValF $ \x -> case x of
+    ValCon _ [_,_,_, ValP (PrimBytes bs), _] -> fmap injTerm $ decode $ LB.fromStrict bs
     p -> throwError $ EvalErr $ "Not a box. Got " ++ show p
   OpGetBoxPostHeight -> pure $ evalLift1 $ \case
     ValCon _ [_,_,_,_,b] -> pure $ b
@@ -355,17 +330,8 @@ evalPrimOp env = \case
     lookAt (x:_)  0 = pure x
     lookAt (_:xs) n = lookAt xs (n-1)
 
-opComparison :: (forall a. Ord a => a -> a -> Bool) -> Val
-opComparison (#) = evalLift2 go
-  where
-    go (PrimInt   a) (PrimInt   b) = pure $ ValP $ PrimBool $ a # b
-    go (PrimBool  a) (PrimBool  b) = pure $ ValP $ PrimBool $ a # b
-    go (PrimText  a) (PrimText  b) = pure $ ValP $ PrimBool $ a # b
-    go (PrimBytes a) (PrimBytes b) = pure $ ValP $ PrimBool $ a # b
-    -- FIXME: Comparison for sigma expressions?
-    go (PrimSigma _) (PrimSigma _) = throwError TypeMismatch
-    go  _             _            = throwError TypeMismatch
-
+opComparison :: (TermVal -> TermVal -> Bool) -> Val
+opComparison f = liftTerm2 (\a b -> PrimVal $ PrimBool $ f a b)
 
 parsePublicKey :: ByteString -> Eval PublicKey
 parsePublicKey = maybe err pure . decodeFromBS
@@ -471,12 +437,7 @@ instance InjPrim BoxOutput where
   inj BoxOutput{..} = inj (boxOutput'id, boxOutput'box)
 
 instance InjPrim Args where
-  inj Args{..} = ValCon argsPrimCon
-    [ inj args'ints
-    , inj args'texts
-    , inj args'bools
-    , inj args'bytes
-    ]
+  inj (Args bs) = inj bs
 
 lift1 :: (MatchPrim a, InjPrim b) => (a -> b) -> Val
 lift1 f = ValF $ go
@@ -502,4 +463,33 @@ evalLift3 :: (MatchPrim a, MatchPrim b, MatchPrim c, InjPrim d) => (a -> b -> c 
 evalLift3 f = Val3F $ \a b c -> go a b c
   where
     go a b c = fmap inj $ join $ f <$> match a <*> match b <*>  match c
+
+-------------------------------------------
+-- match terms
+
+matchTerm :: Val -> Eval TermVal
+matchTerm = \case
+  ValP p          -> pure $ PrimVal p
+  ValCon con args -> fmap (ConVal con . V.fromList) $ mapM matchTerm args
+  _               -> throwError "It is not a term"
+
+injTerm :: TermVal -> Val
+injTerm = \case
+  PrimVal p       -> ValP p
+  ConVal con args -> ValCon con $ V.toList $ fmap injTerm args
+
+liftTerm1 :: (TermVal -> TermVal) -> Val
+liftTerm1 f = ValF $ go
+  where
+    go a = injTerm . f <$> matchTerm a
+
+liftTerm2 :: (TermVal -> TermVal -> TermVal) -> Val
+liftTerm2 f = Val2F $ \a b -> go a b
+  where
+    go a b = fmap injTerm $ f <$> matchTerm a <*> matchTerm b
+
+evalLiftTerm1 :: (TermVal -> Eval TermVal) -> Val
+evalLiftTerm1 f = ValF $ go
+  where
+    go a = fmap injTerm $ f =<< matchTerm a
 

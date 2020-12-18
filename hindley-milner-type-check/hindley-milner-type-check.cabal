@@ -40,9 +40,11 @@ library
                , containers                >=0.5
                , deriving-compat
                , data-fix                  >=0.3
+               , dlist
                , mtl
                , prettyprinter
                , text
+               , pretty-show
 
   -- Directories containing source files.
   hs-source-dirs:       src

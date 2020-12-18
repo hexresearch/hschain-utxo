@@ -46,6 +46,7 @@ module Type.Check.HM.Type (
 import Control.DeepSeq (NFData(..))
 import Control.Monad
 
+import Data.Containers.ListUtils (nubOrdOn)
 import Data.Data
 import Data.Eq.Deriving
 import Data.Ord.Deriving
@@ -283,7 +284,7 @@ instance HasTypeVars Type where
           TupleT _ as   -> mconcat as
           ListT _ a     -> a
 
-    tyVarsInOrder = L.nubBy ((==) `on` fst) . foldFix go . unType
+    tyVarsInOrder = nubOrdOn fst . foldFix go . unType
       where
         go = \case
           VarT loc var -> [(var, loc)]
@@ -300,7 +301,7 @@ instance HasTypeVars Signature where
           MonoT t       -> tyVars t
           ForAllT _ x t -> VarSet $ M.delete x $ unVarSet t
 
-    tyVarsInOrder = L.nubBy ((==) `on` fst) . foldFix go . unSignature
+    tyVarsInOrder = nubOrdOn fst . foldFix go . unSignature
       where
         go = \case
           MonoT t         -> tyVarsInOrder t

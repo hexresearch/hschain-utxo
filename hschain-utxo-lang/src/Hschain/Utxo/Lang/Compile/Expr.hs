@@ -27,6 +27,7 @@ module Hschain.Utxo.Lang.Compile.Expr(
   , getTypedDefType
   , defBodyToLam
   , liftTypedLamProg
+  , mapLamProgType
 ) where
 
 import Data.Fix
@@ -175,6 +176,21 @@ liftTypedLamProg f (AnnLamProg combs) =  fmap AnnLamProg $ mapM liftComb combs
       body <- f $ def'body def
       return $ def { def'body = body }
 
+mapLamProgType :: (H.Type () Name -> H.Type () Name) -> LamProg -> LamProg
+mapLamProgType f (LamProg combs) = LamProg $ fmap (fmap mapExpr) combs
+  where
+    mapExpr = foldFix $ \case
+      EPrimOp loc op       -> Fix $ EPrimOp loc (fmap f op)
+      EConstr loc con      -> Fix $ EConstr loc (fmap f con)
+      EAssertType loc a ty -> Fix $ EAssertType loc a (f ty)
+      ECase loc a alts     -> Fix $ ECase loc a (fmap mapAlt alts)
+      other                -> Fix other
+
+    mapAlt alt = alt { caseAlt'tag = fmap f $ caseAlt'tag alt }
+
+----------------------------------------------------------------
+-- instances
+
 $(deriveEq1   ''ExprLamF)
 $(deriveShow1 ''ExprLamF)
 $(deriveEq1   ''CaseAlt)
@@ -185,3 +201,6 @@ $(deriveShow1 ''Ann)
 
 deriving stock instance (Show bind, Show ann) => Show (AnnLamProg ann bind)
 deriving stock instance Show LamProg
+
+
+

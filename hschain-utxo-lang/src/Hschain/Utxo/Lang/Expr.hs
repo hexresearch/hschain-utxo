@@ -35,7 +35,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
-import Hschain.Utxo.Lang.Types              (Args(..), ArgType(..), argTypes, Script(..))
+import Hschain.Utxo.Lang.Types              (Script(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
 import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
@@ -73,7 +73,7 @@ data UserTypeCtx = UserTypeCtx
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
 data UserCoreTypeCtx = UserCoreTypeCtx
-  { userCoreTypeCtx'types   :: Map Name (H.Type () Name)
+  { userCoreTypeCtx'types   :: Map Name (H.Signature () Name)
   , userCoreTypeCtx'constrs :: Map Name CoreConsDef
   }
   deriving (Show, Eq, Generic, Data, Typeable)
@@ -96,13 +96,15 @@ userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty 
     isBaseType x = Set.member x baseTypes
     baseTypes = Set.fromList ["Maybe"]
 
-    convertUserType UserType{..} = do
+    convertUserType UserType{..} = fmap toSig $ do
       mapM_ addCons constrs
       case constrs of
         []         -> pure unitT
         [(_, def)] -> defToTuple def
         _          -> fmap (H.conT () ("Sum" <> showt (length constrs))) $ mapM (defToTuple . snd) constrs
       where
+        toSig t = foldr (\v ty -> H.forAllT () (varName'name v) ty) (H.monoT t) userType'args
+
         constrs = M.toList userType'cases
         constrOrderMap = M.fromList $ zipWith (\n (name, _) -> (name, n)) [0..] constrs
 
@@ -144,12 +146,12 @@ userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty 
           H.ConT loc con args | isUserType con -> do
             st <- get
             case M.lookup con $ userCoreTypeCtx'types st of
-              Just t  -> pure $ H.unType t
+              Just t  -> pure $ H.unType $ H.closeSignature (fmap H.Type args) t
               Nothing -> case M.lookup con ts of
                            Just defn -> do
                              t <- convertUserType defn
-                             put $ st { userCoreTypeCtx'types = M.insert con t $ userCoreTypeCtx'types st }
-                             return (H.unType t)
+                             modify' $ \env -> env { userCoreTypeCtx'types = M.insert con t $ userCoreTypeCtx'types env }
+                             return (H.unType $ H.closeSignature (fmap H.Type args) t)
                            Nothing -> pure $ Fix $ H.ConT loc con args
           other               -> pure $ Fix $ other
 
@@ -343,42 +345,6 @@ consToVarName (ConsName loc name) = VarName loc name
 varToConsName :: VarName -> ConsName
 varToConsName VarName{..} = ConsName varName'loc varName'name
 
--- | Construct args that contain only integers
-intArgs :: [Int64] -> Args
-intArgs xs = Args
-  { args'ints  = V.fromList xs
-  , args'bools = mempty
-  , args'texts = mempty
-  , args'bytes = mempty
-  }
-
--- | Construct args that contain only booleans
-boolArgs :: [Bool] -> Args
-boolArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = V.fromList xs
-  , args'texts = mempty
-  , args'bytes = mempty
-  }
-
--- | Construct args that contain only texts
-textArgs :: [Text] -> Args
-textArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = mempty
-  , args'texts = V.fromList xs
-  , args'bytes = mempty
-  }
-
--- | Construct args that contain only bytestrings
-byteArgs :: [ByteString] -> Args
-byteArgs xs = Args
-  { args'ints  = mempty
-  , args'bools = mempty
-  , args'texts = mempty
-  , args'bytes = V.fromList xs
-  }
-
 -- | Pattern matching elements (in the arguments or in cases)
 data Pat
   = PVar Loc VarName          -- ^ simple variable (anything matches)
@@ -512,36 +478,16 @@ data E a
 
 -- | Types that we can inline to quasi-quoted code
 data QuoteType
-  = PrimQ ArgType
+  = IntQ
+  | BoolQ
+  | TextQ
+  | BytesQ
   | SigmaQ
   | PublicKeyQ
   | ScriptQ
   | ListQ QuoteType
   | TupleQ [QuoteType]
   deriving (Show, Eq, Data)
-
--- | Built-in unary operators
-data UnOp
-  = Not   -- ^ logical not
-  | Neg   -- ^ numeric negation
-  | TupleAt Int Int  -- ^ tuple field accessor. Arguments: @TupleAt tupleSize, field number@.
-  deriving (Show, Eq, Data, Typeable)
-
--- | Built-in binary operators
-data BinOp
-  = And                  -- ^ boolean AND
-  | Or                   -- ^ boolean OR
-  | Plus                 -- ^ numeric addition
-  | Minus                -- ^ numeric substraction
-  | Times                -- ^ numeric multiplication
-  | Div                  -- ^ numeric integer division
-  | Equals               -- ^ equality test
-  | NotEquals            -- ^ non-equality test
-  | LessThan             -- ^ @<@
-  | GreaterThan          -- ^ @>@
-  | LessThanEquals       -- ^ @<=@
-  | GreaterThanEquals    -- ^ @>=@
-  deriving (Show, Eq, Data, Typeable)
 
 -- | Case-alternative expression
 data CaseExpr a
@@ -550,39 +496,6 @@ data CaseExpr a
       , caseExpr'rhs :: a    -- ^ right-hand side expression
       }
   deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
--- | Expressions that operate on boxes.
-data BoxExpr a
-  = BoxAt Loc a BoxField -- ^ Box field getter
-  deriving (Eq, Show, Functor, Foldable, Traversable, Data, Typeable)
-
--- | It defines which values we can get from the box
-data BoxField
-  = BoxFieldId
-  -- ^ Get box identifier
-  | BoxFieldValue
-  -- ^ Get box value (or money)
-  | BoxFieldScript
-  -- ^ Get box script
-  | BoxFieldArgList ArgType
-  -- ^ Get box argument. It should be primitive value stored in the vector.
-  -- We get the vector of primitive values stored by primitive-value tag.
-  | BoxFieldPostHeight
-  -- ^ Get time at which box was posted. It's useful to create relative time bounds
-  deriving (Show, Eq, Data, Typeable)
-
-argTagToType :: ArgType -> Type
-argTagToType = argTagToType' H.defLoc
-
-argTagToType' :: Loc -> ArgType -> Type
-argTagToType' loc = \case
-  IntArg   -> intT' loc
-  TextArg  -> textT' loc
-  BoolArg  -> boolT' loc
-  BytesArg -> bytesT' loc
-
-getBoxArgVar :: ArgType -> Text
-getBoxArgVar = Const.getBoxArgs . argTypeName
 
 -- | Hack to define special names (like record fields or modifiers, or constants for type-inference)
 secretVar :: Text -> Text
@@ -620,38 +533,6 @@ instance FromJSON BoolExprResult where
   parseJSON = withObject "BoolExprResult" $ \obj ->
         (ConstBool <$> obj .: "bool")
     <|> (SigmaResult <$> obj .: "sigma")
-
-
--- | Environment fields. Info that we can query from blockchain state
-data EnvId a
-  = Height Loc
-  -- ^ Get blockchain height
-  | Input Loc  a
-  -- ^ Get input box of the script by index
-  | Output Loc a
-  -- ^ Get output box of the script by index
-  -- (those boxes that are created if transaction is comitted with success)
-  | Self Loc
-  -- ^ Get box of the current script
-  | Inputs Loc
-  -- ^ Get list of all input boxes
-  | Outputs Loc
-  -- ^ Get list of all output boxes
-  | DataInputs Loc
-  -- ^ Get list of all data-input boxes
-  | GetVar Loc ArgType
-  -- ^ Get argument of the transaction by name
-  deriving (Show, Eq, Functor, Foldable, Traversable, Data, Typeable)
-
-getEnvVarName :: ArgType -> Text
-getEnvVarName ty = Const.getArgs $ argTypeName ty
-
-argTypeName :: ArgType -> Text
-argTypeName = \case
-  IntArg   -> "Int"
-  TextArg  -> "Text"
-  BoolArg  -> "Bool"
-  BytesArg -> "Bytes"
 
 instance ToJSON Prim where
   toJSON x = object $ pure $ case x of
@@ -846,7 +727,7 @@ freeVarsBg :: [Bind (Set VarName)] -> Set VarName
 freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
   where
     localFreeVarsAlt Alt{..} =
-      (freeVarsRhs alt'expr <> foldMap getBgNames alt'where)
+      (freeVarsRhs alt'expr `Set.difference` foldMap getBgNames alt'where)
       `Set.difference` (foldMap freeVarsPat alt'pats)
 
 getBgNames :: [Bind a] -> Set VarName
@@ -931,14 +812,14 @@ monoPrimopName = \case
   OpBytesLength -> Just Const.lengthBytes
   OpTextAppend  -> Just Const.appendText
   OpBytesAppend -> Just Const.appendBytes
-  OpToBytes   t -> Just $ Const.serialiseBytes $ argTypeName t
-  OpFromBytes t -> Just $ Const.deserialiseBytes $ argTypeName t
+  OpToBytes   _ -> Nothing
+  OpFromBytes _ -> Nothing
   --
-  OpArgs t       -> Just $ "get" <> argTypeName t <> "Args"
+  OpArgs _       -> Nothing
   OpGetBoxId     -> Just Const.getBoxId
   OpGetBoxScript -> Just Const.getBoxScript
   OpGetBoxValue  -> Just Const.getBoxValue
-  OpGetBoxArgs t -> Just $ Const.getBoxArgs $ argTypeName t
+  OpGetBoxArgs _ -> Nothing
   OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
   --
   OpEnvGetHeight  -> Just Const.getHeight
@@ -979,6 +860,12 @@ polyPrimOpName = \case
   OpLT _   -> Just "<"
   OpLE _   -> Just "<="
   --
+  OpFromBytes _ -> Just Const.deserialiseBytes
+  OpToBytes   _ -> Just Const.serialiseBytes
+  --
+  OpArgs _       -> Just $ Const.getArgs
+  OpGetBoxArgs _ -> Just $ Const.getBoxArgs
+  --
   OpListMap{}    -> Just "map"
   OpListAt{}     -> Just "listAt"
   OpListAppend{} -> Just "++"
@@ -1006,10 +893,6 @@ monomorphicPrimops =
   , OpListAnd
   , OpListOr
   ]
-  ++ (OpToBytes <$> argTypes)
-  ++ (OpFromBytes <$> argTypes)
-  ++ (OpGetBoxArgs <$> argTypes)
-  ++ (OpArgs <$> argTypes)
 
 -- | Name map for substitution of monomorphic primops
 monoPrimopNameMap :: M.Map Name (PrimOp a)
@@ -1080,8 +963,6 @@ $(deriveShow1 ''Guard)
 $(deriveEq1   ''Bind)
 $(deriveOrd1  ''Bind)
 $(deriveShow1 ''Bind)
-$(deriveEq1   ''EnvId)
-$(deriveShow1 ''EnvId)
 $(deriveEq1   ''CaseExpr)
 $(deriveOrd1  ''CaseExpr)
 $(deriveShow1 ''CaseExpr)

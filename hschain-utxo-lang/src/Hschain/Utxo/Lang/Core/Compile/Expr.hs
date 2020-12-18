@@ -49,7 +49,7 @@ import Data.Void
 import GHC.Generics (Generic, Rep, M1(..), (:+:)(..), (:*:)(..), D, C, U1, S, from)
 
 import Hschain.Utxo.Lang.Core.Types
-import Hschain.Utxo.Lang.Types (Script(..),ArgType)
+import Hschain.Utxo.Lang.Types (Script(..))
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -97,8 +97,8 @@ data PrimOp a
   | OpBytesLength         -- ^ Bytes length
   | OpTextAppend          -- ^ Text concatenation
   | OpBytesAppend         -- ^ Bytes concatenation
-  | OpToBytes   !ArgType
-  | OpFromBytes !ArgType
+  | OpToBytes   !a
+  | OpFromBytes !a
 
   | OpShow !a             -- ^ Polymorphic show
 
@@ -108,11 +108,11 @@ data PrimOp a
   | OpEnvGetOutputs       -- ^ Output of a current box
   | OpEnvGetDataInputs    -- ^ Data-inputs of a current box
 
-  | OpArgs !ArgType
+  | OpArgs !a
   | OpGetBoxId
   | OpGetBoxScript
   | OpGetBoxValue
-  | OpGetBoxArgs !ArgType -- ^ Get arguments from box
+  | OpGetBoxArgs !a       -- ^ Get arguments from box
   | OpGetBoxPostHeight    -- ^ Get time at which box was accepted to blockchain
 
   | OpListMap    !a !a    -- ^ Map over list
@@ -199,7 +199,7 @@ argsPrimCon = ConTuple $ V.fromList $ fmap ListT [IntT, TextT, BoolT, BytesT ]
 data TermVal
   = PrimVal !Prim
   | ConVal (PrimCon TypeCore) (Vector TermVal)
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord, Generic, Serialise)
 
 -- | Expressions of the Core-language
 data Core a

@@ -9,7 +9,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 
 import Data.ByteString (ByteString)
-import Data.Vector     ((!?),(!))
+import Data.Vector     ((!))
 import Data.Int
 import Data.Maybe
 import Data.Text (Text)
@@ -20,7 +20,7 @@ import System.Random
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.Lang.Utils.ByteString(getSha256)
+import Hschain.Utxo.Lang.Utils.Hash(getSha256)
 
 import Hschain.Utxo.Test.Client.Monad hiding (getHeight)
 import Hschain.Utxo.Test.Client.Wallet (getWalletPublicKey, getProofEnv)
@@ -119,11 +119,12 @@ initSecret size = fmap (appendHash . B.pack) $ mapM (const randomIO) [1 .. size]
 -- Alice scripts and transactions
 
 aliceInitSwapScript :: SwapSpec -> Script
-aliceInitSwapScript spec = mainScriptUnsafe $
-  orSigma $ fromVec
-    [ toSigma (getHeight >* int deadlineBob) &&* pk' alicePubKey
-    , pk' bobPubKey &&* (toSigma $ (sha256 $ listAt getBytesVars 0) ==* (listAt (getBoxBytesArgList getSelf) 0))
-    ]
+aliceInitSwapScript spec = [utxo|
+    orSigma
+      [ getHeight >* $(deadlineBob) &&* pk $(alicePubKey)
+      , pk $(bobPubKey) &&* (sha256 getArgs ==* getBoxArgs getSelf)
+      ]
+|]
   where
     alicePubKey = swapUser'pk $ swapSpec'alice spec
     bobPubKey   = swapUser'pk $ swapSpec'bob spec
@@ -152,7 +153,7 @@ aliceInitSwapTx aliceKeys inputId spec = do
     swapBox = Box
       { box'value  = fromIntegral bobValue
       , box'script = aliceInitSwapScript spec
-      , box'args   = byteArgs [ swapHash ]
+      , box'args   = toArgs swapHash
       }
 
 -- | Alice grabs the Bob's funds and reveals the secret.
@@ -168,7 +169,7 @@ aliceGrabTx aliceKeys inputId spec = newProofTx aliceKeys preTx
 
     saveMoney = getChangeBox (fromIntegral aliceValue) alicePubKey
 
-    addSecret box = box { boxInputRef'args = byteArgs [ aliceSecret ] }
+    addSecret box = box { boxInputRef'args = toArgs aliceSecret }
     aliceSecret = swapSpec'secret spec
     aliceValue  = swapUser'value $ swapSpec'alice spec
     alicePubKey = swapUser'pk $ swapSpec'alice spec
@@ -192,15 +193,16 @@ aliceDoubleSpendTx aliceKeys inputId spec = newProofTx aliceKeys preTx
 -- Bob scripts and transactions
 
 bobInitSwapScript :: SwapHash -> SwapSpec -> Script
-bobInitSwapScript swapHash spec = mainScriptUnsafe $
-  orSigma $ fromVec
-    [ toSigma (getHeight >* int deadlineAlice) &&* pk' bobPubKey
-    , andSigma $ fromVec
-        [ pk' alicePubKey
-        , toSigma $ lengthBytes (listAt getBytesVars 0) <* 33
-        , toSigma $ sha256 (listAt getBytesVars 0) ==* bytes swapHash
+bobInitSwapScript swapHash spec = [utxo|
+  orSigma
+    [ getHeight >* $(deadlineAlice) &&* pk $(bobPubKey)
+    , andSigma
+        [ pk $(alicePubKey)
+        , lengthBytes getArgs <* 33
+        , sha256 getArgs ==* $(swapHash)
         ]
     ]
+|]
   where
     deadlineAlice = swapUser'deadline $ swapSpec'alice spec
     alicePubKey   = swapUser'pk $ swapSpec'alice spec
@@ -240,7 +242,7 @@ bobGrabTx bobKeys aliceSecret inputId spec = newProofTx bobKeys preTx
 
     saveMoney = getChangeBox (fromIntegral bobValue) bobPubKey
 
-    addSecret box = box { boxInputRef'args = byteArgs [ aliceSecret ] }
+    addSecret box = box { boxInputRef'args = toArgs aliceSecret }
 
     bobValue  = swapUser'value $ swapSpec'bob spec
     bobPubKey = swapUser'pk $ swapSpec'bob spec
@@ -353,7 +355,7 @@ bobWaitForHash spec = do
     getTxSwapHash tx@Tx{..} = do
       i    <- V.findIndex isAliceInitBox tx'outputs
       let box = tx'outputs ! 0
-      hash <- args'bytes (box'args box) !? 0
+      let hash = fromArgs $ box'args box
       return (hash, computeBoxId (computeTxId tx) (fromIntegral i))
 
     isAliceInitScript = V.any isAliceInitBox . tx'outputs
@@ -370,7 +372,7 @@ bobWaitForSecret aliceSpendBoxId = do
   where
     getSecret Tx{..} = do
       box <- V.find isAliceSecretBox tx'inputs
-      secret <- (args'bytes $ boxInputRef'args box) V.!? 0
+      let secret = fromArgs $ boxInputRef'args box
       return secret
 
     isAliceSecretTx Tx{..} = V.any isAliceSecretBox tx'inputs
