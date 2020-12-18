@@ -73,7 +73,7 @@ data UserTypeCtx = UserTypeCtx
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid UserTypeCtx
 
 data UserCoreTypeCtx = UserCoreTypeCtx
-  { userCoreTypeCtx'types   :: Map Name (H.Type () Name)
+  { userCoreTypeCtx'types   :: Map Name (H.Signature () Name)
   , userCoreTypeCtx'constrs :: Map Name CoreConsDef
   }
   deriving (Show, Eq, Generic, Data, Typeable)
@@ -96,13 +96,15 @@ userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty 
     isBaseType x = Set.member x baseTypes
     baseTypes = Set.fromList ["Maybe"]
 
-    convertUserType UserType{..} = do
+    convertUserType UserType{..} = fmap toSig $ do
       mapM_ addCons constrs
       case constrs of
         []         -> pure unitT
         [(_, def)] -> defToTuple def
         _          -> fmap (H.conT () ("Sum" <> showt (length constrs))) $ mapM (defToTuple . snd) constrs
       where
+        toSig t = foldr (\v ty -> H.forAllT () (varName'name v) ty) (H.monoT t) userType'args
+
         constrs = M.toList userType'cases
         constrOrderMap = M.fromList $ zipWith (\n (name, _) -> (name, n)) [0..] constrs
 
@@ -144,12 +146,12 @@ userCoreTypeMap ts = execState (mapM_ go $ M.toList ts) (UserCoreTypeCtx mempty 
           H.ConT loc con args | isUserType con -> do
             st <- get
             case M.lookup con $ userCoreTypeCtx'types st of
-              Just t  -> pure $ H.unType t
+              Just t  -> pure $ H.unType $ H.closeSignature (fmap H.Type args) t
               Nothing -> case M.lookup con ts of
                            Just defn -> do
                              t <- convertUserType defn
-                             put $ st { userCoreTypeCtx'types = M.insert con t $ userCoreTypeCtx'types st }
-                             return (H.unType t)
+                             modify' $ \env -> env { userCoreTypeCtx'types = M.insert con t $ userCoreTypeCtx'types env }
+                             return (H.unType $ H.closeSignature (fmap H.Type args) t)
                            Nothing -> pure $ Fix $ H.ConT loc con args
           other               -> pure $ Fix $ other
 

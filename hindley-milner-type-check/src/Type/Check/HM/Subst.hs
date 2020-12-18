@@ -47,4 +47,3 @@ instance CanApply Signature where
   apply (Subst s) (Signature (Fix expr)) = case expr of
     MonoT t     -> monoT $ apply (Subst s) t
     ForAllT loc x t -> forAllT loc x $ apply (Subst $ M.delete x s) (Signature t)
-

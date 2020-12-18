@@ -3,6 +3,7 @@ module TM.Lang.UserTypes(
   , prog1
   , prog2
   , maybeProg
+  , encodeUserType
 ) where
 
 import Hschain.Utxo.Lang
@@ -18,6 +19,7 @@ tests = testGroup "User types"
   [ testScript "Prog with user types"    prog1
   , testScript "Prog with record types"  prog2
   , testScript "Prog with maybe types"   maybeProg
+  , testScript "Encode user type"        encodeUserType
   ]
 
 testScript :: String -> Module -> TestTree
@@ -77,12 +79,34 @@ main = check (birthdayUpdate john)
 maybeProg :: Module
 maybeProg = [utxoModule|
 
--- TODO: program hangs if we specify this type explicitly
--- fromJust :: Maybe a -> a
-fromJust' (Just x) = x
-
 mKey = Just (bytes "1234")
 
-main = pk (fromJust' mKey)
+main = pk (fromJust mKey)
+|]
+
+
+encodeUserType :: Module
+encodeUserType = [utxoModule|
+
+data Wrap a = Wrap
+  { wrap'value   :: a
+  , wrap'message :: Text
+  }
+
+data User = User
+  { user'name :: Text
+  , user'age  :: Int
+  , user'key  :: Bytes
+  }
+
+john = User
+  { user'name = "John"
+  , user'age  = 18
+  , user'key  = bytes "123"
+  }
+
+johnBytes = serialise (Wrap john "ho")
+
+main = user'name (wrap'value (deserialise johnBytes :: Wrap User)) == "john"
 |]
 

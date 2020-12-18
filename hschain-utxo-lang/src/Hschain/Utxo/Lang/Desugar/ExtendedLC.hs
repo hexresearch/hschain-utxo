@@ -44,7 +44,7 @@ toExtendedLC = toExtendedLC' <=< desugarModule
 
 toExtendedLC' :: MonadLang m => Module -> m LamProg
 toExtendedLC' Module{..} =
-  fmap (removeTopLevelLambdas . LamProg) $ mapM toDef module'binds
+  fmap (toPrimTypes . removeTopLevelLambdas . LamProg) $ mapM toDef module'binds
   where
     toDef bind = do
       body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
@@ -53,6 +53,8 @@ toExtendedLC' Module{..} =
         , def'args = []
         , def'body = body
         }
+
+    toPrimTypes = mapLamProgType (substCoreType $ userTypeCtx'core module'userTypes)
 
 exprToExtendedLC :: MonadLang m => UserTypeCtx -> Lang -> m (ExprLam Text)
 exprToExtendedLC typeCtx = foldFixM $ \case
@@ -316,4 +318,14 @@ removeTopLevelLambdasDef def@Def{..} =
 
 getFreshTypeName :: MonadLang m => m (H.Type () Text)
 getFreshTypeName = fmap varT getFreshVarName
+
+-- | Substitutes user defined types with corresponding primitive core types.
+substCoreType :: UserCoreTypeCtx -> H.Type () Text -> H.Type () Text
+substCoreType UserCoreTypeCtx{..} (H.Type x) = H.Type $ foldFix go x
+  where
+    go = \case
+      H.ConT _ con args | Just sig <- lookupSig con -> H.unType $ H.closeSignature (fmap H.Type args) sig
+      other                                         -> Fix other
+
+    lookupSig name = M.lookup name userCoreTypeCtx'types
 

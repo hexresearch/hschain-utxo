@@ -46,6 +46,8 @@ module Type.Check.HM.Infer(
   , inferTerm
   , subtypeOf
   , unifyTypes
+  -- * Utils
+  , closeSignature
 ) where
 
 import Control.Monad.Identity
@@ -623,3 +625,8 @@ fromSubstNameVar (Subst m) = fmap (Subst . M.fromList) $ mapM uncover $ M.toList
 fromSubstOrigin :: Ord v => Subst (Origin loc) v -> Subst loc v
 fromSubstOrigin = Subst . M.map (mapLoc fromOrigin) . unSubst
 
+-- | Substitutes all type arguments with given types.
+closeSignature :: Ord var => [Type loc var] -> Signature loc var -> Type loc var
+closeSignature argTys sig = apply (Subst $ M.fromList $ zip argNames argTys) monoTy
+  where
+    (argNames, monoTy) = splitSignature sig
