@@ -23,7 +23,6 @@ main = do
     exchangeTest
     payTest1
     payTest2
---    xorTest
     atomicSwapTest
     multiSigTest
     channelTest1

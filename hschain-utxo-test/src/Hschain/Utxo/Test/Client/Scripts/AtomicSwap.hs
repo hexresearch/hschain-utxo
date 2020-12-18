@@ -119,11 +119,12 @@ initSecret size = fmap (appendHash . B.pack) $ mapM (const randomIO) [1 .. size]
 -- Alice scripts and transactions
 
 aliceInitSwapScript :: SwapSpec -> Script
-aliceInitSwapScript spec = mainScriptUnsafe $
-  orSigma $ fromVec
-    [ toSigma (getHeight >* int deadlineBob) &&* pk' alicePubKey
-    , pk' bobPubKey &&* (toSigma $ (sha256 getArgs) ==* (getBoxArgs getSelf))
-    ]
+aliceInitSwapScript spec = [utxo|
+    orSigma
+      [ getHeight >* $(deadlineBob) &&* pk $(alicePubKey)
+      , pk $(bobPubKey) &&* (sha256 getArgs ==* getBoxArgs getSelf)
+      ]
+|]
   where
     alicePubKey = swapUser'pk $ swapSpec'alice spec
     bobPubKey   = swapUser'pk $ swapSpec'bob spec
@@ -192,15 +193,16 @@ aliceDoubleSpendTx aliceKeys inputId spec = newProofTx aliceKeys preTx
 -- Bob scripts and transactions
 
 bobInitSwapScript :: SwapHash -> SwapSpec -> Script
-bobInitSwapScript swapHash spec = mainScriptUnsafe $
-  orSigma $ fromVec
-    [ toSigma (getHeight >* int deadlineAlice) &&* pk' bobPubKey
-    , andSigma $ fromVec
-        [ pk' alicePubKey
-        , toSigma $ lengthBytes getArgs <* 33
-        , toSigma $ sha256 getArgs ==* bytes swapHash
+bobInitSwapScript swapHash spec = [utxo|
+  orSigma
+    [ getHeight >* $(deadlineAlice) &&* pk $(bobPubKey)
+    , andSigma
+        [ pk $(alicePubKey)
+        , lengthBytes getArgs <* 33
+        , sha256 getArgs ==* $(swapHash)
         ]
     ]
+|]
   where
     deadlineAlice = swapUser'deadline $ swapSpec'alice spec
     alicePubKey   = swapUser'pk $ swapSpec'alice spec
@@ -353,7 +355,7 @@ bobWaitForHash spec = do
     getTxSwapHash tx@Tx{..} = do
       i    <- V.findIndex isAliceInitBox tx'outputs
       let box = tx'outputs ! 0
-      let (Args hash) = box'args box
+      let hash = fromArgs $ box'args box
       return (hash, computeBoxId (computeTxId tx) (fromIntegral i))
 
     isAliceInitScript = V.any isAliceInitBox . tx'outputs
@@ -370,7 +372,7 @@ bobWaitForSecret aliceSpendBoxId = do
   where
     getSecret Tx{..} = do
       box <- V.find isAliceSecretBox tx'inputs
-      let Args secret = boxInputRef'args box
+      let secret = fromArgs $ boxInputRef'args box
       return secret
 
     isAliceSecretTx Tx{..} = V.any isAliceSecretBox tx'inputs

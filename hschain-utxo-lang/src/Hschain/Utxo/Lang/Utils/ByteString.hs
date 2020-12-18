@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Utils.ByteString(
     serialiseTerm
   , deserialiseTerm
   , toArgs
+  , fromArgs
   , IsTerm(..)
 ) where
 
@@ -25,6 +26,9 @@ import qualified Data.Vector as V
 
 toArgs :: IsTerm a => a -> Args
 toArgs = Args . serialiseTerm
+
+fromArgs :: IsTerm a => Args -> a
+fromArgs (Args bs) = deserialiseTerm bs
 
 serialiseTerm :: IsTerm a => a -> ByteString
 serialiseTerm = LB.toStrict . serialise . toTerm
