@@ -99,10 +99,10 @@ newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
 
 instance ToText BoxId where
-  toText (BoxId bs) = encodeBase58 bs
+  toText = encodeBase58
 
 instance FromText BoxId where
-  fromText txt = fmap BoxId $ decodeBase58 txt
+  fromText = decodeBase58
 
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
