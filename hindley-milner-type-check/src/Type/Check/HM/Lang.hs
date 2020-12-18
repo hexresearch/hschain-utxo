@@ -33,6 +33,7 @@ import Type.Check.HM.TyTerm
 class
   ( IsVar (Var q)
   , Show (Src q)
+  , Show (Prim q)
   , Eq (Src q)
   ) => Lang q where
 

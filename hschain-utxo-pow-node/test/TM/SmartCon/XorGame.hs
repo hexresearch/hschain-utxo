@@ -117,9 +117,6 @@ xorGame aliceGuess bobGuess = do
       _  <- mineBlock Nothing [tx]
       pure ()
 
-
-
-
 makeAliceSecret :: MonadIO m => Int64 -> m (ByteString, ByteString)
 makeAliceSecret guess = liftIO $ do
   s <- fmap fromString $ sequence $ replicate 64 randomIO
@@ -131,77 +128,30 @@ makeAliceSecret guess = liftIO $ do
 halfGameScript :: ByteString -> Script
 halfGameScript fullGameScriptHash = [utxo|
 
-validBobInput b = (b == 0) || (b == 1)
+  validBobInput b = (b == 0) || (b == 1)
 
-main = case (getBoxArgs out) of
-  (bobGuess, bobDeadline, _) -> andSigma
-      [ toSigma (validBobInput bobGuess)
-      , sha256 (getBoxScript out) ==* $(fullGameScriptHash)
-      , (length getOutputs ==* 1) ||* (length getOutputs ==* 2)
-      , bobDeadline >=* (getHeight + 30)
-      , getBoxValue out >=* (2 * getBoxValue getSelf) ]
-  where
-    out = getOutput 0
+  main = case (getBoxArgs out :: (Int, Int, Bytes)) of
+    (bobGuess, bobDeadline, _) -> andSigma
+        [ toSigma (validBobInput bobGuess)
+        , sha256 (getBoxScript out) ==* $(fullGameScriptHash)
+        , (length getOutputs ==* 1) ||* (length getOutputs ==* 2)
+        , bobDeadline >=* (getHeight + 30)
+        , getBoxValue out >=* (2 * getBoxValue getSelf) ]
+    where
+      out = getOutput 0
 |]
 
 
 fullGameScript :: ByteString -> ByteString -> Script
 fullGameScript commitmentHash alice = [utxo|
 
-main = case (getArgs, getBoxArgs getSelf) of
-  ((s, a), (b, bobDeadline, bob)) ->
-        (pk bob &&* (getHeight >* bobDeadline))
-    ||* (   (sha256 (appendBytes s (serialise (a :: Int))) ==* $(commitmentHash))
-        &&* (   (pk $(alice) &&* (a ==* b))
-            ||* (pk bob      &&* (a /=* b))
-            )
-        )
+  main = case (getArgs, getBoxArgs getSelf) of
+    ((s, a), (b, bobDeadline, bob)) ->
+          (pk bob &&* (getHeight >* bobDeadline))
+      ||* (   (sha256 (appendBytes s (serialise (a :: Int))) ==* $(commitmentHash))
+          &&* (   (pk $(alice) &&* (a ==* b))
+              ||* (pk bob      &&* (a /=* b))
+              )
+          )
 |]
 
-{-
-halfGameScript :: Expr ByteString -> Expr SigmaBool
-halfGameScript fullGameScriptHash =
-  "out"            =: getOutput 0                      $ \out ->
-  "b"              =: getBobGuess out                  $ \(b :: Expr Int) ->
-  "bobDeadline"    =: getBobDeadline out               $ \bobDeadline ->
-  "validBobInput"  =: (b ==* 0 ||* b ==* 1)            $ \validBobInput ->
-      toSigma $
-      validBobInput
-  &&* ((sha256 $ getBoxScript out) ==* fullGameScriptHash)
-  &&* (lengthVec getOutputs ==* 1 ||* lengthVec getOutputs ==* 2)
-  &&* (bobDeadline >=* getHeight + 30)
-  &&* (getBoxValue out >=* 2 * getBoxValue getSelf )
-
-fullGameScript :: Expr ByteString -> Expr ByteString -> Expr SigmaBool
-fullGameScript commitmentHash alice =
-  "s"              =: listAt getBytesVars (int 0)        $ \(s :: Expr ByteString) ->
-  "a"              =: listAt getIntVars   (int 0)        $ \(a :: Expr Int) ->
-  "b"              =: getBobGuess getSelf                $ \(b :: Expr Int) ->
-  "bob"            =: getBobPk getSelf                   $ \bob ->
-  "bobDeadline"    =: getBobDeadline getSelf             $ \bobDeadline ->
-      (pk bob &&* (toSigma $ getHeight >* bobDeadline))
-  ||* (   toSigma (sha256 (s <> serialiseInt a) ==* commitmentHash)
-      &&* (   (pk alice &&* toSigma (a ==* b))
-          ||* (pk bob   &&* toSigma (a /=* b))
-          )
-      )
-
-
-getBobGuess :: Expr Box -> Expr Int
-getBobGuess box = listAt (getBoxIntArgList box) bobGuessFieldId
-
-getBobDeadline :: Expr Box -> Expr Int
-getBobDeadline box = listAt (getBoxIntArgList box) bobDeadlineFieldId
-
-sFieldId, aFieldId :: Expr Int
-sFieldId = int 0
-aFieldId = int 0
-
-getBobPk :: Expr Box -> Expr ByteString
-getBobPk box = listAt (getBoxBytesArgList box) bobPkFieldId
-
-bobGuessFieldId, bobDeadlineFieldId, bobPkFieldId :: Expr Int
-bobGuessFieldId    = int 0
-bobDeadlineFieldId = int 1
-bobPkFieldId       = int 0
--}

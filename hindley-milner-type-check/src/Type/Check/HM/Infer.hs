@@ -71,14 +71,22 @@ import Type.Check.HM.TyTerm
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.List as L
+
 {-
 import Debug.Trace
-import Text.Show.Pretty
+import Text.Show.Pretty (ppShow)
 
 ppShow' :: (Show (f () v), LocFunctor f) => f b v -> String
 ppShow' = ppShow . mapLoc (const ())
--}
 
+ppName :: Lang q => Name (Var q) -> String
+ppName = \case
+  Name v -> show v
+  FreshName n -> "$" <> show n
+
+ppCtx :: Lang q => ContextOf' q -> String
+ppCtx (Context m) = unlines $ fmap (\(name, ty) -> unwords [ppName name, "=", ppShow' ty]) $ M.toList m
+-}
 -- | Context holds map of proven signatures for free variables in the expression.
 newtype Context loc v = Context { unContext :: Map v (Signature loc v) }
   deriving (Show, Eq, Semigroup, Monoid)
@@ -204,7 +212,7 @@ inferTerm ctx term = join $
   bimap (fromTypeErrorNameVar . normaliseType) ((\(_, tyTerm) -> toTyTerm tyTerm)) $
     runInferM $ infer (wrapContextNames $ markProven $ restrictContext term ctx) (wrapTermNames $ markUserCode term)
   where
-    toTyTerm = fromTyTermNameVar . mapType normaliseType . mapLoc fromOrigin
+    toTyTerm = fromTyTermNameVar . normaliseType . mapLoc fromOrigin
 
 type Out prim loc var = ( Subst (Origin loc) (Name var)
                         , TyTerm prim (Origin loc) (Name var)
@@ -237,7 +245,7 @@ inferPrim loc prim =
     ty = fmap Name $ mapLoc UserCode $ getPrimType prim
 
 inferApp :: Lang q => ContextOf' q -> Origin (Src q) -> TermOf' q -> TermOf' q -> InferOf q
-inferApp ctx loc f a = {- trace (unlines ["APP", ppShow ctx, ppShow' f, ppShow' a]) $ -} do
+inferApp ctx loc f a = {- fmap (\res -> trace (unlines ["APP", ppCtx ctx, ppShow' f, ppShow' a, ppShow' $ snd res]) res) $-} do
   tvn <- fmap (varT loc) $ freshVar
   res <- inferTerms ctx [f, a]
   case res of
@@ -542,10 +550,10 @@ addDecl unknowns b ctx = do
 -- pretty letters for variables in the result type
 
 -- | Converts variable names to human-readable format.
-normaliseType :: (HasTypeVars m, CanApply m, IsVar v, Eq loc) => m loc (Name v) -> m loc (Name v)
+normaliseType :: (HasTypeVars m, CanApply m, IsVar v, Show loc, Eq loc) => m loc (Name v) -> m loc (Name v)
 normaliseType ty = apply (normaliseSubst ty) ty
 
-normaliseSubst :: (HasTypeVars m, Eq loc, IsVar v) => m loc v -> Subst loc v
+normaliseSubst :: (HasTypeVars m, Show loc, Eq loc, IsVar v) => m loc v -> Subst loc v
 normaliseSubst x =
   Subst $ M.fromList $
     zipWith (\(nameA, loc) nameB -> (nameA, varT loc nameB)) (tyVarsInOrder x) prettyLetters
