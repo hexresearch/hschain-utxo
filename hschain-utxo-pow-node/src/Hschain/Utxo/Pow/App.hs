@@ -10,6 +10,7 @@
 module Hschain.Utxo.Pow.App(
     runApp
   , runNode
+  , runLightNode
   , genesisTest
   , genesisMock
   , TestNet
@@ -75,11 +76,13 @@ import Hschain.Utxo.Pow.App.Types
 
 -- |Node's configuration.
 data Cfg = Cfg
-  { cfgPort    :: Word16
-  , cfgPeers   :: [NetAddr]
-  , cfgLog     :: [ScribeSpec]
-  , cfgDB      :: Maybe FilePath
-  , cfgWebAPI  :: Maybe Int
+  { cfgPort           :: Word16
+  , cfgPeers          :: [NetAddr]
+  , cfgKnownPeers     :: Int
+  , cfgConnectedPeers :: Int
+  , cfgLog            :: [ScribeSpec]
+  , cfgDB             :: Maybe FilePath
+  , cfgWebAPI         :: Maybe Int
   }
   deriving stock (Show, Generic)
   deriving (JSON.FromJSON) via SnakeCase (DropSmart (Config Cfg))
@@ -96,6 +99,7 @@ newtype UTXOT m a = UTXOT (ReaderT UTXOEnv m a)
                    , MonadCatch, MonadThrow, MonadMask, MonadFork, MonadReader UTXOEnv)
   deriving (MonadLogger)          via LoggerByTypes  (ReaderT UTXOEnv m)
   deriving (MonadDB, MonadReadDB) via DatabaseByType (ReaderT UTXOEnv m)
+  deriving (MonadTrans)           via ReaderT UTXOEnv
 
 runUTXOT :: LogEnv -> Connection 'RW -> UTXOT m a -> m a
 runUTXOT logenv conn (UTXOT act) = runReaderT act (UTXOEnv logenv mempty conn)
@@ -170,8 +174,8 @@ runNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> Cfg -> Maybe c -> IO ()
 runNode genesisBlk Cfg{..} maybePrivK = do
   -- Acquire resources
   let net    = newNetworkTcp cfgPort
-      netcfg = POW.NodeCfg { POW.nKnownPeers     = 3
-                           , POW.nConnectedPeers = 3
+      netcfg = POW.NodeCfg { POW.nKnownPeers     = cfgKnownPeers
+                           , POW.nConnectedPeers = cfgConnectedPeers
                            , POW.initialPeers    = cfgPeers
                            }
   withConnection (fromMaybe "" cfgDB) $ \conn ->
@@ -208,6 +212,30 @@ runNode genesisBlk Cfg{..} maybePrivK = do
       -- Wait forever
       liftIO $ forever $ threadDelay maxBound
 
+runLightNode :: UtxoPOWConfig t => POW.Block (UTXOBlock t) -> Cfg -> IO ()
+runLightNode genesisBlk Cfg{..} = do
+  -- Acquire resources
+  let net    = newNetworkTcp cfgPort
+      netcfg = POW.NodeCfg { POW.nKnownPeers     = cfgKnownPeers
+                           , POW.nConnectedPeers = cfgConnectedPeers
+                           , POW.initialPeers    = cfgPeers
+                           }
+  withConnection (fromMaybe "" cfgDB) $ \conn ->
+    withLogEnv "" "" (map makeScribe cfgLog) $ \logEnv ->
+      runUTXOT logEnv conn $ evalContT $ do
+        -- Initialize PoW node
+        (db, bIdx, _sView) <- lift $ utxoStateView genesisBlk
+        let c0 = POW.createLightConsensus genesisBlk bIdx
+        pow <- POW.lightNode netcfg net db c0
+        -- Report to stdout
+        void $ liftIO $ forkIO $ do
+          ch <- HControl.atomicallyIO $ POW.bestHeadUpdates pow
+          forever $ do bh <- fst . POW._bestLightHead <$> HControl.awaitIO ch
+                       print (POW.bhHeight bh, POW.bhBID bh)
+                       print $ POW.retarget bh
+        --
+        liftIO $ forever $ threadDelay maxBound
+  
 
 ----------------------------------------------------------------
 -- REST API for PoW node

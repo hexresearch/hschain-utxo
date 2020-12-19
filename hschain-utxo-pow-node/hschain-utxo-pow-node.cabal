@@ -102,6 +102,15 @@ executable hschain-utxo-pow-mocknet
   hs-source-dirs:      app
   default-language:    Haskell2010
 
+executable hschain-utxo-pow-light
+  main-is:             Light.hs
+  Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
+  build-depends:       base >=4.11 && <5
+                     , hschain-utxo-pow-node
+                     , yaml
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+
 executable hschain-utxo-pow-node-cli
   main-is:             CLI.hs
   Ghc-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N -qn1"
