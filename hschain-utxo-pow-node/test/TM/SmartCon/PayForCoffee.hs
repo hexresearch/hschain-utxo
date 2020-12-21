@@ -1,19 +1,18 @@
-{-# LANGUAGE NumDecimals     #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE NumDecimals         #-}
+{-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE QuasiQuotes         #-}
 -- |
 module TM.SmartCon.PayForCoffee where
 
 import Control.Monad.Reader
 
-import Data.Boolean
+import Data.Int
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import Prelude hiding ((<*))
 
-import Hschain.Utxo.Lang.Utils.ByteString
-import Hschain.Utxo.Lang.Build
-import Hschain.Utxo.Lang.Types
+import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Sigma.Types (generateKeyPair, KeyPair(..))
 import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
 
@@ -32,21 +31,12 @@ payforCoffee isBob = do
   let sigmaEnv = Sigma.Env [ alice, bob ]
   -- H=1 Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []
-  -- H=2 Alice sends reward to Bob with hash-lock
-  let getSpendHeight = getBoxArgs (getInput (int 0))
-      -- receiver can get money only height is greater than specified limit
-      receiverScript
-        =   pk' pkBob
-        &&* toSigma (getSpendHeight <* getHeight)
-      -- sender can get money back if height is less or equals to specified limit
-      refundScript
-        =   pk' pkAlice
-        &&* toSigma (getSpendHeight >=* getHeight)
+  -- H=2 Alice sends reward to Bob with time-lock
   txToBob <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
     , tx'outputs =
       [ Box { box'value  = 100
-            , box'script = mainScriptUnsafe $ receiverScript ||* refundScript
+            , box'script = coffeeScript pkAlice pkBob
             , box'args   = toArgs (4 :: Int)
             }
       ]
@@ -80,3 +70,13 @@ payforCoffee isBob = do
         }
       _ <- mineBlock Nothing [txAlice]
       pure ()
+
+coffeeScript :: PublicKey -> PublicKey -> Script
+coffeeScript senderPk receiverPk = [utxo|
+    h              = getBoxArgs getSelf :: Int
+    receiverScript = pk $(receiverPk) &&* (h <*  getHeight)
+    refundScript   = pk $(senderPk)   &&* (h >=* getHeight)
+
+    main = receiverScript ||* refundScript
+|]
+
