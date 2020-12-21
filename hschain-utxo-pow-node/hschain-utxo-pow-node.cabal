@@ -171,6 +171,7 @@ Test-suite hschain-utxo-pow-node-tests
   Other-modules:       TM.Store
                        TM.BCH.Util
                        TM.SmartCon.XorGame
+                       TM.SmartCon.PayForCoffee
                        TM.Blocks
 
   default-extensions:
