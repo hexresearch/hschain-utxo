@@ -168,7 +168,7 @@ emptyTx = Tx
   }
 
 -- | Transaction which is part of block and which are exchanged between clients
-type Tx    = GTx Proof Box
+type Tx = GTx Proof Box
 
 data TxSizes = TxSizes
   { txSizes'inputs     :: !Int
