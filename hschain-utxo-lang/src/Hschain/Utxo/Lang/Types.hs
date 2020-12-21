@@ -48,6 +48,7 @@ import Hex.Common.Text
 import Hex.Common.Lens (makeLensesWithL)
 import Control.DeepSeq (NFData)
 import Control.Monad.Except
+import Control.Lens
 
 import Codec.Serialise
 import Data.ByteString (ByteString)
@@ -159,6 +160,15 @@ data GTx i o = Tx
   deriving stock    (Show, Eq, Ord, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Serialise, NFData)
   deriving Monoid via GenericSemigroupMonoid (GTx i o)
+
+tx'inputsL :: Lens (GTx i o) (GTx i' o) (Vector (BoxInputRef i)) (Vector (BoxInputRef i'))
+tx'inputsL = lens tx'inputs (\t x -> t { tx'inputs = x })
+
+tx'outputsL :: Lens (GTx i o) (GTx i o') (Vector o) (Vector o')
+tx'outputsL = lens tx'outputs (\t x -> t { tx'outputs = x })
+
+tx'dataInputsL :: Lens' (GTx i o) (Vector BoxId)
+tx'dataInputsL = lens tx'dataInputs (\t x -> t { tx'dataInputs = x })
 
 emptyTx :: GTx ins outs
 emptyTx = Tx
@@ -529,7 +539,6 @@ instance CryptoHashable Box where
 instance CryptoHashable Args where
   hashStep = genericHashStep hashDomain
 
-$(makeLensesWithL ''GTx)
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
 $(makeLensesWithL ''Box)
