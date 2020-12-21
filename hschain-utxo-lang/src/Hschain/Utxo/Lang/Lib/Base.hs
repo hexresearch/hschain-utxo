@@ -179,7 +179,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumeType "getOutputs" (monoT $ listT boxT)
   , assumeType "getInputs" (monoT $ listT boxT)
   , assumeType "getDataInputs" (monoT $ listT boxT)
-  , assumeType "getBoxId" (monoT $ boxT ~> textT)
+  , assumeType "getBoxId" (monoT $ boxT ~> tupleT [bytesT, intT])
   , assumeType "getBoxValue" (monoT $ boxT ~> intT)
   , assumeType "getBoxPostHeight" (monoT $ boxT ~> intT)
   , assumeType "getBoxScript" (monoT $ boxT ~> bytesT)

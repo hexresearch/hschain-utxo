@@ -69,24 +69,26 @@ txEnv = InputEnv
 
 tests :: TestTree
 tests = testGroup "core-boxes"
-    [ testProg "get height"         (PrimInt blockChainHeight) progGetHeight
-    , testProg "get self id"        (PrimBytes "box-2\0\0\0\0") progGetSelfId
-    , testProg "get self script"    (PrimBytes "in2")  progGetSelfScript
-    , testProg "get tx arg"         (PrimInt 2)        progGetTxArg
-    , testProg "get input id"       (PrimBytes "box-1\0\0\0\0") progGetInputId
-    , testProg "get output id"      (PrimBytes "box-3\0\0\0\0") progGetOutputId
-    , testProg "get output arg"     (PrimInt 9) progGetOutputLastIntArg
-    , testProg "get input text arg" (PrimText "neil") progGetInputLastTextArg
-    , testProg "get data-input id"  (PrimBytes "box-4\0\0\0\0") progGetDataInputId
-    , testProg "get data-input text"(PrimText "kate") progGetDataInputLastTextArg
+    [ testProg "get height"         (PrimVal $ PrimInt blockChainHeight) progGetHeight
+    , testProg "get self id"        (bidVal "box-2") progGetSelfId
+    , testProg "get self script"    (PrimVal $ PrimBytes "in2")  progGetSelfScript
+    , testProg "get tx arg"         (PrimVal $ PrimInt 2)        progGetTxArg
+    , testProg "get input id"       (bidVal "box-1") progGetInputId
+    , testProg "get output id"      (bidVal "box-3") progGetOutputId
+    , testProg "get output arg"     (PrimVal $ PrimInt 9) progGetOutputLastIntArg
+    , testProg "get input text arg" (PrimVal $ PrimText "neil") progGetInputLastTextArg
+    , testProg "get data-input id"  (bidVal "box-4") progGetDataInputId
+    , testProg "get data-input text"(PrimVal $ PrimText "kate") progGetDataInputLastTextArg
     ]
+  where
+    bidVal s = ConVal (ConTuple [BytesT,IntT]) [PrimVal (PrimBytes s),PrimVal (PrimInt 0)]
 
-testProg :: String -> Prim -> Core Name -> TestTree
+testProg :: String -> TermVal -> Core Name -> TestTree
 testProg name res prog = testGroup name
   [ testCase "typecheck" $ case typeCheck prog of
       Left  e -> assertFailure $ show e
       Right _ -> pure ()
-  , testCase          "simple"    $ Right (PrimVal res)  @=? evalProg txEnv prog
+  , testCase "simple" $ Right res @=? evalProg txEnv prog
   ]
 
 progGetHeight :: Core Name

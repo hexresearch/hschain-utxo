@@ -212,7 +212,7 @@ primopToType = \case
   OpLE ty -> compareType ty
   --
   OpArgs t       -> pure $ t
-  OpGetBoxId     -> pure $ BoxT :-> BytesT
+  OpGetBoxId     -> pure $ BoxT :-> TupleT [BytesT,IntT]
   OpGetBoxScript -> pure $ BoxT :-> BytesT
   OpGetBoxValue  -> pure $ BoxT :-> IntT
   OpGetBoxArgs t -> pure $ BoxT :-> t

@@ -18,6 +18,7 @@ import Data.ByteString (ByteString)
 import Data.Bool
 import Data.Text       (Text)
 import Data.Typeable
+import Data.Word
 import Data.Foldable (foldrM)
 import Data.Vector.Generic ((!?))
 import qualified Data.Vector          as V
@@ -32,8 +33,8 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..)
-                               ,Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),Script(..)
+                               ,BoxId(..),TxId(..),InputEnv(..))
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
@@ -425,9 +426,14 @@ instance InjPrim a => InjPrim [a] where
 instance InjPrim a => InjPrim (V.Vector a) where
   inj = inj . V.toList
 
--- FIXME: Determine how BoxID should be represented in language
 instance InjPrim BoxId where
+  inj (BoxId tid nOut) = ValCon (ConTuple $ V.fromList [BytesT, IntT]) [inj tid, inj nOut]
+
+instance InjPrim TxId where
   inj = inj . encodeToBS
+
+instance InjPrim Word32 where
+  inj = inj @Int64 . fromIntegral
 
 instance InjPrim (BoxId, PostBox) where
   inj (boxId, PostBox{..}) = ValCon boxPrimCon
