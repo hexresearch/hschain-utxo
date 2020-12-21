@@ -48,6 +48,7 @@ import Hex.Common.Text
 import Hex.Common.Lens (makeLensesWithL)
 import Control.DeepSeq (NFData)
 import Control.Monad.Except
+import Control.Lens
 
 import Codec.Serialise
 import Data.ByteString (ByteString)
@@ -91,8 +92,7 @@ newtype TxId = TxId { unTxId :: Hash SHA256 }
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
 
--- | Identifier of the box. Box holds value protected by the script.
--- It equals to the hash of Box-content.
+-- | Identifier of the 'Box'.
 newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
   deriving newtype  (Show, Eq, Ord, NFData, ByteRepr, CryptoHashable)
   deriving stock    (Generic)
@@ -100,10 +100,10 @@ newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
 
 instance ToText BoxId where
-  toText (BoxId bs) = encodeBase58 bs
+  toText = encodeBase58
 
 instance FromText BoxId where
-  fromText txt = fmap BoxId $ decodeBase58 txt
+  fromText = decodeBase58
 
 -- | Type for script that goes over the wire.
 newtype Script = Script { unScript :: ByteString }
@@ -161,6 +161,15 @@ data GTx i o = Tx
   deriving anyclass (Serialise, NFData)
   deriving Monoid via GenericSemigroupMonoid (GTx i o)
 
+tx'inputsL :: Lens (GTx i o) (GTx i' o) (Vector (BoxInputRef i)) (Vector (BoxInputRef i'))
+tx'inputsL = lens tx'inputs (\t x -> t { tx'inputs = x })
+
+tx'outputsL :: Lens (GTx i o) (GTx i o') (Vector o) (Vector o')
+tx'outputsL = lens tx'outputs (\t x -> t { tx'outputs = x })
+
+tx'dataInputsL :: Lens' (GTx i o) (Vector BoxId)
+tx'dataInputsL = lens tx'dataInputs (\t x -> t { tx'dataInputs = x })
+
 emptyTx :: GTx ins outs
 emptyTx = Tx
   { tx'inputs = mempty
@@ -169,7 +178,7 @@ emptyTx = Tx
   }
 
 -- | Transaction which is part of block and which are exchanged between clients
-type Tx    = GTx Proof Box
+type Tx = GTx Proof Box
 
 data TxSizes = TxSizes
   { txSizes'inputs     :: !Int
@@ -459,13 +468,13 @@ newProofTx proofEnv tx = liftIO $ do
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
 newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io (Either Text Tx)
-newProofTxOrFail proofEnv tx = liftIO $ do
-  eInputs <- runExceptT $ traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
-  return $ fmap (\inputs -> Tx
+newProofTxOrFail proofEnv tx = liftIO $ runExceptT $ do
+  inputs <- traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
+  return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = tx'outputs tx
     , tx'dataInputs = tx'dataInputs tx
-    }) eInputs
+    }
 
 --------------------------------------------
 -- box ids validation
@@ -530,7 +539,6 @@ instance CryptoHashable Box where
 instance CryptoHashable Args where
   hashStep = genericHashStep hashDomain
 
-$(makeLensesWithL ''GTx)
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
 $(makeLensesWithL ''Box)
