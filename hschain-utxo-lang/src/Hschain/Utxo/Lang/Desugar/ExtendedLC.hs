@@ -49,7 +49,7 @@ toExtendedLC' Module{..} =
     toDef bind = do
       body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
       return $ Def
-        { def'name = bind'name bind
+        { def'name = decl'name bind
         , def'args = []
         , def'body = body
         }
@@ -268,12 +268,17 @@ desugarSyntaxExpr ctx = removeRecords ctx <=< desugarLambdaCalculus
 
 substWildcards :: MonadLang m => Module -> m Module
 substWildcards m = do
-  binds <- mapM substBind $ module'binds m
+  binds <- mapM substDecl $ module'binds m
   return $ m { module'binds = binds }
   where
+    substDecl b = do
+      alts <- mapM substAlt $ decl'alts b
+      return $ b { decl'alts = alts }
+
     substBind b = do
+      pat  <- substPat $ bind'name b
       alts <- mapM substAlt $ bind'alts b
-      return $ b { bind'alts = alts }
+      return $ b { bind'name = pat, bind'alts = alts }
 
     substAlt a = do
       pats   <- mapM substPat $ alt'pats a

@@ -20,6 +20,7 @@ import qualified Data.Vector as V
 
 -- | Single function that brings together several lambda-calculus transformations.
 --
+-- * Substitutes let-binds with patterns to case expressions
 -- * Joins arguments of lambda abstractions
 -- * Joins Let-bindings to single one
 -- * Transforms infix applications to prefix ones
@@ -64,16 +65,32 @@ removeInfixApply = foldFix $ \case
   other                  -> Fix other
 
 -- | converts let-bindings to simple bindings like
+-- also removes pattern-binds
 --
 -- > name = expr
 simplifyLet :: MonadLang m => Lang -> m Lang
 simplifyLet = foldFixM $ \case
   Let loc binds body -> do
-    binds' <- mapM simplify (sortBindGroups binds)
-    return $ Fix $ PrimLet loc binds' body
+    go loc body [] (sortBindGroups binds)
+    -- return $ Fix $ PrimLet loc binds' body
   other             -> pure $ Fix other
   where
-    simplify Bind{..} = fmap (bind'name, ) $ altGroupToTupleExpr bind'alts
+    go loc body prevBinds xs = case xs of
+      []   -> case prevBinds of
+                [] -> pure body
+                _  -> pure $ toPrimLet body
+      b:bs -> case bind'name b of
+                PVar ploc name -> do
+                  simpleBind <- fmap (name, ) $ altGroupToTupleExpr $ bind'alts b
+                  go loc body (simpleBind : prevBinds) bs
+                pat -> do
+                  body1 <- go loc body [] bs
+                  rhs <- altGroupToTupleExpr $ bind'alts b
+                  return $ toPrimLet $ Fix $ CaseOf loc rhs [CaseExpr pat body1]
+      where
+        toPrimLet e = Fix $ PrimLet loc (reverse prevBinds) e
+
+    simplify Bind{..} res = fmap (bind'name, ) $ altGroupToTupleExpr bind'alts
 
 -- | Substitutes pattersn in lambda arguments for case+let
 -- do this step after elimination of single Lams so

@@ -1,5 +1,5 @@
 -- | Module defines functions to convert patterns in arguments of functions
--- to case expressions.
+-- to case expressions and simplify patterns (make them flat).
 module Hschain.Utxo.Lang.Desugar.PatternCompiler(
     PatError
   , altGroupToExpr
@@ -36,9 +36,9 @@ altGroupToTupleModule m@Module{..} = do
   binds <- mapM procBind module'binds
   return $ m { module'binds = binds }
   where
-    procBind b@Bind{..} = do
-      expr <- altGroupToTupleExpr bind'alts
-      return $ b { bind'alts = [Alt [] (UnguardedRhs expr) Nothing] }
+    procBind b@Decl{..} = do
+      expr <- altGroupToTupleExpr decl'alts
+      return $ b { decl'alts = [Alt [] (UnguardedRhs expr) Nothing] }
 
 altGroupToTupleExpr :: MonadLang m => [Alt Lang] -> m Lang
 altGroupToTupleExpr xs = case xs of

@@ -66,13 +66,13 @@ app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
 app3 :: Lang -> Lang -> Lang -> Lang -> Lang
 app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 
-bindBodyToExpr :: MonadLang m => Bind Lang -> m Lang
-bindBodyToExpr Bind{..} = fmap addSignatureCheck $ altGroupToExpr bind'alts
+bindBodyToExpr :: MonadLang m => Decl Lang -> m Lang
+bindBodyToExpr Decl{..} = fmap addSignatureCheck $ altGroupToExpr decl'alts
   where
-    addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) bind'type
+    addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) decl'type
 
 simpleBind :: VarName -> Lang -> Bind Lang
-simpleBind v a = Bind v Nothing [Alt [] (UnguardedRhs a) Nothing]
+simpleBind v a = Bind (PVar (getLoc v) v) Nothing [Alt [] (UnguardedRhs a) Nothing]
 
 -----------------------------------------------------------------
 

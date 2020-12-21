@@ -87,7 +87,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
                                     v <- getFreshVar loc
                                     rec $ Fix $ Lam loc (PVar loc v) (Fix $ CaseOf loc (Fix $ Var loc v) [CaseExpr pat a])
   LamList loc vs a          -> rec $ unfoldLamList loc vs a
-  Let loc binds a           -> fromLet loc binds =<< rec a
+  Let loc binds a           -> fromLet loc binds a
   PrimLet loc binds a       -> fromPrimLet loc binds =<< rec a
   -- cases
   CaseOf loc e alts         -> rec =<< caseToLet selectorNameVar loc e alts
@@ -118,15 +118,24 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       args <- orderRecordFieldsFromContext ctx cons fields
       fmap (fromCons loc cons) $ mapM rec args
 
-    fromLet loc binds e = fmap (\bs -> foldr (H.letE loc) e bs) $ mapM toBind (sortBindGroups binds)
+    fromLet loc binds e = rec =<< go Nothing (sortBindGroups binds)
       where
-        toBind Bind{..} = do
-          rhs <- rec =<< altGroupToExpr bind'alts
-          return $ H.Bind
-            { H.bind'loc = varName'loc  bind'name
-            , H.bind'lhs = varName'name bind'name
-            , H.bind'rhs = rhs
-            }
+        go mPrev = \case
+          [] -> maybeLet e
+          b:bs -> case bind'name b of
+                  PVar ploc name -> maybeLet =<< go (Just (name, bind'alts b)) bs
+                  pat            -> do
+                    e1 <- go Nothing bs
+                    alt <- altGroupToExpr $ bind'alts b
+                    maybeLet =<< caseToLet selectorNameVar (H.getLoc pat) alt [CaseExpr pat e1]
+          where
+            maybeLet body = case mPrev of
+              Just (name, alt) -> fmap (\bind -> Fix $ PrimLet (varName'loc name) [bind] body) (toBind name alt)
+              Nothing          -> pure body
+
+        toBind name alts = do
+          rhs <- altGroupToExpr alts
+          return (name, rhs)
 
     fromPrimLet loc primBinds e = fmap (\bs -> foldr (H.letE loc) e bs) $ mapM toBind primBinds
       where

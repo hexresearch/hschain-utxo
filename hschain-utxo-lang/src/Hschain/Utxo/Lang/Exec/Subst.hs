@@ -54,8 +54,8 @@ subst (Fix body) varName sub = case body of
     substPrimBindGeoup = fmap (second rec)
 
     substBind x@Bind{..}
-      | varName == bind'name = x
-      | otherwise            = x { bind'alts = fmap substAlt bind'alts }
+      | S.member varName $ freeVarsPat bind'name = x
+      | otherwise                                = x { bind'alts = fmap substAlt bind'alts }
 
     substAlt x@Alt{..}
       | isBinded varName alt'pats = x
@@ -65,7 +65,7 @@ subst (Fix body) varName sub = case body of
       where
         isBinded v ps = v `elem` (foldMap freeVarsPat ps)
 
-    bindVars = S.fromList . fmap bind'name
+    bindVars xs = foldMap (freeVarsPat . bind'name) xs
 
     primBindVars = S.fromList . fmap fst
 

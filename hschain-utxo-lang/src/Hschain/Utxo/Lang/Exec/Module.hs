@@ -40,31 +40,31 @@ evalModule' typeCtx Module{..} = runInferM $ do
   where
     userTypeCtx = userTypesToTypeContext module'userTypes
 
-    toModuleCtx :: [Bind Lang] -> InferM ModuleCtx
+    toModuleCtx :: [Decl Lang] -> InferM ModuleCtx
     toModuleCtx bs = fmap (\es -> ModuleCtx
       { moduleCtx'types = InferCtx ((H.Context $ M.fromList $ catMaybes types) <> userTypeCtx) module'userTypes
       , moduleCtx'exprs = ExecCtx (M.fromList es)
       }) exprs
       where
-        types = fmap (\Bind{..} -> fmap (\ty -> (varName'name bind'name, ty)) bind'type) bs
+        types = fmap (\Decl{..} -> fmap (\ty -> (varName'name decl'name, ty)) decl'type) bs
 
-        exprs = mapM (\Bind{..} -> fmap (bind'name, ) $ desugar module'userTypes =<< altGroupToExpr bind'alts) bs
+        exprs = mapM (\Decl{..} -> fmap (decl'name, ) $ desugar module'userTypes =<< altGroupToExpr decl'alts) bs
 
-    checkBind :: Bind Lang -> StateT TypeContext (Either Error) (Bind Lang)
-    checkBind bind@Bind{..} = do
+    checkBind :: Decl Lang -> StateT TypeContext (Either Error) (Decl Lang)
+    checkBind bind@Decl{..} = do
       ctx <- get
-      ty <- lift $ runInferM $ inferExpr (InferCtx ctx module'userTypes) =<< altGroupToExpr bind'alts
+      ty <- lift $ runInferM $ inferExpr (InferCtx ctx module'userTypes) =<< altGroupToExpr decl'alts
       let typeIsOk =
-            case bind'type of
+            case decl'type of
               Just userTy -> if (isRight $ H.subtypeOf (H.stripSignature userTy) ty) then Nothing else (Just userTy)
               Nothing     -> Nothing
       case typeIsOk of
         Just userTy -> do
           lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) ty
         Nothing     -> do
-          let resTy = fromMaybe (H.typeToSignature ty) bind'type
-          put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
-          return $ bind { bind'type = Just resTy }
+          let resTy = fromMaybe (H.typeToSignature ty) decl'type
+          put $ ctx <> H.Context (M.singleton (varName'name decl'name) resTy)
+          return $ bind { decl'type = Just resTy }
 
 data SelectIndex = SelectIndex
   { selectIndex'size  :: !Int

@@ -41,6 +41,7 @@ import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
 import qualified Data.Map.Strict as M
+import qualified Data.List as L
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 
@@ -361,7 +362,7 @@ instance IsString Pat where
 data Module = Module
   { module'loc       :: !Loc          -- ^ source code location
   , module'userTypes :: !UserTypeCtx  -- ^ user-defined types
-  , module'binds     :: ![Bind Lang]  -- ^ values (functions)
+  , module'binds     :: ![Decl Lang]  -- ^ values (functions)
   } deriving (Data, Typeable)
 
 -- | Type context for inference algorithm
@@ -413,9 +414,16 @@ data Guard a = Guard
   , guard'rhs       :: a  -- ^ right-hand side expression
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
--- | Value definition
+-- | Value  declaration
+data Decl a = Decl
+  { decl'name  :: VarName          -- ^ name of the value
+  , decl'type  :: Maybe Signature  -- ^ user provided type signature
+  , decl'alts  :: [Alt a]          -- ^ definitions of the value
+  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
+
+-- | Bind of variable
 data Bind a = Bind
-  { bind'name  :: VarName          -- ^ name of the value
+  { bind'name  :: Pat              -- ^ name of the value
   , bind'type  :: Maybe Signature  -- ^ user provided type signature
   , bind'alts  :: [Alt a]          -- ^ definitions of the value
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
@@ -731,7 +739,7 @@ freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
       `Set.difference` (foldMap freeVarsPat alt'pats)
 
 getBgNames :: [Bind a] -> Set VarName
-getBgNames bs = Set.fromList $ fmap bind'name bs
+getBgNames bs = foldMap (freeVarsPat . bind'name) bs
 
 
 freeVarsRhs :: Rhs (Set VarName) -> Set VarName
@@ -741,6 +749,9 @@ freeVarsRhs = \case
   where
     freeVarsGuard Guard{..} = guard'predicate <> guard'rhs
 
+
+patNames :: Pat -> [VarName]
+patNames = Set.toList . freeVarsPat
 
 freeVarsPat :: Pat -> Set VarName
 freeVarsPat = \case
@@ -759,9 +770,18 @@ freeVarsAlt Alt{..} =
 -- | Reorders binds by dependencies. First go binds with no deps then those
 -- that are dependent on them and so forth.
 sortBindGroups :: [Bind Lang] -> [Bind Lang]
-sortBindGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
+sortBindGroups = L.nub . (flattenSCC =<<) . stronglyConnComp . (toNode =<<)
    where
-     toNode s = (s, bind'name s, Set.toList $ foldMap freeVarsAlt $ bind'alts s)
+     toNode s = fmap (\name -> (s, name, Set.toList $ foldMap freeVarsAlt $ bind'alts s)) names
+       where
+        names = Set.toList $ freeVarsPat $ bind'name s
+
+-- | Reorders binds by dependencies. First go binds with no deps then those
+-- that are dependent on them and so forth.
+sortDeclGroups :: [Decl Lang] -> [Decl Lang]
+sortDeclGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
+   where
+     toNode s = (s, decl'name s, Set.toList $ foldMap freeVarsAlt $ decl'alts s)
 
 typeCoreToType :: (H.DefLoc loc, IsString v) => TypeCore -> H.Type loc v
 typeCoreToType = \case
