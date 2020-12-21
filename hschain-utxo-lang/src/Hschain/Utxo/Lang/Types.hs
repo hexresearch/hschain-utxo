@@ -458,13 +458,13 @@ newProofTx proofEnv tx = liftIO $ do
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
 newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io (Either Text Tx)
-newProofTxOrFail proofEnv tx = liftIO $ do
-  eInputs <- runExceptT $ traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
-  return $ fmap (\inputs -> Tx
+newProofTxOrFail proofEnv tx = liftIO $ runExceptT $ do
+  inputs <- traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
+  return $ Tx
     { tx'inputs  = inputs
     , tx'outputs = tx'outputs tx
     , tx'dataInputs = tx'dataInputs tx
-    }) eInputs
+    }
 
 --------------------------------------------
 -- box ids validation
