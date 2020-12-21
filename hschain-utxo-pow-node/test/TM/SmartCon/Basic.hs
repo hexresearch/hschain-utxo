@@ -1,7 +1,7 @@
 {-# LANGUAGE NumDecimals     #-}
 {-# LANGUAGE OverloadedLists #-}
 -- |
-module TM.Blocks where
+module TM.SmartCon.Basic where
 
 import Control.Monad.Reader
 

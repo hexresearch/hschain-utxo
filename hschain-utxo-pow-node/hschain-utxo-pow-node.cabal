@@ -172,7 +172,7 @@ Test-suite hschain-utxo-pow-node-tests
                        TM.BCH.Util
                        TM.SmartCon.XorGame
                        TM.SmartCon.PayForCoffee
-                       TM.Blocks
+                       TM.SmartCon.Basic
 
   default-extensions:
     -- Deriving
