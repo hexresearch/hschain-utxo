@@ -412,7 +412,7 @@ coinbaseTxArg (Just bid) env tx@Tx{..}
                 , boxInputRef'sigMask = SigAll
                 }] <- V.toList tx'inputs
   , args  == mempty
-  , boxId == coerce bid
+  , boxId == BoxId (coerce bid) 0
   -- Coinbase contains single output
   , [_] <- V.toList tx'outputs
   -- Build TxArg
@@ -467,7 +467,7 @@ createUtxoCandidate st@(UtxoState bIdx overlay) script txlist = queryRO $ do
                         , box'args   = mempty
                         }
       coinbase = Tx { tx'inputs  = V.singleton BoxInputRef
-                        { boxInputRef'id      = coerce (POW.bhBID bh)
+                        { boxInputRef'id      = BoxId (coerce (POW.bhBID bh)) 0
                         , boxInputRef'args    = mempty
                         , boxInputRef'proof   = Nothing
                         , boxInputRef'sigs    = V.empty

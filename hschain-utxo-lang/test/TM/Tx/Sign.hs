@@ -10,7 +10,7 @@ import Test.Tasty.HUnit
 
 import Data.Maybe
 
-import HSChain.Crypto (Hash(..))
+import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Compile.Build
@@ -98,12 +98,12 @@ inputEnv keys msg = do
     , inputEnv'dataInputs = []
     }
   where
-    in0 = mkBoxInput (BoxId $ Hash "box-1") Box
+    in0 = mkBoxInput (BoxId (TxId (hashBlob "box-1")) 0) Box
       { box'value  = 1
       , box'script = Script "in1"
       , box'args   = mempty
       }
-    out1 = mkBoxOutput 10 (BoxId $ Hash "box-3") Box
+    out1 = mkBoxOutput 10 (BoxId (TxId (hashBlob "box-3")) 0) Box
       { box'value  = 3
       , box'script = Script "out1"
       , box'args   = mempty

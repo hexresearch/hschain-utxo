@@ -52,16 +52,18 @@ import Control.Monad.Except
 import Control.Lens
 
 import Codec.Serialise
+import Data.Bits
 import Data.ByteString (ByteString)
 import Data.Bifunctor
 import Data.Data
 import Data.Int
+import Data.Word
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Semigroup.Generic (GenericSemigroupMonoid(..))
 import GHC.Generics
 
-import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr, decodeBase58, encodeBase58)
+import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr(..), decodeBase58, encodeBase58)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.SHA          (SHA256)
 import Hschain.Utxo.Lang.Crypto.Signature
@@ -69,8 +71,11 @@ import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (hashDomain)
 import Hschain.Utxo.Lang.Utils.Hash
 
-import qualified Data.List as L
-import qualified Data.Vector as V
+import qualified Data.List               as L
+import qualified Data.Vector             as V
+import qualified Data.ByteString         as BS
+import qualified Data.ByteString.Lazy    as BL
+import qualified Data.ByteString.Builder as BB
 
 -- | Type synonym for money values
 type Money = Int64
@@ -93,11 +98,23 @@ newtype TxId = TxId { unTxId :: Hash SHA256 }
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "TxId" ByteString)
 
 -- | Identifier of the 'Box'.
-newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
-  deriving newtype  (Show, Eq, Ord, NFData, ByteRepr, CryptoHashable)
-  deriving stock    (Generic)
-  deriving anyclass (Serialise)
-  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" ByteString)
+data BoxId = BoxId !TxId !Word32
+  deriving stock    (Show, Eq, Ord, Generic)
+  deriving anyclass (Serialise, NFData)
+  deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "BoxId" BoxId)
+
+-- FIXME: Mostly exists here for compatibility with To/FromText & aeson instances
+instance ByteRepr BoxId where
+  encodeToBS (BoxId tid n)
+    = BL.toStrict
+    $ BL.fromStrict (encodeToBS tid)
+   <> BB.toLazyByteString (BB.word32LE n)
+  decodeFromBS bs = do
+    guard (BS.length bs == 36)
+    tid <- decodeFromBS $ BS.take 32 bs
+    pure $ BoxId tid $ sum [ byte i `shiftL` (8*i) | i <- [0 .. 3]]
+    where
+      byte = fromIntegral . BS.index bs . (+32)
 
 instance ToText BoxId where
   toText = encodeBase58
@@ -130,10 +147,7 @@ data PostBox = PostBox
   } deriving (Show, Eq, Generic, Serialise)
 
 computeBoxId :: TxId -> Int64 -> BoxId
-computeBoxId txId i
-  = BoxId . hashBuilder
-  $ hashStep txId
- <> hashStep i
+computeBoxId txId i = BoxId txId (fromIntegral i)
 
 -- | Hash of transaction.
 newtype TxHash = TxHash ByteString
@@ -522,6 +536,9 @@ instance CryptoHashable Box where
   hashStep = genericHashStep hashDomain
 
 instance CryptoHashable Args where
+  hashStep = genericHashStep hashDomain
+
+instance CryptoHashable BoxId where
   hashStep = genericHashStep hashDomain
 
 $(makeLensesWithL ''TxArg)

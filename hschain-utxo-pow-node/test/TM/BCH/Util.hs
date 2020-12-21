@@ -28,6 +28,7 @@ import Control.Monad.Trans.Cont
 --       breaks multiline literals
 import Control.Monad.Fail (MonadFail)
 
+import Data.Coerce
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Vector as V
 import System.Timeout
@@ -158,7 +159,7 @@ mineBlockE mpk mFee txs = Mine $ do
                         , box'args   = mempty
                         }
       coinbase = Tx { tx'inputs  = V.singleton BoxInputRef
-                      { boxInputRef'id      = BoxId $ let UB'BID h = bid in h
+                      { boxInputRef'id      = BoxId (coerce bid) 0
                       , boxInputRef'args    = mempty
                       , boxInputRef'proof   = Nothing
                       , boxInputRef'sigs    = V.empty

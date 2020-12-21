@@ -27,7 +27,7 @@ import qualified Data.Vector as V
 env :: InputEnv
 env = InputEnv
   { inputEnv'height   = 123
-  , inputEnv'self     = mkBoxInput (BoxId $ hash ()) Box
+  , inputEnv'self     = mkBoxInput (BoxId (TxId $ hash ()) 0) Box
       { box'value  = 100
       , box'script = Script ""
       , box'args   = mempty

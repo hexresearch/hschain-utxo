@@ -34,48 +34,50 @@ txEnv = InputEnv
   , inputEnv'dataInputs = [din1, din2]
   }
   where
-    in1 = mkBoxInput (BoxId $ Hash "box-1") Box
+    in1 = mkBoxInput (mkBoxId "box-1") Box
       { box'value  = 1
       , box'script = Script "in1"
       , box'args   = toArgs ([4,5] :: [Int64])
       }
 
-    in2 = (mkBoxInput (BoxId $ Hash "box-2") Box
+    in2 = (mkBoxInput (mkBoxId "box-2") Box
       { box'value  = 2
       , box'script = Script "in2"
       , box'args   = toArgs (([6,7], ["john", "neil"]) :: ([Int64], [Text]))
       })
       { boxInput'args = toArgs (([1,2,3], ["alice", "bob"], [True, False]) :: ([Int64], [Text], [Bool])) }
 
-    out1 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-3") Box
+    out1 = mkBoxOutput blockChainHeight  (mkBoxId "box-3") Box
       { box'value  = 3
       , box'script = Script "out1"
       , box'args   = toArgs ([8,9] :: [Int64])
       }
 
-    din1 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-4") Box
+    din1 = mkBoxOutput blockChainHeight  (mkBoxId "box-4") Box
       { box'value  = 2
       , box'script = Script "out4"
       , box'args   = toArgs ([9, 10] :: [Int64])
       }
 
-    din2 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-5") Box
+    din2 = mkBoxOutput blockChainHeight  (mkBoxId "box-5") Box
       { box'value  = 2
       , box'script = Script "out5"
       , box'args   = toArgs (([11, 12], ["kate"]) :: ([Int64], [Text]))
       }
+    mkBoxId s = BoxId (TxId (Hash s)) 0
+
 
 tests :: TestTree
 tests = testGroup "core-boxes"
     [ testProg "get height"         (PrimInt blockChainHeight) progGetHeight
-    , testProg "get self id"        (PrimBytes "box-2") progGetSelfId
+    , testProg "get self id"        (PrimBytes "box-2\0\0\0\0") progGetSelfId
     , testProg "get self script"    (PrimBytes "in2")  progGetSelfScript
     , testProg "get tx arg"         (PrimInt 2)        progGetTxArg
-    , testProg "get input id"       (PrimBytes "box-1") progGetInputId
-    , testProg "get output id"      (PrimBytes "box-3") progGetOutputId
+    , testProg "get input id"       (PrimBytes "box-1\0\0\0\0") progGetInputId
+    , testProg "get output id"      (PrimBytes "box-3\0\0\0\0") progGetOutputId
     , testProg "get output arg"     (PrimInt 9) progGetOutputLastIntArg
     , testProg "get input text arg" (PrimText "neil") progGetInputLastTextArg
-    , testProg "get data-input id"  (PrimBytes "box-4") progGetDataInputId
+    , testProg "get data-input id"  (PrimBytes "box-4\0\0\0\0") progGetDataInputId
     , testProg "get data-input text"(PrimText "kate") progGetDataInputLastTextArg
     ]
 

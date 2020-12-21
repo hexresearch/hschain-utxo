@@ -28,7 +28,7 @@ initTx = do
   return (resTx, tx alicePubKey)
   where
     tx pubKey = Tx
-      { tx'inputs  = return $ singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
+      { tx'inputs   = [singleOwnerInput (BoxId (TxId (hashBlob "box-1")) 0) pubKey]
        , tx'outputs = return $ Box
           { box'value  = 1
           , box'script = [utxo| pk $(pubKey) |]

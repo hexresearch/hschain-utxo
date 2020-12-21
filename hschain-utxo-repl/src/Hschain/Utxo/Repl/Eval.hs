@@ -110,7 +110,7 @@ defaultInputEnv = InputEnv
     defHeight = 0
     post box = PostBox box defHeight
 
-    bid  = BoxId $ hashBlob "default-input-box"
+    bid  = BoxId (TxId (hashBlob "default-input-box")) 0
 
     self = Box
       { box'value  = 1
