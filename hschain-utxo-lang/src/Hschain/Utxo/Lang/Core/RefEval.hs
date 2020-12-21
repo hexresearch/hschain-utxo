@@ -425,8 +425,9 @@ instance InjPrim a => InjPrim [a] where
 instance InjPrim a => InjPrim (V.Vector a) where
   inj = inj . V.toList
 
+-- FIXME: Determine how BoxID should be represented in language
 instance InjPrim BoxId where
-  inj (BoxId a) = inj a
+  inj = inj . encodeToBS
 
 instance InjPrim (BoxId, PostBox) where
   inj (boxId, PostBox{..}) = ValCon boxPrimCon
