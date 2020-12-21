@@ -454,13 +454,8 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
 newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io Tx
-newProofTx proofEnv tx = liftIO $ do
-  inputs <- traverse (makeInput tx proofEnv) $ tx'inputs tx
-  return $ Tx
-    { tx'inputs  = inputs
-    , tx'outputs = tx'outputs tx
-    , tx'dataInputs = tx'dataInputs tx
-    }
+newProofTx proofEnv tx
+  = liftIO $ traverseOf (tx'inputsL . each) (makeInput tx proofEnv) tx
 
 -- | If we now the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -469,13 +464,9 @@ newProofTx proofEnv tx = liftIO $ do
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
 newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io (Either Text Tx)
-newProofTxOrFail proofEnv tx = liftIO $ runExceptT $ do
-  inputs <- traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
-  return $ Tx
-    { tx'inputs  = inputs
-    , tx'outputs = tx'outputs tx
-    , tx'dataInputs = tx'dataInputs tx
-    }
+newProofTxOrFail proofEnv tx
+  = liftIO $ runExceptT $ traverseOf (tx'inputsL . each) (makeInputOrFail tx proofEnv) tx
+
 
 --------------------------------------------
 -- box ids validation
