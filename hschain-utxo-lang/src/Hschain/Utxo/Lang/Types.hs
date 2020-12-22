@@ -40,6 +40,7 @@ module Hschain.Utxo.Lang.Types
   , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL, txArg'dataInputsL
   , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
   , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
+  , boxInputRef'idL, boxInputRef'argsL, boxInputRef'proofL, boxInputRef'sigsL, boxInputRef'sigMaskL 
   , box'argsL, box'scriptL, box'valueL
   ) where
 
@@ -542,3 +543,4 @@ instance CryptoHashable Args where
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
 $(makeLensesWithL ''Box)
+$(makeLensesWithL ''BoxInputRef)
