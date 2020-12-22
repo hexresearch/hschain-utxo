@@ -93,7 +93,7 @@ appendRecordFuns m =
         in  zipWith (\n x -> fromField cons (sel n) x) [0..] $ V.toList fields
 
     extractSelectors = onRecTypes $ \cons index RecordField{..} ->
-      simpleBind recordField'name (selectorFun cons index)
+      simpleDecl recordField'name (selectorFun cons index)
 
     selectorFun cons SelectIndex{..} =
       Fix $ Lam noLoc (PCons noLoc cons args) $ Fix $ Var noLoc vx
@@ -103,7 +103,7 @@ appendRecordFuns m =
         pvx  = PVar noLoc vx
 
     extractUpdaters = onRecTypes $ \cons index RecordField{..} ->
-      simpleBind (recordFieldUpdateFunName $ recordField'name) (updaterFun cons index)
+      simpleDecl (recordFieldUpdateFunName $ recordField'name) (updaterFun cons index)
 
     updaterFun cons SelectIndex{..} =
       Fix $ LamList noLoc [pvx, PCons noLoc cons inArgs] $ Fix $ Cons noLoc cons outArgs
@@ -169,7 +169,7 @@ pruneExecCtx expr (ExecCtx ctx) =
 trimModuleByMain :: MonadLang m => Module -> m Module
 trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fromList [VarName noLoc "main"])
   where
-    ctx = M.fromList $ fmap (\b -> (varName'name $ bind'name b, b)) $ module'binds m
+    ctx = M.fromList $ fmap (\b -> (varName'name $ decl'name b, b)) $ module'binds m
 
     go res names = case Seq.viewl names of
       EmptyL       -> pure $ M.elems res
@@ -182,8 +182,8 @@ trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fro
                           else throwError $ ExecError $ UnboundVariables [name]
         Just _  -> go res rest
 
-    getFreeVars :: Bind Lang -> Seq.Seq VarName
-    getFreeVars  = Seq.fromList . S.toList . freeVarsBg . pure . fmap freeVars
+    getFreeVars :: Decl Lang -> Seq.Seq VarName
+    getFreeVars  = Seq.fromList . S.toList . freeVarsDecls . pure . fmap freeVars
 
     baseNamesSet = S.fromList $ constrNames <> recordFieldNames <> baseNames
     isPreludeFun v = S.member (varName'name v) baseNamesSet

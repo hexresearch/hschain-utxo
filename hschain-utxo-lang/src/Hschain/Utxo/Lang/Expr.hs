@@ -12,6 +12,7 @@ import Control.Monad.State.Strict
 import Codec.Serialise
 
 import Data.Aeson
+import Data.Bifunctor
 import Data.ByteString (ByteString)
 import Data.Data
 import Data.Fix
@@ -362,7 +363,7 @@ instance IsString Pat where
 data Module = Module
   { module'loc       :: !Loc          -- ^ source code location
   , module'userTypes :: !UserTypeCtx  -- ^ user-defined types
-  , module'binds     :: ![Decl Lang]  -- ^ values (functions)
+  , module'binds     :: !(Binds Lang) -- ^ values (functions)
   } deriving (Data, Typeable)
 
 -- | Type context for inference algorithm
@@ -397,9 +398,9 @@ getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
 -- Because of pattern matching we can have several alternatives
 -- for a single declaration.
 data Alt a = Alt
-  { alt'pats  :: [Pat]      -- ^ arguments of the function
-  , alt'expr  :: Rhs a      -- ^ right-hand side of the declaration
-  , alt'where :: Maybe [Bind a]  -- ^ 'where'-declarations (definitions local to the function)
+  { alt'pats  :: [Pat]               -- ^ arguments of the function
+  , alt'expr  :: Rhs a               -- ^ right-hand side of the declaration
+  , alt'where :: Maybe (Binds a)     -- ^ 'where'-declarations (definitions local to the function)
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 -- | Right-hand side of the function definition.
@@ -414,19 +415,22 @@ data Guard a = Guard
   , guard'rhs       :: a  -- ^ right-hand side expression
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
--- | Value  declaration
-data Decl a = Decl
-  { decl'name  :: VarName          -- ^ name of the value
-  , decl'type  :: Maybe Signature  -- ^ user provided type signature
-  , decl'alts  :: [Alt a]          -- ^ definitions of the value
+data Binds a = Binds
+  { binds'types :: Map Name Type
+  , binds'decls :: [Bind a]
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 -- | Bind of variable
-data Bind a = Bind
-  { bind'name  :: Pat              -- ^ name of the value
-  , bind'type  :: Maybe Signature  -- ^ user provided type signature
-  , bind'alts  :: [Alt a]          -- ^ definitions of the value
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
+data Bind a
+  = FunBind
+      { bind'name  :: VarName          -- ^ name of the value
+      , bind'alts  :: [Alt a]          -- ^ definitions of the value
+      }
+  | PatBind
+      { bind'pat   :: Pat
+      , bind'alt   :: Alt a
+      }
+  deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 -- | Main tpye for expressions
 -- It's defined in fix-point style (See package data-fix).
@@ -445,7 +449,7 @@ data E a
   -- ^ lambda-abstraction (@\pat -> expr@)
   | LamList Loc [Pat] a
   -- ^ lambda abstraction with list of arguments (@\pat1 pat2 pat3 -> expr@)
-  | Let Loc [Bind a] a
+  | Let Loc (Binds a) a
   -- ^ local bindings or let-expression: (@let v = a in expr@)
   | PrimLet Loc [(VarName, a)] a
   -- ^ Simplified Let-expression. All binding right hand sides are rendered to a single expression
@@ -693,7 +697,7 @@ instance H.HasLoc a => H.HasLoc (Rhs a) where
       a:_ -> H.getLoc $ guard'rhs a
       []  -> error "Empty guard"
 
-instance H.HasLoc (Bind a) where
+instance  H.HasLoc (Bind a) where
   type Loc (Bind a) = Loc
   getLoc = H.getLoc . bind'name
 
@@ -708,7 +712,8 @@ freeVars = foldFix $ \case
   Apply _ a b      -> a <> b
   Lam _ v a        -> a `Set.difference`  freeVarsPat v
   LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)
-  Let _ bg a       -> (a `Set.difference` getBgNames bg) <> freeVarsBg bg
+  Let _ bg a       -> let bgNames = getBindsNames bg
+                      in  (a <> freeVarsBinds bg) `Set.difference` bgNames
   PrimLet _ bg a   -> (a `Set.difference` getPrimBgNames bg) <> freeVarsPrimBg bg
   Ascr _ a _       -> a
   Cons _ _ vs      -> mconcat $ V.toList vs
@@ -731,16 +736,19 @@ freeVars = foldFix $ \case
 
     freeVarsPrimBg = foldMap snd
 
-freeVarsBg :: [Bind (Set VarName)] -> Set VarName
-freeVarsBg = foldMap (foldMap localFreeVarsAlt . bind'alts)
+freeVarsBinds :: Binds (Set VarName) -> Set VarName
+freeVarsBinds bg = (foldMap (foldMap localFreeVarsAlt . bind'alts) . binds'decls) bg `Set.difference` getBindsNames bg
   where
     localFreeVarsAlt Alt{..} =
-      (freeVarsRhs alt'expr `Set.difference` foldMap getBgNames alt'where)
+      (freeVarsRhs alt'expr `Set.difference` foldMap getBindsNames alt'where)
       `Set.difference` (foldMap freeVarsPat alt'pats)
 
-getBgNames :: [Bind a] -> Set VarName
-getBgNames bs = foldMap (freeVarsPat . bind'name) bs
-
+getBindsNames :: Binds a -> Set VarName
+getBindsNames = foldMap getNames . binds'decls
+  where
+    getNames = \case
+      FunBind{..} -> Set.singleton bind'name
+      PatBind{..} -> freeVarsPat bind'pat
 
 freeVarsRhs :: Rhs (Set VarName) -> Set VarName
 freeVarsRhs = \case
@@ -769,19 +777,14 @@ freeVarsAlt Alt{..} =
 
 -- | Reorders binds by dependencies. First go binds with no deps then those
 -- that are dependent on them and so forth.
-sortBindGroups :: [Bind Lang] -> [Bind Lang]
-sortBindGroups = L.nub . (flattenSCC =<<) . stronglyConnComp . (toNode =<<)
+sortBinds :: Binds Lang -> Binds Lang
+sortBinds b = b { binds'decls = onDecls $ binds'decls b }
    where
-     toNode s = fmap (\name -> (s, name, Set.toList $ foldMap freeVarsAlt $ bind'alts s)) names
-       where
-        names = Set.toList $ freeVarsPat $ bind'name s
+     onDecls = L.nub . (flattenSCC =<<) . stronglyConnComp . (toNode =<<)
 
--- | Reorders binds by dependencies. First go binds with no deps then those
--- that are dependent on them and so forth.
-sortDeclGroups :: [Decl Lang] -> [Decl Lang]
-sortDeclGroups = (flattenSCC =<<) . stronglyConnComp . fmap toNode
-   where
-     toNode s = (s, decl'name s, Set.toList $ foldMap freeVarsAlt $ decl'alts s)
+     toNode s = case s of
+       FunBind{..} -> pure $ (s, bind'name, Set.toList $ foldMap freeVarsAlt bind'alts)
+       PatBind{..} -> fmap (\name -> (s, name, Set.toList $ freeVarsAlt bind'alt )) $ Set.toList $ freeVarsPat bind'pat
 
 typeCoreToType :: (H.DefLoc loc, IsString v) => TypeCore -> H.Type loc v
 typeCoreToType = \case
@@ -983,6 +986,9 @@ $(deriveShow1 ''Guard)
 $(deriveEq1   ''Bind)
 $(deriveOrd1  ''Bind)
 $(deriveShow1 ''Bind)
+$(deriveEq1   ''Binds)
+$(deriveOrd1  ''Binds)
+$(deriveShow1 ''Binds)
 $(deriveEq1   ''CaseExpr)
 $(deriveOrd1  ''CaseExpr)
 $(deriveShow1 ''CaseExpr)

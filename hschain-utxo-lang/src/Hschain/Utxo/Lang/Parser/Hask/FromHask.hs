@@ -1,8 +1,6 @@
 module Hschain.Utxo.Lang.Parser.Hask.FromHask(
     fromHaskExp
   , fromHaskModule
-  , fromHaskDecl
-  , toDecl
 ) where
 
 
@@ -54,7 +52,7 @@ fromHaskExp topExp = case topExp of
   H.Lambda loc ps body -> case ps of
     [p] -> fromLam loc p body
     _   -> fromLamList loc ps body
-  H.Let _ binds expr -> liftA2 (\x y -> fromBgs y x) (fromBinds topExp binds) (rec expr)
+  H.Let _ binds expr -> liftA2 (\x y -> fromBgs y x) (fromLetBinds topExp binds) (rec expr)
   H.ExpTypeSig loc expr ty -> liftA2 (\x y -> Fix $ Ascr loc x (HM.typeToSignature y)) (rec expr) (fromType ty)
   H.Lit loc lit -> fmap (Fix . PrimE loc) $ fromLit lit
   H.If loc a b c -> liftA3 (\x y z -> Fix $ If loc x y z) (rec a) (rec b) (rec c)
@@ -128,9 +126,6 @@ fromHaskModule = \case
   where
     err = ParseFailed (H.fromSrcInfo noLoc) "Failed to parse module"
 
-fromHaskDecl :: H.Decl Loc -> ParseResult [Bind Lang]
-fromHaskDecl d = toBindGroup . return =<< toDecl d
-
 fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
 fromDecls loc ds = do
   decls <- mapM toDecl ds
@@ -149,23 +144,30 @@ toUserTypes ds =
       DataDecl userType -> Just userType
       _                 -> Nothing
 
+fromDeclBinds = undefined
+
 toDecl :: H.Decl Loc -> ParseResult Decl
 toDecl x = case x of
   H.TypeSig loc names ty -> fmap (TypeSig loc (fmap toName names)) (fromQualType ty)
   H.FunBind loc matches  -> fmap (FunDecl loc) $ mapM fromMatch matches
-  H.PatBind loc pat rhs mBinds -> fromPatBind x loc pat rhs mBinds
+  H.PatBind loc pat rhs mBinds -> fromPatBindName x loc pat rhs mBinds <|> fromPatBind x loc pat rhs mBinds
   H.DataDecl loc dataOrNew mCtx declHead cons mDeriving -> fromDataDecl loc dataOrNew mCtx declHead cons mDeriving
   other -> parseFailedBy "Unexpeceted declaration" other
   where
-    fromPatBind m loc pat rhs mBinds = liftA2 (\name alt -> FunDecl loc [(name, alt)])
+    fromPatBindName m loc pat rhs mBinds = liftA2 (\name alt -> FunDecl loc [(name, alt)])
         (getPatName pat)
-        (liftA2 (toAlt []) (fromRhs rhs) (mapM (fromBinds m) mBinds))
+        (fmap pure $ liftA2 (toAlt []) (fromRhs rhs) (mapM (fromDeclBinds m) mBinds))
+
+    fromPatBind m loc pat rhs mBinds = liftA2 (PatDecl loc)
+        (fromPat pat)
+        (liftA2 (toAlt []) (fromRhs rhs) (mapM (fromDeclBinds m) mBinds))
+
 
     fromMatch = \case
-      m@(H.Match _ name pats rhs mBinds) -> fmap (toName name, ) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromBinds m) mBinds))
+      m@(H.Match _ name pats rhs mBinds) -> fmap ((toName name, ) . pure) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromLetBinds m) mBinds))
       other                              -> parseFailedBy "Failed to parse function bind" other
 
-    toAlt pats rhs mBinds = pure $ Alt pats rhs mBinds
+    toAlt pats rhs mBinds = Alt pats rhs mBinds
 
     fromRhs = \case
       H.UnGuardedRhs _ expr  -> fmap UnguardedRhs $ fromHaskExp expr
@@ -257,11 +259,11 @@ fromPat topPat = case topPat of
       | null ps   = return x
       | otherwise = parseFailedBy (mconcat ["Constant pattern ", T.unpack consName'name, " should have no arguments"]) topPat
 
-fromBgs :: Lang -> [Bind Lang] -> Lang
+fromBgs :: Lang -> [LetBind Lang] -> Lang
 fromBgs rhs bgs = Fix $ Let (HM.getLoc rhs) bgs rhs
 
-fromBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult [Bind Lang]
-fromBinds topExp = \case
+fromLetBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult [LetBind Lang]
+fromLetBinds topExp = \case
   H.BDecls _ decls -> toBindGroup =<< mapM toDecl decls
   _                -> parseFailedBy "Failed to parse binding group for expression" topExp
 

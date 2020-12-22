@@ -15,6 +15,7 @@ module Hschain.Utxo.Lang.Desugar(
   , bindBodyToExpr
   , bindGroupToLet
   , simpleBind
+  , simpleDecl
   , desugarRecordUpdate
   , recordFieldUpdateFunName
   , module Hschain.Utxo.Lang.Desugar.FreshVar
@@ -73,6 +74,9 @@ bindBodyToExpr Decl{..} = fmap addSignatureCheck $ altGroupToExpr decl'alts
 
 simpleBind :: VarName -> Lang -> Bind Lang
 simpleBind v a = Bind (PVar (getLoc v) v) Nothing [Alt [] (UnguardedRhs a) Nothing]
+
+simpleDecl :: VarName -> Lang -> Decl Lang
+simpleDecl v a = Decl v Nothing [Alt [] (UnguardedRhs a) Nothing]
 
 -----------------------------------------------------------------
 

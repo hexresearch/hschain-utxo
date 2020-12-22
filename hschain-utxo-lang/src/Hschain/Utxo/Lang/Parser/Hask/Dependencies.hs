@@ -30,6 +30,7 @@ type FunMap   = Map VarName [Alt Lang]
 -- | Declarations in the module
 data Decl
   = FunDecl Loc [(VarName, [Alt Lang])]   -- ^ Definition of the function (or value)
+  | PatDecl Loc Pat (Alt Lang)            -- ^ Pattern definition
   | TypeSig Loc [VarName] Signature       -- ^ Type-signature for the value (@val :: Type@)
   | DataDecl UserType                     -- ^ Definition of the type
 
@@ -47,10 +48,10 @@ groupAdjacentFunDecl ds = onFunDecl (fmap joinGroup . L.groupBy sameFunDecl) =<<
       []    -> []
 
 -- | Sorts declarations and converts them to the list of bindings.
-toBindGroup :: [Decl] -> ParseResult [Bind Lang]
-toBindGroup = fmap sortBindGroups . parseBinds . groupAdjacentFunDecl
+toBindGroup :: [Decl] -> ParseResult (Binds Lang)
+toBindGroup = fmap sortBinds . parseBinds . groupAdjacentFunDecl
 
-parseBinds :: [Decl] -> ParseResult [Bind Lang]
+parseBinds :: [Decl] -> ParseResult (Binds Lang)
 parseBinds ds = do
   typeMap <- getTypeMap ds
   funMap  <- getFunMap ds
@@ -79,7 +80,7 @@ getFunMap = fmap Map.fromList . mapM toSingleName . catMaybes . fmap getFunDecl
       []         -> parseFailed loc "No cases are defined"
       (v, _):_   -> parseFailed (varName'loc v) $ mconcat ["Too many functional cases are defined for: ", Text.unpack $ varName'name v]
 
-renderToBinds :: FunMap -> TypeMap -> ParseResult [Bind Lang]
+renderToBinds :: FunMap -> TypeMap -> ParseResult (Binds Lang)
 renderToBinds funs tys = mapM toGroup names
   where
     names = L.nub $ mappend (Map.keys funs) (Map.keys tys)
@@ -89,7 +90,6 @@ renderToBinds funs tys = mapM toGroup names
       Just f   -> return $ case Map.lookup name tys of
                     Nothing  -> implGroup name f
                     Just ty  -> explGroup name f ty
-
 
     implGroup name f = Bind name Nothing f
     explGroup name f ty = Bind name (Just ty) f

@@ -7,10 +7,12 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
 
 import Data.ByteString (ByteString)
 import Data.Fix
+import Data.Maybe
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -91,28 +93,29 @@ toLiteral loc = \case
 
 -- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc
-toHaskModule (Module loc _ bs) = H.Module loc Nothing [] [] (toTopDecl bs)
+toHaskModule (Module loc _ bs) = H.Module loc Nothing [] [] (toDecl bs)
 
-toDecl :: [Bind Lang] -> [H.Decl Loc]
-toDecl bs = toBind =<< bs
+toDecl :: Binds Lang -> [H.Decl Loc]
+toDecl bs = toBind =<< binds'decls bs
   where
-    toBind Bind{..} = case bind'type of
-      Nothing -> fmap (\alt -> toLhs bind'name alt) bind'alts
-      Just ty ->
-        let signature = H.TypeSig tyLoc (fmap (H.Ident tyLoc . T.unpack . varName'name) $ patNames bind'name) (toType ty)
-            funBinds = fmap (\alt -> toLhs bind'name alt) bind'alts
+    toBind = \case
+      FunBind{..} -> fromFunBind bind'name bind'alts
+      PatBind{..} -> fromPatBind bind'pat  bind'alt
 
-            tyLoc :: Loc
+    getType name = maybeToList $ fmap (toSig . HM.typeToSignature) $ M.lookup (varName'name name) $ binds'types bs
+      where
+        toSig ty = H.TypeSig tyLoc [(H.Ident tyLoc . T.unpack . varName'name) name] (toType ty)
+          where
             tyLoc = HM.getLoc ty
-        in  signature : funBinds
 
-    toLhs = \case
-      PVar loc name -> toFunBind name
-      pat           -> toPatBind pat
+    fromFunBind name alts = getType name <> funBinds
+      where
+        funBinds = fmap (toFunBind name) alts
+        toFunBind name alt = H.FunBind (HM.getLoc name) $ pure $ toMatch name alt
 
-    toFunBind name alt = H.FunBind (HM.getLoc name) $ pure $ toMatch name alt
-
-    toPatBind pat alt = H.PatBind (HM.getLoc pat) (toPat pat) (toRhs alt) (toWhere (HM.getLoc pat) alt)
+    fromPatBind pat alt = (getType =<< patNames pat) <> [patBind]
+      where
+        patBind = H.PatBind (HM.getLoc pat) (toPat pat) (toRhs alt) (toWhere (HM.getLoc pat) alt)
 
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
 
@@ -217,36 +220,3 @@ fromQuoteType loc = \case
   where
     primQ name = H.TyCon loc $ H.UnQual loc $ H.Ident loc name
 
-toTopDecl :: [Decl Lang] -> [H.Decl Loc]
-toTopDecl bs = toBind =<< bs
-  where
-    toBind Decl{..} = case decl'type of
-      Nothing -> fmap (\alt -> H.FunBind (HM.getLoc decl'name) $ pure $ toMatch decl'name alt) decl'alts
-      Just ty ->
-        let signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name decl'name)] (toType ty)
-            funBinds = fmap (\alt -> H.FunBind (HM.getLoc decl'name) $ pure $ toMatch decl'name alt) decl'alts
-
-            tyLoc :: Loc
-            tyLoc = HM.getLoc ty
-        in  signature : funBinds
-
-    toLetBinds loc bg = H.BDecls loc $ toDecl bg
-
-    toMatch :: VarName -> Alt Lang -> H.Match Loc
-    toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) (fmap (toLetBinds (HM.getLoc name)) $ alt'where alt)
-
-    toPats :: Alt a -> [H.Pat Loc]
-    toPats = fmap toPat . alt'pats
-
-
-    toRhs :: Alt Lang -> H.Rhs Loc
-    toRhs Alt{..} = case alt'expr of
-      UnguardedRhs rhs  -> H.UnGuardedRhs (HM.getLoc alt'expr) (toHaskExp rhs)
-      GuardedRhs guards -> H.GuardedRhss (HM.getLoc alt'expr) (fmap toGuard guards)
-
-    toGuard :: Guard Lang -> H.GuardedRhs Loc
-    toGuard Guard{..} =
-      H.GuardedRhs
-        (HM.getLoc guard'predicate)
-        [H.Qualifier (HM.getLoc guard'predicate) $ toHaskExp guard'predicate]
-        (toHaskExp guard'rhs)
