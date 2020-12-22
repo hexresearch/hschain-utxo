@@ -28,7 +28,6 @@ library
                        Hschain.Utxo.Test.Client.Scripts.Lightning.Tx
                        Hschain.Utxo.Test.Client.Scripts.Lightning.User
                        Hschain.Utxo.Test.Client.Scripts.MultiSig
-                       Hschain.Utxo.Test.Client.Scripts.PayForCofee
                        Hschain.Utxo.Test.Client.Scripts.ReversibleAddress
                        Hschain.Utxo.Test.Client.Scripts.SimpleExchange
                        Hschain.Utxo.Test.Client.Scripts.Utils
