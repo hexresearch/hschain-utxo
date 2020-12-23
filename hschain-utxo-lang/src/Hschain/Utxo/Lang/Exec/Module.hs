@@ -12,7 +12,9 @@ import Control.Monad.State.Strict
 
 import Data.Either
 import Data.Fix
+import Data.Map.Strict (Map)
 import Data.Maybe
+import Data.Set (Set)
 import Data.Sequence (ViewL(..))
 
 import Hschain.Utxo.Lang.Desugar
@@ -23,6 +25,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Lib.Base (baseNames)
 
 import qualified Type.Check.HM as H
+import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
@@ -31,40 +34,76 @@ import qualified Data.Sequence as Seq
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
 evalModule :: TypeContext -> Module -> Either Error ModuleCtx
-evalModule typeCtx m = evalModule' typeCtx (appendRecordFuns m)
+evalModule typeCtx m = evalModule' typeCtx =<< fixTopLevelPatBinds (appendRecordFuns m)
+
+fixTopLevelPatBinds :: Module -> Either Error Module
+fixTopLevelPatBinds m
+  | any isPat decls = fmap (\bs -> m { module'binds = bs }) $ fixDecls $ module'binds m
+  | otherwise       = Right m
+  where
+    decls = binds'decls $ module'binds m
+
+    isPat = \case
+      PatBind{..} -> True
+      _           -> False
+
+    fixDecls Binds{..} =
+      case L.partition isMain binds'decls of
+        ([mainBind], rest) -> Right $ Binds mempty [addRest (Binds restTypes rest) $ mainBind]
+        _                  -> Left $ PatError MissingMain
+      where
+        restTypes = M.delete "main" binds'types
+
+        addRest rest b = case b of
+          FunBind{..} -> b { bind'alts = fmap (addToAlt rest) bind'alts }
+          PatBind{..} -> b { bind'alt  = addToAlt rest bind'alt }
+
+        addToAlt rest a = a { alt'where = alt'where a <> Just rest }
+
+    isMain = \case
+      FunBind{..} -> bind'name == "main"
+      _           -> False
+
 
 evalModule' :: TypeContext -> Module -> Either Error ModuleCtx
 evalModule' typeCtx Module{..} = runInferM $ do
-  binds <- InferM $ lift $ evalStateT (mapM checkBind module'binds) (typeCtx <> userTypeCtx)
-  toModuleCtx binds
+  binds <- InferM $ lift $ evalStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
+  toModuleCtx $ Binds (binds'types module'binds) binds
   where
     userTypeCtx = userTypesToTypeContext module'userTypes
 
-    toModuleCtx :: [Decl Lang] -> InferM ModuleCtx
+    toModuleCtx :: Binds Lang -> InferM ModuleCtx
     toModuleCtx bs = fmap (\es -> ModuleCtx
-      { moduleCtx'types = InferCtx ((H.Context $ M.fromList $ catMaybes types) <> userTypeCtx) module'userTypes
+      { moduleCtx'types = InferCtx ((H.Context types) <> userTypeCtx) module'userTypes
       , moduleCtx'exprs = ExecCtx (M.fromList es)
       }) exprs
       where
-        types = fmap (\Decl{..} -> fmap (\ty -> (varName'name decl'name, ty)) decl'type) bs
+        types = M.mapKeys varName'name $ binds'types bs
 
-        exprs = mapM (\Decl{..} -> fmap (decl'name, ) $ desugar module'userTypes =<< altGroupToExpr decl'alts) bs
+        exprs = mapM procBind $ binds'decls bs
+          where
+            procBind = \case
+              FunBind{..} -> fmap (bind'name, ) $ desugar module'userTypes =<< altGroupToExpr bind'alts
+              PatBind{..} -> unexpected "PatBind in evalModule"
 
-    checkBind :: Decl Lang -> StateT TypeContext (Either Error) (Decl Lang)
-    checkBind bind@Decl{..} = do
-      ctx <- get
-      ty <- lift $ runInferM $ inferExpr (InferCtx ctx module'userTypes) =<< altGroupToExpr decl'alts
-      let typeIsOk =
-            case decl'type of
-              Just userTy -> if (isRight $ H.subtypeOf (H.stripSignature userTy) ty) then Nothing else (Just userTy)
-              Nothing     -> Nothing
-      case typeIsOk of
-        Just userTy -> do
-          lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) ty
-        Nothing     -> do
-          let resTy = fromMaybe (H.typeToSignature ty) decl'type
-          put $ ctx <> H.Context (M.singleton (varName'name decl'name) resTy)
-          return $ bind { decl'type = Just resTy }
+    checkBind :: Map VarName Signature -> Bind Lang -> StateT TypeContext (Either Error) (Bind Lang)
+    checkBind types bind = case bind of
+      FunBind{..} -> do
+        ctx <- get
+        ty <- lift $ runInferM $ inferExpr (InferCtx ctx module'userTypes) =<< altGroupToExpr bind'alts
+        let bindTy = M.lookup bind'name types
+            typeIsOk =
+              case bindTy of
+                Just userTy -> if (isRight $ H.subtypeOf (H.stripSignature userTy) ty) then Nothing else (Just userTy)
+                Nothing     -> Nothing
+        case typeIsOk of
+          Just userTy -> do
+            lift $ Left $ TypeError $ H.UnifyErr (H.getLoc userTy) (H.stripSignature userTy) ty
+          Nothing     -> do
+            let resTy = fromMaybe (H.typeToSignature ty) bindTy
+            put $ ctx <> H.Context (M.singleton (varName'name bind'name) resTy)
+            return bind
+      PatBind{..} -> unexpected "PatBind in checkBind"
 
 data SelectIndex = SelectIndex
   { selectIndex'size  :: !Int
@@ -73,13 +112,13 @@ data SelectIndex = SelectIndex
 
 appendRecordFuns :: Module -> Module
 appendRecordFuns m =
-  m { module'binds = recordFuns ++ module'binds m }
+  m { module'binds = recordFuns <> module'binds m }
   where
-    recordFuns = selectors ++ updaters
+    recordFuns = selectors <> updaters
 
-    selectors = extractSelectors =<< types
+    selectors = mconcat $ extractSelectors =<< types
 
-    updaters = extractUpdaters =<< types
+    updaters = mconcat $ extractUpdaters =<< types
 
     types = M.elems $ userTypeCtx'types $ module'userTypes m
 
@@ -93,7 +132,7 @@ appendRecordFuns m =
         in  zipWith (\n x -> fromField cons (sel n) x) [0..] $ V.toList fields
 
     extractSelectors = onRecTypes $ \cons index RecordField{..} ->
-      simpleDecl recordField'name (selectorFun cons index)
+      simpleBind recordField'name (selectorFun cons index)
 
     selectorFun cons SelectIndex{..} =
       Fix $ Lam noLoc (PCons noLoc cons args) $ Fix $ Var noLoc vx
@@ -103,7 +142,7 @@ appendRecordFuns m =
         pvx  = PVar noLoc vx
 
     extractUpdaters = onRecTypes $ \cons index RecordField{..} ->
-      simpleDecl (recordFieldUpdateFunName $ recordField'name) (updaterFun cons index)
+      simpleBind (recordFieldUpdateFunName $ recordField'name) (updaterFun cons index)
 
     updaterFun cons SelectIndex{..} =
       Fix $ LamList noLoc [pvx, PCons noLoc cons inArgs] $ Fix $ Cons noLoc cons outArgs
@@ -143,7 +182,7 @@ appendExecCtx ctx expr
   | null binds = expr
   | otherwise  = Fix $ Let (H.getLoc expr) binds expr
   where
-    binds = fmap (\(var, rhs) -> simpleBind var rhs) $ M.toList $
+    binds = mconcat $ fmap (\(var, rhs) -> simpleBind var rhs) $ M.toList $
       execCtx'vars $ pruneExecCtx expr ctx
 
 -- | It removes all bindings from context that not used in the given expresiion
@@ -165,30 +204,69 @@ pruneExecCtx expr (ExecCtx ctx) =
 --------------------------------------------
 --
 
+data TrimCtx = TrimCtx
+  { trimCtx'included     :: Set VarName
+  , trimCtx'resultBinds  :: [Bind Lang]
+  , trimCtx'srcBinds     :: Map VarName (Bind Lang)
+  , trimCtx'types        :: Map VarName Signature
+  }
+
+newTrimCtx :: Binds Lang -> TrimCtx
+newTrimCtx binds = TrimCtx
+  { trimCtx'included    = S.empty
+  , trimCtx'resultBinds = []
+  , trimCtx'srcBinds    = src
+  , trimCtx'types       = binds'types binds
+  }
+  where
+    src = M.fromList $ (\b -> fmap (, b) (bindNames b)) =<< binds'decls binds
+
+trimResult :: TrimCtx -> Binds Lang
+trimResult TrimCtx{..} = Binds
+  { binds'types = trimCtx'types `M.intersection` (M.fromList $ fmap (, ()) $ S.toList trimCtx'included)
+  , binds'decls = trimCtx'resultBinds
+  }
+
+isIncluded :: VarName -> TrimCtx -> Bool
+isIncluded name TrimCtx{..} = S.member name trimCtx'included
+
+getBindByName :: VarName -> TrimCtx -> Maybe (Bind Lang)
+getBindByName name TrimCtx{..} = M.lookup name trimCtx'srcBinds
+
+insertBind :: Bind Lang -> TrimCtx -> TrimCtx
+insertBind b ctx = ctx
+  { trimCtx'resultBinds = b : trimCtx'resultBinds ctx
+  , trimCtx'included    = trimCtx'included ctx <> (S.fromList $ bindNames b)
+  }
+
 -- | Removes all bindings that are not reachable from main function.
 trimModuleByMain :: MonadLang m => Module -> m Module
-trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $ go M.empty (Seq.fromList [VarName noLoc "main"])
+trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $
+  go (newTrimCtx $ module'binds m) (Seq.fromList [VarName noLoc "main"])
   where
-    ctx = M.fromList $ fmap (\b -> (varName'name $ decl'name b, b)) $ module'binds m
-
-    go res names = case Seq.viewl names of
-      EmptyL       -> pure $ M.elems res
-      name :< rest -> case M.lookup (varName'name name) res of
-        Nothing -> case M.lookup (varName'name name) ctx of
-                      Just bind -> go (M.insert (varName'name name) bind res) (getFreeVars bind <> rest)
-                      Nothing   ->
+    go ctx names = case Seq.viewl names of
+      EmptyL       -> pure $ trimResult ctx
+      name :< rest ->
+        if isIncluded name ctx
+          then go ctx rest
+          else case getBindByName name ctx of
+                 Just bind -> go (insertBind bind ctx) (getFreeVars bind <> rest)
+                 Nothing   ->
                         if isPreludeFun name
-                          then go res rest
+                          then go ctx rest
                           else throwError $ ExecError $ UnboundVariables [name]
-        Just _  -> go res rest
 
-    getFreeVars :: Decl Lang -> Seq.Seq VarName
-    getFreeVars  = Seq.fromList . S.toList . freeVarsDecls . pure . fmap freeVars
+    getFreeVars :: Bind Lang -> Seq.Seq VarName
+    getFreeVars = Seq.fromList . S.toList . foldMap (freeVarsAlt . fmap freeVars) . bindAlts
+      where
+        bindAlts = \case
+          FunBind{..} -> bind'alts
+          PatBind{..} -> [bind'alt]
+
 
     baseNamesSet = S.fromList $ constrNames <> recordFieldNames <> baseNames
     isPreludeFun v = S.member (varName'name v) baseNamesSet
 
     constrNames = fmap consName'name $ M.keys $ userTypeCtx'constrs $ module'userTypes m
     recordFieldNames = M.keys $ userTypeCtx'recFields $ module'userTypes m
-
 

@@ -120,8 +120,7 @@ halfGameScript fullGameScriptHash = [utxoModule|
 
 validBobInput b = (b == 0) || (b == 1)
 
-main = case (getBoxArgs out) of
-  (bobGuess, bobDeadline) -> andSigma
+main = andSigma
       [ toSigma (validBobInput bobGuess)
       , sha256 (getBoxScript out) ==* $(fullGameScriptHash)
       , (length getOutputs ==* 1) ||* (length getOutputs ==* 2)
@@ -129,15 +128,17 @@ main = case (getBoxArgs out) of
       , getBoxValue out >=* (2 * getBoxValue getSelf) ]
   where
     out = getOutput 0
+    (bobGuess, bobDeadline) = getBoxArgs out
 |]
 
 
 fullGameScript :: ByteString -> PublicKey -> Module
 fullGameScript commitmentHash alice = [utxoModule|
 
-main = case (getArgs, getBoxArgs getSelf) of
-  ((s, a), (b, bobDeadline, bob)) ->
-        (pk bob &&* (getHeight >* bobDeadline))
+(s, a) = getArgs
+(b, bobDeadline, bob) = getBoxArgs getSelf
+
+main =  (pk bob &&* (getHeight >* bobDeadline))
     ||* (   (sha256 (appendBytes s (serialise (a :: Int))) ==* $(commitmentHash))
         &&* (   (pk $(alice) &&* (a ==* b))
             ||* (pk bob      &&* (a /=* b))

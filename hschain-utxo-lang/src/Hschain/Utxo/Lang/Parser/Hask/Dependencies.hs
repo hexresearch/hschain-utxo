@@ -9,7 +9,6 @@ module Hschain.Utxo.Lang.Parser.Hask.Dependencies(
 
 import Control.Monad
 
-
 import Data.Function (on)
 import Data.Map.Strict (Map)
 import Data.Maybe
@@ -25,7 +24,6 @@ import qualified Data.Text as Text
 import qualified Data.List as L
 
 type TypeMap  = Map VarName Signature
-type FunMap   = Map VarName [Alt Lang]
 
 -- | Declarations in the module
 data Decl
@@ -54,8 +52,20 @@ toBindGroup = fmap sortBinds . parseBinds . groupAdjacentFunDecl
 parseBinds :: [Decl] -> ParseResult (Binds Lang)
 parseBinds ds = do
   typeMap <- getTypeMap ds
-  funMap  <- getFunMap ds
-  renderToBinds funMap typeMap
+  let vals = getVals ds
+  return $ Binds
+      { binds'types = typeMap
+      , binds'decls = vals
+      }
+
+getVals :: [Decl] -> [Bind Lang]
+getVals ds = extractVal =<< ds
+  where
+    extractVal = \case
+      FunDecl _ vs      -> fmap (uncurry FunBind) vs
+      PatDecl _ pat alt -> pure $ PatBind pat alt
+      _                 -> []
+
 
 getTypeMap :: [Decl] -> ParseResult TypeMap
 getTypeMap = foldM accumTypeMap Map.empty . concat . catMaybes . fmap getTypeSig
@@ -67,30 +77,4 @@ getTypeMap = foldM accumTypeMap Map.empty . concat . catMaybes . fmap getTypeSig
     accumTypeMap m (v, ty) = case Map.lookup v m of
       Nothing -> return $ Map.insert v ty m
       Just _  -> parseFailed (varName'loc v) $ mconcat ["Type signature for variable ", Text.unpack $ varName'name v, " is defined twice"]
-
-getFunMap :: [Decl] -> ParseResult FunMap
-getFunMap = fmap Map.fromList . mapM toSingleName . catMaybes . fmap getFunDecl
-  where
-    getFunDecl = \case
-      FunDecl loc xs -> Just (loc, xs)
-      _              -> Nothing
-
-    toSingleName (loc, xs) = case xs of
-      [(v, alt)] -> return (v, alt)
-      []         -> parseFailed loc "No cases are defined"
-      (v, _):_   -> parseFailed (varName'loc v) $ mconcat ["Too many functional cases are defined for: ", Text.unpack $ varName'name v]
-
-renderToBinds :: FunMap -> TypeMap -> ParseResult (Binds Lang)
-renderToBinds funs tys = mapM toGroup names
-  where
-    names = L.nub $ mappend (Map.keys funs) (Map.keys tys)
-
-    toGroup name = case Map.lookup name funs of
-      Nothing  -> parseFailedVar "Undefined variable" name
-      Just f   -> return $ case Map.lookup name tys of
-                    Nothing  -> implGroup name f
-                    Just ty  -> explGroup name f ty
-
-    implGroup name f = Bind name Nothing f
-    explGroup name f ty = Bind name (Just ty) f
 

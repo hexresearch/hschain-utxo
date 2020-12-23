@@ -118,16 +118,19 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
       args <- orderRecordFieldsFromContext ctx cons fields
       fmap (fromCons loc cons) $ mapM rec args
 
-    fromLet loc binds e = rec =<< go Nothing (sortBindGroups binds)
+    fromLet _ binds e = do
+      -- | TODO: use info of user tyes
+      let (Binds _types decls) = sortBinds binds
+      rec =<< go Nothing decls
       where
         go mPrev = \case
           [] -> maybeLet e
-          b:bs -> case bind'name b of
-                  PVar ploc name -> maybeLet =<< go (Just (name, bind'alts b)) bs
-                  pat            -> do
-                    e1 <- go Nothing bs
-                    alt <- altGroupToExpr $ bind'alts b
-                    maybeLet =<< caseToLet selectorNameVar (H.getLoc pat) alt [CaseExpr pat e1]
+          b:bs -> case b of
+            FunBind{..} -> maybeLet =<< go (Just (bind'name, bind'alts)) bs
+            PatBind{..} -> do
+              e1 <- go Nothing bs
+              alt <- altGroupToExpr [bind'alt]
+              maybeLet =<< caseToLet selectorNameVar (H.getLoc bind'pat) alt [CaseExpr bind'pat e1]
           where
             maybeLet body = case mPrev of
               Just (name, alt) -> fmap (\bind -> Fix $ PrimLet (varName'loc name) [bind] body) (toBind name alt)
@@ -338,7 +341,7 @@ caseToLet :: MonadLang m =>
   (ConsName -> Int -> Text) -> Loc -> Lang -> [CaseExpr Lang] -> m Lang
 caseToLet toSelectorName loc expr cases = do
   v <- getFreshVar loc
-  fmap (Fix . Let loc [simpleBind v expr]) $ caseToLet' toSelectorName loc v cases
+  fmap (Fix . Let loc (simpleBind v expr)) $ caseToLet' toSelectorName loc v cases
 
 caseToLet' :: MonadLang m =>
   (ConsName -> Int -> Text) -> Loc -> VarName -> [CaseExpr Lang] -> m Lang
@@ -347,7 +350,7 @@ caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix 
     toVarExpr loc v = Fix $ Var loc $ VarName loc $ varName'name v
 
     fromCase CaseExpr{..} = fmap (H.getLoc caseExpr'lhs, ) $ case caseExpr'lhs of
-      PVar ploc pvar -> return $ Fix $ Let ploc [simpleBind pvar $ toVarExpr ploc var] caseExpr'rhs
+      PVar ploc pvar -> return $ Fix $ Let ploc (simpleBind pvar $ toVarExpr ploc var) caseExpr'rhs
       PWildCard _ -> return $ caseExpr'rhs
       PPrim ploc p -> return $ Fix $ If ploc (eqPrim ploc var p) caseExpr'rhs failCase
       PCons ploc cons pats ->
@@ -358,7 +361,7 @@ caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix 
       PTuple ploc pats -> do
         (vs, rhs') <- reduceSubPats pats caseExpr'rhs
         let size = length vs
-            bg = zipWith (\n v -> simpleBind v (tupleAt (varName'loc v) size n $ toVarExpr ploc var)) [0..] vs
+            bg = mconcat $ zipWith (\n v -> simpleBind v (tupleAt (varName'loc v) size n $ toVarExpr ploc var)) [0..] vs
         return $ Fix $ Let ploc bg rhs'
       where
         tupleAt :: Loc -> Int -> Int -> Fix E -> Lang
@@ -369,7 +372,7 @@ caseToLet' toSelectorName topLoc var cases = fmap (foldr (\(loc, a) rest -> Fix 
 
         argCons ploc cons pats = do
           (vs, rhs') <- reduceSubPats pats caseExpr'rhs
-          let bg = zipWith (\n v -> simpleBind v (Fix $ Apply (varName'loc v) (selector ploc cons n) $ toVarExpr ploc var)) [0..] vs
+          let bg = mconcat $ zipWith (\n v -> simpleBind v (Fix $ Apply (varName'loc v) (selector ploc cons n) $ toVarExpr ploc var)) [0..] vs
           return $ Fix $ Let ploc bg rhs'
 
     selector ploc cons n = Fix $ Var ploc (VarName ploc (toSelectorName cons n))

@@ -74,7 +74,7 @@ flatternCaseExpr (Fix x) = case x of
     return $ if null alts'
       then Fix $ FailCase loc
       else case ev of
-        Right _ -> Fix $ Let loc [simpleBind v e] $ Fix $ CaseOf loc (Fix $ Var eloc v) alts'
+        Right _ -> Fix $ Let loc (simpleBind v e) $ Fix $ CaseOf loc (Fix $ Var eloc v) alts'
         Left  _ -> Fix $ CaseOf loc (Fix $ Var eloc v) alts'
   other             -> fmap Fix $ mapM flatternCaseExpr other
   where
@@ -193,7 +193,7 @@ substForVar e cont = case e of
   expr          -> do
     let loc = H.getLoc expr
     v <- getFreshVar loc
-    let toLet body = Fix $ Let loc [simpleBind v expr] body
+    let toLet body = Fix $ Let loc (simpleBind v expr) body
     fmap toLet $ cont (Fix $ Var loc v)
 
 data LegalConsPat = ConsPat | TuplePat

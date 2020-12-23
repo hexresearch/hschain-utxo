@@ -74,12 +74,12 @@ mainScript :: Expr SigmaBool -> Either Error Script
 mainScript expr = toCoreScript $ mainExprModule expr
 
 mainExprModule :: Expr SigmaBool -> Module
-mainExprModule expr = simpleModule [bind "main" expr]
+mainExprModule expr = simpleModule (bind "main" expr)
 
-simpleModule :: [Bind Lang] -> Module
+simpleModule :: Binds Lang -> Module
 simpleModule = Module noLoc mempty
 
-bind :: Text -> Expr a -> Bind Lang
+bind :: Text -> Expr a -> Binds Lang
 bind name (Expr expr) = simpleBind (VarName noLoc name) expr
 
 (=:) :: Text -> Expr a -> (Expr a -> Expr b) -> Expr b

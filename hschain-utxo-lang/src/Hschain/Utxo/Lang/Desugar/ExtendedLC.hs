@@ -44,15 +44,17 @@ toExtendedLC = toExtendedLC' <=< desugarModule
 
 toExtendedLC' :: MonadLang m => Module -> m LamProg
 toExtendedLC' Module{..} =
-  fmap (toPrimTypes . removeTopLevelLambdas . LamProg) $ mapM toDef module'binds
+  fmap (toPrimTypes . removeTopLevelLambdas . LamProg) $ mapM (toDef (binds'types module'binds)) $ binds'decls module'binds
   where
-    toDef bind = do
-      body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
-      return $ Def
-        { def'name = decl'name bind
-        , def'args = []
-        , def'body = body
-        }
+    toDef types bind = case bind of
+      FunBind{..} -> do
+        body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr types bind
+        return $ Def
+          { def'name = bind'name
+          , def'args = []
+          , def'body = body
+          }
+      PatBind{..} -> unexpected "PatBind toExtendedLC"
 
     toPrimTypes = mapLamProgType (substCoreType $ userTypeCtx'core module'userTypes)
 
@@ -268,17 +270,17 @@ desugarSyntaxExpr ctx = removeRecords ctx <=< desugarLambdaCalculus
 
 substWildcards :: MonadLang m => Module -> m Module
 substWildcards m = do
-  binds <- mapM substDecl $ module'binds m
-  return $ m { module'binds = binds }
+  decls <- mapM substBind $ binds'decls $ module'binds m
+  return $ m { module'binds = (module'binds m) { binds'decls = decls } }
   where
-    substDecl b = do
-      alts <- mapM substAlt $ decl'alts b
-      return $ b { decl'alts = alts }
-
-    substBind b = do
-      pat  <- substPat $ bind'name b
-      alts <- mapM substAlt $ bind'alts b
-      return $ b { bind'name = pat, bind'alts = alts }
+    substBind b = case b of
+      FunBind{..} -> do
+        alts <- mapM substAlt bind'alts
+        return $ b { bind'alts = alts }
+      PatBind{..} -> do
+        pat <- substPat bind'pat
+        alt <- substAlt bind'alt
+        return $ b { bind'pat = pat, bind'alt = alt }
 
     substAlt a = do
       pats   <- mapM substPat $ alt'pats a
@@ -290,7 +292,7 @@ substWildcards m = do
         , alt'where = wheres
         }
 
-    substWheres = mapM substBind
+    substWheres = mapDeclsM substBind
 
     substExpr = foldFixM $ \case
       Lam loc pat e      -> fmap (\p -> Fix $ Lam loc p e) $ substPat pat

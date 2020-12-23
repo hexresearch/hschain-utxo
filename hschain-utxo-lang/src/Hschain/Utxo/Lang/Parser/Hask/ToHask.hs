@@ -102,7 +102,7 @@ toDecl bs = toBind =<< binds'decls bs
       FunBind{..} -> fromFunBind bind'name bind'alts
       PatBind{..} -> fromPatBind bind'pat  bind'alt
 
-    getType name = maybeToList $ fmap (toSig . HM.typeToSignature) $ M.lookup (varName'name name) $ binds'types bs
+    getType name = maybeToList $ fmap toSig $ M.lookup name $ binds'types bs
       where
         toSig ty = H.TypeSig tyLoc [(H.Ident tyLoc . T.unpack . varName'name) name] (toType ty)
           where
@@ -111,7 +111,7 @@ toDecl bs = toBind =<< binds'decls bs
     fromFunBind name alts = getType name <> funBinds
       where
         funBinds = fmap (toFunBind name) alts
-        toFunBind name alt = H.FunBind (HM.getLoc name) $ pure $ toMatch name alt
+        toFunBind var alt = H.FunBind (HM.getLoc var) $ pure $ toMatch var alt
 
     fromPatBind pat alt = (getType =<< patNames pat) <> [patBind]
       where

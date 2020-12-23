@@ -20,15 +20,15 @@ import Hschain.Utxo.Lang.Expr
 class (MonadFreshVar m, MonadError Error m) => MonadLang m where
 
 mapBinds :: (Lang -> Lang) -> Module -> Module
-mapBinds f m = m { module'binds = fmap (fmap f) $ module'binds m }
+mapBinds f m = m { module'binds = fmap f $ module'binds m }
 
 liftToModule :: MonadLang m => (Lang -> m Lang) -> Module -> m Module
 liftToModule f m = do
-  binds <- mapM (mapM f) $ module'binds m
+  binds <- mapM f $ module'binds m
   return $ m { module'binds = binds }
 
 liftToModuleWithCtx :: MonadLang m => (UserTypeCtx -> Lang -> m Lang) -> Module -> m Module
 liftToModuleWithCtx f m = do
-  binds <- mapM (mapM (f $ module'userTypes m)) $ module'binds m
+  binds <- mapM (f $ module'userTypes m) $ module'binds m
   return $ m { module'binds = binds }
 

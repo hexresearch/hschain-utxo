@@ -1,6 +1,8 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Hschain.Utxo.Lang.Parser.Hask.FromHask(
     fromHaskExp
   , fromHaskModule
+  , toDecl
 ) where
 
 
@@ -29,6 +31,13 @@ import qualified Type.Check.HM as HM
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Pretty as H
+
+instance Alternative ParseResult where
+  a <|> b = case a of
+    ParseOk _       -> a
+    ParseFailed _ _ -> b
+
+  empty = ParseFailed H.noLoc ""
 
 fromHaskExp :: H.Exp Loc -> ParseResult Lang
 fromHaskExp topExp = case topExp of
@@ -144,7 +153,8 @@ toUserTypes ds =
       DataDecl userType -> Just userType
       _                 -> Nothing
 
-fromDeclBinds = undefined
+fromDeclBinds :: H.Decl Loc -> H.Binds Loc -> ParseResult (Binds Lang)
+fromDeclBinds = fromLetBinds
 
 toDecl :: H.Decl Loc -> ParseResult Decl
 toDecl x = case x of
@@ -259,10 +269,10 @@ fromPat topPat = case topPat of
       | null ps   = return x
       | otherwise = parseFailedBy (mconcat ["Constant pattern ", T.unpack consName'name, " should have no arguments"]) topPat
 
-fromBgs :: Lang -> [LetBind Lang] -> Lang
+fromBgs :: Lang -> Binds Lang -> Lang
 fromBgs rhs bgs = Fix $ Let (HM.getLoc rhs) bgs rhs
 
-fromLetBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult [LetBind Lang]
+fromLetBinds :: (H.Annotated f, H.Pretty (f Loc)) => f Loc -> H.Binds Loc -> ParseResult (Binds Lang)
 fromLetBinds topExp = \case
   H.BDecls _ decls -> toBindGroup =<< mapM toDecl decls
   _                -> parseFailedBy "Failed to parse binding group for expression" topExp

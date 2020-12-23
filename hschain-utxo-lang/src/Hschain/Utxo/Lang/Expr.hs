@@ -12,7 +12,6 @@ import Control.Monad.State.Strict
 import Codec.Serialise
 
 import Data.Aeson
-import Data.Bifunctor
 import Data.ByteString (ByteString)
 import Data.Data
 import Data.Fix
@@ -416,9 +415,16 @@ data Guard a = Guard
   } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
 data Binds a = Binds
-  { binds'types :: Map Name Type
+  { binds'types :: Map VarName Signature
   , binds'decls :: [Bind a]
-  } deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
+  }
+  deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable, Generic)
+  deriving (Semigroup, Monoid) via GenericSemigroupMonoid (Binds a)
+
+mapDeclsM :: Monad m => (Bind a -> m (Bind b)) -> Binds a -> m (Binds b)
+mapDeclsM f bs = do
+  decls <- mapM f $ binds'decls bs
+  return $ bs { binds'decls = decls }
 
 -- | Bind of variable
 data Bind a
@@ -713,7 +719,7 @@ freeVars = foldFix $ \case
   Lam _ v a        -> a `Set.difference`  freeVarsPat v
   LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)
   Let _ bg a       -> let bgNames = getBindsNames bg
-                      in  (a <> freeVarsBinds bg) `Set.difference` bgNames
+                      in  (a `Set.difference` bgNames) <> freeVarsBinds bg
   PrimLet _ bg a   -> (a `Set.difference` getPrimBgNames bg) <> freeVarsPrimBg bg
   Ascr _ a _       -> a
   Cons _ _ vs      -> mconcat $ V.toList vs
@@ -737,11 +743,7 @@ freeVars = foldFix $ \case
     freeVarsPrimBg = foldMap snd
 
 freeVarsBinds :: Binds (Set VarName) -> Set VarName
-freeVarsBinds bg = (foldMap (foldMap localFreeVarsAlt . bind'alts) . binds'decls) bg `Set.difference` getBindsNames bg
-  where
-    localFreeVarsAlt Alt{..} =
-      (freeVarsRhs alt'expr `Set.difference` foldMap getBindsNames alt'where)
-      `Set.difference` (foldMap freeVarsPat alt'pats)
+freeVarsBinds bg = (foldMap (foldMap freeVarsAlt . bind'alts) . binds'decls) bg
 
 getBindsNames :: Binds a -> Set VarName
 getBindsNames = foldMap getNames . binds'decls
@@ -758,6 +760,11 @@ freeVarsRhs = \case
     freeVarsGuard Guard{..} = guard'predicate <> guard'rhs
 
 
+bindNames :: Bind a -> [VarName]
+bindNames = \case
+  FunBind{..} -> [bind'name]
+  PatBind{..} -> patNames bind'pat
+
 patNames :: Pat -> [VarName]
 patNames = Set.toList . freeVarsPat
 
@@ -769,9 +776,10 @@ freeVarsPat = \case
   PTuple _ vs -> foldMap freeVarsPat vs
   PWildCard _ -> Set.empty
 
-freeVarsAlt :: Alt Lang -> Set VarName
+freeVarsAlt :: Alt (Set VarName) -> Set VarName
 freeVarsAlt Alt{..} =
-  freeVarsRhs (fmap freeVars alt'expr) `Set.difference` foldMap freeVarsPat alt'pats
+  (freeVarsRhs alt'expr `Set.difference` foldMap getBindsNames alt'where)
+  `Set.difference` (foldMap freeVarsPat alt'pats)
 
 -------------------------------------------------------------------
 
@@ -783,8 +791,8 @@ sortBinds b = b { binds'decls = onDecls $ binds'decls b }
      onDecls = L.nub . (flattenSCC =<<) . stronglyConnComp . (toNode =<<)
 
      toNode s = case s of
-       FunBind{..} -> pure $ (s, bind'name, Set.toList $ foldMap freeVarsAlt bind'alts)
-       PatBind{..} -> fmap (\name -> (s, name, Set.toList $ freeVarsAlt bind'alt )) $ Set.toList $ freeVarsPat bind'pat
+       FunBind{..} -> pure $ (s, bind'name, Set.toList $ foldMap (freeVarsAlt . fmap freeVars) bind'alts)
+       PatBind{..} -> fmap (\name -> (s, name, Set.toList $ (freeVarsAlt . fmap freeVars) bind'alt )) $ Set.toList $ freeVarsPat bind'pat
 
 typeCoreToType :: (H.DefLoc loc, IsString v) => TypeCore -> H.Type loc v
 typeCoreToType = \case

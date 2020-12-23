@@ -15,7 +15,6 @@ module Hschain.Utxo.Lang.Desugar(
   , bindBodyToExpr
   , bindGroupToLet
   , simpleBind
-  , simpleDecl
   , desugarRecordUpdate
   , recordFieldUpdateFunName
   , module Hschain.Utxo.Lang.Desugar.FreshVar
@@ -25,6 +24,7 @@ module Hschain.Utxo.Lang.Desugar(
 
 
 import Data.Fix
+import Data.Map.Strict (Map)
 
 import Type.Check.HM (getLoc)
 
@@ -35,6 +35,7 @@ import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
 
 import qualified Data.List as L
+import qualified Data.Map.Strict as M
 
 desugar :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugar ctx expr = removeRecordCons ctx expr
@@ -49,14 +50,13 @@ varToPat :: VarName -> Pat
 varToPat v = PVar (getLoc v) v
 
 singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
-singleLet loc v body expr = Fix $ Let loc [simpleBind v body] expr
+singleLet loc v body expr = Fix $ Let loc (simpleBind v body) expr
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
 
 bindGroupToLet :: [Bind Lang] -> Lang -> Lang
-bindGroupToLet bgs expr = Fix $ Let noLoc bgs expr
-
+bindGroupToLet bgs expr = Fix $ Let noLoc (Binds mempty bgs) expr
 
 app1 :: Lang -> Lang -> Lang
 app1 f a = Fix (Apply (getLoc a) f a)
@@ -67,16 +67,15 @@ app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
 app3 :: Lang -> Lang -> Lang -> Lang -> Lang
 app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 
-bindBodyToExpr :: MonadLang m => Decl Lang -> m Lang
-bindBodyToExpr Decl{..} = fmap addSignatureCheck $ altGroupToExpr decl'alts
+bindBodyToExpr :: MonadLang m => Map VarName Signature -> Bind Lang -> m Lang
+bindBodyToExpr typeMap = \case
+  FunBind{..} -> fmap (addSignatureCheck bind'name) $ altGroupToExpr bind'alts
+  PatBind{..} -> unexpected "Pattern bind"
   where
-    addSignatureCheck = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) decl'type
+    addSignatureCheck var = maybe id (\ty x -> Fix $ Ascr (getLoc ty) x ty) $ M.lookup var typeMap
 
-simpleBind :: VarName -> Lang -> Bind Lang
-simpleBind v a = Bind (PVar (getLoc v) v) Nothing [Alt [] (UnguardedRhs a) Nothing]
-
-simpleDecl :: VarName -> Lang -> Decl Lang
-simpleDecl v a = Decl v Nothing [Alt [] (UnguardedRhs a) Nothing]
+simpleBind :: VarName -> Lang -> Binds Lang
+simpleBind v a = Binds mempty [FunBind v [Alt [] (UnguardedRhs a) Nothing]]
 
 -----------------------------------------------------------------
 
