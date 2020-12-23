@@ -129,6 +129,7 @@ defQuoteModule str = do
                 `extQ` antiQuoteVar
                 `extQ` (fromLift @ByteString)
                 `extQ` (fromLift @Text)
+                `extQ` (fromLift @PublicKey)
              ) expr
   return modExpr
   where
