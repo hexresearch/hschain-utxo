@@ -40,6 +40,7 @@ module Hschain.Utxo.Lang.Types
   , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL, txArg'dataInputsL
   , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
   , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
+  , boxInputRef'idL, boxInputRef'argsL, boxInputRef'proofL, boxInputRef'sigsL, boxInputRef'sigMaskL 
   , box'argsL, box'scriptL, box'valueL
   ) where
 
@@ -453,13 +454,8 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
 newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io Tx
-newProofTx proofEnv tx = liftIO $ do
-  inputs <- traverse (makeInput tx proofEnv) $ tx'inputs tx
-  return $ Tx
-    { tx'inputs  = inputs
-    , tx'outputs = tx'outputs tx
-    , tx'dataInputs = tx'dataInputs tx
-    }
+newProofTx proofEnv tx
+  = liftIO $ traverseOf (tx'inputsL . each) (makeInput tx proofEnv) tx
 
 -- | If we now the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -468,13 +464,9 @@ newProofTx proofEnv tx = liftIO $ do
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
 newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io (Either Text Tx)
-newProofTxOrFail proofEnv tx = liftIO $ runExceptT $ do
-  inputs <- traverse (makeInputOrFail tx proofEnv) $ tx'inputs tx
-  return $ Tx
-    { tx'inputs  = inputs
-    , tx'outputs = tx'outputs tx
-    , tx'dataInputs = tx'dataInputs tx
-    }
+newProofTxOrFail proofEnv tx
+  = liftIO $ runExceptT $ traverseOf (tx'inputsL . each) (makeInputOrFail tx proofEnv) tx
+
 
 --------------------------------------------
 -- box ids validation
@@ -542,3 +534,4 @@ instance CryptoHashable Args where
 $(makeLensesWithL ''TxArg)
 $(makeLensesWithL ''BoxInput)
 $(makeLensesWithL ''Box)
+$(makeLensesWithL ''BoxInputRef)
