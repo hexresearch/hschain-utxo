@@ -69,7 +69,9 @@ import Control.Monad.Fail (MonadFail)
 #endif
 
 import qualified Language.Haskell.TH as TH
+import qualified Language.Haskell.TH.Syntax as TH
 import Language.Haskell.TH.Quote
+import Instances.TH.Lift ()
 
 import Data.Fix
 
@@ -93,7 +95,6 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Language.Haskell.Exts.SrcLoc as P
 import qualified Type.Check.HM as H
-import qualified Data.ByteString.Char8 as C
 
 -- | Creates values of type Script from quasi-quoted code
 utxo :: QuasiQuoter
@@ -126,8 +127,8 @@ defQuoteModule str = do
   expr <- parseScript pos str
   modExpr <- dataToExpQ ( const Nothing
                 `extQ` antiQuoteVar
-                `extQ` (Just . fromBS)
-                `extQ` (Just . fromText)
+                `extQ` (fromLift @ByteString)
+                `extQ` (fromLift @Text)
              ) expr
   return modExpr
   where
@@ -162,11 +163,8 @@ checkError pos = either (failBy . shiftError pos) pure
 failBy :: MonadFail m => Error -> m a
 failBy err = fail $ T.unpack $ renderText err
 
-fromBS :: ByteString -> TH.ExpQ
-fromBS x = TH.litE $ TH.StringL $ C.unpack x
-
-fromText :: Text -> TH.ExpQ
-fromText txt = TH.litE $ TH.StringL $ T.unpack txt
+fromLift :: TH.Lift a => a -> Maybe TH.ExpQ
+fromLift x = Just [| x |]
 
 antiQuoteVar :: E Lang -> Maybe TH.ExpQ
 antiQuoteVar = \case
