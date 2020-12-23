@@ -3,7 +3,6 @@ module TM.Core.Box(
     tests
 ) where
 
-import Data.Default
 import Data.Int
 
 import Data.Text (Text)
@@ -33,9 +32,6 @@ txEnv = InputEnv
   , inputEnv'inputs     = [in1, in2]
   , inputEnv'outputs    = [out1]
   , inputEnv'dataInputs = [din1, din2]
-  , inputEnv'args       = toArgs (([1,2,3], ["alice", "bob"], [True, False]) :: ([Int64], [Text], [Bool]))
-  , inputEnv'sigs       = []
-  , inputEnv'sigMsg     = def
   }
   where
     in1 = mkBoxInput (BoxId $ Hash "box-1") Box
@@ -44,11 +40,12 @@ txEnv = InputEnv
       , box'args   = toArgs ([4,5] :: [Int64])
       }
 
-    in2 = mkBoxInput (BoxId $ Hash "box-2") Box
+    in2 = (mkBoxInput (BoxId $ Hash "box-2") Box
       { box'value  = 2
       , box'script = Script "in2"
       , box'args   = toArgs (([6,7], ["john", "neil"]) :: ([Int64], [Text]))
-      }
+      })
+      { boxInput'args = toArgs (([1,2,3], ["alice", "bob"], [True, False]) :: ([Int64], [Text], [Bool])) }
 
     out1 = mkBoxOutput blockChainHeight  (BoxId $ Hash "box-3") Box
       { box'value  = 3

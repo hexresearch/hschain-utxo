@@ -384,9 +384,6 @@ data InputEnv = InputEnv
   , inputEnv'inputs     :: !(Vector BoxInput)
   , inputEnv'outputs    :: !(Vector BoxOutput)
   , inputEnv'dataInputs :: !(Vector BoxOutput)
-  , inputEnv'args       :: !Args
-  , inputEnv'sigs       :: !(Vector Signature)
-  , inputEnv'sigMsg     :: !SigMessage
   }
   deriving (Show, Eq)
 
@@ -397,9 +394,6 @@ getInputEnv TxArg{..} input = InputEnv
   , inputEnv'inputs     = txArg'inputs
   , inputEnv'outputs    = txArg'outputs
   , inputEnv'dataInputs = txArg'dataInputs
-  , inputEnv'args       = boxInput'args input
-  , inputEnv'sigs       = boxInput'sigs input
-  , inputEnv'sigMsg     = boxInput'sigMsg input
   }
 
 txPreservesValue :: TxArg -> Bool
