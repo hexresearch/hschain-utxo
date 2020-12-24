@@ -13,8 +13,10 @@ module Hschain.Utxo.Lang.Core.Types (
   ) where
 
 import Codec.Serialise
+import Control.Applicative
 import Control.DeepSeq
 
+import Data.Aeson
 import Data.Data
 import Data.Int
 import Data.ByteString (ByteString)
@@ -24,6 +26,7 @@ import GHC.Generics (Generic)
 
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
+import HSChain.Crypto.Classes (ViaBase58(..))
 
 
 -- | Errors for core language type-checker.
@@ -115,5 +118,20 @@ instance Pretty TypeCore where
         where
           withParens = if needParens then parens else id
 
+instance ToJSON Prim where
+  toJSON x = object $ pure $ case x of
+    PrimInt   n   -> "int"    .= n
+    PrimText  txt -> "text"   .= txt
+    PrimBool  b   -> "bool"   .= b
+    PrimSigma s   -> "sigma"  .= toJSON s
+    PrimBytes s   -> "bytes"  .= toJSON (ViaBase58 s)
 
-
+-- todo: rewrite this instance
+-- to distinguish between numeric types of int, double and money
+instance FromJSON Prim where
+  parseJSON = withObject "prim" $ \v ->
+        fmap PrimInt  (v .: "int")
+    <|> fmap PrimText (v .: "text")
+    <|> fmap (\(ViaBase58 s :: ViaBase58 "Prim" ByteString) -> PrimBytes s) (v .: "bytes")
+    <|> fmap PrimBool   (v .: "bool")
+    <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))
