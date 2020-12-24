@@ -26,6 +26,7 @@ import Hschain.Utxo.Lang.Desugar.Records
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimCon(..))
 import Hschain.Utxo.Lang.Core.Types (Name)
 import Hschain.Utxo.Lang.Sigma (mapPkM)
+import Hschain.Utxo.Lang.Exec.Module (fixTopLevelPatBinds)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -264,6 +265,7 @@ desugarModule =
   <=< liftToModuleWithCtx desugarSyntaxExpr
   <=< altGroupToTupleModule
   <=< substWildcards
+  <=< liftEither . fixTopLevelPatBinds
 
 desugarSyntaxExpr :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugarSyntaxExpr ctx = removeRecords ctx <=< desugarLambdaCalculus

@@ -743,7 +743,7 @@ freeVars = foldFix $ \case
     freeVarsPrimBg = foldMap snd
 
 freeVarsBinds :: Binds (Set VarName) -> Set VarName
-freeVarsBinds bg = (foldMap (foldMap freeVarsAlt . bind'alts) . binds'decls) bg
+freeVarsBinds bg = (foldMap (foldMap freeVarsAlt . bindAlts) . binds'decls) bg
 
 getBindsNames :: Binds a -> Set VarName
 getBindsNames = foldMap getNames . binds'decls
@@ -759,11 +759,15 @@ freeVarsRhs = \case
   where
     freeVarsGuard Guard{..} = guard'predicate <> guard'rhs
 
-
 bindNames :: Bind a -> [VarName]
 bindNames = \case
   FunBind{..} -> [bind'name]
   PatBind{..} -> patNames bind'pat
+
+bindAlts :: Bind a -> [Alt a]
+bindAlts = \case
+  FunBind{..} -> bind'alts
+  PatBind{..} -> [bind'alt]
 
 patNames :: Pat -> [VarName]
 patNames = Set.toList . freeVarsPat
@@ -778,7 +782,8 @@ freeVarsPat = \case
 
 freeVarsAlt :: Alt (Set VarName) -> Set VarName
 freeVarsAlt Alt{..} =
-  (freeVarsRhs alt'expr `Set.difference` foldMap getBindsNames alt'where)
+  ((freeVarsRhs alt'expr <> foldMap freeVarsBinds alt'where)
+  `Set.difference` foldMap getBindsNames alt'where)
   `Set.difference` (foldMap freeVarsPat alt'pats)
 
 -------------------------------------------------------------------

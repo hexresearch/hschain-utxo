@@ -125,9 +125,6 @@ fromHaskExp topExp = case topExp of
           H.UnGuardedRhs _ expr -> fromHaskExp expr
           H.GuardedRhss _ _ -> guardsNotSupported
 
-
-
-
 fromHaskModule :: H.Module Loc -> ParseResult Module
 fromHaskModule = \case
   H.Module loc Nothing [] [] decls -> fromDecls loc decls
@@ -171,7 +168,6 @@ toDecl x = case x of
     fromPatBind m loc pat rhs mBinds = liftA2 (PatDecl loc)
         (fromPat pat)
         (liftA2 (toAlt []) (fromRhs rhs) (mapM (fromDeclBinds m) mBinds))
-
 
     fromMatch = \case
       m@(H.Match _ name pats rhs mBinds) -> fmap ((toName name, ) . pure) (liftA3 toAlt (mapM fromPat pats) (fromRhs rhs) (mapM (fromLetBinds m) mBinds))

@@ -6,6 +6,7 @@ module TM.Lang.Scripts(
   , mkAtomicSwap2
   , mkFullGame
   , mkHalfGame
+  , patBindScript
 ) where
 
 import Data.ByteString (ByteString)
@@ -20,12 +21,13 @@ import qualified Data.Text as T
 
 tests :: TestTree
 tests = testGroup "High level lang"
-  [ testScript "Single owner script"  singleOwnerScript
-  , testScript "Pay for cofee script" mkCoffeeScript
-  , testScript "Atomic swap 1"        mkAtomicSwap1
-  , testScript "Atomic swap 2"        mkAtomicSwap2
-  , testScript "XOR half-game script" mkHalfGame
-  , testScript "XOR full-game script" mkFullGame
+  [ testScript "Single owner script"    singleOwnerScript
+  , testScript "Pay for cofee script"   mkCoffeeScript
+  , testScript "Atomic swap 1"          mkAtomicSwap1
+  , testScript "Atomic swap 2"          mkAtomicSwap2
+  , testScript "XOR half-game script"   mkHalfGame
+  , testScript "XOR full-game script"   mkFullGame
+  , testScript "All sorts of pat-binds" (pure patBindScript)
   ]
 
 testScript :: String -> IO Module -> TestTree
@@ -147,5 +149,21 @@ main =  (pk bob &&* (getHeight >* bobDeadline))
 |]
 
 
+-- | Inludes all sorts of pattern binds.
+patBindScript :: Module
+patBindScript = [utxoModule|
 
+data User = User Text Int
+
+(bs, pair) = getArgs
+john = User "john" 10
+User name _ = john
+
+main =
+  let (a, b) = pair
+  in  appendBytes (appendBytes (sha256 bs) (serialise (a + b + c + age  + lengthText name))) d
+  where
+    (c, d) = getBoxArgs getSelf
+    (User _ age) = john
+|]
 

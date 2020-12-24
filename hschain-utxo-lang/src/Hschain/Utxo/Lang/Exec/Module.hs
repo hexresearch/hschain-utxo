@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Exec.Module(
   , checkMainModule
   , appendExecCtx
   , trimModuleByMain
+  , fixTopLevelPatBinds
 ) where
 
 import Hex.Common.Text
@@ -49,16 +50,17 @@ fixTopLevelPatBinds m
 
     fixDecls Binds{..} =
       case L.partition isMain binds'decls of
-        ([mainBind], rest) -> Right $ Binds mempty [addRest (Binds restTypes rest) $ mainBind]
+        ([mainBind], rest) -> Right $ Binds mainTypes [addRest (Binds restTypes rest) $ mainBind]
         _                  -> Left $ PatError MissingMain
       where
         restTypes = M.delete "main" binds'types
+        mainTypes = M.intersection binds'types (M.singleton "main" ())
 
         addRest rest b = case b of
           FunBind{..} -> b { bind'alts = fmap (addToAlt rest) bind'alts }
           PatBind{..} -> b { bind'alt  = addToAlt rest bind'alt }
 
-        addToAlt rest a = a { alt'where = alt'where a <> Just rest }
+        addToAlt rest a = a { alt'where = Just rest <> alt'where a }
 
     isMain = \case
       FunBind{..} -> bind'name == "main"
@@ -258,11 +260,6 @@ trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $
 
     getFreeVars :: Bind Lang -> Seq.Seq VarName
     getFreeVars = Seq.fromList . S.toList . foldMap (freeVarsAlt . fmap freeVars) . bindAlts
-      where
-        bindAlts = \case
-          FunBind{..} -> bind'alts
-          PatBind{..} -> [bind'alt]
-
 
     baseNamesSet = S.fromList $ constrNames <> recordFieldNames <> baseNames
     isPreludeFun v = S.member (varName'name v) baseNamesSet
