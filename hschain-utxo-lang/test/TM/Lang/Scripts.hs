@@ -6,6 +6,7 @@ module TM.Lang.Scripts(
   , mkAtomicSwap2
   , mkFullGame
   , mkHalfGame
+  , patBindScript
 ) where
 
 import Data.ByteString (ByteString)
@@ -20,12 +21,13 @@ import qualified Data.Text as T
 
 tests :: TestTree
 tests = testGroup "High level lang"
-  [ testScript "Single owner script"  singleOwnerScript
-  , testScript "Pay for cofee script" mkCoffeeScript
-  , testScript "Atomic swap 1"        mkAtomicSwap1
-  , testScript "Atomic swap 2"        mkAtomicSwap2
-  , testScript "XOR half-game script" mkHalfGame
-  , testScript "XOR full-game script" mkFullGame
+  [ testScript "Single owner script"    singleOwnerScript
+  , testScript "Pay for cofee script"   mkCoffeeScript
+  , testScript "Atomic swap 1"          mkAtomicSwap1
+  , testScript "Atomic swap 2"          mkAtomicSwap2
+  , testScript "XOR half-game script"   mkHalfGame
+  , testScript "XOR full-game script"   mkFullGame
+  , testScript "All sorts of pat-binds" (pure patBindScript)
   ]
 
 testScript :: String -> IO Module -> TestTree
@@ -120,8 +122,7 @@ halfGameScript fullGameScriptHash = [utxoModule|
 
 validBobInput b = (b == 0) || (b == 1)
 
-main = case (getBoxArgs out) of
-  (bobGuess, bobDeadline) -> andSigma
+main = andSigma
       [ toSigma (validBobInput bobGuess)
       , sha256 (getBoxScript out) ==* $(fullGameScriptHash)
       , (length getOutputs ==* 1) ||* (length getOutputs ==* 2)
@@ -129,15 +130,17 @@ main = case (getBoxArgs out) of
       , getBoxValue out >=* (2 * getBoxValue getSelf) ]
   where
     out = getOutput 0
+    (bobGuess, bobDeadline) = getBoxArgs out
 |]
 
 
 fullGameScript :: ByteString -> PublicKey -> Module
 fullGameScript commitmentHash alice = [utxoModule|
 
-main = case (getArgs, getBoxArgs getSelf) of
-  ((s, a), (b, bobDeadline, bob)) ->
-        (pk bob &&* (getHeight >* bobDeadline))
+(s, a) = getArgs
+(b, bobDeadline, bob) = getBoxArgs getSelf
+
+main =  (pk bob &&* (getHeight >* bobDeadline))
     ||* (   (sha256 (appendBytes s (serialise (a :: Int))) ==* $(commitmentHash))
         &&* (   (pk $(alice) &&* (a ==* b))
             ||* (pk bob      &&* (a /=* b))
@@ -146,5 +149,21 @@ main = case (getArgs, getBoxArgs getSelf) of
 |]
 
 
+-- | Inludes all sorts of pattern binds.
+patBindScript :: Module
+patBindScript = [utxoModule|
 
+data User = User Text Int
+
+(bs, pair) = getArgs
+john = User "john" 10
+User name _ = john
+
+main =
+  let (a, b) = pair
+  in  appendBytes (appendBytes (sha256 bs) (serialise (a + b + c + age  + lengthText name))) d
+  where
+    (c, d) = getBoxArgs getSelf
+    (User _ age) = john
+|]
 

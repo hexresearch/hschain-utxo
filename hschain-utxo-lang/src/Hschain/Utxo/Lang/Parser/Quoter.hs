@@ -219,9 +219,7 @@ quoteToHaskType = \case
 substAntiQuoteModule :: Module -> (Module, TypeContext)
 substAntiQuoteModule m@Module{..} = (m { module'binds = bs }, ctx)
   where
-    (bs, ctx) = runWriter $ mapM substBind module'binds
-
-    substBind b = mapM substAntiQuoteLang b
+    (bs, ctx) = runWriter $ mapDeclsM (mapM substAntiQuoteLang) module'binds
 
 shiftError :: (String, Int, Int) -> Error -> Error
 shiftError pos = everywhere (mkT (shiftLoc pos))

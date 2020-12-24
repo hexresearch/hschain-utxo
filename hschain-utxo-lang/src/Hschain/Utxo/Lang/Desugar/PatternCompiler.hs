@@ -1,5 +1,5 @@
 -- | Module defines functions to convert patterns in arguments of functions
--- to case expressions.
+-- to case expressions and simplify patterns (make them flat).
 module Hschain.Utxo.Lang.Desugar.PatternCompiler(
     PatError
   , altGroupToExpr
@@ -33,12 +33,13 @@ import qualified Type.Check.HM as H
 
 altGroupToTupleModule :: MonadLang m => Module -> m Module
 altGroupToTupleModule m@Module{..} = do
-  binds <- mapM procBind module'binds
-  return $ m { module'binds = binds }
+  binds <- mapM procBind $ binds'decls $ module'binds
+  return $ m { module'binds = module'binds { binds'decls = binds } }
   where
-    procBind b@Bind{..} = do
+    procBind b@FunBind{..} = do
       expr <- altGroupToTupleExpr bind'alts
       return $ b { bind'alts = [Alt [] (UnguardedRhs expr) Nothing] }
+    procBind PatBind{..} = unexpected "Pattern bind in the pattern compiler"
 
 altGroupToTupleExpr :: MonadLang m => [Alt Lang] -> m Lang
 altGroupToTupleExpr xs = case xs of
@@ -62,7 +63,7 @@ altGroupToTupleExpr xs = case xs of
     toTupleArg vs = Fix $ Tuple (H.getLoc $ head vs) $ fmap toVarArg $ V.fromList vs
     toVarArg v = Fix $ Var (H.getLoc v) v
 
-    whereExprs = concat $ mapMaybe alt'where xs
+    whereExprs = mconcat $ mapMaybe alt'where xs
 
     extractAlts alts
       | sameArgLength  = mapM toCaseExpr alts
@@ -90,7 +91,7 @@ altGroupToExpr xs = do
     Left expr -> return expr
     Right pat -> (fmap removeEmptyCases . toCaseLam whereExprs <=< substWildCards) pat
   where
-    whereExprs = concat $ mapMaybe alt'where xs
+    whereExprs = mconcat $ mapMaybe alt'where xs
 
 toPatternInput :: MonadLang m => [Alt Lang] -> m (Either Lang Pattern)
 toPatternInput alts = case getSimpleBind alts of
@@ -143,19 +144,19 @@ data PatCase = PatCase
   , patCase'rhs :: Lang
   }
 
-toCaseLam :: forall m . MonadLang m => [Bind Lang] -> Pattern -> m Lang
+toCaseLam :: forall m . MonadLang m => Binds Lang -> Pattern -> m Lang
 toCaseLam whereExprs p = case args of
   [] -> fmap (addWhere whereExprs) $ toCaseBody p
   _  -> fmap ((\body -> Fix $ LamList noLoc args body) . addWhere whereExprs) $ toCaseBody p
   where
     args = fmap (\x -> PVar (getLoc x) x) $ V.toList $ pattern'args p
 
-addWhere :: [Bind Lang] -> Lang -> Lang
-addWhere whereExprs = case whereExprs of
+addWhere :: Binds Lang -> Lang -> Lang
+addWhere whereExprs = case binds'decls whereExprs of
   [] -> id
   _  -> Fix . Let noLoc whereExprs
 
-addSingleWhere :: Maybe [Bind Lang] -> Lang -> Lang
+addSingleWhere :: Maybe (Binds Lang) -> Lang -> Lang
 addSingleWhere mWhere = maybe id (\x -> Fix . Let noLoc x) mWhere
 
 

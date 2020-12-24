@@ -8,6 +8,7 @@ module Hschain.Utxo.Lang.Compile(
   , inlineModule
   , inferModule
   , inlinePrelude
+  , specifyModule
 ) where
 
 import Control.Monad
@@ -78,6 +79,10 @@ inlineExecCtx (ExecCtx funs) = mapBinds (simplifyLamApp . inlineLang)
       Var _ v              | Just expr <- Map.lookup v funs -> inlineLang expr
       InfixApply loc a v b | Just expr <- Map.lookup v funs -> Fix $ Apply loc (Fix $ Apply loc (inlineLang expr) a) b
       other                                  -> Fix other
+
+-- | Function for debug. It compiles module up to inlining of polymorphic functions.
+specifyModule :: Module -> TypedLamProg
+specifyModule m = either (error . T.unpack . renderText) id $ runInferM $ (specifyOps <=< inlinePolys <=< annotateTypes <=< toExtendedLC <=< pure . inlinePrelude) m
 
 -- | Function for debug. It compiles module up to inlining of polymorphic functions.
 inlineModule :: Module -> TypedLamProg

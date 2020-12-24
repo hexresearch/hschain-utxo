@@ -8,7 +8,6 @@ module TM.Core.Common
   , mkBoxOutput
   ) where
 
-import Data.Default
 import Data.Int
 
 import Test.Tasty

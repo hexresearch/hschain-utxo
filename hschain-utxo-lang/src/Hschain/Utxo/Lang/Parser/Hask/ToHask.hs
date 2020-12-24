@@ -6,10 +6,12 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
 ) where
 
 import Data.Fix
+import Data.Maybe
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Sigma
 
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
@@ -92,27 +94,37 @@ toLiteral loc = \case
 toHaskModule :: Module -> H.Module Loc
 toHaskModule (Module loc _ bs) = H.Module loc Nothing [] [] (toDecl bs)
 
-toDecl :: [Bind Lang] -> [H.Decl Loc]
-toDecl bs = toBind =<< bs
+toDecl :: Binds Lang -> [H.Decl Loc]
+toDecl bs = toBind =<< binds'decls bs
   where
-    toBind Bind{..} = case bind'type of
-      Nothing -> fmap (\alt -> H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name alt) bind'alts
-      Just ty ->
-        let signature = H.TypeSig tyLoc [H.Ident tyLoc (T.unpack $ varName'name bind'name)] (toType ty)
-            funBinds = fmap (\alt -> H.FunBind (HM.getLoc bind'name) $ pure $ toMatch bind'name alt) bind'alts
+    toBind = \case
+      FunBind{..} -> fromFunBind bind'name bind'alts
+      PatBind{..} -> fromPatBind bind'pat  bind'alt
 
-            tyLoc :: Loc
+    getType name = maybeToList $ fmap toSig $ M.lookup name $ binds'types bs
+      where
+        toSig ty = H.TypeSig tyLoc [(H.Ident tyLoc . T.unpack . varName'name) name] (toType ty)
+          where
             tyLoc = HM.getLoc ty
-        in  signature : funBinds
+
+    fromFunBind name alts = getType name <> funBinds
+      where
+        funBinds = fmap (toFunBind name) alts
+        toFunBind var alt = H.FunBind (HM.getLoc var) $ pure $ toMatch var alt
+
+    fromPatBind pat alt = (getType =<< patNames pat) <> [patBind]
+      where
+        patBind = H.PatBind (HM.getLoc pat) (toPat pat) (toRhs alt) (toWhere (HM.getLoc pat) alt)
 
     toLetBinds loc bg = H.BDecls loc $ toDecl bg
 
     toMatch :: VarName -> Alt Lang -> H.Match Loc
-    toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) (fmap (toLetBinds (HM.getLoc name)) $ alt'where alt)
+    toMatch name alt = H.Match (HM.getLoc name) (toIdentName name) (toPats alt) (toRhs alt) (toWhere (HM.getLoc name) alt)
+
+    toWhere loc alt = fmap (toLetBinds loc) $ alt'where alt
 
     toPats :: Alt a -> [H.Pat Loc]
     toPats = fmap toPat . alt'pats
-
 
     toRhs :: Alt Lang -> H.Rhs Loc
     toRhs Alt{..} = case alt'expr of

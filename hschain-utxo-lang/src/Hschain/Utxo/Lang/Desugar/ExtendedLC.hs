@@ -23,6 +23,7 @@ import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimCon(..))
 import Hschain.Utxo.Lang.Core.Types (Name)
+import Hschain.Utxo.Lang.Exec.Module (fixTopLevelPatBinds)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
@@ -41,15 +42,17 @@ toExtendedLC = toExtendedLC' <=< desugarModule
 
 toExtendedLC' :: MonadLang m => Module -> m LamProg
 toExtendedLC' Module{..} =
-  fmap (toPrimTypes . removeTopLevelLambdas . LamProg) $ mapM toDef module'binds
+  fmap (toPrimTypes . removeTopLevelLambdas . LamProg) $ mapM (toDef (binds'types module'binds)) $ binds'decls module'binds
   where
-    toDef bind = do
-      body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr bind
-      return $ Def
-        { def'name = bind'name bind
-        , def'args = []
-        , def'body = body
-        }
+    toDef types bind = case bind of
+      FunBind{..} -> do
+        body <- exprToExtendedLC module'userTypes =<< bindBodyToExpr types bind
+        return $ Def
+          { def'name = bind'name
+          , def'args = []
+          , def'body = body
+          }
+      PatBind{..} -> unexpected "PatBind toExtendedLC"
 
     toPrimTypes = mapLamProgType (substCoreType $ userTypeCtx'core module'userTypes)
 
@@ -257,18 +260,24 @@ desugarModule =
   <=< liftToModuleWithCtx desugarSyntaxExpr
   <=< altGroupToTupleModule
   <=< substWildcards
+  <=< liftEither . fixTopLevelPatBinds
 
 desugarSyntaxExpr :: MonadLang m => UserTypeCtx -> Lang -> m Lang
 desugarSyntaxExpr ctx = removeRecords ctx <=< desugarLambdaCalculus
 
 substWildcards :: MonadLang m => Module -> m Module
 substWildcards m = do
-  binds <- mapM substBind $ module'binds m
-  return $ m { module'binds = binds }
+  decls <- mapM substBind $ binds'decls $ module'binds m
+  return $ m { module'binds = (module'binds m) { binds'decls = decls } }
   where
-    substBind b = do
-      alts <- mapM substAlt $ bind'alts b
-      return $ b { bind'alts = alts }
+    substBind b = case b of
+      FunBind{..} -> do
+        alts <- mapM substAlt bind'alts
+        return $ b { bind'alts = alts }
+      PatBind{..} -> do
+        pat <- substPat bind'pat
+        alt <- substAlt bind'alt
+        return $ b { bind'pat = pat, bind'alt = alt }
 
     substAlt a = do
       pats   <- mapM substPat $ alt'pats a
@@ -280,7 +289,7 @@ substWildcards m = do
         , alt'where = wheres
         }
 
-    substWheres = mapM substBind
+    substWheres = mapDeclsM substBind
 
     substExpr = foldFixM $ \case
       Lam loc pat e      -> fmap (\p -> Fix $ Lam loc p e) $ substPat pat

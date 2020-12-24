@@ -15,11 +15,13 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 
 import qualified Type.Check.HM as H
+import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
 
 -- | Single function that brings together several lambda-calculus transformations.
 --
+-- * Substitutes let-binds with patterns to case expressions
 -- * Joins arguments of lambda abstractions
 -- * Joins Let-bindings to single one
 -- * Transforms infix applications to prefix ones
@@ -52,7 +54,7 @@ joinLamArgs = foldFix $ \case
 -- > let x = expr1 in let y = expr2 in f x y  ===> let { x = expr1; y = expr2 } in f x y
 joinLetBinds :: Lang -> Lang
 joinLetBinds = foldFix $ \case
-  Let loc bg1 (Fix (Let _ bg2 body)) -> Fix $ Let loc (bg1 ++ bg2) body
+  Let loc bg1 (Fix (Let _ bg2 body)) -> Fix $ Let loc (bg1 <> bg2) body
   other                              -> Fix other
 
 -- | substitutes infix application for regular prefix one.
@@ -64,16 +66,32 @@ removeInfixApply = foldFix $ \case
   other                  -> Fix other
 
 -- | converts let-bindings to simple bindings like
+-- also removes pattern-binds
 --
 -- > name = expr
 simplifyLet :: MonadLang m => Lang -> m Lang
 simplifyLet = foldFixM $ \case
   Let loc binds body -> do
-    binds' <- mapM simplify (sortBindGroups binds)
-    return $ Fix $ PrimLet loc binds' body
+    let (Binds types decls) = sortBinds binds
+    go types loc body [] decls
   other             -> pure $ Fix other
   where
-    simplify Bind{..} = fmap (bind'name, ) $ altGroupToTupleExpr bind'alts
+    go types loc body prevBinds xs = case xs of
+      []   -> case prevBinds of
+                [] -> pure body
+                _  -> pure $ toPrimLet body
+      b:bs -> case b of
+        FunBind{..} -> do
+          simpleBind <- fmap ((bind'name, ) . restrictType bind'name) $ altGroupToTupleExpr bind'alts
+          go types loc body (simpleBind : prevBinds) bs
+        PatBind{..} -> do
+                  body1 <- go types loc body [] bs
+                  rhs <- altGroupToTupleExpr [bind'alt]
+                  return $ toPrimLet $ Fix $ CaseOf loc rhs [CaseExpr bind'pat body1]
+      where
+        restrictType name expr = maybe expr (\ty -> Fix $ Ascr (H.getLoc name) expr ty) $ M.lookup name types
+
+        toPrimLet e = Fix $ PrimLet loc (reverse prevBinds) e
 
 -- | Substitutes pattersn in lambda arguments for case+let
 -- do this step after elimination of single Lams so

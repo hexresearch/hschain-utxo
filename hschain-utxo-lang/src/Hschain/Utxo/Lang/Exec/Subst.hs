@@ -27,7 +27,7 @@ subst (Fix body) varName sub = case body of
   InfixApply loc a v b     | otherwise     -> Fix $ InfixApply loc (rec a) v (rec b)
   Lam loc pat body1                        -> Fix $ Lam loc pat $ recBy (freeVarsPat pat) body1
   If loc cond t e                          -> Fix $ If loc (rec cond) (rec t) (rec e)
-  Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (bindVars bg) e)
+  Let loc bg e                             -> Fix $ Let loc (substBindGroup bg) (recBy (getBindsNames bg) e)
   PrimLet loc bg e                         -> Fix $ PrimLet loc (substPrimBindGeoup bg) (recBy (primBindVars bg) e)
   Tuple loc as                             -> Fix $ Tuple loc $ fmap rec as
   List loc as                              -> Fix $ List loc $ fmap rec as
@@ -49,13 +49,19 @@ subst (Fix body) varName sub = case body of
       | S.member varName vars = x
       | otherwise             = subst x varName sub
 
-    substBindGroup = fmap substBind
+    substBindGroup bs = bs { binds'decls = fmap substBind $ binds'decls bs }
 
     substPrimBindGeoup = fmap (second rec)
 
-    substBind x@Bind{..}
-      | varName == bind'name = x
-      | otherwise            = x { bind'alts = fmap substAlt bind'alts }
+    substBind x = case x of
+      FunBind{..} | isBoundName bind'name -> x
+      FunBind{..}                         -> x { bind'alts = fmap substAlt bind'alts }
+      PatBind{..} | isBoundPat  bind'pat  -> x
+      PatBind{..}                         -> x { bind'alt = substAlt bind'alt }
+      where
+        isBoundName name = varName == name
+        isBoundPat pat = S.member varName (freeVarsPat pat)
+
 
     substAlt x@Alt{..}
       | isBinded varName alt'pats = x
@@ -64,8 +70,6 @@ subst (Fix body) varName sub = case body of
 
       where
         isBinded v ps = v `elem` (foldMap freeVarsPat ps)
-
-    bindVars = S.fromList . fmap bind'name
 
     primBindVars = S.fromList . fmap fst
 
