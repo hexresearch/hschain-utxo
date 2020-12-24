@@ -86,23 +86,23 @@ testMsg = SigMessage $ fromJust $ decodeFromBS "Simple TX to sign"
 inputEnv :: [Secret] -> SigMessage -> IO InputEnv
 inputEnv keys msg = do
   sigs <- mapM (\k -> sign k msg) keys
+  let in1 = in0 { boxInput'sigs    = V.fromList sigs
+                , boxInput'sigMask = SigAll
+                , boxInput'sigMsg  = msg
+                }
   return $ InputEnv
     { inputEnv'height     = 10
     , inputEnv'self       = in1
     , inputEnv'inputs     = [in1]
     , inputEnv'outputs    = [out1]
     , inputEnv'dataInputs = []
-    , inputEnv'args       = mempty
-    , inputEnv'sigs       = V.fromList sigs
-    , inputEnv'sigMsg     = msg
     }
   where
-    in1 = mkBoxInput (BoxId $ Hash "box-1") Box
+    in0 = mkBoxInput (BoxId $ Hash "box-1") Box
       { box'value  = 1
       , box'script = Script "in1"
       , box'args   = mempty
       }
-
     out1 = mkBoxOutput 10 (BoxId $ Hash "box-3") Box
       { box'value  = 3
       , box'script = Script "out1"

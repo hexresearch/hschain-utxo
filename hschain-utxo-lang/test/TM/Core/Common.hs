@@ -33,9 +33,6 @@ env = InputEnv
   , inputEnv'inputs     = mempty
   , inputEnv'outputs    = mempty
   , inputEnv'dataInputs = mempty
-  , inputEnv'args       = mempty
-  , inputEnv'sigs       = mempty
-  , inputEnv'sigMsg     = def
   }
 
 mkBoxInput :: BoxId -> Box -> BoxInput

@@ -12,7 +12,6 @@ module Hschain.Utxo.Repl.Eval(
 import Control.Monad.Except
 import Control.Monad.State.Strict
 
-import Data.Default
 import Data.Maybe
 
 import HSChain.Crypto (hashBlob)
@@ -98,9 +97,6 @@ defaultInputEnv = InputEnv
   , inputEnv'inputs     = mempty
   , inputEnv'outputs    = mempty
   , inputEnv'dataInputs = mempty
-  , inputEnv'sigs       = mempty
-  , inputEnv'args       = mempty
-  , inputEnv'sigMsg     = def
   }
   where
     defHeight = 0
