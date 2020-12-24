@@ -62,7 +62,7 @@ data Prim
   | PrimBytes !ByteString
   | PrimBool  !Bool
   | PrimSigma !(Sigma PublicKey)
-  deriving stock    (Show, Eq, Ord, Generic)
+  deriving stock    (Show, Eq, Ord, Generic, Data)
   deriving anyclass (NFData, Serialise)
 
 -- | Data types of core language

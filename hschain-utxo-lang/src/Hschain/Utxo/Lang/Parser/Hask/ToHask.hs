@@ -9,6 +9,7 @@ import Data.Fix
 import Data.Maybe
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Sigma
 
 import qualified Data.Map.Strict as M
@@ -69,7 +70,7 @@ toHaskExp (Fix expr) = case expr of
 toLiteral :: Loc -> Prim -> H.Exp Loc
 toLiteral loc = \case
   PrimInt x -> lit $ H.Int loc (fromIntegral x) (show x)
-  PrimString x -> toText x
+  PrimText x -> toText x
   PrimBool x -> H.Con loc $ bool loc x
   PrimSigma x -> sigma loc x
   PrimBytes x -> H.App loc (H.Var loc $ toQName $ VarName loc "pack58") (toText (encodeBase58 x))
@@ -155,7 +156,7 @@ toPat pat = case pat of
   where
     toLit loc p = case p of
       PrimInt x -> lit loc $ H.Int loc (fromIntegral x) (show x)
-      PrimString x -> lit loc $ H.String loc (T.unpack x) (T.unpack x)
+      PrimText x -> lit loc $ H.String loc (T.unpack x) (T.unpack x)
       PrimBool x -> H.PApp loc (bool loc x) []
       _ -> error "Failed to convert literal"
 

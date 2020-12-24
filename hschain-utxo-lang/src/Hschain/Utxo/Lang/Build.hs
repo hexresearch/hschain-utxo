@@ -45,6 +45,7 @@ import Data.Text (Text)
 import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Types
@@ -92,7 +93,7 @@ int :: Int -> Expr Int
 int x = primExpr $ PrimInt $ fromIntegral x
 
 text :: Text -> Expr Text
-text x = primExpr $ PrimString x
+text x = primExpr $ PrimText x
 
 bytes :: ByteString -> Expr ByteString
 bytes x = primExpr $ PrimBytes x

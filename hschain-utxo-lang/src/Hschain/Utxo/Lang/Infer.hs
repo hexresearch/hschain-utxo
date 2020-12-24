@@ -23,6 +23,7 @@ import Type.Check.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)
 
 import Hschain.Utxo.Lang.Desugar hiding (app1, app2, app3)
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
@@ -154,7 +155,7 @@ reduceExpr ctx@UserTypeCtx{..} (Fix expr) = case expr of
 
     fromPrim loc prim = ($ loc) $ case prim of
       PrimInt _    -> intE
-      PrimString _ -> textE
+      PrimText _   -> textE
       PrimBool _   -> boolE
       PrimSigma _  -> sigmaE
       PrimBytes _  -> bytesE
