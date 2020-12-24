@@ -20,6 +20,7 @@ import Data.Text       (Text)
 import Data.Typeable
 import Data.Fix
 import Data.Foldable (foldrM)
+import Data.Vector.Generic ((!?))
 import qualified Data.Vector          as V
 import qualified Data.Text            as T
 import qualified Data.ByteString      as BS
@@ -32,7 +33,8 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..),Script(..),BoxId(..),InputEnv(..))
+import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),Args(..)
+                               ,Script(..),BoxId(..),InputEnv(..))
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
@@ -199,12 +201,12 @@ evalPrimOp env = \case
   OpCheckSig -> pure $ evalLift2 $ \bs sigIndex -> do
     pk  <- parsePublicKey bs
     sig <- readSig env sigIndex
-    pure $ Crypto.verify pk sig (inputEnv'sigMsg env)
+    pure $ Crypto.verify pk sig $ boxInput'sigMsg $ inputEnv'self env
   OpCheckMultiSig -> pure $ evalLift3 $ \(total :: Int64) keysBS sigIndices -> do
       keys <- mapM parsePublicKey keysBS
       sigs <- mapM (readSig env) sigIndices
       let sigCount = sum $ zipWith (\key sig -> bool 0 1 (Crypto.verify key sig msg)) keys sigs
-          msg = inputEnv'sigMsg env
+          msg = boxInput'sigMsg $ inputEnv'self env
       return $ sigCount >= total
   --
   OpEQ _ -> pure $ opComparison (==)
@@ -230,7 +232,7 @@ evalPrimOp env = \case
   --
   OpArgs _ -> fmap injTerm $ decode $ LB.fromStrict bs
     where
-      Args bs = inputEnv'args env
+      Args bs = boxInput'args $ inputEnv'self env
 
   OpGetBoxId -> pure $ evalLift1 $ \case
 
@@ -339,9 +341,10 @@ parsePublicKey = maybe err pure . decodeFromBS
     err = throwError "Can't parse public key"
 
 readSig :: InputEnv -> Int64 -> Eval Crypto.Signature
-readSig InputEnv{..} index = maybe err pure (inputEnv'sigs V.!? fromIntegral index)
-  where
-    err = throwError "Index of signature is out of bound"
+readSig InputEnv{..} index =
+  case boxInput'sigs inputEnv'self !? fromIntegral index of
+    Nothing -> throwError "Index of signature is out of bound"
+    Just v  -> pure v
 
 ----------------------------------------------------------------
 -- Lifting of functions

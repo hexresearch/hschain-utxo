@@ -530,7 +530,7 @@ data Prim
   -- ^ Text values
   | PrimBool    Bool
   -- ^ Booleans
-  | PrimSigma   (Sigma ByteString)
+  | PrimSigma   (Sigma PublicKey)
   -- ^ Sigma-expressions
   | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData, Data, Typeable)
@@ -961,7 +961,7 @@ instance ToLang Script where
 instance ToLang Bool where
   toLang loc b = toPrim loc $ PrimBool b
 
-instance ToLang (Sigma ByteString) where
+instance ToLang (Sigma PublicKey) where
   toLang loc sig = toPrim loc $ PrimSigma sig
 
 instance ToLang Int where

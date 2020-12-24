@@ -65,7 +65,7 @@ instance Pretty Lang where
   pretty = pretty . P.prettyExp
 
 instance Pretty BoxId where
-  pretty (BoxId txt) = pretty $ encodeBase58 txt
+  pretty = pretty . encodeBase58
 
 instance Pretty Script where
   pretty (Script bs) = case deserialiseOrFail $ fromStrict bs of

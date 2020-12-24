@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskType
 ) where
 
-import Data.ByteString (ByteString)
 import Data.Fix
 import Data.Maybe
 
@@ -78,7 +77,7 @@ toLiteral loc = \case
     toText x = lit $ H.String loc (T.unpack x) (T.unpack x)
     lit = H.Lit loc
 
-    sigma :: Loc -> Sigma ByteString -> H.Exp Loc
+    sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
     sigma src x = foldFix go x
       where
         go = \case

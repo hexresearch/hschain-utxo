@@ -12,8 +12,6 @@ import Data.Fix
 import Data.Maybe
 import Data.Text (Text)
 
-import HSChain.Crypto (ByteRepr(..), encodeBase58)
-
 import Hschain.Utxo.Lang.Expr hiding (Expr)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Expr
@@ -25,7 +23,6 @@ import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records
 import Hschain.Utxo.Lang.Core.Compile.Expr (PrimCon(..))
 import Hschain.Utxo.Lang.Core.Types (Name)
-import Hschain.Utxo.Lang.Sigma (mapPkM)
 import Hschain.Utxo.Lang.Exec.Module (fixTopLevelPatBinds)
 
 import qualified Data.Map.Strict as M
@@ -69,7 +66,7 @@ exprToExtendedLC typeCtx = foldFixM $ \case
   CaseOf loc expr alts    -> fromCaseOf loc expr alts
   AltE loc a b            -> fromAlt loc a b
   FailCase loc            -> fromFailCase loc
-  PrimE loc p             -> fromPrim loc p
+  PrimE loc p             -> pure $ fromPrim loc p
   If loc a b c            -> fromIf loc a b c
   Tuple loc args          -> fromTuple loc args
   List loc args           -> fromList loc args
@@ -221,14 +218,12 @@ exprToExtendedLC typeCtx = foldFixM $ \case
 
     fromFailCase loc = pure $ Fix $ EBottom loc
 
-    fromPrim loc p = fmap (Fix . EPrim loc . PrimLoc loc) $ case p of
-      PrimInt n       -> pure $ P.PrimInt n
-      PrimString txt  -> pure $ P.PrimText txt
-      PrimBool b      -> pure $ P.PrimBool b
-      PrimSigma sigma -> fmap P.PrimSigma $ mapPkM (\bs -> maybe (notKey bs) pure $ decodeFromBS bs) sigma
-      PrimBytes bs    -> pure $ P.PrimBytes bs
-      where
-        notKey bs = throwError $ ParseError loc $ T.unwords ["Failed to decode public key:", encodeBase58 bs]
+    fromPrim loc p = Fix . EPrim loc . PrimLoc loc $ case p of
+      PrimInt n       -> P.PrimInt n
+      PrimString txt  -> P.PrimText txt
+      PrimBool b      -> P.PrimBool b
+      PrimSigma sigma -> P.PrimSigma $ sigma
+      PrimBytes bs    -> P.PrimBytes bs
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
