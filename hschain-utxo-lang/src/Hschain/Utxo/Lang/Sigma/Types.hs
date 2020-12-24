@@ -1,17 +1,9 @@
 -- | Module defines main types for sigma-expressions.
 module Hschain.Utxo.Lang.Sigma.Types where
 
-import qualified Codec.Serialise as CBOR
+import HSChain.Crypto
 import qualified Language.Haskell.TH.Syntax as TH
 import Instances.TH.Lift ()
-import Control.DeepSeq (NFData)
-import Data.Aeson   (FromJSON,ToJSON)
-import Data.Data
-import Data.Coerce
-import GHC.Generics (Generic)
-
-import HSChain.Crypto.Classes (ByteRepr(..))
-import HSChain.Crypto.Classes.Hash
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 
 -- | Private key.
@@ -35,8 +27,8 @@ instance ByteRepr (ECPoint a) => TH.Lift (PublicKey a) where
 
 -- | Pair of keys.
 data KeyPair a = KeyPair
-  { secretKey :: Secret a
-  , publicKey :: PublicKey a
+  { getSecretKey :: PrivKey a
+  , getPublicKey :: PublicKey a
   }
 
 type Commitment a = ECPoint a
@@ -53,8 +45,6 @@ deriving newtype instance ByteRepr (ECPoint a) => ByteRepr (PublicKey a)
 deriving newtype instance (ByteRepr (ECPoint a)) => ToJSON (PublicKey a)
 deriving newtype instance (ByteRepr (ECPoint a)) => FromJSON (PublicKey a)
 
-deriving stock   instance (Typeable a, Data a, Data (ECScalar a)) => Data (Secret a)
-
 -- | Generate new private key.
 generateSecretKey :: EC a => IO (Secret a)
 generateSecretKey = coerce generateScalar
@@ -66,16 +56,8 @@ getPublicKey = coerce fromGenerator
 -- | Generate key-pair.
 generateKeyPair :: EC a => IO (KeyPair a)
 generateKeyPair = do
-  s <- generateSecretKey
-  return $ KeyPair s (getPublicKey s)
+  s <- generatePrivKey
+  return $ KeyPair s (publicKey s)
 
 getCommitment :: EC a => Response a -> Challenge a -> PublicKey a -> Commitment a
-getCommitment z ch pk = fromGenerator z ^+^ negateP (fromChallenge ch .*^ unPublicKey pk)
-
-deriving instance Show (ECScalar a) => Show (Secret a)
-deriving instance Eq   (ECScalar a) => Eq   (Secret a)
-deriving instance Ord  (ECScalar a) => Ord  (Secret a)
-deriving newtype instance (CryptoHashable (ECScalar a)) => CryptoHashable (Secret a)
-deriving newtype instance (ByteRepr (ECScalar a)) => ByteRepr (Secret a)
-deriving newtype instance (ByteRepr (ECScalar a)) => ToJSON   (Secret a)
-deriving newtype instance (ByteRepr (ECScalar a)) => FromJSON (Secret a)
+getCommitment z ch pk = publicKey z ^+^ negateP (fromChallenge ch .*^ pk)

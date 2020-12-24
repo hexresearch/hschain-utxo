@@ -76,6 +76,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr(..))
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.SHA          (SHA256)
+import qualified HSChain.Crypto as Crypto
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.MultiSig              as Sigma
@@ -92,10 +93,10 @@ type CryptoAlg = Sigma.Ed25519
 type KeyPair    = Sigma.KeyPair    CryptoAlg
 
 -- | Public key.
-type PublicKey  = Sigma.PublicKey  CryptoAlg
+type PublicKey  = Crypto.PublicKey  CryptoAlg
 
 -- | Private key.
-type Secret     = Sigma.Secret     CryptoAlg
+type Secret     = Crypto.PrivKey    CryptoAlg
 
 -- | Environment to prove the ownership. It is a list of key-pairs
 -- that are owned by the prover.
@@ -120,11 +121,11 @@ instance Default SigMessage where
 
 -- | Generate new private key.
 newSecret :: IO Secret
-newSecret = Sigma.generateSecretKey
+newSecret = Crypto.generatePrivKey
 
 -- | Convert private key to public key.
 getPublicKey :: Secret -> PublicKey
-getPublicKey = Sigma.getPublicKey
+getPublicKey = Crypto.publicKey
 
 -- | Creates key-pair for given private key.
 getKeyPair :: Secret -> KeyPair
@@ -422,7 +423,7 @@ dlogInput :: PublicKey -> ProofInput
 dlogInput = Sigma.InputDLog
 
 dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
-dtupleInput genB (Sigma.PublicKey keyA) (Sigma.PublicKey keyB) =
+dtupleInput genB keyA keyB =
   Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
 
 $(deriveShow1 ''SigmaF)

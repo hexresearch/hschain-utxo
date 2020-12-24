@@ -28,7 +28,8 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
-import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
+import HSChain.Crypto.Classes.Hash (genericHashStep)
+import HSChain.Crypto              (CryptoHashable(..), PublicKey, PrivKey, CryptoAsymmetric(..))
 import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
@@ -85,7 +86,6 @@ data PartialProof a = PartialProof
   }
 
 deriving instance ( Show (ECPoint   a)
-                  , Show (Secret    a)
                   , Show (ECScalar a)
                   , Show (Challenge a)
                   ) => Show (PartialProof a)
@@ -172,7 +172,7 @@ newProof env expr message = runProve $ do
   commitments <- generateCommitments (markTree knownKeys expr)
   toProof =<< generateProofs env commitments message
   where
-    knownKeys = Set.fromList $ publicKey <$> unEnv env
+    knownKeys = Set.fromList $ getPublicKey <$> unEnv env
 
 -- Syntactic step that performs a type conversion only
 toProof :: SigmaE (ProofTag a) (AtomicProof a) -> Prove (Proof a)
@@ -203,7 +203,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
 ownsKey knownPKs = \case
   InputDLog   k          -> checkKey k
-  InputDTuple DTuple{..} -> checkKey (PublicKey dtuple'g_y)
+  InputDTuple DTuple{..} -> checkKey dtuple'g_y
   where
     checkKey k = k `Set.member` knownPKs
 
@@ -215,8 +215,8 @@ markTree knownPKs = clean . check
 
     -- Prover Step 1: Mark as real everything the prover can prove
     check = \case
-      Leaf () inp@(InputDLog k)            -> Leaf (checkKey k) inp
-      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey (PublicKey dtuple'g_y)) inp
+      Leaf () inp@(InputDLog k)            -> Leaf (checkKey k)          inp
+      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey dtuple'g_y) inp
       AND  () es -> AND k es'
         where
           es'  = map check es
@@ -261,7 +261,7 @@ generateCommitments tree = case sexprAnn tree of
   where
     -- Go down expecting real node
     goReal = \case
-      Leaf Real k -> do r <- liftIO generateScalar
+      Leaf Real k -> do r <- generatePrivKey
                         return $ Leaf (ProofTag Real Nothing) $ Left $ PartialProof
                           { pproofInput = k
                           , pproofR     = r
@@ -303,7 +303,7 @@ getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr m
     extractCommitment = either extractPartialProof extractAtomicProof
 
     extractPartialProof x = case pproofInput x of
-      InputDLog dlog -> FiatShamirLeafDLog dlog  (fromGenerator rnd)
+      InputDLog dlog -> FiatShamirLeafDLog dlog  (publicKey rnd)
       InputDTuple dt -> FiatShamirLeafDTuple dt  ( rnd .*^ dtuple'g   dt
                                                  , rnd .*^ dtuple'g_x dt
                                                  )
@@ -334,23 +334,23 @@ getRootChallengeBy ::
 getRootChallengeBy extract expr message =
   initRootChallenge (fmap extract expr) message
 
-getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> Secret a
+getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> PrivKey a
 getPrivateKeyForInput (Env env) = \case
   InputDLog dlog ->
-    let [sk] = [ secretKey | KeyPair{..} <- env
-                           , dlog == publicKey
-                           ]
+    let [sk] = [ getSecretKey | KeyPair{..} <- env
+                              , dlog == getPublicKey
+                              ]
     in  sk
   InputDTuple dtuple ->
-    let [sk] = [ secretKey | KeyPair{..} <- env
-                           , PublicKey (dtuple'g_y dtuple) == publicKey
-                           ]
+    let [sk] = [ getSecretKey | KeyPair{..} <- env
+                              , dtuple'g_y dtuple == getPublicKey
+                              ]
     in  sk
 
 getResponseForInput :: EC a => Env a -> ECScalar a -> Challenge a -> ProofInput a -> ECScalar a
 getResponseForInput env rnd ch inp = rnd .+. (sk .*. fromChallenge ch)
   where
-    Secret sk = getPrivateKeyForInput env inp
+    sk = getPrivateKeyForInput env inp
 
 generateProofs
   :: forall a. (EC a)
@@ -381,7 +381,7 @@ generateProofs (Env env) expr0 message = goReal ch0 expr0
             InputDLog dlog ->
               Leaf (ProofTag Real $ Just ch) $ ProofDL $ ProofDLog
                                         { proofDLog'public = dlog
-                                        , proofDLog'commitmentA = fromGenerator pproofR
+                                        , proofDLog'commitmentA = publicKey pproofR
                                         , proofDLog'challengeE  = ch
                                         , proofDLog'responseZ   = z
                                         }

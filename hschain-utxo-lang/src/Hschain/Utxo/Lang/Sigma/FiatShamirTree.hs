@@ -19,6 +19,7 @@ import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
+import HSChain.Crypto
 
 import qualified Codec.Serialise          as CBOR
 import qualified Data.ByteString.Lazy     as BL

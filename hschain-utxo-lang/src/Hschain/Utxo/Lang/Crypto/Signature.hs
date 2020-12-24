@@ -14,10 +14,10 @@ import Control.DeepSeq
 import GHC.Generics
 
 
-import HSChain.Crypto (ByteRepr(..))
+import HSChain.Crypto (ByteRepr(..),CryptoAsymmetric(..))
 import HSChain.Crypto.Classes.Hash
 import Hschain.Utxo.Lang.Sigma (CryptoAlg, PublicKey, Secret, SigMessage)
-import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..), hashDomain)
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..), ECPoint, hashDomain)
 import Hschain.Utxo.Lang.Sigma.Types (Response)
 
 import qualified Data.ByteString as B
@@ -40,9 +40,9 @@ instance ByteRepr Signature where
 
 -- | Signs message.
 sign :: Secret -> SigMessage -> IO Signature
-sign (Sigma.Secret privKey) msg = do
-  k <- generateScalar
-  let commitment = fromGenerator k
+sign privKey msg = do
+  k <- generatePrivKey
+  let commitment = publicKey k
       challenge = randomOracle $ encodeToBS commitment <> encodeToBS msg
       response = k .+. fromChallenge challenge .*. privKey
   return $ Signature
@@ -51,8 +51,8 @@ sign (Sigma.Secret privKey) msg = do
 
 -- | Verifies signed message
 verify :: PublicKey -> Signature -> SigMessage -> Bool
-verify (Sigma.PublicKey pubKey) (Signature commitment response) msg =
-  fromGenerator response == commitment ^+^ (ch .*^ pubKey )
+verify pubKey (Signature commitment response) msg =
+  publicKey response == commitment ^+^ (ch .*^ pubKey )
   where
     ch = fromChallenge $ randomOracle $ encodeToBS commitment <> encodeToBS msg
 

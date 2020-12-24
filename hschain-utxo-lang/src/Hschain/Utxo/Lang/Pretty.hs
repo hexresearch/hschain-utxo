@@ -176,9 +176,6 @@ instance Pretty S.ProofInput where
     Sigma.InputDTuple dt -> parens $ hsep $ punctuate comma $ fmap pretty
       [Sigma.dtuple'g dt, Sigma.dtuple'g_x dt, Sigma.dtuple'g_y dt, Sigma.dtuple'g_xy dt]
 
-instance Pretty S.PublicKey where
-  pretty = pretty . encodeBase58
-
 instance ByteRepr (EC.ECPoint a) => Pretty (EC.ECPoint a) where
   pretty = pretty . encodeBase58
 

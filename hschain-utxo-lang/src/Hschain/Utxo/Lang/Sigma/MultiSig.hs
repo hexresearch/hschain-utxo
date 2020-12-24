@@ -85,12 +85,12 @@ import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 
+import HSChain.Crypto (PublicKey,PrivKey,CryptoAsymmetric(..))
 import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
-import Hschain.Utxo.Lang.Sigma.Types
 import Hschain.Utxo.Lang.Sigma.Interpreter
 
 import qualified Data.List as L
@@ -206,11 +206,11 @@ queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
     go = \case
       -- if we own the key we generate randomness and commitment based on it
       Leaf tag (Left query) | ownsQuery knownKeys query -> do
-                        rnd <- liftIO generateScalar
+                        rnd <- generatePrivKey
                         return $ Leaf tag $ Left $
                           case query of
                             CommitmentQueryLog{..} -> CommitmentSecret
-                              { comSecret'query  = query { comQuery'commitmentLog = Just $ fromGenerator rnd }
+                              { comSecret'query  = query { comQuery'commitmentLog = Just $ publicKey rnd }
                               , comSecret'secret = Just rnd
                               }
                             CommitmentQueryTuple{..} -> CommitmentSecret
