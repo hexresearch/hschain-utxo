@@ -70,9 +70,9 @@ evaluate env types expr = runExec $ do
     main = Module
       { module'loc       = noLoc
       , module'userTypes = types
-      , module'binds     =
-          [ Bind { bind'name = "main"
-                 , bind'type = Nothing
+      , module'binds     = Binds mempty $
+          [ FunBind
+                 { bind'name = "main"
                  , bind'alts =
                      [ Alt { alt'pats  = []
                            , alt'expr  = UnguardedRhs expr
