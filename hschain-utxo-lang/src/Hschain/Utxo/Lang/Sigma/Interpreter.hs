@@ -27,6 +27,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Except
 
 import HSChain.Crypto.Classes.Hash (CryptoHashable(..), genericHashStep)
+import Hschain.Utxo.Lang.Sigma.DLog
+import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
@@ -76,10 +78,10 @@ deriving stock   instance Show (Challenge a) => Show (ProofTag a)
 
 -- Partial proof of possession of discrete logarithm
 data PartialProof a = PartialProof
-  { pproofPK :: PublicKey a
-  , pproofR  :: ECScalar  a
-  , pproofA  :: ECPoint   a
+  { pproofInput :: ProofInput a
+  , pproofR     :: ECScalar  a
   }
+
 deriving instance ( Show (ECPoint   a)
                   , Show (Secret    a)
                   , Show (ECScalar a)
@@ -113,7 +115,7 @@ deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Cha
 data ProvenTree a
   = ProvenLeaf
       { provenLeaf'responseZ :: ECScalar a
-      , provenLeaf'publicK   :: PublicKey a
+      , provenLeaf'publicK   :: ProofInput a
       }
   | ProvenOr
       { provenOr'leftmost  :: ProvenTree a
@@ -163,7 +165,7 @@ deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Cha
 
 -- | Create proof for sigma expression based on ownership of collection of keys (@Env@)
 newProof :: (EC a)
-  => Env a -> SigmaE () (PublicKey a) -> ByteString -> IO (Either Text (Proof a))
+  => Env a -> SigmaE () (ProofInput a) -> ByteString -> IO (Either Text (Proof a))
 newProof env expr message = runProve $ do
   commitments <- generateCommitments (markTree knownKeys expr)
   toProof =<< generateProofs env commitments message
@@ -171,14 +173,14 @@ newProof env expr message = runProve $ do
     knownKeys = Set.fromList $ publicKey <$> unEnv env
 
 -- Syntactic step that performs a type conversion only
-toProof :: SigmaE (ProofTag a) (ProofDL a) -> Prove (Proof a)
+toProof :: SigmaE (ProofTag a) (AtomicProof a) -> Prove (Proof a)
 toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (getProvenTree tree)
   where
     getRootChallenge =
       maybe (Left "No root challenge") Right . proofTag'challenge . sexprAnn
 
     getProvenTree ptree = case ptree of
-      Leaf _ p  -> Right $ ProvenLeaf (responseZ p) (publicK p)
+      Leaf _ p  -> Right $ ProvenLeaf (responseZ p) (getProofInput p)
       AND _ es  -> ProvenAnd  <$> traverse getProvenTree es
       OR  _ es  -> case es of
         []   -> Left "No children for OR-node"
@@ -197,12 +199,15 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 
 
 -- Mark all nodes according to whether we can produce proof for them
-markTree :: (EC a) => Set (PublicKey a) -> SigmaE () (PublicKey a) -> SigmaE ProofVar (PublicKey a)
+markTree :: (EC a) => Set (PublicKey a) -> SigmaE () (ProofInput a) -> SigmaE ProofVar (ProofInput a)
 markTree knownPKs = clean . check
   where
+    checkKey k = (if k `Set.member` knownPKs then Real else Simulated)
+
     -- Prover Step 1: Mark as real everything the prover can prove
     check = \case
-      Leaf () k  -> Leaf (if k `Set.member` knownPKs then Real else Simulated) k
+      Leaf () inp@(InputDLog (DLog k))     -> Leaf (checkKey k) inp
+      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey dtuple'publicKeyA) inp
       AND  () es -> AND k es'
         where
           es'  = map check es
@@ -237,8 +242,8 @@ markTree knownPKs = clean . check
 -- compute commitments for real leaves
 generateCommitments
   :: (EC a)
-  => SigmaE ProofVar (PublicKey a)
-  -> Prove (SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a)))
+  => SigmaE ProofVar (ProofInput a)
+  -> Prove (SigmaE (ProofTag a) (Either (PartialProof a) (AtomicProof a)))
 generateCommitments tree = case sexprAnn tree of
   Real      -> goReal tree
   -- Prover Step 2: If the root of the tree is marked "simulated" then the prover does not have enough witnesses
@@ -249,9 +254,8 @@ generateCommitments tree = case sexprAnn tree of
     goReal = \case
       Leaf Real k -> do r <- liftIO generateScalar
                         return $ Leaf (ProofTag Real Nothing) $ Left $ PartialProof
-                          { pproofPK = k
-                          , pproofR  = r
-                          , pproofA  = fromGenerator r
+                          { pproofInput = k
+                          , pproofR     = r
                           }
       AND Real es -> AND (ProofTag Real Nothing) <$> traverse goReal     es
       OR  Real es -> OR  (ProofTag Real Nothing) <$> traverse simulateOR es
@@ -263,7 +267,7 @@ generateCommitments tree = case sexprAnn tree of
       _ -> throwError "Simulated node!"
     --
     goSim ch = \case
-      Leaf Simulated k      -> liftIO $ Leaf (ProofTag Simulated $ Just ch) . Right <$> simulateProofDL k ch
+      Leaf Simulated k      -> liftIO $ Leaf (ProofTag Simulated $ Just ch) . Right <$> simulateAtomicProof k ch
       AND  Simulated es     -> AND  (ProofTag Simulated $ Just ch) <$> traverse (goSim ch) es
       OR   Simulated []     -> throwError "Empty OR"
       OR   Simulated (e:es) -> do esWithCh <- liftIO $ forM es $ \x -> (,x) <$> generateChallenge
@@ -281,25 +285,34 @@ initRootChallenge expr message =
 
 getProofRootChallenge ::
      (EC a)
-  => SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
+  => SigmaE (ProofTag a) (Either (PartialProof a) (AtomicProof a))
   -> ByteString
   -> Challenge a
 getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr message
   where
-    extractCommitment :: Either (PartialProof a) (ProofDL a) -> FiatShamirLeaf a
-    extractCommitment =
-      either
-        (\x -> FiatShamirLeaf (pproofPK x) (pproofA x))
-        (\x -> FiatShamirLeaf (publicK x)  (commitmentA x))
+    extractCommitment :: Either (PartialProof a) (AtomicProof a) -> FiatShamirLeaf a
+    extractCommitment = either extractPartialProof extractAtomicProof
+
+    extractPartialProof x = case pproofInput x of
+      InputDLog dlog -> FiatShamirLeafDLog dlog  (fromGenerator rnd)
+      InputDTuple dt -> FiatShamirLeafDTuple dt  (rnd .*^ dtuple'generatorA dt, rnd .*^ dtuple'generatorB dt)
+      where
+        rnd = pproofR x
+
+    extractAtomicProof = \case
+      ProofDL dlog   -> FiatShamirLeafDLog   (proofDLog'public dlog)     (proofDLog'commitmentA dlog)
+      ProofDT dtuple -> FiatShamirLeafDTuple (proofDTuple'public dtuple) (proofDTuple'commitmentA dtuple)
 
 getVerifyRootChallenge ::
      (EC a)
-  => SigmaE k (ProofDL a)
+  => SigmaE k (AtomicProof a)
   -> ByteString
   -> Challenge a
 getVerifyRootChallenge expr message = getRootChallengeBy extractFiatShamirLeaf expr message
   where
-    extractFiatShamirLeaf ProofDL{..} = FiatShamirLeaf publicK commitmentA
+    extractFiatShamirLeaf = \case
+      ProofDL ProofDLog{..}   -> FiatShamirLeafDLog   proofDLog'public   proofDLog'commitmentA
+      ProofDT ProofDTuple{..} -> FiatShamirLeafDTuple proofDTuple'public proofDTuple'commitmentA
 
 getRootChallengeBy ::
      EC a
@@ -313,9 +326,9 @@ getRootChallengeBy extract expr message =
 generateProofs
   :: forall a. (EC a)
   => Env a
-  -> SigmaE (ProofTag a) (Either (PartialProof a) (ProofDL a))
+  -> SigmaE (ProofTag a) (Either (PartialProof a) (AtomicProof a))
   -> ByteString
-  -> Prove (SigmaE (ProofTag a) (ProofDL a))
+  -> Prove (SigmaE (ProofTag a) (AtomicProof a))
 generateProofs (Env env) expr0 message = goReal ch0 expr0
   where
     withChallenge ch tag = tag { proofTag'challenge = Just ch }
@@ -333,17 +346,32 @@ generateProofs (Env env) expr0 message = goReal ch0 expr0
     -- nodes and additionally responses at real leaves
     goReal ch = \case
       Leaf tag eProof -> case (proofTag'flag tag, eProof) of
-        (Real, (Left PartialProof{..})) -> do
-          let e = fromChallenge ch
-              [Secret sk] = [ secretKey | KeyPair{..} <- env
-                                        , pproofPK == publicKey
-                                        ]
-              z = pproofR .+. (sk .*. e)
-          return $ Leaf (ProofTag Real $ Just ch) $ ProofDL { publicK     = pproofPK
-                                    , commitmentA = pproofA
-                                    , challengeE  = ch
-                                    , responseZ   = z
-                                    }
+        (Real, (Left PartialProof{..})) -> case pproofInput of
+          InputDLog dlog -> do
+            let e = fromChallenge ch
+                [Secret sk] = [ secretKey | KeyPair{..} <- env
+                                          , dlog'publicKey dlog == publicKey
+                                          ]
+                z = pproofR .+. (sk .*. e)
+            return $ Leaf (ProofTag Real $ Just ch) $ ProofDL $ ProofDLog
+                                      { proofDLog'public = dlog
+                                      , proofDLog'commitmentA = fromGenerator pproofR
+                                      , proofDLog'challengeE  = ch
+                                      , proofDLog'responseZ   = z
+                                      }
+          InputDTuple dtuple -> do
+            let e = fromChallenge ch
+                [Secret sk] = [ secretKey | KeyPair{..} <- env
+                                          , dtuple'publicKeyA dtuple == publicKey
+                                          ]
+                z = pproofR .+. (sk .*. e)
+            return $ Leaf (ProofTag Real $ Just ch) $ ProofDT $ ProofDTuple
+                                      { proofDTuple'public = dtuple
+                                      , proofDTuple'commitmentA = (pproofR .*^ dtuple'generatorA dtuple, pproofR .*^ dtuple'generatorB dtuple)
+                                      , proofDTuple'challengeE  = ch
+                                      , proofDTuple'responseZ   = z
+                                      }
+
         (Simulated, Right e)   -> return $ Leaf (ProofTag Simulated $ Just ch) e
         _                      -> error $ "impossible happened in Sigma/Interpreter"
       AND tag es -> case proofTag'flag tag of
@@ -388,28 +416,35 @@ verifyProof proof message =
      checkProofs compTree
   && (checkHash (getVerifyRootChallenge compTree message))
   where
-    checkProofs :: SigmaE b (ProofDL a) -> Bool
-    checkProofs = getAll . foldMap (All . verifyProofDL)
+    checkProofs :: SigmaE b (AtomicProof a) -> Bool
+    checkProofs = getAll . foldMap (All . verifyAtomicProof)
 
     checkHash hash = proof'rootChallenge proof == hash
 
     compTree = completeProvenTree proof
 
 -- | Calculate all challenges for all nodes of a proof.
-completeProvenTree :: EC a => Proof a -> SigmaE () (ProofDL a)
+completeProvenTree :: EC a => Proof a -> SigmaE () (AtomicProof a)
 completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
     go ch tree = case tree of
-      ProvenLeaf resp pubKey  -> Leaf () $ getProofDL ch pubKey resp
+      ProvenLeaf resp proofInp -> Leaf () $ getAtomicProof ch proofInp resp
       ProvenOr leftmost rest -> OR   () $ toList $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree) $
                                               (getLeftmostOrChallenge ch leftmost rest) Seq.<| rest
       ProvenAnd children      -> AND  () $ fmap (go ch) children
 
-    getProofDL ch pubKey respZ = ProofDL
-        { publicK     = pubKey
-        , commitmentA = getCommitment respZ ch pubKey
-        , responseZ   = respZ
-        , challengeE  = ch
+    getAtomicProof ch proofInp respZ = case proofInp of
+      InputDLog dlog -> ProofDL $ ProofDLog
+        { proofDLog'public      = dlog
+        , proofDLog'commitmentA = getCommitmentDLog respZ ch dlog
+        , proofDLog'responseZ   = respZ
+        , proofDLog'challengeE  = ch
+        }
+      InputDTuple dtuple -> ProofDT $ ProofDTuple
+        { proofDTuple'public      = dtuple
+        , proofDTuple'commitmentA = getCommitmentDTuple respZ ch dtuple
+        , proofDTuple'responseZ   = respZ
+        , proofDTuple'challengeE  = ch
         }
 
     getLeftmostOrChallenge ch leftmost children = OrChild

@@ -277,8 +277,8 @@ getChallenges expr0 message = goReal ch0 expr0
 
     extractCommitment =
       either
-        (\x -> FiatShamirLeaf (comResult'publicKey x) (comResult'commitment x))
-        (\x -> FiatShamirLeaf (publicK x)  (commitmentA x))
+        (\x -> FiatShamirLeaf (comResult'publicKey x)      (comResult'commitment x))
+        (\x -> FiatShamirLeaf (dlog'publicKey $ publicK x) (commitmentA x))
 
     withChallenge ch tag = tag { proofTag'challenge = Just ch }
 
@@ -331,8 +331,8 @@ data ResponseQuery a = ResponseQuery
   }
 
 queryToProofDL :: ResponseQuery a -> Maybe (ProofDL a)
-queryToProofDL ResponseQuery{..} = fmap (\resp -> ProofDL
-  { publicK     = responseQuery'publicKey
+queryToProofDL ResponseQuery{..} = fmap (\resp -> AtomicProof
+  { publicK     = DLog responseQuery'publicKey
   , commitmentA = responseQuery'commitment
   , responseZ   = resp
   , challengeE  = responseQuery'challenge

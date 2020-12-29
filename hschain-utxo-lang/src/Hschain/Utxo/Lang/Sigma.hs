@@ -265,7 +265,7 @@ equalSigmaProof candidate proof =
 
 equalSigmaExpr :: Sigma PublicKey -> Sigma ProofDL -> Bool
 equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
-  (SigmaPk pubKey, SigmaPk proof)  -> pubKey == Sigma.publicK proof
+  (SigmaPk pubKey, SigmaPk proof)  -> pubKey == Sigma.dlog'publicKey (Sigma.publicK proof)
   (SigmaOr as, SigmaOr bs)         -> equalList as bs
   (SigmaAnd as, SigmaAnd bs)       -> equalList as bs
   _                                -> False

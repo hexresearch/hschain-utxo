@@ -15,6 +15,8 @@ module Hschain.Utxo.Lang.Sigma.FiatShamirTree(
 
 import GHC.Generics (Generic)
 
+import Hschain.Utxo.Lang.Sigma.DLog
+import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
@@ -25,16 +27,22 @@ import qualified Data.ByteString.Lazy     as BL
 
 -- | Tree that is used as input to Fiat-Shamir hash function
 data FiatShamir a
-  = FSDLog (FiatShamirLeaf a)
-  | FSAnd [FiatShamir a]
-  | FSOr  [FiatShamir a]
+  = FSLeaf (FiatShamirLeaf a)
+  | FSAnd  [FiatShamir a]
+  | FSOr   [FiatShamir a]
   deriving (Generic)
 
 -- | Leaf of Fiat-Shamir tree.
-data FiatShamirLeaf a = FiatShamirLeaf
-  { fsLeaf'publicKey  :: PublicKey a
-  , fsLeaf'commitment :: Commitment a
-  } deriving (Generic)
+data FiatShamirLeaf a
+  = FiatShamirLeafDLog
+      { fsLeafDLog'public     :: DLog a
+      , fsLeafDLog'commitment :: Commitment a
+      }
+  | FiatShamirLeafDTuple
+      { fsLeafDTuple'public     :: DTuple a
+      , fsLeafDTuple'commitment :: (Commitment a, Commitment a)
+      }
+      deriving (Generic)
 
 deriving instance ( Show (PublicKey   a)
                   , Show (Commitment  a)
@@ -60,7 +68,7 @@ toFiatShamir
   :: SigmaE k (FiatShamirLeaf a)
   -> FiatShamir a
 toFiatShamir = \case
-  Leaf _ leaf -> FSDLog leaf
+  Leaf _ leaf -> FSLeaf leaf
   AND  _ es   -> FSAnd (toFiatShamir <$> es)
   OR   _ es   -> FSOr  (toFiatShamir <$> es)
 

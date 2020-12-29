@@ -12,6 +12,7 @@ import Data.Aeson (FromJSON(..),ToJSON(..),FromJSONKey(..),ToJSONKey(..))
 import Data.Bits
 import Data.Coerce
 import Data.Function (on)
+import Data.Maybe (fromJust)
 import HSChain.Crypto.Classes
 import GHC.Generics
 
@@ -46,6 +47,8 @@ class ( ByteRepr (ECPoint   a)
   generateScalar    :: IO (ECScalar a)
   fromGenerator     :: ECScalar  a -> ECPoint  a
   fromChallenge     :: Challenge a -> ECScalar a
+  isIdentity        :: ECPoint a -> Bool
+  groupGenerator    :: ECPoint a
 
   (.+.)   :: ECScalar a -> ECScalar a -> ECScalar a
   (.*.)   :: ECScalar a -> ECScalar a -> ECScalar a
@@ -116,6 +119,8 @@ instance EC Ed25519 where
     $ BS.pack
     $ BS.zipWith xor a b
 
+  isIdentity = coerce Ed.pointHasPrimeOrder
+
   generateScalar    = coerce (Ed.scalarGenerate @IO)
   fromGenerator     = coerce Ed.toPoint
   -- FIXME: We need to maintain that challenge is less than group
@@ -129,6 +134,8 @@ instance EC Ed25519 where
   (^+^)   = coerce Ed.pointAdd
   (.*^)   = coerce Ed.pointMul
   negateP = coerce Ed.pointNegate
+
+  groupGenerator = ECPoint25519 $ Ed.toPoint $ fromJust $ maybeCryptoError $ Ed.scalarDecodeLong $ (BA.pack [1] :: BA.Bytes)
 
 instance Ord (ECPoint   Ed25519) where
   compare = coerce (compare `on` (Ed.pointEncode :: Ed.Point -> BS.ByteString))
