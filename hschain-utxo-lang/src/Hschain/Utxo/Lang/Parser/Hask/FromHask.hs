@@ -19,6 +19,7 @@ import Language.Haskell.Exts.Parser (
 import HSChain.Crypto (decodeBase58)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.Utils
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypes)
@@ -322,10 +323,10 @@ fromType = \case
 
 fromLit :: H.Literal Loc -> ParseResult Prim
 fromLit x = case x of
-  H.String     _ val _ -> return $ PrimString (fromString val)
+  H.String     _ val _ -> return $ PrimText (fromString val)
   H.Int        _ val _ -> return $ PrimInt (fromInteger val)
   H.PrimInt    _ val _ -> return $ PrimInt (fromInteger val)
-  H.PrimString _ val _ -> return $ PrimString (fromString val)
+  H.PrimString _ val _ -> return $ PrimText (fromString val)
   -- TODO FIXME: untyped literal numbers inconsistency.
   -- Here when we parse we also assign the type, but type is undefined here
   -- it can be any number. Not only double

@@ -218,12 +218,7 @@ exprToExtendedLC typeCtx = foldFixM $ \case
 
     fromFailCase loc = pure $ Fix $ EBottom loc
 
-    fromPrim loc p = Fix . EPrim loc . PrimLoc loc $ case p of
-      PrimInt n       -> P.PrimInt n
-      PrimString txt  -> P.PrimText txt
-      PrimBool b      -> P.PrimBool b
-      PrimSigma sigma -> P.PrimSigma $ sigma
-      PrimBytes bs    -> P.PrimBytes bs
+    fromPrim loc p = Fix . EPrim loc . PrimLoc loc $ p
 
     fromIf loc c t e = pure $ Fix $ EIf loc c t e
 
