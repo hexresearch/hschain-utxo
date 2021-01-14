@@ -34,7 +34,6 @@ class ( ByteRepr (ECPoint   a)
       , ByteRepr (Challenge a)
       , Eq (ECScalar a)
       , Eq (Challenge a)
-      , Ord (ECPoint a)
       ) => EC a where
   data ECPoint   a
   data ECScalar  a
