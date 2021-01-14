@@ -4,7 +4,7 @@ version:             0.1.0.0
 synopsis:            UTXO node in PoW consensus
 -- description:
 -- bug-reports:
--- license:
+license:             MIT
 license-file:        LICENSE
 author:              anton-k
 maintainer:          sergueyz@gmail.com

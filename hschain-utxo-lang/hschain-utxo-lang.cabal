@@ -6,7 +6,7 @@ version:             0.1.0.0
 synopsis:            Language of smartcontracts for hschain
 description:         Package provides definition of language of smartcontracts and useful functions
                      for evaluation type-checking of the scripts and definitions of transactions.
-license:             AllRightsReserved
+license:             MIT
 license-file:        LICENSE
 author:              HXR
 maintainer:          hxr.team@gmail.com

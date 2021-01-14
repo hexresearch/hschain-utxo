@@ -5,13 +5,10 @@ synopsis:            tests for hschain-utxo
 description:         Package defines several scenarios with exchange of funds over smartcontracts.
                      We should run tests in the directory hschain-utxo-test.
 
--- bug-reports:
--- license:
+license:             MIT
 license-file:        LICENSE
 author:              anton-k
 maintainer:          anton.kholomiov@gmail.com
--- copyright:
--- category:
 build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
