@@ -1,3 +1,4 @@
+-- | Proof of discrete logarithm
 module Hschain.Utxo.Lang.Sigma.DLog(
     DLog(..)
   , ProofDLog(..)
@@ -19,15 +20,17 @@ import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Codec.Serialise as CBOR
 
+-- | Proof of discrete logarithm (key ownership)
 data ProofDLog a = ProofDLog
-  { proofDLog'public      :: DLog a
+  { proofDLog'public      :: DLog a         -- ^ input for proof
   , proofDLog'commitmentA :: Commitment a
   , proofDLog'responseZ   :: Response a
   , proofDLog'challengeE  :: Challenge a
   } deriving (Generic)
 
+-- | Input for proof of key ownership
 newtype DLog a = DLog
-  { dlog'publicKey :: PublicKey a
+  { dlog'publicKey :: PublicKey a  -- ^ Public key
   } deriving (Generic)
 
 deriving newtype instance ByteRepr (ECPoint a) => ByteRepr (DLog a)

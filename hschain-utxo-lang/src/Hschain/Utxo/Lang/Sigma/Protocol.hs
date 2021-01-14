@@ -49,9 +49,10 @@ sexprAnn = \case
 -- | Set of known keys
 newtype Env a = Env { unEnv :: [KeyPair a] }
 
+-- | Public proof data (inputs for proof algorithms)
 data ProofInput a
-  = InputDLog (DLog a)
-  | InputDTuple (DTuple a)
+  = InputDLog (DLog a)      -- ^ proof of discrte log
+  | InputDTuple (DTuple a)  -- ^ proof of Diffie-Hellman tuple
   deriving (Generic)
 
 instance ByteRepr (ECPoint a) => ByteRepr (ProofInput a) where
@@ -110,10 +111,10 @@ instance ByteRepr (ECPoint a) => TH.Lift (ProofInput a) where
     where
       bs = encodeToBS pk
 
-
+-- | Proof of one of two methods of key verification
 data AtomicProof a
-  = ProofDL (ProofDLog a)
-  | ProofDT (ProofDTuple a)
+  = ProofDL (ProofDLog a)    -- ^ proof of knowledge of discrete log
+  | ProofDT (ProofDTuple a)  -- ^ proof of knowledge of Diffie-Helman tuple
   deriving (Generic)
 
 getProofInput :: AtomicProof a -> ProofInput a

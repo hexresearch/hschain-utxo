@@ -1,3 +1,10 @@
+-- | Proof of knowledge of Diffie-Hellman tuple.
+-- As described in "Advanced ErgoScript tutorial" (Section 3.3)
+--
+-- Let @g@, @h@, @u@, @v@ be public group elements. The
+-- prover proves the knowledge of @x@ such as
+--
+-- > u == g ^ x  &&  v == h ^ x
 module Hschain.Utxo.Lang.Sigma.DTuple(
     DTuple(..)
   , ProofDTuple(..)
@@ -22,12 +29,12 @@ import Hschain.Utxo.Lang.Sigma.Types
 import qualified Data.ByteString.Lazy as LB
 import qualified Codec.Serialise as CBOR
 
--- | Proof of knowledge of Diffie-Hellman tuple
+-- | Public input for knowledge of Diffie-Hellman tuple.
 data DTuple a = DTuple
-  { dtuple'generatorA :: ECPoint a
-  , dtuple'generatorB :: ECPoint a
-  , dtuple'publicKeyA :: PublicKey a
-  , dtuple'publicKeyB :: PublicKey a
+  { dtuple'generatorA :: ECPoint a    -- ^ first group element (normally it is the group generator)
+  , dtuple'generatorB :: ECPoint a    -- ^ second group element
+  , dtuple'publicKeyA :: PublicKey a  -- ^ public key for first group element
+  , dtuple'publicKeyB :: PublicKey a  -- ^ public key for second group element
   } deriving (Generic)
 
 deriving instance Show (ECPoint a) => Show (DTuple a)
@@ -59,6 +66,7 @@ instance ByteRepr (ECPoint a) => ToJSON (DTuple a) where
 instance ByteRepr (ECPoint a) => FromJSON (DTuple a) where
   parseJSON = defaultParseJSON "DTuple"
 
+-- | Proof of knowledge of Diffie-Hellman tuple
 data ProofDTuple a = ProofDTuple
   { proofDTuple'public      :: DTuple a
   , proofDTuple'commitmentA :: (Commitment a, Commitment a)
