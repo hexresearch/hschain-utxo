@@ -13,7 +13,6 @@ import Control.DeepSeq
 
 import GHC.Generics
 
-
 import HSChain.Crypto (ByteRepr(..),CryptoAsymmetric(..))
 import HSChain.Crypto.Classes.Hash
 import Hschain.Utxo.Lang.Sigma (CryptoAlg, PublicKey, Secret, SigMessage)
@@ -21,8 +20,6 @@ import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..), ECPoint, hashDomain)
 import Hschain.Utxo.Lang.Sigma.Types (Response)
 
 import qualified Data.ByteString as B
-
-import qualified Hschain.Utxo.Lang.Sigma.Types as Sigma
 
 -- | Signature.
 data Signature = Signature

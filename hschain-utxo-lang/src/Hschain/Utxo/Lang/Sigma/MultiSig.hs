@@ -85,7 +85,7 @@ import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 
-import HSChain.Crypto (PublicKey,PrivKey,CryptoAsymmetric(..))
+import HSChain.Crypto (PublicKey,CryptoAsymmetric(..))
 import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve

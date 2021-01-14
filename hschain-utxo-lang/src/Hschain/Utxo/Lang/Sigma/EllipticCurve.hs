@@ -11,6 +11,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.IO.Class
 import Crypto.Error
 import Data.Aeson (FromJSON(..),ToJSON(..),FromJSONKey(..),ToJSONKey(..))
+import Data.Data
 import Data.Bits
 import Data.Coerce
 import Data.Function (on)
@@ -25,13 +26,16 @@ import qualified Crypto.Hash              as Hash
 import qualified Crypto.Random.Types      as RND
 import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
+import qualified Language.Haskell.TH.Syntax as TH
+import Instances.TH.Lift ()
 import HSChain.Crypto
 import HSChain.Crypto.Classes.Hash
+
 
 infixl 6 .+.
 infixl 7 .*.
 
-type ECPoint = PublicKey
+type ECPoint  = PublicKey
 type ECScalar = PrivKey
 
 -- | Operations with elliptic curve
@@ -159,3 +163,14 @@ instance CryptoHashable (Challenge Ed25519) where
 
 hashDomain :: String
 hashDomain = "hschain.utxo.sigma"
+
+instance Data (PublicKey Ed25519) where
+  gfoldl _ _ _ = error       "PublicKey.gfoldl"
+  toConstr _   = error       "PublicKey.toConstr"
+  gunfold _ _  = error       "PublicKey.gunfold"
+  dataTypeOf _ = mkNoRepType "Hschain.Utxo.Lang.Sigma.Types.PublicKey"
+
+instance TH.Lift (PublicKey Ed25519) where
+  lift pk = [| let Just k = decodeFromBS bs in k |]
+    where
+      bs = encodeToBS pk
