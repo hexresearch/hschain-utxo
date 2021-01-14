@@ -26,8 +26,8 @@ tests = testGroup "Pay for coffee"
 
 payforCoffee :: Bool -> Mine ()
 payforCoffee isBob = do
-  alice@KeyPair{publicKey=pkAlice} <- liftIO $ generateKeyPair
-  bob@KeyPair  {publicKey=pkBob  } <- liftIO $ generateKeyPair
+  alice@KeyPair{getPublicKey=pkAlice} <- liftIO $ generateKeyPair
+  bob@KeyPair  {getPublicKey=pkBob  } <- liftIO $ generateKeyPair
   let sigmaEnv = Sigma.Env [ alice, bob ]
   -- H=1 Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []

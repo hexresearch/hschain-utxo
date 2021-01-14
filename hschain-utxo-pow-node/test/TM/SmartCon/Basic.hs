@@ -31,7 +31,7 @@ tests = testGroup "Running blockchain"
 
 noDoubleTx :: Mine ()
 noDoubleTx = do
-  alice@KeyPair  {publicKey=pkAlice  } <- liftIO generateKeyPair
+  alice@KeyPair  {getPublicKey=pkAlice  } <- liftIO generateKeyPair
   let sigmaEnv = Sigma.Env [ alice ]
   -- H=1. Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []
@@ -57,9 +57,9 @@ noDoubleTx = do
 
 simpleTransfers :: Mine ()
 simpleTransfers = do
-  alice@KeyPair  {publicKey=pkAlice  } <- liftIO generateKeyPair
-  bob@KeyPair    {publicKey=pkBob    } <- liftIO generateKeyPair
-  charlie@KeyPair{publicKey=pkCharlie} <- liftIO generateKeyPair
+  alice@KeyPair  {getPublicKey=pkAlice  } <- liftIO generateKeyPair
+  bob@KeyPair    {getPublicKey=pkBob    } <- liftIO generateKeyPair
+  charlie@KeyPair{getPublicKey=pkCharlie} <- liftIO generateKeyPair
   let sigmaEnv = Sigma.Env [ alice, bob, charlie ]
   ----------------------------------------
   -- H=1 Alice mines block
