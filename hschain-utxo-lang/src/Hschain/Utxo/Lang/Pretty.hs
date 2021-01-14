@@ -193,14 +193,6 @@ instance Pretty Pat where
     PTuple _ args -> parens $ hsep $ punctuate comma $ fmap pretty args
     -- PLit _ p    -> pretty p
 
-instance Pretty Prim where
-  pretty = \case
-    PrimInt      n -> pretty n
-    PrimBool     b -> pretty b
-    PrimString   s -> hcat [dquote, pretty s, dquote]
-    PrimSigma    s -> pretty $ show s
-    PrimBytes    s -> pretty $ encodeBase58 s
-
 instance Pretty Error where
   pretty = \case
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]

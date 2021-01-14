@@ -6,10 +6,7 @@ import Hex.Common.Aeson
 import Hex.Common.Text
 
 import Control.Applicative
-import Control.DeepSeq (NFData)
 import Control.Monad.State.Strict
-
-import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
@@ -32,11 +29,12 @@ import GHC.Generics
 
 import Text.Show.Deriving
 
-import HSChain.Crypto.Classes (ByteRepr(..), ViaBase58(..))
+import HSChain.Crypto.Classes (ByteRepr(..))
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Core.Types         (TypeCore(..), argsTuple, Name)
 import Hschain.Utxo.Lang.Types              (Script(..))
 import Hschain.Utxo.Lang.Core.Compile.Expr  (PrimOp(..))
+import Hschain.Utxo.Lang.Core.Types         (Prim(..))
 import qualified Type.Check.HM as H
 import qualified Language.Haskell.Exts.SrcLoc as Hask
 
@@ -522,19 +520,6 @@ secretVar = flip mappend "___"
 -- | Type tag for type-safe construction
 data SigmaBool
 
--- | Primitive values of the language (constants).
-data Prim
-  = PrimInt     Int64
-  -- ^ Numeric values
-  | PrimString  Text
-  -- ^ Text values
-  | PrimBool    Bool
-  -- ^ Booleans
-  | PrimSigma   (Sigma ProofInput)
-  -- ^ Sigma-expressions
-  | PrimBytes ByteString
-  deriving (Show, Eq, Ord, Generic, Serialise, NFData, Data, Typeable)
-
 -- | Result of the script can be boolean constant or sigma-expression
 -- that user have to prove.
 data BoolExprResult
@@ -551,24 +536,6 @@ instance FromJSON BoolExprResult where
   parseJSON = withObject "BoolExprResult" $ \obj ->
         (ConstBool <$> obj .: "bool")
     <|> (SigmaResult <$> obj .: "sigma")
-
-instance ToJSON Prim where
-  toJSON x = object $ pure $ case x of
-    PrimInt n      -> "int"    .= n
-    PrimString txt -> "text"   .= txt
-    PrimBool b     -> "bool"   .= b
-    PrimSigma s    -> "sigma"  .= toJSON s
-    PrimBytes s    -> "bytes"  .= toJSON (ViaBase58 s)
-
--- todo: rewrite this instance
--- to distinguish between numeric types of int, double and money
-instance FromJSON Prim where
-  parseJSON = withObject "prim" $ \v ->
-        fmap PrimInt    (v .: "int")
-    <|> fmap PrimString (v .: "text")
-    <|> fmap (\(ViaBase58 s :: ViaBase58 "Prim" ByteString) -> PrimBytes s) (v .: "bytes")
-    <|> fmap PrimBool   (v .: "bool")
-    <|> (fmap PrimSigma . parseJSON =<< (v .: "sigma"))
 
 ---------------------------------
 -- type constants
@@ -948,7 +915,7 @@ class ToLang a where
   toLangExpr loc a = unFix $ toLang loc a
 
 instance ToLang Text where
-  toLang loc txt = toPrim loc $ PrimString txt
+  toLang loc txt = toPrim loc $ PrimText txt
 
 instance ToLang ByteString where
   toLang loc bs = toPrim loc $ PrimBytes bs

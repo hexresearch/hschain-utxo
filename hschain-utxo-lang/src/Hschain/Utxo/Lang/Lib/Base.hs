@@ -19,6 +19,7 @@ import Data.Map.Strict (Map)
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Type.Check.HM (monoT, forAllT)
 
 import qualified Hschain.Utxo.Lang.Const as Const
