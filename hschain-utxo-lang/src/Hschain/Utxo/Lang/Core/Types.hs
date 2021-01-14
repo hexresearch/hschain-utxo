@@ -58,7 +58,7 @@ data Prim
   | PrimText  !Text
   | PrimBytes !ByteString
   | PrimBool  !Bool
-  | PrimSigma !(Sigma PublicKey)
+  | PrimSigma !(Sigma ProofInput)
   deriving stock    (Show, Eq, Ord, Generic)
   deriving anyclass (NFData, Serialise)
 

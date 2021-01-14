@@ -39,6 +39,9 @@ import HSChain.Crypto.Classes (encodeToBS, encodeBase58)
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
+import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.DLog as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.DTuple as Sigma
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 import qualified Type.Check.HM as H
@@ -160,12 +163,17 @@ instance Pretty Env where
 instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof
 
-instance Pretty (S.Sigma S.PublicKey) where
+instance Pretty a => Pretty (S.Sigma a) where
   pretty = foldFix $ \case
       S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
       S.SigmaAnd as  -> parens $ hsep $ Const.sigmaAnd : as
       S.SigmaOr  as  -> parens $ hsep $ Const.sigmaOr  : as
       S.SigmaBool b  -> "Sigma" <> pretty b
+
+instance Pretty S.ProofInput where
+  pretty = \case
+    Sigma.InputDLog (Sigma.DLog pk) -> pretty pk
+    Sigma.InputDTuple dt            -> parens $ hsep $ punctuate comma $ fmap pretty [Sigma.dtuple'publicKeyA dt, Sigma.dtuple'publicKeyB dt]
 
 instance Pretty S.PublicKey where
   pretty = pretty . encodeBase58
@@ -333,4 +341,5 @@ instance Pretty Module where
 
 instance Pretty TypedLamProg where
   pretty = pretty . prettyPrint . toHaskProg
+
 

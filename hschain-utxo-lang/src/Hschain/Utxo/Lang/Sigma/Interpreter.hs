@@ -18,6 +18,8 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , orChallenge
   , toProof
   , markTree
+  , ownsKey
+  , getResponseForInput
 ) where
 
 import Control.Applicative
@@ -198,6 +200,13 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
             err = "No challenge for OR child node"
 
 
+ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
+ownsKey knownPKs = \case
+  InputDLog (DLog k)     -> checkKey k
+  InputDTuple DTuple{..} -> checkKey dtuple'publicKeyA
+  where
+    checkKey k = k `Set.member` knownPKs
+
 -- Mark all nodes according to whether we can produce proof for them
 markTree :: (EC a) => Set (PublicKey a) -> SigmaE () (ProofInput a) -> SigmaE ProofVar (ProofInput a)
 markTree knownPKs = clean . check
@@ -284,7 +293,7 @@ initRootChallenge expr message =
   randomOracle $ (LB.toStrict $ CBOR.serialise $ toFiatShamir expr) <> message
 
 getProofRootChallenge ::
-     (EC a)
+     forall a . (EC a)
   => SigmaE (ProofTag a) (Either (PartialProof a) (AtomicProof a))
   -> ByteString
   -> Challenge a
@@ -323,6 +332,24 @@ getRootChallengeBy ::
 getRootChallengeBy extract expr message =
   initRootChallenge (fmap extract expr) message
 
+getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> Secret a
+getPrivateKeyForInput (Env env) = \case
+  InputDLog dlog ->
+    let [sk] = [ secretKey | KeyPair{..} <- env
+                                  , dlog'publicKey dlog == publicKey
+                                  ]
+    in  sk
+  InputDTuple dtuple ->
+    let [sk] = [ secretKey | KeyPair{..} <- env
+                                  , dtuple'publicKeyA dtuple == publicKey
+                                  ]
+    in  sk
+
+getResponseForInput :: EC a => Env a -> ECScalar a -> Challenge a -> ProofInput a -> ECScalar a
+getResponseForInput env rnd ch inp = rnd .+. (sk .*. fromChallenge ch)
+  where
+    Secret sk = getPrivateKeyForInput env inp
+
 generateProofs
   :: forall a. (EC a)
   => Env a
@@ -346,31 +373,23 @@ generateProofs (Env env) expr0 message = goReal ch0 expr0
     -- nodes and additionally responses at real leaves
     goReal ch = \case
       Leaf tag eProof -> case (proofTag'flag tag, eProof) of
-        (Real, (Left PartialProof{..})) -> case pproofInput of
-          InputDLog dlog -> do
-            let e = fromChallenge ch
-                [Secret sk] = [ secretKey | KeyPair{..} <- env
-                                          , dlog'publicKey dlog == publicKey
-                                          ]
-                z = pproofR .+. (sk .*. e)
-            return $ Leaf (ProofTag Real $ Just ch) $ ProofDL $ ProofDLog
-                                      { proofDLog'public = dlog
-                                      , proofDLog'commitmentA = fromGenerator pproofR
-                                      , proofDLog'challengeE  = ch
-                                      , proofDLog'responseZ   = z
-                                      }
-          InputDTuple dtuple -> do
-            let e = fromChallenge ch
-                [Secret sk] = [ secretKey | KeyPair{..} <- env
-                                          , dtuple'publicKeyA dtuple == publicKey
-                                          ]
-                z = pproofR .+. (sk .*. e)
-            return $ Leaf (ProofTag Real $ Just ch) $ ProofDT $ ProofDTuple
-                                      { proofDTuple'public = dtuple
-                                      , proofDTuple'commitmentA = (pproofR .*^ dtuple'generatorA dtuple, pproofR .*^ dtuple'generatorB dtuple)
-                                      , proofDTuple'challengeE  = ch
-                                      , proofDTuple'responseZ   = z
-                                      }
+        (Real, (Left PartialProof{..})) -> do
+          let z = getResponseForInput (Env env) pproofR ch pproofInput
+          return $ case pproofInput of
+            InputDLog dlog ->
+              Leaf (ProofTag Real $ Just ch) $ ProofDL $ ProofDLog
+                                        { proofDLog'public = dlog
+                                        , proofDLog'commitmentA = fromGenerator pproofR
+                                        , proofDLog'challengeE  = ch
+                                        , proofDLog'responseZ   = z
+                                        }
+            InputDTuple dtuple ->
+              Leaf (ProofTag Real $ Just ch) $ ProofDT $ ProofDTuple
+                                        { proofDTuple'public = dtuple
+                                        , proofDTuple'commitmentA = (pproofR .*^ dtuple'generatorA dtuple, pproofR .*^ dtuple'generatorB dtuple)
+                                        , proofDTuple'challengeE  = ch
+                                        , proofDTuple'responseZ   = z
+                                        }
 
         (Simulated, Right e)   -> return $ Leaf (ProofTag Simulated $ Just ch) e
         _                      -> error $ "impossible happened in Sigma/Interpreter"

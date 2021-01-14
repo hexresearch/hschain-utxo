@@ -18,7 +18,7 @@ tests = testGroup "sigma-protocols"
   ]
 
 -- | Inits transaction that is owned by alice and has correct proof.
-initTx :: IO (Tx, GTx (Sigma PublicKey) Box)
+initTx :: IO (Tx, GTx (Sigma ProofInput) Box)
 initTx = do
   aliceSecret <- newSecret
   let alicePubKey = getPublicKey aliceSecret

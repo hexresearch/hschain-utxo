@@ -40,7 +40,7 @@ module Hschain.Utxo.Lang.Types
   , txArg'envL, txArg'idL, txArg'inputsL, txArg'outputsL, txArg'dataInputsL
   , boxInput'argsL, boxInput'boxL, boxInput'idL, boxInput'proofL
   , boxInput'sigMaskL, boxInput'sigMsgL, boxInput'sigsL
-  , boxInputRef'idL, boxInputRef'argsL, boxInputRef'proofL, boxInputRef'sigsL, boxInputRef'sigMaskL 
+  , boxInputRef'idL, boxInputRef'argsL, boxInputRef'proofL, boxInputRef'sigsL, boxInputRef'sigMaskL
   , box'argsL, box'scriptL, box'valueL
   ) where
 
@@ -410,9 +410,9 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 -- smartconstructors to create boxes and transactions
 
 makeInput
-  :: GTx (Sigma PublicKey) Box
+  :: GTx (Sigma ProofInput) Box
   -> ProofEnv
-  -> BoxInputRef (Sigma PublicKey)
+  -> BoxInputRef (Sigma ProofInput)
   -> IO (BoxInputRef Proof)
 makeInput tx proofEnv BoxInputRef{..} = do
   let message = getSigMessage boxInputRef'sigMask tx
@@ -422,9 +422,9 @@ makeInput tx proofEnv BoxInputRef{..} = do
                     }
 
 makeInputOrFail
-  :: GTx (Sigma PublicKey) Box
+  :: GTx (Sigma ProofInput) Box
   -> ProofEnv
-  -> BoxInputRef (Sigma PublicKey)
+  -> BoxInputRef (Sigma ProofInput)
   -> ExceptT Text IO (BoxInputRef Proof)
 makeInputOrFail tx proofEnv ref@BoxInputRef{..}
   = traverse toInput ref
@@ -437,7 +437,7 @@ makeInputOrFail tx proofEnv ref@BoxInputRef{..}
 -- | Expectation of the result of the box. We use it when we know to
 -- what sigma expression input box script is going to be executed.
 -- Then we can generate proofs with function @newProofTx@.
-type ExpectedBox = BoxInputRef (Sigma PublicKey)
+type ExpectedBox = BoxInputRef (Sigma ProofInput)
 
 -- | If we know the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -447,7 +447,7 @@ type ExpectedBox = BoxInputRef (Sigma PublicKey)
 --
 -- Note: If it can not produce the proof (user don't have corresponding private key)
 -- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io Tx
+newProofTx :: MonadIO io => ProofEnv -> GTx (Sigma ProofInput) Box -> io Tx
 newProofTx proofEnv tx
   = liftIO $ traverseOf (tx'inputsL . each) (makeInput tx proofEnv) tx
 
@@ -457,7 +457,7 @@ newProofTx proofEnv tx
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
-newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma PublicKey) Box -> io (Either Text Tx)
+newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (Sigma ProofInput) Box -> io (Either Text Tx)
 newProofTxOrFail proofEnv tx
   = liftIO $ runExceptT $ traverseOf (tx'inputsL . each) (makeInputOrFail tx proofEnv) tx
 
@@ -472,8 +472,8 @@ hashScript = getSha256 . unScript
 --------------------------------------------
 -- useful utils
 
-singleOwnerSigma :: PublicKey -> Sigma PublicKey
-singleOwnerSigma pubKey = Fix $ SigmaPk pubKey
+singleOwnerSigma :: PublicKey -> Sigma ProofInput
+singleOwnerSigma pubKey = Fix $ SigmaPk $ dlogInput pubKey
 
 singleOwnerInput :: BoxId -> PublicKey -> Vector ExpectedBox
 singleOwnerInput boxId pubKey = return $ BoxInputRef

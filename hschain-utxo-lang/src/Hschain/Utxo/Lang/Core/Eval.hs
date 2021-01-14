@@ -24,7 +24,7 @@ import Hschain.Utxo.Lang.Types
 
 -- | Executes spend-script in transaction. Spend script should be
 --   well-typed and evaluate to either sigma-expression or boolean.
-execScriptToSigma :: InputEnv -> Core Void -> Either Error (Sigma PublicKey)
+execScriptToSigma :: InputEnv -> Core Void -> Either Error (Sigma ProofInput)
 execScriptToSigma env prog = do
   -- Type check expression
   ty <- first (CoreScriptError . TypeCoreError)

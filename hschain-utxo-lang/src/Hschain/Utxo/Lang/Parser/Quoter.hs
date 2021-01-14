@@ -83,7 +83,7 @@ import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey)
+import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, ProofInput)
 import Hschain.Utxo.Lang.Types (Script)
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base (baseLibInferCtx, baseLibTypeContext)
@@ -129,6 +129,7 @@ defQuoteModule str = do
                 `extQ` antiQuoteVar
                 `extQ` (fromLift @ByteString)
                 `extQ` (fromLift @Text)
+                `extQ` (fromLift @ProofInput)
                 `extQ` (fromLift @PublicKey)
              ) expr
   return modExpr

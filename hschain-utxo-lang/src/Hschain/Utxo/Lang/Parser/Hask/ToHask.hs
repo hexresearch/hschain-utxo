@@ -77,7 +77,7 @@ toLiteral loc = \case
     toText x = lit $ H.String loc (T.unpack x) (T.unpack x)
     lit = H.Lit loc
 
-    sigma :: Loc -> Sigma PublicKey -> H.Exp Loc
+    sigma :: Loc -> Sigma ProofInput -> H.Exp Loc
     sigma src x = foldFix go x
       where
         go = \case

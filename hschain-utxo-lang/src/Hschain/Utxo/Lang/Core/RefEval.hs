@@ -38,6 +38,8 @@ import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),A
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
+import qualified Hschain.Utxo.Lang.Sigma.DLog as S
+import qualified Hschain.Utxo.Lang.Sigma.Protocol as S
 
 -- | Value hanled by evaluator
 data Val
@@ -186,7 +188,7 @@ evalPrimOp env = \case
   OpSigBool -> pure $ lift1 $ Fix . SigmaBool
   OpSigAnd  -> pure $ lift2 $ \a b -> Fix $ SigmaAnd [a,b]
   OpSigOr   -> pure $ lift2 $ \a b -> Fix $ SigmaOr  [a,b]
-  OpSigPK   -> pure $ evalLift1 $ \t   -> fmap (Fix . SigmaPk) $ parsePublicKey t
+  OpSigPK   -> pure $ evalLift1 $ \t -> fmap (Fix . SigmaPk . S.InputDLog . S.DLog) $ parsePublicKey t
   OpSigListAnd   -> pure $ lift1 $ Fix . SigmaAnd
   OpSigListOr    -> pure $ lift1 $ Fix . SigmaOr
   OpSigListAll _ -> pure $ Val2F $ \valF valXS -> fmap inj $ do
@@ -377,7 +379,7 @@ instance MatchPrim LB.ByteString where
   match (ValP (PrimBytes a)) = pure $ LB.fromStrict a
   match _                    = throwError "Expecting Bytes"
 
-instance k ~ PublicKey => MatchPrim (Sigma k) where
+instance k ~ ProofInput => MatchPrim (Sigma k) where
   match (ValP (PrimSigma a)) = pure a
   match _                    = throwError "Expecting Sigma"
 
@@ -409,7 +411,7 @@ instance InjPrim ByteString    where inj = ValP . PrimBytes
 instance InjPrim LB.ByteString where inj = inj . LB.toStrict
 instance InjPrim (Hash a)      where inj (Hash h) = inj h
 
-instance k ~ PublicKey => InjPrim (Sigma k) where
+instance k ~ ProofInput => InjPrim (Sigma k) where
   inj = ValP . PrimSigma
 
 instance InjPrim a => InjPrim [a] where

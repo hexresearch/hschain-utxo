@@ -530,7 +530,7 @@ data Prim
   -- ^ Text values
   | PrimBool    Bool
   -- ^ Booleans
-  | PrimSigma   (Sigma PublicKey)
+  | PrimSigma   (Sigma ProofInput)
   -- ^ Sigma-expressions
   | PrimBytes ByteString
   deriving (Show, Eq, Ord, Generic, Serialise, NFData, Data, Typeable)
@@ -539,7 +539,7 @@ data Prim
 -- that user have to prove.
 data BoolExprResult
   = ConstBool Bool
-  | SigmaResult (Sigma PublicKey)
+  | SigmaResult (Sigma ProofInput)
   deriving (Show, Eq)
 
 instance ToJSON BoolExprResult where
@@ -961,7 +961,7 @@ instance ToLang Script where
 instance ToLang Bool where
   toLang loc b = toPrim loc $ PrimBool b
 
-instance ToLang (Sigma PublicKey) where
+instance ToLang (Sigma ProofInput) where
   toLang loc sig = toPrim loc $ PrimSigma sig
 
 instance ToLang Int where

@@ -11,17 +11,23 @@ module Hschain.Utxo.Lang.Sigma.Protocol(
   , getProofInput
 ) where
 
-import Data.Aeson   (FromJSON,ToJSON)
+import Data.Data
+import Control.DeepSeq (NFData)
+import Data.Aeson   (FromJSON(..), ToJSON(..))
+import Data.Either.Extra (eitherToMaybe)
 import GHC.Generics (Generic)
 
-import HSChain.Crypto.Classes (ByteRepr(..))
+import HSChain.Crypto.Classes (ByteRepr(..), defaultToJSON, defaultParseJSON)
+import HSChain.Crypto.Classes.Hash
 
 import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Types
 
+import qualified Data.ByteString.Lazy as LB
 import qualified Codec.Serialise as CBOR
+import qualified Language.Haskell.TH.Syntax as TH
 
 -- | Expression that should be proven
 data SigmaE k a
@@ -48,23 +54,62 @@ data ProofInput a
   | InputDTuple (DTuple a)
   deriving (Generic)
 
+instance ByteRepr (ECPoint a) => ByteRepr (ProofInput a) where
+  decodeFromBS bs = fromEither =<< (eitherToMaybe $ CBOR.deserialiseOrFail $ LB.fromStrict bs)
+    where
+      fromEither = \case
+        Left lbs  -> fmap InputDLog   $ decodeFromBS lbs
+        Right rbs -> fmap InputDTuple $ decodeFromBS rbs
+
+  encodeToBS = LB.toStrict . CBOR.serialise . toEither
+    where
+      toEither = \case
+        InputDLog dlog     -> Left  $ encodeToBS dlog
+        InputDTuple dtuple -> Right $ encodeToBS dtuple
+
 deriving instance ( Show (ECPoint a)
-                  , Show (ProofDTuple a)
-                  , Show (ProofDLog   a)
+                  , Show (Response a)
+                  , Show (Challenge   a)
                   ) => Show (ProofInput a)
 
 deriving instance ( Eq (ECPoint a)
-                  , Eq (ProofDTuple a)
-                  , Eq (ProofDLog   a)
+                  , Eq (Response a)
+                  , Eq (Challenge   a)
                   ) => Eq (ProofInput a)
+
+deriving instance ( Ord (ECPoint a)
+                  , Ord (Response a)
+                  , Ord (Challenge a)
+                  ) => Ord (ProofInput a)
+
+deriving instance ( NFData (ECPoint a)
+                  ) => NFData (ProofInput a)
 
 instance ( CBOR.Serialise (ECPoint a)
          , CBOR.Serialise (ProofDTuple a)
          , CBOR.Serialise (ProofDLog   a)
          ) => CBOR.Serialise (ProofInput a)
 
-deriving newtype instance (ByteRepr (ECPoint a)) => ToJSON (ProofInput a)
-deriving newtype instance (ByteRepr (ECPoint a)) => FromJSON (ProofInput a)
+instance (ByteRepr (ECPoint a)) => ToJSON (ProofInput a) where
+  toJSON = defaultToJSON
+
+instance (ByteRepr (ECPoint a)) => FromJSON (ProofInput a) where
+  parseJSON = defaultParseJSON "ProofInput"
+
+instance CryptoHashable (ECPoint a) => CryptoHashable (ProofInput a) where
+  hashStep = genericHashStep hashDomain
+
+instance Typeable a => Data (ProofInput a) where
+  gfoldl _ _ _ = error       "ProofInput.gfoldl"
+  toConstr _   = error       "ProofInput.toConstr"
+  gunfold _ _  = error       "ProofInput.gunfold"
+  dataTypeOf _ = mkNoRepType "Hschain.Utxo.Lang.Sigma.Types.ProofInput"
+
+instance ByteRepr (ECPoint a) => TH.Lift (ProofInput a) where
+  lift pk = [| let Just k = decodeFromBS bs in k |]
+    where
+      bs = encodeToBS pk
+
 
 data AtomicProof a
   = ProofDL (ProofDLog a)

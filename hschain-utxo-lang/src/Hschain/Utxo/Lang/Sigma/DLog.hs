@@ -7,7 +7,12 @@ module Hschain.Utxo.Lang.Sigma.DLog(
   , getCommitmentDLog
 ) where
 
+import Control.DeepSeq (NFData)
+import Data.Aeson (ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
+
+import HSChain.Crypto.Classes (ByteRepr(..))
+import HSChain.Crypto.Classes.Hash
 
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Types
@@ -21,9 +26,13 @@ data ProofDLog a = ProofDLog
   , proofDLog'challengeE  :: Challenge a
   } deriving (Generic)
 
-data DLog a = DLog
+newtype DLog a = DLog
   { dlog'publicKey :: PublicKey a
   } deriving (Generic)
+
+deriving newtype instance ByteRepr (ECPoint a) => ByteRepr (DLog a)
+deriving newtype instance (ByteRepr (ECPoint a)) => ToJSON (DLog a)
+deriving newtype instance (ByteRepr (ECPoint a)) => FromJSON (DLog a)
 
 newDLog :: EC a => Secret a -> DLog a
 newDLog secret = DLog $ getPublicKey secret
@@ -46,7 +55,10 @@ instance ( CBOR.Serialise (ECPoint   a)
 
 deriving instance Show (ECPoint a) => Show (DLog a)
 deriving instance Eq (ECPoint a)   => Eq (DLog a)
+deriving instance Ord (ECPoint a)   => Ord (DLog a)
 instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (DLog a)
+deriving newtype instance NFData (ECPoint a) => NFData (DLog a)
+deriving newtype instance (CryptoHashable (ECPoint a)) => CryptoHashable (DLog a)
 
 -- | Simulate proof of posession of discrete logarithm for given
 -- challenge

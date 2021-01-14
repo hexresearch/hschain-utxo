@@ -86,7 +86,7 @@ instance IsTerm Bool where
     PrimVal (PrimBool b) -> Just b
     _                    -> Nothing
 
-instance IsTerm (Sigma PublicKey) where
+instance IsTerm (Sigma ProofInput) where
   termType = const SigmaT
 
   toTerm = PrimVal . PrimSigma

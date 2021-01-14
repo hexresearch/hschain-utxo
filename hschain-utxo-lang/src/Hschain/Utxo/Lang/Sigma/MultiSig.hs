@@ -85,6 +85,8 @@ import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Sigma.DLog
+import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
@@ -92,7 +94,6 @@ import Hschain.Utxo.Lang.Sigma.Types
 import Hschain.Utxo.Lang.Sigma.Interpreter
 
 import qualified Data.List as L
-import qualified Data.Set as Set
 
 -- | First stage of multi-sig proof. Main prover marks expression tree nodes and leaves
 -- as real and simulated proof and generates simulated proofs.
@@ -103,19 +104,24 @@ import qualified Data.Set as Set
 -- of the participants.
 initMultiSigProof :: EC a
   => Set (PublicKey a)
-  -> SigmaE () (PublicKey a)
+  -> SigmaE () (ProofInput a)
   -> Prove (CommitmentQueryExpr a)
 initMultiSigProof knownKeys expr =
   fmap toComQueryExpr $ generateSimulatedProofs $ markTree knownKeys expr
   where
     toComQueryExpr = fmap (either (Left . toComQuery) Right)
 
-    toComQuery key = CommitmentQuery
-      { comQuery'publicKey  = key
-      , comQuery'commitment = Nothing
-      }
+    toComQuery = \case
+      InputDLog x -> CommitmentQueryLog
+        { comQuery'publicLog     = x
+        , comQuery'commitmentLog = Nothing
+        }
+      InputDTuple x -> CommitmentQueryTuple
+        { comQuery'publicTuple = x
+        , comQuery'commitmentTuple = Nothing
+        }
 
-type ProofExpr leaf a = SigmaE (ProofTag a) (Either (leaf a) (ProofDL a))
+type ProofExpr leaf a = SigmaE (ProofTag a) (Either (leaf a) (AtomicProof a))
 
 -- | Checks that right message was signed. Main prover uses the same message as me.
 checkChallenges :: EC a => CommitmentExpr a -> ChallengeExpr a -> ByteString -> Bool
@@ -124,8 +130,8 @@ checkChallenges commitments expectedCommitments message =
 
 generateSimulatedProofs
   :: EC a
-  => SigmaE ProofVar (PublicKey a)
-  -> Prove (SigmaE (ProofTag a) (Either (PublicKey a) (ProofDL a)))
+  => SigmaE ProofVar (ProofInput a)
+  -> Prove (SigmaE (ProofTag a) (Either (ProofInput a) (AtomicProof a)))
 generateSimulatedProofs tree = case sexprAnn tree of
   Real -> goReal tree
   -- Prover Step 2: If the root of the tree is marked "simulated" then the prover does not have enough witnesses
@@ -146,31 +152,43 @@ generateSimulatedProofs tree = case sexprAnn tree of
       _ -> throwError "Simulated node!"
 
     goSim ch = \case
-      Leaf Simulated k      -> liftIO $ Leaf (ProofTag Simulated $ Just ch) . Right <$> simulateProofDL k ch
+      Leaf Simulated k      -> liftIO $ Leaf (ProofTag Simulated $ Just ch) . Right <$> simulateAtomicProof k ch
       AND  Simulated es     -> AND  (ProofTag Simulated $ Just ch) <$> traverse (goSim ch) es
       OR   Simulated []     -> throwError "Empty OR"
       OR   Simulated (e:es) -> do esWithCh <- liftIO $ forM es $ \x -> (,x) <$> generateChallenge
-                                  let ch0 = foldl xorChallenge ch $ map fst esWithCh
+                                  let ch0 = L.foldl' xorChallenge ch $ map fst esWithCh
                                   OR (ProofTag Simulated $ Just ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
       _ -> throwError "Real node"
 
 type CommitmentQueryExpr a  = ProofExpr CommitmentQuery a
 type CommitmentSecretExpr a = ProofExpr CommitmentSecret a
 
-data CommitmentQuery a = CommitmentQuery
-  { comQuery'publicKey  :: PublicKey a
-  , comQuery'commitment :: Maybe (Commitment a)
-  }
+data CommitmentQuery a
+  = CommitmentQueryLog
+    { comQuery'publicLog     :: DLog a
+    , comQuery'commitmentLog :: Maybe (Commitment a)
+    }
+  | CommitmentQueryTuple
+    { comQuery'publicTuple     :: DTuple a
+    , comQuery'commitmentTuple :: Maybe (Commitment a, Commitment a)
+    }
 
 data CommitmentSecret a = CommitmentSecret
   { comSecret'query      :: CommitmentQuery a
   , comSecret'secret     :: Maybe (ECScalar a)
   }
 
-data CommitmentResult a = CommitmentResult
-  { comResult'publicKey  :: PublicKey a
-  , comResult'commitment :: Commitment a
-  }
+data CommitmentResult a
+  = CommitmentResultLog
+    { comResult'publicLog     :: DLog a
+    , comResult'commitmentLog :: Commitment a
+    }
+  | CommitmentResultTuple
+    { comResult'publicTuple     :: DTuple a
+    , comResult'commitmentTuple :: (Commitment a, Commitment a)
+    }
+
+deriving stock   instance (Eq (ECPoint a), Eq (Challenge a)) => Eq (CommitmentResult a)
 
 -- | Prover sends request to other party to fill randomness in the expression leaves.
 -- If partner founds key that he owns, he generates randomness and commitment
@@ -184,17 +202,22 @@ queryCommitments
   => Set (PublicKey a) -> CommitmentQueryExpr a -> Prove (CommitmentQueryExpr a, CommitmentSecretExpr a)
 queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
   where
-    ownsKey query = Set.member (comQuery'publicKey query) knownKeys
-
     go :: CommitmentQueryExpr a -> Prove (CommitmentSecretExpr a)
     go = \case
       -- if we own the key we generate randomness and commitment based on it
-      Leaf tag (Left query) | ownsKey query -> do
-                        r <- liftIO generateScalar
-                        return $ Leaf tag $ Left $ CommitmentSecret
-                          { comSecret'query  = query { comQuery'commitment = Just $ fromGenerator r }
-                          , comSecret'secret = Just r
-                          }
+      Leaf tag (Left query) | ownsQuery knownKeys query -> do
+                        rnd <- liftIO generateScalar
+                        return $ Leaf tag $ Left $
+                          case query of
+                            CommitmentQueryLog{..} -> CommitmentSecret
+                              { comSecret'query  = query { comQuery'commitmentLog = Just $ fromGenerator rnd }
+                              , comSecret'secret = Just rnd
+                              }
+                            CommitmentQueryTuple{..} -> CommitmentSecret
+                              { comSecret'query  = let dt = comQuery'publicTuple
+                                                   in  query { comQuery'commitmentTuple = Just (rnd .*^ dtuple'generatorA dt, rnd .*^ dtuple'generatorB dt) }
+                              , comSecret'secret = Just rnd
+                              }
       -- if we do not own the key we just copy query (it's someone elses commitment) and leave secret blank
       Leaf tag (Left query) -> return $ Leaf tag $ Left CommitmentSecret
                           { comSecret'query  = query
@@ -212,12 +235,20 @@ queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
       AND  tag es      -> AND tag $ fmap eraseSecrets es
       OR   tag es      -> OR  tag $ fmap eraseSecrets es
 
+ownsQuery :: EC a => Set (PublicKey a) -> CommitmentQuery a -> Bool
+ownsQuery knownKeys query = ownsKey knownKeys (commitmentQueryInput query)
+  where
+    commitmentQueryInput = \case
+      CommitmentQueryLog   dlog _   -> InputDLog dlog
+      CommitmentQueryTuple dtuple _ -> InputDTuple dtuple
+
+
 -- | Erase commitments for keys that we do not own.
 -- We should apply it before appending commitments so that partners could not cheat on somebody else's keys.
 filterCommitments :: EC a => Set (PublicKey a) -> CommitmentQueryExpr a -> CommitmentQueryExpr a
 filterCommitments knownKeys = \case
   Leaf tag leaf -> Leaf tag $ first (\query ->
-    if ownsPk (comQuery'publicKey query) knownKeys
+    if ownsQuery knownKeys query
       then query
       else eraseCommitment query
     ) leaf
@@ -226,10 +257,9 @@ filterCommitments knownKeys = \case
   where
     rec = filterCommitments knownKeys
 
-    eraseCommitment q = q { comQuery'commitment = Nothing }
-
-ownsPk :: EC a => PublicKey a -> Set (PublicKey a) -> Bool
-ownsPk key knownKeys = Set.member key knownKeys
+    eraseCommitment q = case q of
+      CommitmentQueryLog{..}   -> q { comQuery'commitmentLog   = Nothing }
+      CommitmentQueryTuple{..} -> q { comQuery'commitmentTuple = Nothing }
 
 appendCommitments :: EC a => [(Set (PublicKey a), CommitmentQueryExpr a)] -> Prove (CommitmentExpr a)
 appendCommitments exprs = case fmap (uncurry filterCommitments) exprs of
@@ -243,9 +273,10 @@ appendCommitment2
   => CommitmentQueryExpr a -> CommitmentQueryExpr a -> Maybe (CommitmentQueryExpr a)
 appendCommitment2 = appendProofExprBy appendComQueries
   where
-    appendComQueries a b
-      | comQuery'publicKey a == comQuery'publicKey b = Just $ a { comQuery'commitment = comQuery'commitment a <|> comQuery'commitment b }
-      | otherwise                                    = Nothing
+    appendComQueries a b = case (a, b) of
+      (CommitmentQueryLog inpA comA, CommitmentQueryLog inpB comB)     | inpA == inpB -> Just $ a { comQuery'commitmentLog   = comA <|> comB }
+      (CommitmentQueryTuple inpA comA, CommitmentQueryTuple inpB comB) | inpA == inpB -> Just $ a { comQuery'commitmentTuple = comA <|> comB }
+      _                                                                               -> Nothing
 
 toCommitmentExpr :: CommitmentQueryExpr a -> Prove (CommitmentExpr a)
 toCommitmentExpr tree = case tree of
@@ -253,7 +284,10 @@ toCommitmentExpr tree = case tree of
   AND tag as -> AND tag  <$> mapM toCommitmentExpr as
   OR  tag as -> OR  tag  <$> mapM toCommitmentExpr as
   where
-    toCommitmentResult CommitmentQuery{..} = maybe noCommitmentError (\com -> pure $ CommitmentResult comQuery'publicKey com) comQuery'commitment
+    toCommitmentResult = \case
+      CommitmentQueryLog{..}   -> maybe noCommitmentError (\com -> pure $ CommitmentResultLog comQuery'publicLog com) comQuery'commitmentLog
+      CommitmentQueryTuple{..} -> maybe noCommitmentError (\com -> pure $ CommitmentResultTuple comQuery'publicTuple com) comQuery'commitmentTuple
+
 
     noCommitmentError = throwError "No commitment found"
 
@@ -261,8 +295,7 @@ type ChallengeExpr  a = ProofExpr ChallengeResult a
 type CommitmentExpr a = ProofExpr CommitmentResult a
 
 data ChallengeResult a = ChallengeResult
-  { challengeResult'publicKey  :: PublicKey a
-  , challengeResult'commitment :: Commitment a
+  { challengeResult'result     :: CommitmentResult a
   , challengeResult'challenge  :: Challenge a
   }
 
@@ -277,8 +310,14 @@ getChallenges expr0 message = goReal ch0 expr0
 
     extractCommitment =
       either
-        (\x -> FiatShamirLeaf (comResult'publicKey x)      (comResult'commitment x))
-        (\x -> FiatShamirLeaf (dlog'publicKey $ publicK x) (commitmentA x))
+        (\case
+          CommitmentResultLog{..}   -> FiatShamirLeafDLog comResult'publicLog comResult'commitmentLog
+          CommitmentResultTuple{..} -> FiatShamirLeafDTuple comResult'publicTuple comResult'commitmentTuple
+        )
+        (\case
+          ProofDL ProofDLog{..}     -> FiatShamirLeafDLog proofDLog'public proofDLog'commitmentA
+          ProofDT ProofDTuple{..}   -> FiatShamirLeafDTuple proofDTuple'public proofDTuple'commitmentA
+        )
 
     withChallenge ch tag = tag { proofTag'challenge = Just ch }
 
@@ -286,11 +325,10 @@ getChallenges expr0 message = goReal ch0 expr0
     -- nodes and additionally responses at real leaves
     goReal ch = \case
       Leaf tag eProof -> case (proofTag'flag tag, eProof) of
-        (Real, (Left CommitmentResult{..})) ->
+        (Real, (Left comRes)) ->
           return $ Leaf (ProofTag Real $ Just ch) $ Left $ ChallengeResult {
-                                      challengeResult'publicKey  = comResult'publicKey
-                                    , challengeResult'commitment = comResult'commitment
-                                    , challengeResult'challenge  = ch
+                                      challengeResult'result    = comRes
+                                    , challengeResult'challenge = ch
                                     }
         (Simulated, Right e)   -> return $ Leaf (ProofTag Simulated $ Just ch) $ Right e
         _                      -> error $ "impossible happened in Sigma/Interpreter"
@@ -324,19 +362,26 @@ getChallenges expr0 message = goReal ch0 expr0
         err = throwError "Simulated parent node has real children"
 
 data ResponseQuery a = ResponseQuery
-  { responseQuery'publicKey  :: PublicKey a
-  , responseQuery'commitment :: Commitment a
+  { responseQuery'result     :: CommitmentResult a
   , responseQuery'challenge  :: Challenge a
   , responseQuery'response   :: Maybe (Response a)
   }
 
-queryToProofDL :: ResponseQuery a -> Maybe (ProofDL a)
-queryToProofDL ResponseQuery{..} = fmap (\resp -> AtomicProof
-  { publicK     = DLog responseQuery'publicKey
-  , commitmentA = responseQuery'commitment
-  , responseZ   = resp
-  , challengeE  = responseQuery'challenge
-  }) responseQuery'response
+queryToProofDL :: ResponseQuery a -> Maybe (AtomicProof a)
+queryToProofDL ResponseQuery{..} = fmap (\resp -> case responseQuery'result of
+  CommitmentResultLog{..} -> ProofDL $ ProofDLog
+    { proofDLog'public      = comResult'publicLog
+    , proofDLog'commitmentA = comResult'commitmentLog
+    , proofDLog'responseZ   = resp
+    , proofDLog'challengeE  = responseQuery'challenge
+    }
+  CommitmentResultTuple{..} -> ProofDT $ ProofDTuple
+    { proofDTuple'public      = comResult'publicTuple
+    , proofDTuple'commitmentA = comResult'commitmentTuple
+    , proofDTuple'responseZ   = resp
+    , proofDTuple'challengeE  = responseQuery'challenge
+    }
+  ) responseQuery'response
 
 
 type ResponseQueryExpr a = ProofExpr ResponseQuery a
@@ -344,29 +389,28 @@ type ResponseQueryExpr a = ProofExpr ResponseQuery a
 queryResponses :: EC a => Env a -> CommitmentSecretExpr a -> ChallengeExpr a -> Prove (ResponseQueryExpr a)
 queryResponses env secretExpr expr = case (secretExpr, expr) of
   (Leaf _ (Left secretLeaf), Leaf tag (Left ChallengeResult{..})) -> return $ Leaf tag $ Left $ ResponseQuery
-    { responseQuery'publicKey  = challengeResult'publicKey
-    , responseQuery'commitment = challengeResult'commitment
+    { responseQuery'result     = challengeResult'result
     , responseQuery'challenge  = challengeResult'challenge
-    , responseQuery'response   = liftA2 (toResp challengeResult'challenge) (getSecretRand secretLeaf) (getPrivateKey challengeResult'publicKey)
+    , responseQuery'response   = fmap (\rand -> toResp challengeResult'challenge rand challengeResult'result) (getSecretRand secretLeaf)
     }
   (Leaf _ _, Leaf tag (Right pdl)) -> return $ Leaf tag $ Right pdl
   (AND _ as, AND tag bs) -> fmap (AND tag) $ zipWithM (queryResponses env) as bs
   (OR  _ as, OR  tag bs) -> fmap (OR  tag) $ zipWithM (queryResponses env) as bs
   _                      -> throwError "Expression trees are different. Failed to generate response"
   where
-    getPrivateKey pubKey = fmap secretKey $ L.find ((== pubKey) . publicKey) (unEnv env)
-
     getSecretRand CommitmentSecret{..} = comSecret'secret
 
-    toResp challenge rand (Secret privKey) = z
-      where
-        e = fromChallenge challenge
-        z = rand .+. (privKey .*. e)
+    toResp challenge rand = getResponseForInput env rand challenge . commitmentResultInput
+
+commitmentResultInput :: CommitmentResult a -> ProofInput a
+commitmentResultInput = \case
+  CommitmentResultLog   dlog _   -> InputDLog dlog
+  CommitmentResultTuple dtuple _ -> InputDTuple dtuple
 
 filterResponses :: EC a => Set (PublicKey a) -> ResponseQueryExpr a -> ResponseQueryExpr a
 filterResponses knownKeys = \case
   Leaf tag leaf -> Leaf tag $ first (\query ->
-    if ownsPk (responseQuery'publicKey query) knownKeys
+    if ownsResponse query
       then query
       else eraseResponse query
     ) leaf
@@ -376,6 +420,9 @@ filterResponses knownKeys = \case
     rec = filterResponses knownKeys
 
     eraseResponse q = q { responseQuery'response = Nothing }
+
+    ownsResponse = ownsKey knownKeys . responseQueryInput
+    responseQueryInput = commitmentResultInput . responseQuery'result
 
 appendResponsesToProof :: EC a => [(Set (PublicKey a), ResponseQueryExpr a)] -> Prove (Proof a)
 appendResponsesToProof resps = case fmap (uncurry filterResponses) resps of
@@ -394,8 +441,7 @@ appendResponse2 = appendProofExprBy app
     mixResponse a b = a { responseQuery'response = responseQuery'response a <|> responseQuery'response b }
 
     same a b =
-           responseQuery'publicKey a  == responseQuery'publicKey b
-        && responseQuery'commitment a == responseQuery'commitment b
+           responseQuery'result a     == responseQuery'result b
         && responseQuery'challenge a  == responseQuery'challenge b
 
 

@@ -9,7 +9,9 @@ module Hschain.Utxo.Lang.Sigma(
   , PublicKey
   , Secret
   , ProofEnv
+  , ProofInput
   , Proof
+  , AtomicProof
   , SigMessage(..)
   , Sigma
   , sigmaPk
@@ -39,6 +41,8 @@ module Hschain.Utxo.Lang.Sigma(
   , queryResponses
   , appendResponsesToProof
   , checkChallenges
+  , dlogInput
+  , dtupleInput
   ) where
 
 import Hex.Common.Serialise
@@ -73,6 +77,8 @@ import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.MultiSig              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.DLog                  as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.DTuple                as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 import Hschain.Utxo.Lang.Sigma.Interpreter (Prove, runProve)
 
@@ -93,9 +99,12 @@ type Secret     = Sigma.Secret     CryptoAlg
 -- that are owned by the prover.
 type ProofEnv   = Sigma.Env        CryptoAlg
 
+type ECPoint    = Sigma.ECPoint    CryptoAlg
+
 -- | Proof of the ownership.
-type Proof      = Sigma.Proof      CryptoAlg
-type ProofDL    = Sigma.ProofDL    CryptoAlg
+type ProofInput  = Sigma.ProofInput   CryptoAlg
+type Proof       = Sigma.Proof        CryptoAlg
+type AtomicProof = Sigma.AtomicProof  CryptoAlg
 
 -- | Message for signature it is computed based on Tx.
 newtype SigMessage = SigMessage (Hash SHA256)
@@ -142,7 +151,7 @@ instance Serialise a => FromJSON (Sigma a) where
 -- It's message to be signed.
 --
 -- For the message use getTxBytes from TX that has no proof.
-newProof :: ProofEnv -> Sigma PublicKey -> SigMessage -> IO (Either Text Proof)
+newProof :: ProofEnv -> Sigma ProofInput -> SigMessage -> IO (Either Text Proof)
 newProof env expr message =
   case toSigmaExprOrFail expr of
     Right sigma -> Sigma.newProof env sigma $ encodeToBS message
@@ -257,15 +266,15 @@ proofEnvFromKeys :: [KeyPair] -> ProofEnv
 proofEnvFromKeys = Sigma.Env
 
 -- | Check if sigma expression is proven with given proof.
-equalSigmaProof :: Sigma PublicKey -> Proof -> Bool
+equalSigmaProof :: Sigma ProofInput -> Proof -> Bool
 equalSigmaProof candidate proof =
   equalSigmaExpr
       candidate
       (fromSigmaExpr $ Sigma.completeProvenTree proof)
 
-equalSigmaExpr :: Sigma PublicKey -> Sigma ProofDL -> Bool
+equalSigmaExpr :: Sigma ProofInput -> Sigma AtomicProof -> Bool
 equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
-  (SigmaPk pubKey, SigmaPk proof)  -> pubKey == Sigma.dlog'publicKey (Sigma.publicK proof)
+  (SigmaPk inp, SigmaPk proof)     -> inp == Sigma.getProofInput proof
   (SigmaOr as, SigmaOr bs)         -> equalList as bs
   (SigmaAnd as, SigmaAnd bs)       -> equalList as bs
   _                                -> False
@@ -365,7 +374,7 @@ type QueryResponses    = Sigma.ResponseQueryExpr    CryptoAlg
 -- | Inits multi-sig proof. Marks tree nodes as simulated and real proofs based
 -- on set of known public keys of the group of partners who sign the message.
 -- It creates value to query commitments.
-initMultiSigProof :: Set PublicKey -> Sigma PublicKey -> Prove QueryCommitments
+initMultiSigProof :: Set PublicKey -> Sigma ProofInput -> Prove QueryCommitments
 initMultiSigProof knownKeys expr =
   case toSigmaExprOrFail expr of
     Right sigma -> Sigma.initMultiSigProof knownKeys sigma
@@ -401,6 +410,13 @@ checkChallenges :: Commitments -> Challenges -> SigMessage -> Bool
 checkChallenges commitments challenges message =
   Sigma.checkChallenges commitments challenges (encodeToBS message)
 
+dlogInput :: PublicKey -> ProofInput
+dlogInput key =
+  Sigma.InputDLog $ Sigma.DLog key
+
+dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
+dtupleInput genB keyA keyB =
+  Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
 
 $(deriveShow1 ''SigmaF)
 $(deriveEq1   ''SigmaF)
