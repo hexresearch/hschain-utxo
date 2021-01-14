@@ -28,6 +28,8 @@ import qualified Crypto.Hash              as Hash
 import qualified Crypto.Random.Types      as RND
 import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
+import qualified Language.Haskell.TH.Syntax as TH
+import Instances.TH.Lift ()
 import HSChain.Crypto
 import qualified Language.Haskell.TH.Syntax as TH
 import Instances.TH.Lift ()

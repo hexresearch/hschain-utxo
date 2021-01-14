@@ -7,7 +7,6 @@ import HSChain.Crypto
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 
 import qualified Codec.Serialise as CBOR
-
 -- | Pair of keys.
 data KeyPair a = KeyPair
   { getSecretKey :: PrivKey a
