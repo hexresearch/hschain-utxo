@@ -16,8 +16,7 @@ import GHC.Generics
 import HSChain.Crypto (ByteRepr(..),CryptoAsymmetric(..))
 import HSChain.Crypto.Classes.Hash
 import Hschain.Utxo.Lang.Sigma (CryptoAlg, PublicKey, Secret, SigMessage)
-import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..), ECPoint, hashDomain)
-import Hschain.Utxo.Lang.Sigma.Types (Response)
+import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..), ECPoint, Response, hashDomain)
 
 import qualified Data.ByteString as B
 

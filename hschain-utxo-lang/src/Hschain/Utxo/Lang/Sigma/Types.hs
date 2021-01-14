@@ -10,9 +10,6 @@ data KeyPair a = KeyPair
   , getPublicKey :: PublicKey a
   }
 
-type Commitment a = ECPoint a
-type Response a   = ECScalar a
-
 -- | Generate key-pair.
 generateKeyPair :: EC a => IO (KeyPair a)
 generateKeyPair = do

@@ -4,6 +4,8 @@ module Hschain.Utxo.Lang.Sigma.EllipticCurve(
   , Ed25519
   , ECPoint
   , ECScalar
+  , Commitment
+  , Response
   , hashDomain
   ) where
 
@@ -35,8 +37,10 @@ import HSChain.Crypto.Classes.Hash
 infixl 6 .+.
 infixl 7 .*.
 
-type ECPoint  = PublicKey
-type ECScalar = PrivKey
+type ECPoint    = PublicKey
+type ECScalar   = PrivKey
+type Commitment = ECPoint
+type Response   = ECScalar
 
 -- | Operations with elliptic curve
 class ( CryptoAsymmetric a 
