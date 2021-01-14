@@ -13,8 +13,6 @@ data KeyPair a = KeyPair
   , getPublicKey :: PublicKey a
   } deriving (Generic)
 
-instance (CBOR.Serialise (ECPoint a), CBOR.Serialise (ECScalar a)) => CBOR.Serialise (KeyPair a)
-
 -- | Generate key-pair.
 generateKeyPair :: EC a => IO (KeyPair a)
 generateKeyPair = do
