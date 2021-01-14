@@ -97,6 +97,9 @@ let
         # Disable tests
         timeout         = lib.dontCheck hsOld.timeout;
         repline         = lib.dontCheck hsOld.repline;
+        # We need to call it manually to avoid name clash between C library and haskell package
+        secp256k1-haskell = hsNew.callPackage ./derivations-manual/secp256k1-haskell.nix
+          {inherit (pkgs) secp256k1;};
       };
 in
 let pkgNames = builtins.attrNames localProjects;
