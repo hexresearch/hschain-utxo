@@ -1,4 +1,11 @@
--- | Proof of discrete logarithm
+-- | Proof of discrete logarithm of some arbitrary group element @u@
+-- with respect to a fixed generator @g@, where spender proves knowedge
+-- of @x@ such that
+--
+-- > u == g ^ x
+--
+-- This is derived from Schnorr signatures.
+--
 module Hschain.Utxo.Lang.Sigma.DLog(
     DLog(..)
   , ProofDLog(..)
@@ -20,15 +27,23 @@ import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Codec.Serialise as CBOR
 
--- | Proof of discrete logarithm (key ownership)
+-- | Proof of discrete logarithm of some arbitrary group element @u@
+-- with respect to a fixed generator @g@, where spender proves knowedge
+-- of @x@ such that
+--
+-- > u == g ^ x
+--
+-- It is based on zero-knowledge sigma protocols (Schnorr signatures).
 data ProofDLog a = ProofDLog
-  { proofDLog'public      :: DLog a         -- ^ input for proof
-  , proofDLog'commitmentA :: Commitment a
-  , proofDLog'responseZ   :: Response a
-  , proofDLog'challengeE  :: Challenge a
+  { proofDLog'public      :: DLog a         -- ^ input for proof (contains public key)
+  , proofDLog'commitmentA :: Commitment a   -- ^ commitment
+  , proofDLog'responseZ   :: Response a     -- ^ response
+  , proofDLog'challengeE  :: Challenge a    -- ^ challenge
   } deriving (Generic)
 
--- | Input for proof of key ownership
+-- | Input for proof of key ownership.
+-- We pass public key as point in the group that corresponds
+-- to secret that we need to prove.
 newtype DLog a = DLog
   { dlog'publicKey :: PublicKey a  -- ^ Public key
   } deriving (Generic)

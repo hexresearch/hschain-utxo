@@ -68,10 +68,10 @@ instance ByteRepr (ECPoint a) => FromJSON (DTuple a) where
 
 -- | Proof of knowledge of Diffie-Hellman tuple
 data ProofDTuple a = ProofDTuple
-  { proofDTuple'public      :: DTuple a
-  , proofDTuple'commitmentA :: (Commitment a, Commitment a)
-  , proofDTuple'responseZ   :: Response a
-  , proofDTuple'challengeE  :: Challenge a
+  { proofDTuple'public      :: DTuple a                      -- ^ public input for the algorithm
+  , proofDTuple'commitmentA :: (Commitment a, Commitment a)  -- ^ commitments
+  , proofDTuple'responseZ   :: Response a                    -- ^ response
+  , proofDTuple'challengeE  :: Challenge a                   -- ^ challenge
   } deriving (Generic)
 
 deriving instance (Show (ECPoint a), Show (Response a), Show (Challenge a)) => Show (ProofDTuple a)

@@ -45,10 +45,18 @@ class ( ByteRepr (ECPoint   a)
   xorChallenge      :: Challenge a -> Challenge a -> Challenge a
 
   generateScalar    :: IO (ECScalar a)
+  -- ^ generates random scalar
+
   fromGenerator     :: ECScalar  a -> ECPoint  a
+  -- ^ multiplies generator of the group N times (first argument)
+
   fromChallenge     :: Challenge a -> ECScalar a
+
   isIdentity        :: ECPoint a -> Bool
+  -- ^ checks weather element is identity
+
   groupGenerator    :: ECPoint a
+  -- ^ generator of the group
 
   (.+.)   :: ECScalar a -> ECScalar a -> ECScalar a
   (.*.)   :: ECScalar a -> ECScalar a -> ECScalar a

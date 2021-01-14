@@ -337,14 +337,10 @@ opComparison :: (TermVal -> TermVal -> Bool) -> Val
 opComparison f = liftTerm2 (\a b -> PrimVal $ PrimBool $ f a b)
 
 parsePublicKey :: ByteString -> Eval PublicKey
-parsePublicKey = parseBS err
-  where
-    err = "Can't parse public key"
+parsePublicKey = parseBS "Can't parse public key"
 
 parseGenerator :: ByteString -> Eval ECPoint
-parseGenerator = parseBS err
-  where
-    err = "Can't parse ECPoint"
+parseGenerator = parseBS "Can't parse ECPoint"
 
 parseBS :: ByteRepr a => String -> ByteString -> Eval a
 parseBS msg = maybe (throwError $ EvalErr msg) pure . decodeFromBS
