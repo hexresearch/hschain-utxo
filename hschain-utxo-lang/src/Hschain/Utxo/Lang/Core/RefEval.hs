@@ -38,8 +38,6 @@ import Hschain.Utxo.Lang.Types (Box(..),PostBox(..),BoxOutput(..),BoxInput(..),A
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
-import qualified Hschain.Utxo.Lang.Sigma.DLog as S
-import qualified Hschain.Utxo.Lang.Sigma.Protocol as S
 
 -- | Value hanled by evaluator
 data Val
@@ -185,10 +183,11 @@ evalPrimOp env = \case
       False -> match y
   OpBoolNot -> pure $ lift1 not
   --
-  OpSigBool -> pure $ lift1 $ Fix . SigmaBool
-  OpSigAnd  -> pure $ lift2 $ \a b -> Fix $ SigmaAnd [a,b]
-  OpSigOr   -> pure $ lift2 $ \a b -> Fix $ SigmaOr  [a,b]
-  OpSigPK   -> pure $ evalLift1 $ \t -> fmap (Fix . SigmaPk . S.InputDLog . S.DLog) $ parsePublicKey t
+  OpSigBool   -> pure $ lift1 $ Fix . SigmaBool
+  OpSigAnd    -> pure $ lift2 $ \a b -> Fix $ SigmaAnd [a,b]
+  OpSigOr     -> pure $ lift2 $ \a b -> Fix $ SigmaOr  [a,b]
+  OpSigPK     -> pure $ evalLift1 $ \t -> fmap (Fix . SigmaPk . dlogInput) $ parsePublicKey t
+  OpSigDTuple -> pure $ evalLift3 $ \genB keyA keyB -> liftA3 (\gB pkA pkB -> Fix $ SigmaPk $ dtupleInput gB pkA pkB) (parseGenerator genB) (parsePublicKey keyA) (parsePublicKey keyB)
   OpSigListAnd   -> pure $ lift1 $ Fix . SigmaAnd
   OpSigListOr    -> pure $ lift1 $ Fix . SigmaOr
   OpSigListAll _ -> pure $ Val2F $ \valF valXS -> fmap inj $ do
@@ -338,9 +337,17 @@ opComparison :: (TermVal -> TermVal -> Bool) -> Val
 opComparison f = liftTerm2 (\a b -> PrimVal $ PrimBool $ f a b)
 
 parsePublicKey :: ByteString -> Eval PublicKey
-parsePublicKey = maybe err pure . decodeFromBS
+parsePublicKey = parseBS err
   where
-    err = throwError "Can't parse public key"
+    err = "Can't parse public key"
+
+parseGenerator :: ByteString -> Eval ECPoint
+parseGenerator = parseBS err
+  where
+    err = "Can't parse ECPoint"
+
+parseBS :: ByteRepr a => String -> ByteString -> Eval a
+parseBS msg = maybe (throwError $ EvalErr msg) pure . decodeFromBS
 
 readSig :: InputEnv -> Int64 -> Eval Crypto.Signature
 readSig InputEnv{..} index =

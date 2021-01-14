@@ -190,6 +190,7 @@ baseLibTypeContext = H.Context $ M.fromList $
   , assumeType Const.sigmaAnd (monoT $ sigmaT ~> sigmaT ~> sigmaT)
   , assumeType Const.sigmaOr (monoT $ sigmaT ~> sigmaT ~> sigmaT)
   , assumeType "pk" (monoT $ bytesT ~> sigmaT)
+  , assumeType "dtuple" (monoT $ bytesT ~> bytesT ~> bytesT ~> sigmaT)
   , assumeType "toSigma" (monoT $ boolT ~> sigmaT)
   , assumeType "+" (monoT $ intT ~> intT ~> intT)
   , assumeType "-" (monoT $ intT ~> intT ~> intT)

@@ -78,7 +78,7 @@ getBalance Wallet{..} = do
 -- | Create proof for a most simple expression of @pk user-key@
 getOwnerProof :: MonadIO io => Wallet -> Tx -> io (Either Text Proof)
 getOwnerProof w@Wallet{..} tx =
-  liftIO $ newProof env (Fix $ SigmaPk (getWalletPublicKey w)) (getSigMessage SigAll tx)
+  liftIO $ newProof env (Fix $ SigmaPk $ dlogInput (getWalletPublicKey w)) (getSigMessage SigAll tx)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 
@@ -110,21 +110,21 @@ newSendTx wallet send@Send{..} = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount
 
-newProofOrFail :: ProofEnv -> Sigma PublicKey -> SigMessage -> App Proof
+newProofOrFail :: ProofEnv -> Sigma ProofInput -> SigMessage -> App Proof
 newProofOrFail env expr message = do
   eProof <- liftIO $ newProof env expr message
   case eProof of
     Right proof -> return proof
     Left err    -> throwError err
 
-getTxSigmaUnsafe :: Tx -> App (Vector (Sigma PublicKey))
+getTxSigmaUnsafe :: Tx -> App (Vector (Sigma ProofInput))
 getTxSigmaUnsafe tx = either throwError pure =<< getTxSigma tx
 
-getSigmaForProof :: Tx -> App (Vector (Sigma PublicKey))
+getSigmaForProof :: Tx -> App (Vector (Sigma ProofInput))
 getSigmaForProof tx = getTxSigmaUnsafe tx
 
-singleOwnerSigmaExpr :: Wallet -> Sigma PublicKey
-singleOwnerSigmaExpr wallet = Fix $ SigmaPk $ getWalletPublicKey wallet
+singleOwnerSigmaExpr :: Wallet -> Sigma ProofInput
+singleOwnerSigmaExpr wallet = Fix $ SigmaPk $ dlogInput $ getWalletPublicKey wallet
 
 -- | Sends money with exchange
 --
@@ -177,7 +177,7 @@ extractSenderReceiverIds tx =
     toBoxId = computeBoxId txId
 
 -- | BoxInputRef for single owner of the input.
-singleOwnerBoxRef :: Wallet -> BoxId -> BoxInputRef (Sigma PublicKey)
+singleOwnerBoxRef :: Wallet -> BoxId -> BoxInputRef (Sigma ProofInput)
 singleOwnerBoxRef wallet boxId = BoxInputRef
   { boxInputRef'id    = boxId
   , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet

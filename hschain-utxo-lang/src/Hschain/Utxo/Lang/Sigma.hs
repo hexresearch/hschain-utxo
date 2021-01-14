@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Sigma(
     CryptoAlg
   , KeyPair
   , PublicKey
+  , ECPoint
   , Secret
   , ProofEnv
   , ProofInput
@@ -15,6 +16,8 @@ module Hschain.Utxo.Lang.Sigma(
   , SigMessage(..)
   , Sigma
   , sigmaPk
+  , dlogSigma
+  , dtupleSigma
   , mapPk
   , mapPkM
   , SigmaF(..)
@@ -191,6 +194,12 @@ instance Boolean (Sigma k) where
 
 sigmaPk :: k -> Sigma k
 sigmaPk k = Fix $ SigmaPk k
+
+dlogSigma :: PublicKey -> Sigma ProofInput
+dlogSigma k = sigmaPk $ dlogInput k
+
+dtupleSigma :: ECPoint -> PublicKey -> PublicKey -> Sigma ProofInput
+dtupleSigma genB keyA keyB = sigmaPk $ dtupleInput genB keyA keyB
 
 -- | Sigma-expression
 data SigmaF k a =

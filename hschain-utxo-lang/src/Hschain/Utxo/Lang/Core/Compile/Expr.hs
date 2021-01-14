@@ -75,6 +75,7 @@ data PrimOp a
   | OpSigAnd              -- ^ AND for sigma expressions
   | OpSigOr               -- ^ OR for sigma expressions
   | OpSigPK               -- ^ Proof of key possession
+  | OpSigDTuple           -- ^ Proof of Diffie-Hellman tuple of keys
   | OpSigBool             -- ^ Lift boolean to the sigma expression
   | OpSigListAnd          -- ^ AND for list of sigma expression
   | OpSigListOr           -- ^ OR for list of sigma expression
