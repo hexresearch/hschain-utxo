@@ -40,7 +40,6 @@ import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.DLog as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.DTuple as Sigma
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
@@ -172,8 +171,8 @@ instance Pretty a => Pretty (S.Sigma a) where
 
 instance Pretty S.ProofInput where
   pretty = \case
-    Sigma.InputDLog (Sigma.DLog pk) -> pretty pk
-    Sigma.InputDTuple dt            -> parens $ hsep $ punctuate comma $ fmap pretty [Sigma.dtuple'publicKeyA dt, Sigma.dtuple'publicKeyB dt]
+    Sigma.InputDLog   pk -> pretty pk
+    Sigma.InputDTuple dt -> parens $ hsep $ punctuate comma $ fmap pretty [Sigma.dtuple'publicKeyA dt, Sigma.dtuple'publicKeyB dt]
 
 instance Pretty S.PublicKey where
   pretty = pretty . encodeBase58

@@ -15,7 +15,6 @@ module Hschain.Utxo.Lang.Sigma.FiatShamirTree(
 
 import GHC.Generics (Generic)
 
-import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Protocol
@@ -35,7 +34,7 @@ data FiatShamir a
 -- | Leaf of Fiat-Shamir tree.
 data FiatShamirLeaf a
   = FiatShamirLeafDLog
-      { fsLeafDLog'public     :: DLog a
+      { fsLeafDLog'public     :: PublicKey a
       , fsLeafDLog'commitment :: Commitment a
       }
   | FiatShamirLeafDTuple

@@ -80,7 +80,6 @@ import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.MultiSig              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.DLog                  as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.DTuple                as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 import Hschain.Utxo.Lang.Sigma.Interpreter (Prove, runProve)
@@ -420,8 +419,7 @@ checkChallenges commitments challenges message =
   Sigma.checkChallenges commitments challenges (encodeToBS message)
 
 dlogInput :: PublicKey -> ProofInput
-dlogInput key =
-  Sigma.InputDLog $ Sigma.DLog key
+dlogInput = Sigma.InputDLog
 
 dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
 dtupleInput genB keyA keyB =

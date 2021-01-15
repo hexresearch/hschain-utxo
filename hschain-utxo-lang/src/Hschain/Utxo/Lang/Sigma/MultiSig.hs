@@ -165,7 +165,7 @@ type CommitmentSecretExpr a = ProofExpr CommitmentSecret a
 
 data CommitmentQuery a
   = CommitmentQueryLog
-    { comQuery'publicLog     :: DLog a
+    { comQuery'publicLog     :: PublicKey a
     , comQuery'commitmentLog :: Maybe (Commitment a)
     }
   | CommitmentQueryTuple
@@ -180,7 +180,7 @@ data CommitmentSecret a = CommitmentSecret
 
 data CommitmentResult a
   = CommitmentResultLog
-    { comResult'publicLog     :: DLog a
+    { comResult'publicLog     :: PublicKey a
     , comResult'commitmentLog :: Commitment a
     }
   | CommitmentResultTuple

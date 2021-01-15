@@ -51,7 +51,7 @@ newtype Env a = Env { unEnv :: [KeyPair a] }
 
 -- | Public proof data (inputs for proof algorithms)
 data ProofInput a
-  = InputDLog (DLog a)      -- ^ proof of discrte log
+  = InputDLog   (PublicKey a)      -- ^ proof of discrte log
   | InputDTuple (DTuple a)  -- ^ proof of Diffie-Hellman tuple
   deriving (Generic)
 

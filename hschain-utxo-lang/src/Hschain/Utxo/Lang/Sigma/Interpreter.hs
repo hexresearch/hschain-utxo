@@ -202,7 +202,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 
 ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
 ownsKey knownPKs = \case
-  InputDLog (DLog k)     -> checkKey k
+  InputDLog   k          -> checkKey k
   InputDTuple DTuple{..} -> checkKey dtuple'publicKeyA
   where
     checkKey k = k `Set.member` knownPKs
@@ -215,7 +215,7 @@ markTree knownPKs = clean . check
 
     -- Prover Step 1: Mark as real everything the prover can prove
     check = \case
-      Leaf () inp@(InputDLog (DLog k))     -> Leaf (checkKey k) inp
+      Leaf () inp@(InputDLog k)            -> Leaf (checkKey k) inp
       Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey dtuple'publicKeyA) inp
       AND  () es -> AND k es'
         where
@@ -336,7 +336,7 @@ getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> Secret a
 getPrivateKeyForInput (Env env) = \case
   InputDLog dlog ->
     let [sk] = [ secretKey | KeyPair{..} <- env
-                                  , dlog'publicKey dlog == publicKey
+                                  , dlog == publicKey
                                   ]
     in  sk
   InputDTuple dtuple ->
@@ -455,7 +455,7 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
     getAtomicProof ch proofInp respZ = case proofInp of
       InputDLog dlog -> ProofDL $ ProofDLog
         { proofDLog'public      = dlog
-        , proofDLog'commitmentA = getCommitmentDLog respZ ch dlog
+        , proofDLog'commitmentA = getCommitment respZ ch dlog
         , proofDLog'responseZ   = respZ
         , proofDLog'challengeE  = ch
         }
