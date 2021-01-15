@@ -1,11 +1,10 @@
--- | Proof of discrete logarithm of some arbitrary group element @u@
--- with respect to a fixed generator @g@, where spender proves knowedge
--- of @x@ such that
---
--- > u == g ^ x
+-- |
+-- Proof of possession of discrete logarithm. This is non-interactive
+-- proof that spender know scalar (private key) @x@ such that @g^x =
+-- k@ where k is point on curve (public key), and @g@ is generator of
+-- curve.
 --
 -- This is derived from Schnorr signatures.
---
 module Hschain.Utxo.Lang.Sigma.DLog(
     DLog(..)
   , ProofDLog(..)
@@ -27,13 +26,14 @@ import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Codec.Serialise as CBOR
 
--- | Proof of discrete logarithm of some arbitrary group element @u@
--- with respect to a fixed generator @g@, where spender proves knowedge
--- of @x@ such that
+-- | Proof of possession of discrete logarithm (private key) of given
+-- point on curve (public key). Spender proves knowledge of scalar @x@
+-- such that
 --
 -- > u == g ^ x
 --
--- It is based on zero-knowledge sigma protocols (Schnorr signatures).
+-- where @u@ is public key. It is based on zero-knowledge sigma
+-- protocols (Schnorr signatures).
 data ProofDLog a = ProofDLog
   { proofDLog'public      :: DLog a         -- ^ input for proof (contains public key)
   , proofDLog'commitmentA :: Commitment a   -- ^ commitment
