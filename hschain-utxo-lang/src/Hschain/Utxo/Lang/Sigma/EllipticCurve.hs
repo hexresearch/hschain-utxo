@@ -73,6 +73,7 @@ class ( CryptoAsymmetric a
   -- Group operations
   (^+^)   :: ECPoint  a -> ECPoint  a -> ECPoint  a
   negateP :: ECPoint a -> ECPoint a
+  negateS :: ECScalar a -> ECScalar a
 
 instance ByteRepr (Challenge a) => FromJSON (Challenge a) where
   parseJSON = defaultParseJSON "Challenge"
@@ -258,7 +259,11 @@ instance EC Secp256k1 where
     Nothing -> error "What to do with identity?"
     Just p  -> Secp256k1Point p
   --
-  negateP = undefined
+  negateS (Secp256k1Scalar s)
+    = unsafeCoerce -- FIXME: No wy to get bytestring back
+    $ fromMaybe (error "What to do with identity?")
+    $ Secp256k1.tweakNegate =<< Secp256k1.tweak s
+  --
   fromChallenge (ChallengeSecp256k1 bs)
     = Secp256k1Scalar $ BS.pack [0] <> bs
   --

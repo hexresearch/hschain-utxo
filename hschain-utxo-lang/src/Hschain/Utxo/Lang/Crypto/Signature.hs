@@ -32,7 +32,7 @@ instance ByteRepr Signature where
 
   decodeFromBS bs = liftA2 Signature (decodeFromBS commitmentBS) (decodeFromBS responseBS)
     where
-      (commitmentBS, responseBS) = B.splitAt 32 bs
+      (commitmentBS, responseBS) = B.splitAt 33 bs
 
 -- | Signs message.
 sign :: Secret -> SigMessage -> IO Signature

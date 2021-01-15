@@ -69,7 +69,7 @@ import Hschain.Utxo.Lang.Sigma.Interpreter (Prove, runProve)
 
 
 -- | Cryptographic algorithm that we use.
-type CryptoAlg = Sigma.Ed25519
+type CryptoAlg = Sigma.Secp256k1
 
 -- | Pair of public and private keys.
 type KeyPair    = Sigma.KeyPair    CryptoAlg
