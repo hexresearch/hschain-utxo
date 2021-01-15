@@ -98,6 +98,7 @@ library
                      , haskell-src-exts
                      , hex-common
                      , memory
+                     , secp256k1-haskell         >=0.5
                      , mtl
                      , pretty-show
                      , safe

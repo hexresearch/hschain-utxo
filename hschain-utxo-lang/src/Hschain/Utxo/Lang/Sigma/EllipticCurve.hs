@@ -1,12 +1,14 @@
 -- | Module defines main types and functions for working with elliptic curves.
 module Hschain.Utxo.Lang.Sigma.EllipticCurve(
     EC(..)
-  , Ed25519
   , ECPoint
   , ECScalar
   , Commitment
   , Response
   , hashDomain
+    -- * Implementations
+  , Ed25519
+  , Secp256k1
   ) where
 
 import Control.DeepSeq (NFData)
@@ -14,18 +16,21 @@ import Control.Monad.IO.Class
 import Crypto.Error
 import Data.Aeson (FromJSON(..),ToJSON(..),FromJSONKey(..),ToJSONKey(..))
 import Data.Data
+import Data.Maybe
 import Data.Bits
 import Data.Coerce
 import Data.Function (on)
 import Data.Maybe (fromJust)
 import HSChain.Crypto.Classes
 import GHC.Generics
+import Unsafe.Coerce
 
 import qualified Codec.Serialise          as CBOR
 import qualified Crypto.ECC.Edwards25519  as Ed
 import qualified Crypto.Hash.Algorithms   as Hash
 import qualified Crypto.Hash              as Hash
 import qualified Crypto.Random.Types      as RND
+import qualified Crypto.Secp256k1         as Secp256k1
 import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
 import qualified Language.Haskell.TH.Syntax as TH
@@ -46,7 +51,7 @@ type Commitment = ECPoint
 type Response   = ECScalar
 
 -- | Operations with elliptic curve
-class ( CryptoAsymmetric a 
+class ( CryptoAsymmetric a
       , ByteRepr (Challenge a)
       , Eq (ECScalar a)
       , Eq (Challenge a)
@@ -184,3 +189,104 @@ instance TH.Lift (PublicKey Ed25519) where
   lift pk = [| let Just k = decodeFromBS bs in k |]
     where
       bs = encodeToBS pk
+
+
+----------------------------------------------------------------
+-- Ed25519 elliptic curve
+--
+-- Curve order is:
+--   0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4141
+----------------------------------------------------------------
+
+-- | Algorithm tag.
+data Secp256k1
+
+newtype instance PublicKey Secp256k1 = Secp256k1Point Secp256k1.PubKey
+  deriving stock   (Eq,Generic)
+  deriving newtype (NFData)
+
+-- Valid range for private keys is
+--
+--   [1, 0xFFFF FFFF FFFF FFFF FFFF FFFF FFFF FFFE BAAE DCE6 AF48 A03B BFD2 5E8C D036 4140]
+--
+-- This is however is not checked by library! Invalid secret key will
+-- crash when deriving public key.
+newtype instance PrivKey Secp256k1 = Secp256k1Scalar BS.ByteString
+  deriving stock   (Eq,Ord,Generic)
+  deriving newtype (NFData,ByteRepr)
+
+instance ByteRepr (PublicKey Secp256k1) where
+  encodeToBS   = coerce (Secp256k1.exportPubKey True)
+  decodeFromBS = coerce  Secp256k1.importPubKey
+
+instance Ord (PublicKey Secp256k1) where
+  compare = compare `on` encodeToBS
+
+instance CryptoAsymmetric Secp256k1 where
+  -- FIXME: check that SK is valid
+  generatePrivKey = liftIO $ Secp256k1Scalar <$> RND.getRandomBytes 32
+  publicKey (Secp256k1Scalar s) = case Secp256k1.secKey s of
+    Nothing -> error "Internal error: incorrect secret key"
+    Just sk -> Secp256k1Point $ Secp256k1.derivePubKey sk
+  asymmKeyAlgorithmName = CryptoName "Secp256k1"
+
+instance EC Secp256k1 where
+  newtype Challenge Secp256k1 = ChallengeSecp256k1 BS.ByteString
+    deriving stock   (Show,Eq,Ord,Generic)
+    deriving newtype (NFData)
+  Secp256k1Scalar k1 .+. Secp256k1Scalar k2
+    = unsafeCoerce -- FIXME: No way to get bytestring back
+    $ fromMaybe (error "What to do with identity?")
+    $ do sk <- Secp256k1.secKey k1
+         tw <- Secp256k1.tweak k2
+         Secp256k1.tweakAddSecKey sk tw
+  --
+  Secp256k1Scalar s1 .*. Secp256k1Scalar s2
+    = unsafeCoerce
+    $ fromMaybe (error "What to do with identity?")
+    $ do sk <- Secp256k1.secKey s1
+         tw <- Secp256k1.tweak  s2
+         Secp256k1.tweakMulSecKey sk tw
+  --
+  Secp256k1Scalar s .*^ Secp256k1Point p
+    = Secp256k1Point
+    $ fromMaybe (error "What to do with identity?")
+    $ do tw <- Secp256k1.tweak s
+         Secp256k1.tweakMulPubKey p tw
+  --
+  Secp256k1Point p1 ^+^ Secp256k1Point p2 = case Secp256k1.combinePubKeys [p1,p2] of
+    Nothing -> error "What to do with identity?"
+    Just p  -> Secp256k1Point p
+  --
+  negateP = undefined
+  fromChallenge (ChallengeSecp256k1 bs)
+    = Secp256k1Scalar $ BS.pack [0] <> bs
+  --
+  generateChallenge = ChallengeSecp256k1 <$> RND.getRandomBytes 31
+  randomOracle
+    = ChallengeSecp256k1
+    . BS.take 31
+    . BA.convert
+    . Hash.hash @_ @Hash.SHA256
+  xorChallenge (ChallengeSecp256k1 a) (ChallengeSecp256k1 b)
+    = ChallengeSecp256k1
+    $ BS.pack
+    $ BS.zipWith xor a b
+
+instance ByteRepr (Challenge Secp256k1) where
+  decodeFromBS = Just . ChallengeSecp256k1
+  encodeToBS   = coerce
+
+instance Data (PublicKey Secp256k1) where
+  gfoldl _ _ _ = error       "PublicKey.gfoldl"
+  toConstr _   = error       "PublicKey.toConstr"
+  gunfold _ _  = error       "PublicKey.gunfold"
+  dataTypeOf _ = mkNoRepType "Hschain.Utxo.Lang.Sigma.Types.PublicKey"
+
+instance TH.Lift (PublicKey Secp256k1) where
+  lift pk = [| let Just k = decodeFromBS bs in k |]
+    where
+      bs = encodeToBS pk
+
+instance CryptoHashable (Challenge Secp256k1) where
+  hashStep = genericHashStep hashDomain
