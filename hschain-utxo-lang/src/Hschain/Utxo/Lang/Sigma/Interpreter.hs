@@ -203,7 +203,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
 ownsKey knownPKs = \case
   InputDLog   k          -> checkKey k
-  InputDTuple DTuple{..} -> checkKey dtuple'publicKeyA
+  InputDTuple DTuple{..} -> checkKey (PublicKey dtuple'publicKeyA)
   where
     checkKey k = k `Set.member` knownPKs
 
@@ -216,7 +216,7 @@ markTree knownPKs = clean . check
     -- Prover Step 1: Mark as real everything the prover can prove
     check = \case
       Leaf () inp@(InputDLog k)            -> Leaf (checkKey k) inp
-      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey dtuple'publicKeyA) inp
+      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey (PublicKey dtuple'publicKeyA)) inp
       AND  () es -> AND k es'
         where
           es'  = map check es
@@ -336,13 +336,13 @@ getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> Secret a
 getPrivateKeyForInput (Env env) = \case
   InputDLog dlog ->
     let [sk] = [ secretKey | KeyPair{..} <- env
-                                  , dlog == publicKey
-                                  ]
+                           , dlog == publicKey
+                           ]
     in  sk
   InputDTuple dtuple ->
     let [sk] = [ secretKey | KeyPair{..} <- env
-                                  , dtuple'publicKeyA dtuple == publicKey
-                                  ]
+                           , PublicKey (dtuple'publicKeyA dtuple) == publicKey
+                           ]
     in  sk
 
 getResponseForInput :: EC a => Env a -> ECScalar a -> Challenge a -> ProofInput a -> ECScalar a

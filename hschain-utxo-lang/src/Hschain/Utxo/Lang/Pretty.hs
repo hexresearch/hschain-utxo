@@ -35,12 +35,13 @@ import Language.Haskell.Exts.Pretty (prettyPrint)
 
 import qualified Data.Vector as V
 
-import HSChain.Crypto.Classes (encodeToBS, encodeBase58)
+import HSChain.Crypto.Classes (ByteRepr, encodeToBS, encodeBase58)
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.DTuple as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as EC
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 import qualified Type.Check.HM as H
@@ -175,6 +176,9 @@ instance Pretty S.ProofInput where
     Sigma.InputDTuple dt -> parens $ hsep $ punctuate comma $ fmap pretty [Sigma.dtuple'publicKeyA dt, Sigma.dtuple'publicKeyB dt]
 
 instance Pretty S.PublicKey where
+  pretty = pretty . encodeBase58
+
+instance ByteRepr (EC.ECPoint a) => Pretty (EC.ECPoint a) where
   pretty = pretty . encodeBase58
 
 instance Pretty (Expr a) where

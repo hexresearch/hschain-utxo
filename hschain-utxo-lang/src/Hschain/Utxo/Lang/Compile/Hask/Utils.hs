@@ -30,7 +30,7 @@ import qualified Type.Check.HM as HM(LocFunctor(..), Type)
 import qualified Hschain.Utxo.Lang.Parser.Hask.ToHask as H(toHaskType)
 import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.DTuple as Sigma
-
+import qualified Hschain.Utxo.Lang.Sigma.Types as Sig
 
 toName :: VarName -> H.Name Loc
 toName (VarName loc txt) = H.Ident loc $ T.unpack txt
@@ -59,7 +59,12 @@ toSigma loc = foldFix $ \case
 
     fromProofInput = \case
       Sigma.InputDLog   pk -> app loc "pk" [toText loc $ publicKeyToText pk]
-      Sigma.InputDTuple dt -> app loc "proofDTuple" $ fmap (toText loc . publicKeyToText) [Sigma.dtuple'publicKeyA dt, Sigma.dtuple'publicKeyB dt]
+      Sigma.InputDTuple dt -> app loc "proofDTuple" $ fmap (toText loc . publicKeyToText . Sig.PublicKey)
+        [ Sigma.dtuple'generatorA dt
+        , Sigma.dtuple'generatorB dt
+        , Sigma.dtuple'publicKeyA dt
+        , Sigma.dtuple'publicKeyB dt
+        ]
 
 
 toBytes :: Loc -> ByteString -> H.Exp Loc

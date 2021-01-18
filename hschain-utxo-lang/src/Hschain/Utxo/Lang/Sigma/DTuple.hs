@@ -51,10 +51,10 @@ import qualified Codec.Serialise as CBOR
 
 -- | Diffie-Hellmann tuple.
 data DTuple a = DTuple
-  { dtuple'generatorA :: ECPoint a    -- ^ group generator @g@
-  , dtuple'generatorB :: ECPoint a    -- ^ @g^x@
-  , dtuple'publicKeyA :: PublicKey a  -- ^ @g^y@
-  , dtuple'publicKeyB :: PublicKey a  -- ^ @g^xy@
+  { dtuple'generatorA :: ECPoint a  -- ^ group generator @g@
+  , dtuple'generatorB :: ECPoint a  -- ^ @g^x@
+  , dtuple'publicKeyA :: ECPoint a  -- ^ @g^y@
+  , dtuple'publicKeyB :: ECPoint a  -- ^ @g^xy@
   } deriving (Generic)
 
 deriving instance Show (ECPoint a) => Show (DTuple a)
@@ -108,12 +108,15 @@ verifyProofDTuple ProofDTuple{..} =
     e = proofDTuple'challengeE
     z = proofDTuple'responseZ
 
-verify :: EC a => ECPoint a -> ECPoint a -> Challenge a -> ECScalar a -> PublicKey a -> Bool
-verify gen a e z (PublicKey pub) = z .*^ gen == a ^+^ (fromChallenge e .*^ pub)
+verify :: EC a => ECPoint a -> ECPoint a -> Challenge a -> ECScalar a -> ECPoint a -> Bool
+verify gen a e z pub = z .*^ gen == a ^+^ (fromChallenge e .*^ pub)
 
 
 getCommitmentDTuple :: EC a => Response a -> Challenge a -> DTuple a -> (Commitment a, Commitment a)
-getCommitmentDTuple z ch DTuple{..} = (getCommitment z ch dtuple'publicKeyA, getCommitment z ch dtuple'publicKeyB)
+getCommitmentDTuple z ch DTuple{..} =
+  ( getCommitment z ch (PublicKey dtuple'publicKeyA)
+  , getCommitment z ch (PublicKey dtuple'publicKeyB)
+  )
 
 -- | Simulate proof of posession of discrete logarithm for given
 -- challenge

@@ -422,7 +422,7 @@ dlogInput :: PublicKey -> ProofInput
 dlogInput = Sigma.InputDLog
 
 dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
-dtupleInput genB keyA keyB =
+dtupleInput genB (Sigma.PublicKey keyA) (Sigma.PublicKey keyB) =
   Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
 
 $(deriveShow1 ''SigmaF)
