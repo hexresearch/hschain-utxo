@@ -60,10 +60,10 @@ toSigma loc = foldFix $ \case
     fromProofInput = \case
       Sigma.InputDLog   pk -> app loc "pk" [toText loc $ publicKeyToText pk]
       Sigma.InputDTuple dt -> app loc "proofDTuple" $ fmap (toText loc . publicKeyToText . Sig.PublicKey)
-        [ Sigma.dtuple'generatorA dt
-        , Sigma.dtuple'generatorB dt
-        , Sigma.dtuple'publicKeyA dt
-        , Sigma.dtuple'publicKeyB dt
+        [ Sigma.dtuple'g    dt
+        , Sigma.dtuple'g_x  dt
+        , Sigma.dtuple'g_y  dt
+        , Sigma.dtuple'g_xy dt
         ]
 
 

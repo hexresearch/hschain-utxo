@@ -203,7 +203,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
 ownsKey knownPKs = \case
   InputDLog   k          -> checkKey k
-  InputDTuple DTuple{..} -> checkKey (PublicKey dtuple'publicKeyA)
+  InputDTuple DTuple{..} -> checkKey (PublicKey dtuple'g_y)
   where
     checkKey k = k `Set.member` knownPKs
 
@@ -216,7 +216,7 @@ markTree knownPKs = clean . check
     -- Prover Step 1: Mark as real everything the prover can prove
     check = \case
       Leaf () inp@(InputDLog k)            -> Leaf (checkKey k) inp
-      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey (PublicKey dtuple'publicKeyA)) inp
+      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey (PublicKey dtuple'g_y)) inp
       AND  () es -> AND k es'
         where
           es'  = map check es
@@ -304,7 +304,9 @@ getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr m
 
     extractPartialProof x = case pproofInput x of
       InputDLog dlog -> FiatShamirLeafDLog dlog  (fromGenerator rnd)
-      InputDTuple dt -> FiatShamirLeafDTuple dt  (rnd .*^ dtuple'generatorA dt, rnd .*^ dtuple'generatorB dt)
+      InputDTuple dt -> FiatShamirLeafDTuple dt  ( rnd .*^ dtuple'g   dt
+                                                 , rnd .*^ dtuple'g_x dt
+                                                 )
       where
         rnd = pproofR x
 
@@ -341,7 +343,7 @@ getPrivateKeyForInput (Env env) = \case
     in  sk
   InputDTuple dtuple ->
     let [sk] = [ secretKey | KeyPair{..} <- env
-                           , PublicKey (dtuple'publicKeyA dtuple) == publicKey
+                           , PublicKey (dtuple'g_y dtuple) == publicKey
                            ]
     in  sk
 
@@ -385,8 +387,10 @@ generateProofs (Env env) expr0 message = goReal ch0 expr0
                                         }
             InputDTuple dtuple ->
               Leaf (ProofTag Real $ Just ch) $ ProofDT $ ProofDTuple
-                                        { proofDTuple'public = dtuple
-                                        , proofDTuple'commitmentA = (pproofR .*^ dtuple'generatorA dtuple, pproofR .*^ dtuple'generatorB dtuple)
+                                        { proofDTuple'public      = dtuple
+                                        , proofDTuple'commitmentA = ( pproofR .*^ dtuple'g   dtuple
+                                                                    , pproofR .*^ dtuple'g_x dtuple
+                                                                    )
                                         , proofDTuple'challengeE  = ch
                                         , proofDTuple'responseZ   = z
                                         }

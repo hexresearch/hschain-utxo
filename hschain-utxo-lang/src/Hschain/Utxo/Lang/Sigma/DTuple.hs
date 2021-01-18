@@ -51,10 +51,10 @@ import qualified Codec.Serialise as CBOR
 
 -- | Diffie-Hellmann tuple.
 data DTuple a = DTuple
-  { dtuple'generatorA :: ECPoint a  -- ^ group generator @g@
-  , dtuple'generatorB :: ECPoint a  -- ^ @g^x@
-  , dtuple'publicKeyA :: ECPoint a  -- ^ @g^y@
-  , dtuple'publicKeyB :: ECPoint a  -- ^ @g^xy@
+  { dtuple'g    :: ECPoint a  -- ^ group generator @g@
+  , dtuple'g_x  :: ECPoint a  -- ^ @g^x@
+  , dtuple'g_y  :: ECPoint a  -- ^ @g^y@
+  , dtuple'g_xy :: ECPoint a  -- ^ @g^xy@
   } deriving (Generic)
 
 deriving instance Show (ECPoint a) => Show (DTuple a)
@@ -75,10 +75,11 @@ instance ByteRepr (ECPoint a) => ByteRepr (DTuple a) where
   encodeToBS = LB.toStrict . CBOR.serialise . toTuple
     where
       toTuple DTuple{..} =
-        ( encodeToBS dtuple'generatorA
-        , encodeToBS dtuple'generatorB
-        , encodeToBS dtuple'publicKeyA
-        , encodeToBS dtuple'publicKeyB)
+        ( encodeToBS dtuple'g
+        , encodeToBS dtuple'g_x
+        , encodeToBS dtuple'g_y
+        , encodeToBS dtuple'g_xy
+        )
 
 instance ByteRepr (ECPoint a) => ToJSON (DTuple a) where
   toJSON = defaultToJSON
@@ -114,8 +115,8 @@ verify gen a e z pub = z .*^ gen == a ^+^ (fromChallenge e .*^ pub)
 
 getCommitmentDTuple :: EC a => Response a -> Challenge a -> DTuple a -> (Commitment a, Commitment a)
 getCommitmentDTuple z ch DTuple{..} =
-  ( getCommitment z ch (PublicKey dtuple'publicKeyA)
-  , getCommitment z ch (PublicKey dtuple'publicKeyB)
+  ( getCommitment z ch (PublicKey dtuple'g_y)
+  , getCommitment z ch (PublicKey dtuple'g_xy)
   )
 
 -- | Simulate proof of posession of discrete logarithm for given

@@ -173,7 +173,8 @@ instance Pretty a => Pretty (S.Sigma a) where
 instance Pretty S.ProofInput where
   pretty = \case
     Sigma.InputDLog   pk -> pretty pk
-    Sigma.InputDTuple dt -> parens $ hsep $ punctuate comma $ fmap pretty [Sigma.dtuple'publicKeyA dt, Sigma.dtuple'publicKeyB dt]
+    Sigma.InputDTuple dt -> parens $ hsep $ punctuate comma $ fmap pretty
+      [Sigma.dtuple'g dt, Sigma.dtuple'g_x dt, Sigma.dtuple'g_y dt, Sigma.dtuple'g_xy dt]
 
 instance Pretty S.PublicKey where
   pretty = pretty . encodeBase58

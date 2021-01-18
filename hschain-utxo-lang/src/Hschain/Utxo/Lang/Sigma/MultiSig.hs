@@ -215,7 +215,10 @@ queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
                               }
                             CommitmentQueryTuple{..} -> CommitmentSecret
                               { comSecret'query  = let dt = comQuery'publicTuple
-                                                   in  query { comQuery'commitmentTuple = Just (rnd .*^ dtuple'generatorA dt, rnd .*^ dtuple'generatorB dt) }
+                                                   in  query { comQuery'commitmentTuple = Just ( rnd .*^ dtuple'g   dt
+                                                                                               , rnd .*^ dtuple'g_x dt
+                                                                                               )
+                                                             }
                               , comSecret'secret = Just rnd
                               }
       -- if we do not own the key we just copy query (it's someone elses commitment) and leave secret blank
