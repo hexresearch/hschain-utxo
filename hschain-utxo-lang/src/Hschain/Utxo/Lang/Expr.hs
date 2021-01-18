@@ -436,6 +436,11 @@ data Bind a
       }
   deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Data, Typeable)
 
+bindNamesLhs :: Bind a -> Set VarName
+bindNamesLhs = \case
+  FunBind v _ -> Set.singleton v
+  PatBind p _ -> freeVarsPat p
+
 -- | Main tpye for expressions
 -- It's defined in fix-point style (See package data-fix).
 type Lang = Fix E
@@ -685,8 +690,7 @@ freeVars = foldFix $ \case
   Apply _ a b      -> a <> b
   Lam _ v a        -> a `Set.difference`  freeVarsPat v
   LamList _ vs a   -> a `Set.difference` (foldMap freeVarsPat vs)
-  Let _ bg a       -> let bgNames = getBindsNames bg
-                      in  (a `Set.difference` bgNames) <> freeVarsBinds bg
+  Let _ bg a       -> freeLet bg a
   PrimLet _ bg a   -> (a `Set.difference` getPrimBgNames bg) <> freeVarsPrimBg bg
   Ascr _ a _       -> a
   Cons _ _ vs      -> mconcat $ V.toList vs
@@ -702,6 +706,16 @@ freeVars = foldFix $ \case
   FailCase _       -> Set.empty
   AntiQuote _ _ v  -> Set.singleton v
   where
+    freeLet bg a = (a `Set.difference` letBounds) <> letFrees
+      where
+        go (frees, bounds) bind =
+          (frees <> (rhs `Set.difference` bounds), bounds <> lhs)
+          where
+            lhs = bindNamesLhs bind
+            rhs = bindFreeVars bind
+
+        (letFrees, letBounds) = L.foldl' go (Set.empty, Set.empty) (binds'decls bg)
+
     getPrimBgNames :: [(VarName, a)] -> Set VarName
     getPrimBgNames bs = Set.fromList $ fmap fst bs
 
@@ -712,12 +726,11 @@ freeVars = foldFix $ \case
 freeVarsBinds :: Binds (Set VarName) -> Set VarName
 freeVarsBinds bg = (foldMap (foldMap freeVarsAlt . bindAlts) . binds'decls) bg
 
+bindFreeVars :: Bind (Set VarName) -> Set VarName
+bindFreeVars b = foldMap freeVarsAlt $ bindAlts b
+
 getBindsNames :: Binds a -> Set VarName
-getBindsNames = foldMap getNames . binds'decls
-  where
-    getNames = \case
-      FunBind{..} -> Set.singleton bind'name
-      PatBind{..} -> freeVarsPat bind'pat
+getBindsNames = foldMap bindNamesLhs . binds'decls
 
 freeVarsRhs :: Rhs (Set VarName) -> Set VarName
 freeVarsRhs = \case
