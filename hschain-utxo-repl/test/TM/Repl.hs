@@ -19,6 +19,7 @@ tests = testGroup "repl"
   , testReplOk   "boolean ops"  boolOps
   , testReplOk   "sigma ops"  sigmaOps
   , testReplOk   "bytestring literals" bytesLiterals
+  , testReplOk   "LHS patterns" lhsPatBinds
   , testReplFail "add num and string" addNumAndText
   , testReplFail "var not in scope" varNotInScope
   ]
@@ -62,6 +63,12 @@ tests = testGroup "repl"
       [ "q = bytes \"asdf\""
       , "sha256 q"
       , "lengthBytes q"
+      ]
+
+    lhsPatBinds =
+      [ "q = (1, 2)"
+      , "(r, t) = q"
+      , "r + t"
       ]
 
 testReplOk :: String -> [String] -> TestTree
