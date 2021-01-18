@@ -6,7 +6,7 @@ cabal-version:       >=1.10
 name:                hschain-utxo-repl
 version:             0.1.0.0
 -- bug-reports:
--- license:
+license:             MIT
 license-file:        LICENSE
 author:              anton-k
 maintainer:          anton.kholomiov@gmail.com

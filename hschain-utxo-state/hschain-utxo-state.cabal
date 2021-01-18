@@ -1,13 +1,11 @@
 name:                hschain-utxo-state
 version:             0.1.0.0
-license:             AllRightsReserved
+license:             MIT
 license-file:        LICENSE
 author:              HXR
 maintainer:          hxr.team@gmail.com
 synopsis:            State for hschain-utxo blockchain
 description:         State for hschain-utxo blockchain
--- copyright:
--- category:
 build-type:          Simple
 extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10

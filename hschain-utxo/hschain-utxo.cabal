@@ -4,7 +4,7 @@ version:             0.1.0.0
 synopsis:            Useful utils for hschain-utxo (generation of genesis)
 -- description:
 -- bug-reports:
--- license:
+license:             MIT
 license-file:        LICENSE
 author:              anton-k
 maintainer:          anton.kholomiov@gmail.com

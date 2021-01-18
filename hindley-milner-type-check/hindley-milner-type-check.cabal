@@ -8,7 +8,8 @@ description:
     functions, let-expressions,  case-expressions and bottom.
 
 
-license: MIT
+license:                MIT
+license-file:           LICENSE
 author:                 Anton Kholomiov, Aleksey Khudyakov
 maintainer:             anton.kholomiov@gmail.com
 category:               Language
