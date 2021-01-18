@@ -88,7 +88,7 @@ data PlayerEnv = PlayerEnv
   -- ^ partner's public key
   , playerEnv'commonBoxId   :: !BoxId
   -- ^ shared boxId with initial balance
-  , playerEnv'commonScript  :: !(Sigma PublicKey)
+  , playerEnv'commonScript  :: !(Sigma ProofInput)
   -- ^ common sigma expression that guards shared balance box
   , playerEnv'revoceProc    :: !RevoceProc
   }
@@ -373,7 +373,7 @@ extractRevoceBox p secret = do
 
 
 
-newGame :: BoxId -> Sigma PublicKey -> Balance -> Wallet -> Wallet -> App Game
+newGame :: BoxId -> Sigma ProofInput -> Balance -> Wallet -> Wallet -> App Game
 newGame commonBoxId commonScript balance alice bob = do
   alicePlayer <- newPlayer commonBoxId commonScript balance alice (getWalletPublicKey bob)
   bobPlayer   <- newPlayer commonBoxId commonScript balance bob   (getWalletPublicKey alice)
@@ -382,7 +382,7 @@ newGame commonBoxId commonScript balance alice bob = do
     , game'bob   = bobPlayer
     }
 
-newPlayer :: BoxId -> Sigma PublicKey -> Balance -> Wallet -> PublicKey -> App Player
+newPlayer :: BoxId -> Sigma ProofInput -> Balance -> Wallet -> PublicKey -> App Player
 newPlayer commonBoxId commonScript balance wallet partnerPubKey = do
   proc <- newRevoceProc wallet
   player <- liftIO $ do

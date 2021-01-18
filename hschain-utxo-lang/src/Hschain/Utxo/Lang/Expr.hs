@@ -529,7 +529,7 @@ data SigmaBool
 -- that user have to prove.
 data BoolExprResult
   = ConstBool Bool
-  | SigmaResult (Sigma PublicKey)
+  | SigmaResult (Sigma ProofInput)
   deriving (Show, Eq)
 
 instance ToJSON BoolExprResult where
@@ -814,6 +814,7 @@ monoPrimopName = \case
   OpSigAnd       -> Just Const.sigmaAnd
   OpSigOr        -> Just Const.sigmaOr
   OpSigPK        -> Just "pk"
+  OpSigDTuple    -> Just "dtuple"
   OpSigBool      -> Just "toSigma"
   OpSigListAnd   -> Just "andSigma"
   OpSigListOr    -> Just "orSigma"
@@ -899,7 +900,7 @@ monomorphicPrimops :: [PrimOp a]
 monomorphicPrimops =
   [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
   , OpBoolAnd, OpBoolOr, OpBoolNot
-  , OpSigAnd, OpSigOr, OpSigPK, OpSigBool, OpSigListAnd, OpSigListOr
+  , OpSigAnd, OpSigOr, OpSigPK, OpSigDTuple, OpSigBool, OpSigListAnd, OpSigListOr
   , OpCheckSig, OpCheckMultiSig
   , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
   , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs, OpEnvGetDataInputs
@@ -941,7 +942,7 @@ instance ToLang Script where
 instance ToLang Bool where
   toLang loc b = toPrim loc $ PrimBool b
 
-instance ToLang (Sigma PublicKey) where
+instance ToLang (Sigma ProofInput) where
   toLang loc sig = toPrim loc $ PrimSigma sig
 
 instance ToLang Int where

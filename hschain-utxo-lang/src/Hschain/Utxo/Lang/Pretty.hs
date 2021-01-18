@@ -35,10 +35,13 @@ import Language.Haskell.Exts.Pretty (prettyPrint)
 
 import qualified Data.Vector as V
 
-import HSChain.Crypto.Classes (encodeToBS, encodeBase58)
+import HSChain.Crypto.Classes (ByteRepr, encodeToBS, encodeBase58)
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
+import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.DTuple as Sigma
+import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as EC
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 
 import qualified Type.Check.HM as H
@@ -160,14 +163,23 @@ instance Pretty Env where
 instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof
 
-instance Pretty (S.Sigma S.PublicKey) where
+instance Pretty a => Pretty (S.Sigma a) where
   pretty = foldFix $ \case
       S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
       S.SigmaAnd as  -> parens $ hsep $ Const.sigmaAnd : as
       S.SigmaOr  as  -> parens $ hsep $ Const.sigmaOr  : as
       S.SigmaBool b  -> "Sigma" <> pretty b
 
+instance Pretty S.ProofInput where
+  pretty = \case
+    Sigma.InputDLog   pk -> pretty pk
+    Sigma.InputDTuple dt -> parens $ hsep $ punctuate comma $ fmap pretty
+      [Sigma.dtuple'g dt, Sigma.dtuple'g_x dt, Sigma.dtuple'g_y dt, Sigma.dtuple'g_xy dt]
+
 instance Pretty S.PublicKey where
+  pretty = pretty . encodeBase58
+
+instance ByteRepr (EC.ECPoint a) => Pretty (EC.ECPoint a) where
   pretty = pretty . encodeBase58
 
 instance Pretty (Expr a) where
@@ -325,4 +337,5 @@ instance Pretty Module where
 
 instance Pretty TypedLamProg where
   pretty = pretty . prettyPrint . toHaskProg
+
 

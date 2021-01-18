@@ -8,7 +8,6 @@ import Control.Monad.Reader
 
 import Data.ByteString (ByteString)
 import Data.Int
-import Data.Fix
 import Data.String
 import System.Random
 
@@ -83,7 +82,7 @@ xorGame aliceGuess bobGuess = do
         { tx'inputs  = [
             BoxInputRef { boxInputRef'id      = bobGameBid
                         , boxInputRef'args    = toArgs @(ByteString, Int64) (secret, aliceGuess)
-                        , boxInputRef'proof   = Just $ Fix $ Sigma.SigmaPk pkAlice
+                        , boxInputRef'proof   = Just $ Sigma.dlogSigma pkAlice
                         , boxInputRef'sigs    = []
                         , boxInputRef'sigMask = SigAll
                         }
@@ -95,7 +94,7 @@ xorGame aliceGuess bobGuess = do
         { tx'inputs  = [
             BoxInputRef { boxInputRef'id      = bobGameBid
                         , boxInputRef'args    = toArgs @(ByteString, Int64) (secret, aliceGuess)
-                        , boxInputRef'proof   = Just $ Fix $ Sigma.SigmaPk pkBob
+                        , boxInputRef'proof   = Just $ Sigma.dlogSigma pkBob
                         , boxInputRef'sigs    = []
                         , boxInputRef'sigMask = SigAll
                         }

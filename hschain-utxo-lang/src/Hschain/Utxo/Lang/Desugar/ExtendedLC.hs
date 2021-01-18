@@ -28,7 +28,6 @@ import Hschain.Utxo.Lang.Exec.Module (fixTopLevelPatBinds)
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
-import qualified Hschain.Utxo.Lang.Core.Types as P
 import qualified Hschain.Utxo.Lang.Const as Const
 
 import qualified Type.Check.HM as H

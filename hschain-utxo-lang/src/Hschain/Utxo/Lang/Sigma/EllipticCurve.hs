@@ -12,6 +12,7 @@ import Data.Aeson (FromJSON(..),ToJSON(..),FromJSONKey(..),ToJSONKey(..))
 import Data.Bits
 import Data.Coerce
 import Data.Function (on)
+import Data.Maybe (fromJust)
 import HSChain.Crypto.Classes
 import GHC.Generics
 
@@ -44,8 +45,15 @@ class ( ByteRepr (ECPoint   a)
   xorChallenge      :: Challenge a -> Challenge a -> Challenge a
 
   generateScalar    :: IO (ECScalar a)
+  -- ^ generates random scalar
+
   fromGenerator     :: ECScalar  a -> ECPoint  a
+  -- ^ multiplies generator of the group N times (first argument)
+
   fromChallenge     :: Challenge a -> ECScalar a
+
+  groupGenerator    :: ECPoint a
+  -- ^ generator of the group
 
   (.+.)   :: ECScalar a -> ECScalar a -> ECScalar a
   (.*.)   :: ECScalar a -> ECScalar a -> ECScalar a
@@ -129,6 +137,8 @@ instance EC Ed25519 where
   (^+^)   = coerce Ed.pointAdd
   (.*^)   = coerce Ed.pointMul
   negateP = coerce Ed.pointNegate
+
+  groupGenerator = ECPoint25519 $ Ed.toPoint $ fromJust $ maybeCryptoError $ Ed.scalarDecodeLong $ (BA.pack [1] :: BA.Bytes)
 
 instance Ord (ECPoint   Ed25519) where
   compare = coerce (compare `on` (Ed.pointEncode :: Ed.Point -> BS.ByteString))

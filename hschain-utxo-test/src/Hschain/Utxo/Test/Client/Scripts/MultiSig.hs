@@ -51,7 +51,7 @@ multiSigExchange = do
     bobShareValue   = 6
 
 
-getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId, Sigma PublicKey)
+getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId, Sigma ProofInput)
 getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = liftIO $ do
   aliceProof <- fmap eitherToMaybe $ newProof aliceEnv (singleOwnerSigmaExpr alice) message
   bobProof   <- fmap eitherToMaybe $ newProof bobEnv   (singleOwnerSigmaExpr bob)   message
@@ -83,7 +83,7 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       , box'args   = mempty
       }
 
-    commonScript = sigmaPk alicePk &&* sigmaPk bobPk
+    commonScript = dlogSigma alicePk &&* dlogSigma bobPk
 
     alicePk = getWalletPublicKey alice
     bobPk   = getWalletPublicKey bob
@@ -128,7 +128,7 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
       , boxInputRef'sigMask = SigAll
       }
 
-    commonScript = sigmaPk alicePk &&* sigmaPk bobPk
+    commonScript = dlogSigma alicePk &&* dlogSigma bobPk
 
     aliceBox = singleSpendBox aliceValue alicePk
     bobBox   = singleSpendBox bobValue   bobPk

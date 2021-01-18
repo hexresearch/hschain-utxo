@@ -69,6 +69,9 @@ generateKeyPair = do
   s <- generateSecretKey
   return $ KeyPair s (getPublicKey s)
 
+getCommitment :: EC a => Response a -> Challenge a -> PublicKey a -> Commitment a
+getCommitment z ch pk = fromGenerator z ^+^ negateP (fromChallenge ch .*^ unPublicKey pk)
+
 deriving instance Show (ECScalar a) => Show (Secret a)
 deriving instance Eq   (ECScalar a) => Eq   (Secret a)
 deriving instance Ord  (ECScalar a) => Ord  (Secret a)
