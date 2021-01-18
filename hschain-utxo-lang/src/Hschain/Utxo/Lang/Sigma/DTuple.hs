@@ -49,6 +49,10 @@ import Hschain.Utxo.Lang.Sigma.Types
 import qualified Data.ByteString.Lazy as LB
 import qualified Codec.Serialise as CBOR
 
+----------------------------------------------------------------
+-- DH-tuple
+----------------------------------------------------------------
+
 -- | Diffie-Hellmann tuple.
 data DTuple a = DTuple
   { dtuple'g    :: ECPoint a  -- ^ group generator @g@
@@ -56,6 +60,49 @@ data DTuple a = DTuple
   , dtuple'g_y  :: ECPoint a  -- ^ @g^y@
   , dtuple'g_xy :: ECPoint a  -- ^ @g^xy@
   } deriving (Generic)
+
+-- | Proof of knowledge of @y@ in Diffie-Hellman tuple
+data ProofDTuple a = ProofDTuple
+  { proofDTuple'public      :: DTuple a                      -- ^ public input for the algorithm
+  , proofDTuple'commitmentA :: (Commitment a, Commitment a)  -- ^ commitments
+  , proofDTuple'responseZ   :: Response a                    -- ^ response
+  , proofDTuple'challengeE  :: Challenge a                   -- ^ challenge
+  } deriving (Generic)
+
+-- | Check that proof does validate provided DTuple
+verifyProofDTuple :: EC a => ProofDTuple a -> Bool
+-- NOTE: Not constant time
+verifyProofDTuple ProofDTuple{..}
+  =  (z .*^ g == t0 ^+^ (c .*^ u))
+  && (z .*^ h == t1 ^+^ (c .*^ v))
+  where
+    DTuple g h u v = proofDTuple'public
+    (t0, t1) = proofDTuple'commitmentA       -- Prover's commitments t0,t1
+    c = fromChallenge proofDTuple'challengeE -- Challenge c
+    z = proofDTuple'responseZ                -- Response z
+
+
+getCommitmentDTuple :: EC a => Response a -> Challenge a -> DTuple a -> (Commitment a, Commitment a)
+getCommitmentDTuple z ch DTuple{..} =
+  ( getCommitment z ch (PublicKey dtuple'g_y)
+  , getCommitment z ch (PublicKey dtuple'g_xy)
+  )
+
+-- | Simulate proof of posession of discrete logarithm for given
+-- challenge
+simulateProofDTuple :: EC a => DTuple a -> Challenge a -> IO (ProofDTuple a)
+simulateProofDTuple dt e = do
+  z <- generateScalar
+  return ProofDTuple
+    { proofDTuple'public      = dt
+    , proofDTuple'commitmentA = getCommitmentDTuple z e dt
+    , proofDTuple'responseZ   = z
+    , proofDTuple'challengeE  = e
+    }
+
+----------------------------------------------------------------
+-- Instances
+----------------------------------------------------------------
 
 deriving instance Show (ECPoint a) => Show (DTuple a)
 deriving instance Eq (ECPoint a)   => Eq (DTuple a)
@@ -87,47 +134,6 @@ instance ByteRepr (ECPoint a) => ToJSON (DTuple a) where
 instance ByteRepr (ECPoint a) => FromJSON (DTuple a) where
   parseJSON = defaultParseJSON "DTuple"
 
--- | Proof of knowledge of @y@ in Diffie-Hellman tuple
-data ProofDTuple a = ProofDTuple
-  { proofDTuple'public      :: DTuple a                      -- ^ public input for the algorithm
-  , proofDTuple'commitmentA :: (Commitment a, Commitment a)  -- ^ commitments
-  , proofDTuple'responseZ   :: Response a                    -- ^ response
-  , proofDTuple'challengeE  :: Challenge a                   -- ^ challenge
-  } deriving (Generic)
-
 deriving instance (Show (ECPoint a), Show (Response a), Show (Challenge a)) => Show (ProofDTuple a)
 deriving instance (Eq (ECPoint a), Eq (Response a), Eq (Challenge a)) => Eq (ProofDTuple a)
 instance (CBOR.Serialise (ECPoint a), CBOR.Serialise (Response a), CBOR.Serialise (Challenge a)) => CBOR.Serialise (ProofDTuple a)
-
-verifyProofDTuple :: EC a => ProofDTuple a -> Bool
-verifyProofDTuple ProofDTuple{..} =
-     verify g a e z u
-  && verify h b e z v
-  where
-    DTuple g h u v = proofDTuple'public
-    (a, b) = proofDTuple'commitmentA
-    e = proofDTuple'challengeE
-    z = proofDTuple'responseZ
-
-verify :: EC a => ECPoint a -> ECPoint a -> Challenge a -> ECScalar a -> ECPoint a -> Bool
-verify gen a e z pub = z .*^ gen == a ^+^ (fromChallenge e .*^ pub)
-
-
-getCommitmentDTuple :: EC a => Response a -> Challenge a -> DTuple a -> (Commitment a, Commitment a)
-getCommitmentDTuple z ch DTuple{..} =
-  ( getCommitment z ch (PublicKey dtuple'g_y)
-  , getCommitment z ch (PublicKey dtuple'g_xy)
-  )
-
--- | Simulate proof of posession of discrete logarithm for given
--- challenge
-simulateProofDTuple :: EC a => DTuple a -> Challenge a -> IO (ProofDTuple a)
-simulateProofDTuple dt e = do
-  z <- generateScalar
-  return ProofDTuple
-    { proofDTuple'public      = dt
-    , proofDTuple'commitmentA = getCommitmentDTuple z e dt
-    , proofDTuple'responseZ   = z
-    , proofDTuple'challengeE  = e
-    }
-
