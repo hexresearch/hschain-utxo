@@ -33,7 +33,7 @@ eval input = either (liftIO . putStrLn) evalInput $ parseInput input
 evalInput :: ParseRes -> Repl ()
 evalInput = \case
   ParseExpr expr     -> evalExpr expr
-  ParseBind var expr -> evalBind var expr
+  ParseBind bind     -> evalBind bind
   ParseCmd cmd args  -> evalCmd cmd args
   ParseErr loc err   -> showParseError loc err
 

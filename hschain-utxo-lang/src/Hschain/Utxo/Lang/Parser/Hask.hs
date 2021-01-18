@@ -21,7 +21,6 @@ import Language.Haskell.Exts.Parser (
     ParseResult(..))
 import Language.Haskell.Exts.Pretty
 
-import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.FromHask
@@ -44,15 +43,16 @@ parseModule :: Maybe FilePath -> String -> ParseResult Module
 parseModule mFile = withFile mFile (\mode -> fromHaskModule <=< H.parseModuleWithMode mode)
 
 -- | Parse bind declarations (@a = expr@).
-parseBind :: Maybe FilePath -> String -> ParseResult (VarName, Lang)
+parseBind :: Maybe FilePath -> String -> ParseResult (Bind Lang)
 parseBind mFile = withFile mFile (\mode -> getBind <=< H.parseDeclWithMode mode)
   where
     getBind x = do
       decl <- toDecl x
       case decl of
         FunDecl _ binds -> case binds of
-          [(var, [alt])] -> return (var, altToExpr alt)
+          [(var, alts)]  -> return $ FunBind var alts
           _              -> err
+        PatDecl _ pat alt -> return $ PatBind pat alt
         _ -> err
 
     err = parseFailed noLoc "Failed to parse bind"

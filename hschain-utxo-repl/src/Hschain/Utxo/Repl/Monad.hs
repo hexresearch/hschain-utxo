@@ -24,7 +24,10 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 
 import Data.Default
+import Data.Fix
+import Data.Foldable
 import Data.Either
+import Data.Sequence (Seq)
 import Data.Text (Text)
 
 import System.Console.Repline
@@ -34,15 +37,15 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Desugar (singleLet)
 import Hschain.Utxo.Repl.Imports
 import Hschain.Utxo.Lang.Exec.Module (appendExecCtx)
-import qualified Data.List as L
+import qualified Data.Sequence as S
+import qualified Data.Set as Set
 
 -- | Parse user input in the repl
 data ParseRes
   = ParseExpr Lang           -- ^ user input is expression
-  | ParseBind VarName Lang   -- ^ user input is binding value to a variable
+  | ParseBind (Bind Lang)    -- ^ user input is binding value to a variable
   | ParseCmd  CmdName Arg    -- ^ user input is special command
   | ParseErr Loc Text
   deriving (Show, Eq)
@@ -56,7 +59,7 @@ data ReplEnv = ReplEnv
   -- ^ Arguments to execute transaction
   , replEnv'imports        :: Imports
   -- ^ modules imported to the REPL session
-  , replEnv'closure        :: [(VarName, Lang)]
+  , replEnv'closure        :: Seq (Bind Lang)
   -- ^ Local variables or bindings
   -- defined by the user so far.
   , replEnv'words          :: ![Text]
@@ -80,7 +83,7 @@ runRepl tx (Repl app) = evalStateT app defEnv
       ReplEnv
         { replEnv'tx            = tx
         , replEnv'imports       = def
-        , replEnv'closure       = []
+        , replEnv'closure       = S.empty
         , replEnv'words         = mempty
         , replEnv'txFile        = Nothing
         , replEnv'errors        = []
@@ -92,17 +95,18 @@ getClosureExpr expr = do
   ctx <- getExecCtx
   return $ appendExecCtx ctx $ closure expr
 
-closureToExpr :: [(VarName, Lang)] -> Lang -> Lang
+closureToExpr :: Seq (Bind Lang) -> Lang -> Lang
 closureToExpr defs body =
-  foldr (\(name, dfn) res -> singleLet noLoc name dfn res) body (L.reverse defs)
+  Fix $ Let noLoc (Binds mempty (toList defs)) body
 
-insertClosure :: VarName -> Lang -> [(VarName, Lang)] -> [(VarName, Lang)]
-insertClosure var lang defs = ((var, lang) : ) $
-  case post of
-    []     -> pre
-    _:rest -> rest
+insertClosure :: Bind Lang -> Seq (Bind Lang) -> Seq (Bind Lang)
+insertClosure bind defs = (S.|> bind ) $
+  case S.viewr post of
+    S.EmptyR    -> pre
+    rest S.:> _ -> rest
   where
-    (pre, post) = L.break ((== var) . fst) defs
+    (pre, post) = S.breakr (not . Set.null . Set.intersection names . bindNamesLhs) defs
+    names = bindNamesLhs bind
 
 -- | Get context for execution. Bindings defined in local moduules and base library.
 getExecCtx :: Repl ExecCtx

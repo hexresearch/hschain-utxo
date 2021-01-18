@@ -13,19 +13,23 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 
 import Data.Maybe
+import Data.Foldable
 
 import HSChain.Crypto (hashBlob)
+import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Compile (compile)
 import Hschain.Utxo.Repl.Monad
 import Hschain.Utxo.Lang.Exec    (runExec)
-import Hschain.Utxo.Lang.Error   (Error, unexpected)
+import Hschain.Utxo.Lang.Error   (Error(..), InternalError(..), unexpected)
 import Hschain.Utxo.Lang.Core.RefEval
 import Hschain.Utxo.Lang.Core.Compile.Expr (TermVal)
+import Safe
 
 import qualified Data.ByteString as BS
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
@@ -113,14 +117,29 @@ defaultInputEnv = InputEnv
 -- | Evaluate user bind. Bind is construct to assign name to variable
 --
 -- > var = expr
-evalBind :: VarName -> Lang -> Repl ()
-evalBind var lang = do
-  closure <- fmap replEnv'closure get
-  modify' $ \st -> st { replEnv'closure = tail $ insertClosure var lang closure }
-  withTypeCheck lang $ \_ -> do
-    modify' $ \st -> st { replEnv'closure = insertClosure var lang $ replEnv'closure st
-                        , replEnv'words   = varName'name var : replEnv'words st
-                        }
+evalBind :: Bind Lang -> Repl ()
+evalBind bind = do
+  closure <- gets replEnv'closure
+  modify' $ \st -> st { replEnv'closure = trimClosure closure }
+  case bindFirstRhs bind of
+    Just lang -> withTypeCheck lang $ \_ -> do
+      modify' $ \st -> st { replEnv'closure = replEnv'closure st S.|> bind
+                          , replEnv'words   = (fmap varName'name $ toList $ bindNamesLhs bind) <> replEnv'words st
+                          }
+    Nothing -> do
+      let msg = InternalError $ Unexpected "No rhs expression"
+      logError msg
+      liftIO $ T.putStrLn $ renderText msg
+  where
+    trimClosure cl =
+      case S.viewr (insertClosure bind cl) of
+        S.EmptyR    -> S.empty
+        rest S.:> _ -> rest
+
+bindFirstRhs :: Bind Lang -> Maybe Lang
+bindFirstRhs = fmap altToExpr . \case
+  FunBind _ alts -> headMay alts
+  PatBind _ alt  -> Just alt
 
 parseExpr :: String -> Either String ParseRes
 parseExpr input = case P.parseExp (Just "<repl>") input of
@@ -131,6 +150,6 @@ parseExpr input = case P.parseExp (Just "<repl>") input of
 parseBind :: String -> Either String ParseRes
 parseBind input =
   case P.parseBind (Just "<repl>") input of
-    P.ParseOk (var, expr) -> Right $ ParseBind var expr
+    P.ParseOk bind          -> Right $ ParseBind bind
     P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
 
