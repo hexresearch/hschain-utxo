@@ -52,9 +52,6 @@ class ( ByteRepr (ECPoint   a)
 
   fromChallenge     :: Challenge a -> ECScalar a
 
-  isIdentity        :: ECPoint a -> Bool
-  -- ^ checks weather element is identity
-
   groupGenerator    :: ECPoint a
   -- ^ generator of the group
 
@@ -126,8 +123,6 @@ instance EC Ed25519 where
     = ChallengeEd25519
     $ BS.pack
     $ BS.zipWith xor a b
-
-  isIdentity = coerce Ed.pointHasPrimeOrder
 
   generateScalar    = coerce (Ed.scalarGenerate @IO)
   fromGenerator     = coerce Ed.toPoint
