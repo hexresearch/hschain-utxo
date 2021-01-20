@@ -9,6 +9,7 @@ module Hschain.Utxo.Lang.Parser.Hask(
   , parseExp
   , parseModule
   , parseBind
+  , parseUserType
   , prettyExp
   , prettyModule
 ) where
@@ -72,4 +73,13 @@ prettyExp = prettyPrint . toHaskExp
 -- | Pretty-print module
 prettyModule :: Module -> String
 prettyModule = prettyPrint . toHaskModule
+
+parseUserType :: Maybe FilePath -> String -> ParseResult UserType
+parseUserType mFile = withFile mFile (\mode -> getUserType <=< H.parseDeclWithMode mode)
+  where
+    getUserType x = do
+      decl <- toDecl x
+      case decl of
+        DataDecl ut -> return ut
+        _           -> parseFailed noLoc "Failed to parse User type"
 

@@ -20,6 +20,7 @@ tests = testGroup "repl"
   , testReplOk   "sigma ops"  sigmaOps
   , testReplOk   "bytestring literals" bytesLiterals
   , testReplOk   "LHS patterns" lhsPatBinds
+  , testReplOk   "User defined data deckaration" dataDecls
   , testReplFail "add num and string" addNumAndText
   , testReplFail "var not in scope" varNotInScope
   ]
@@ -69,6 +70,14 @@ tests = testGroup "repl"
       [ "q = (1, 2)"
       , "(r, t) = q"
       , "r + t"
+      ]
+
+    dataDecls =
+      [ "data Color = Rgb Int Int Int"
+      , "data Q = Q Color | A"
+      , ":t Rgb"
+      , "f x = Rgb 1 2 x"
+      , "Q (f 1)"
       ]
 
 testReplOk :: String -> [String] -> TestTree

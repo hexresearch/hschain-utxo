@@ -1,4 +1,5 @@
 -- | Life-cycle of the REPL
+--
 module Hschain.Utxo.Repl(
     runReplApp
   , eval
@@ -34,6 +35,7 @@ evalInput :: ParseRes -> Repl ()
 evalInput = \case
   ParseExpr expr     -> evalExpr expr
   ParseBind bind     -> evalBind bind
+  ParseUserType ut   -> evalUserType ut
   ParseCmd cmd args  -> evalCmd cmd args
   ParseErr loc err   -> showParseError loc err
 
@@ -44,6 +46,7 @@ parseInput :: String -> Either String ParseRes
 parseInput input =
       parseCmd input
   <|> parseExpr input
+  <|> parseUserType input
   <|> parseBind input
 
 -- | Tab Completion: return a completion for partial words entered
