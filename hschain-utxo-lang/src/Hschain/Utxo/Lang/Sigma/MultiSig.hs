@@ -1,59 +1,77 @@
 -- | Multiple provers create proof.
 --
 -- If several provers create joined proof we should have main prover.
--- Main prover first marks tree with Real or simulated tags and generates simulated proofs
--- for simulated leaves and branches of the expression tree.
+-- Main prover first marks tree with Real or simulated tags and
+-- generates simulated proofs for simulated leaves and branches of the
+-- expression tree.
 --
--- Then main prover asks the rest of the provers for commitment for each leaf that do not belong to him.
--- Other provers generate random guess annd send commitment to main prover but keep randum guess as a secret.
--- Based on all commitments main prover generates all challenges. Challenges are created in deterministic manner
--- based on message that is signed shape of the sigma-expression and received commitments.
+-- Then main prover asks the rest of the provers for commitment for
+-- each leaf that do not belong to him.  Other provers generate random
+-- guess annd send commitment to main prover but keep randum guess as
+-- a secret.  Based on all commitments main prover generates all
+-- challenges. Challenges are created in deterministic manner based on
+-- message that is signed shape of the sigma-expression and received
+-- commitments.
 --
--- When all challenges have been created main prover asks for responces, that are based on challenges and
--- random secrets. After that step main prover has all information that is needed to complete the proof.
+-- When all challenges have been created main prover asks for
+-- responces, that are based on challenges and random secrets. After
+-- that step main prover has all information that is needed to
+-- complete the proof.
 --
--- Note that other provers should watch out and check challenges that were generated to see for themselves
--- that main prover signed message that they expect.
+-- Note that other provers should watch out and check challenges that
+-- were generated to see for themselves that main prover signed
+-- message that they expect.
 --
--- Let's define the main steps with functions that are defined in this module:
--- Main prover should know all public keys of the participants. First stage of the proof
--- is to mark tree nodes as real or simulated proof and generate all simulated proofs:
+-- Let's define the main steps with functions that are defined in this
+-- module: Main prover should know all public keys of the
+-- participants. First stage of the proof is to mark tree nodes as
+-- real or simulated proof and generate all simulated proofs:
 --
 -- > commitmentQueryExpr <- initMultiSigProof knownKeys expr
 --
--- We get special expression-tree that we can pass to other partners so that they can
--- provide their commitments. All participants call the function @queryCommitments@.
--- The result is a pair of public data with filled commitments and private data with secrets
--- that correspond to commitments.
+-- We get special expression-tree that we can pass to other partners
+-- so that they can provide their commitments. All participants call
+-- the function @queryCommitments@.  The result is a pair of public
+-- data with filled commitments and private data with secrets that
+-- correspond to commitments.
 --
 -- > (commitmentExpr, secretExpr) <- queryCommitments myKeys querryExpr
 --
--- Partner should pass @commitmentExpr@ to the main prover but keep @secretExpr@ private.
--- We need @secretExpr@ on the final round of signature to create responses.
+-- Partner should pass @commitmentExpr@ to the main prover but keep
+-- @secretExpr@ private.  We need @secretExpr@ on the final round of
+-- signature to create responses.
 --
--- Main prover collects all commitments and joins them with corresponding keys and applies @appendCommitments@.
--- For each commitment we keep only commitments for specific keys. This way we guarantee that partner
--- has signed only his own keys and somebodyelses. With @appendCommitments@ we join all commitments to single expression.
+-- Main prover collects all commitments and joins them with
+-- corresponding keys and applies @appendCommitments@.  For each
+-- commitment we keep only commitments for specific keys. This way we
+-- guarantee that partner has signed only his own keys and
+-- somebodyelses. With @appendCommitments@ we join all commitments to
+-- single expression.
 --
 -- > commitmentExpr <- appendCommitments $ zip partnerKeys partnerCommitmments
 --
--- With all suuplied commitments @commitmentExpr@ we can calculate all challenges with function @getChallenges@.
+-- With all suuplied commitments @commitmentExpr@ we can calculate all
+-- challenges with function @getChallenges@.
 --
 -- > challengeExpr <- getChallenges commitmentExpr message
 --
--- We get the expression-tree with all challenges for all participants. Now we can query responces.
--- We give the expression of challenges to participant and he provides needed responces. He should use
--- the expression of secrets that he created on the second stage of this algorithm (when main prover asks for commitments).
+-- We get the expression-tree with all challenges for all
+-- participants. Now we can query responces.  We give the expression
+-- of challenges to participant and he provides needed responces. He
+-- should use the expression of secrets that he created on the second
+-- stage of this algorithm (when main prover asks for commitments).
 --
 -- > responseExpr <- queryResponses privateKeyEnv secretExpr challengeExpr
 --
--- For this stage we need to know private keys. We use @privateKeyEnv@ to do it.
--- Main priver collects all repsonces and joins them with functions @filterResponses@ and @appendResponses@
--- just like with commitments.
+-- For this stage we need to know private keys. We use @privateKeyEnv@
+-- to do it.  Main priver collects all repsonces and joins them with
+-- functions @filterResponses@ and @appendResponses@ just like with
+-- commitments.
 --
 -- > responseExpr <- toResponseExpr =<< (appendResponses $ zipWith filterResponses partnerKeys partnerResponses)
 --
--- At least we can create the proof with function @responsesToProof@. It completes the algorithm.
+-- At least we can create the proof with function
+-- @responsesToProof@. It completes the algorithm.
 --
 -- multiSigProof = responsesToProof responseExpr
 module Hschain.Utxo.Lang.Sigma.MultiSig(
