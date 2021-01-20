@@ -21,6 +21,7 @@ data Error
   = ParseError Loc Text             -- ^ parse errors
   | ExecError ExecError             -- ^ errors of execution
   | TypeError TypeError             -- ^ type-errors
+  | TypeDeclError TypeDeclError     -- ^ user type declaration error
   | PatError PatError               -- ^ pattern definition errors
   | InternalError InternalError     -- ^ errors of this type should not happen in production
   | MonoError MonoError             -- ^ errors during monomorphizing
@@ -81,6 +82,21 @@ data CoreScriptError
   | TypeCoreError TypeCoreError
   deriving stock    (Show,Eq,Generic,Data)
   deriving anyclass (NFData)
+
+-- | Error of user type declarations
+data TypeDeclError
+  = TypeIsDefined VarName VarName
+  | ConsIsDefined ConsName VarName
+  | RecFieldIsDefined VarName ConsName
+  | TypeIsNotDefined VarName
+  | TypeAppError Type KindError
+  deriving stock    (Show,Eq,Generic,Data)
+
+data KindError = KindError
+  { kindError'expected :: Int
+  , kindError'got      :: Int
+  }
+  deriving stock    (Show,Eq,Generic,Data)
 
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
 typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb

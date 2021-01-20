@@ -199,6 +199,7 @@ instance Pretty Error where
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
     ExecError err         -> pretty err
     TypeError err         -> pretty err
+    TypeDeclError err     -> pretty err
     PatError err          -> pretty err
     InternalError err     -> pretty err
     MonoError err         -> pretty err
@@ -272,6 +273,28 @@ instance Pretty MonoError where
     InlineError loc name          -> err loc $ hsep ["Failed to inline", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
+
+instance Pretty TypeDeclError where
+  pretty = \case
+    TypeIsDefined newName oldName           ->
+      err (varName'loc newName) $ hsep ["Type", pretty newName, "is already defined at", pretty (varName'loc oldName)]
+    ConsIsDefined newConsName oldTypeName   ->
+      err (consName'loc newConsName) $
+        hsep [ "Constructor", pretty newConsName
+             , "is already defined in type", pretty oldTypeName, "at", pretty (varName'loc oldTypeName)]
+    RecFieldIsDefined fieldName oldConsName ->
+      err (varName'loc fieldName) $
+        hsep [ "Record field name", pretty fieldName
+             , "is already defined in the constructor", pretty oldConsName  ,"at", pretty (consName'loc oldConsName) ]
+    TypeIsNotDefined tyName                 ->
+      err (varName'loc tyName) $ hsep [ "Type name", pretty tyName, "is not defined" ]
+    TypeAppError ty kindErr                 ->
+      err (H.getLoc ty) $ hsep ["Wrong numberof arguments for type application:", pretty kindErr]
+    where
+      err src msg = hsep [hcat [pretty src, ":"], msg]
+
+instance Pretty KindError where
+  pretty KindError{..} = hsep ["expected", pretty kindError'expected, "arguments, but got", pretty kindError'got]
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x

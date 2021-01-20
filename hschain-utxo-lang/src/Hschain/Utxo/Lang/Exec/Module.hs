@@ -10,6 +10,8 @@ module Hschain.Utxo.Lang.Exec.Module(
   , checkUserTypeInCtx
 ) where
 
+import Control.Applicative (Alternative(..))
+
 import Hex.Common.Text
 
 import Control.Monad.State.Strict
@@ -34,6 +36,27 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Sequence as Seq
+
+checkUserTypeInCtx :: UserTypeCtx -> UserType -> Maybe TypeDeclError
+checkUserTypeInCtx ctx ut =
+      typeIsDefined (userType'name ut)
+  <|> (L.foldl1' (<|>) $ fmap consIsDefined (M.keys $ userType'cases ut))
+  <|> (L.foldl1' (<|>) $ fmap recFieldIsDefined (foldMap getRecFields $ M.elems $ userType'cases ut))
+  <|> (L.foldl1' (<|>) $ fmap checkKinds (V.toList . getConsTypes =<< (M.elems $ userType'cases ut)))
+  where
+    typeIsDefined name = fmap (TypeIsDefined name . userType'name) $ M.lookup name (userTypeCtx'types ctx)
+
+    consIsDefined cons = fmap (ConsIsDefined cons . userType'name . consInfo'def) $ M.lookup cons (userTypeCtx'constrs ctx)
+
+    recFieldIsDefined field = fmap (RecFieldIsDefined field . fst) $ M.lookup (varName'name field) (userTypeCtx'recFields ctx)
+
+    checkKinds :: Type -> Maybe TypeDeclError
+    checkKinds = undefined
+
+    getRecFields :: ConsDef -> [VarName]
+    getRecFields = \case
+      RecordCons fields -> V.toList $ fmap recordField'name fields
+      _                 -> []
 
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
