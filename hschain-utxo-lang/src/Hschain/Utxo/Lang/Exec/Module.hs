@@ -5,6 +5,9 @@ module Hschain.Utxo.Lang.Exec.Module(
   , appendExecCtx
   , trimModuleByMain
   , fixTopLevelPatBinds
+  , toUserTypeCtx
+  , checkUserTypeCtx
+  , checkUserTypeInCtx
 ) where
 
 import Hex.Common.Text
@@ -23,7 +26,7 @@ import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Monad
-import Hschain.Utxo.Lang.Lib.Base (baseNames)
+import Hschain.Utxo.Lang.Lib.Base (baseNames, baseLibTypes)
 
 import qualified Type.Check.HM as H
 import qualified Data.List as L
@@ -266,4 +269,22 @@ trimModuleByMain m = fmap (\bs -> m { module'binds = bs }) $
 
     constrNames = fmap consName'name $ M.keys $ userTypeCtx'constrs $ module'userTypes m
     recordFieldNames = M.keys $ userTypeCtx'recFields $ module'userTypes m
+
+toUserTypeCtx :: [UserType] -> UserTypeCtx
+toUserTypeCtx typeDecls =
+  setupUserTypeInfo $ (\ts -> UserTypeCtx (baseLibTypes <> ts) mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) typeDecls
+
+-- | TODO: Check user type is correct in context of correct set of types:
+--
+-- * no name collisions
+-- * kinds are right for all type applications
+checkUserTypeInCtx :: UserTypeCtx -> UserType -> Maybe Error
+checkUserTypeInCtx _ _ = Nothing
+
+-- | TODO: Check user type is correct:
+--
+-- * no name collisions
+-- * kinds are right for all type applications
+checkUserTypeCtx :: UserTypeCtx -> Maybe Error
+checkUserTypeCtx _ = Nothing
 

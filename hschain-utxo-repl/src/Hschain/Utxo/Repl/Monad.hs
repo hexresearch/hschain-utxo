@@ -17,7 +17,10 @@ module Hschain.Utxo.Repl.Monad(
   , getClosureExpr
   , insertClosure
   , closureToExpr
-  , logError
+  , reportError
+  , insertTypeClosure
+  , fromTypeClosure
+  , getReplTypeCtx
 ) where
 
 import Control.Monad.Except
@@ -37,10 +40,13 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Error
+import Hschain.Utxo.Lang.Exec.Module (toUserTypeCtx)
+import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Repl.Imports
 import Hschain.Utxo.Lang.Exec.Module (appendExecCtx)
 import qualified Data.Sequence as S
 import qualified Data.Set as Set
+import qualified Data.Text.IO as T
 
 -- | Parse user input in the repl
 data ParseRes
@@ -87,6 +93,7 @@ runRepl tx (Repl app) = evalStateT app defEnv
         { replEnv'tx            = tx
         , replEnv'imports       = def
         , replEnv'closure       = S.empty
+        , replEnv'typeClosure   = S.empty
         , replEnv'words         = mempty
         , replEnv'txFile        = Nothing
         , replEnv'errors        = []
@@ -111,6 +118,20 @@ insertClosure bind defs = (S.|> bind ) $
     (pre, post) = S.breakr (not . Set.null . Set.intersection names . bindNamesLhs) defs
     names = bindNamesLhs bind
 
+insertTypeClosure :: UserType -> Seq UserType -> Seq UserType
+insertTypeClosure ut defs = (S.|> ut) $
+  case S.viewr post of
+    S.EmptyR    -> pre
+    rest S.:> _ -> rest
+  where
+    (pre, post) = S.breakr ((== name) . userType'name) defs
+    name = userType'name ut
+
+fromTypeClosure :: Seq UserType -> UserTypeCtx
+fromTypeClosure = toUserTypeCtx . toList
+
+getReplTypeCtx :: Repl UserTypeCtx
+getReplTypeCtx = gets (fromTypeClosure . replEnv'typeClosure)
 
 -- | Get context for execution. Bindings defined in local moduules and base library.
 getExecCtx :: Repl ExecCtx
@@ -119,12 +140,17 @@ getExecCtx =
 
 -- | Get context for type inference.
 getInferCtx :: Repl InferCtx
-getInferCtx =
-  fmap (moduleCtx'types . imports'current . replEnv'imports) get
+getInferCtx = do
+  inferCtx <- fmap (moduleCtx'types . imports'current . replEnv'imports) get
+  replCtx  <- getReplTypeCtx
+  return $ inferCtx <> userTypesToInferCtx replCtx
 
 -- | Get definitions for user types
 getUserTypes :: Repl UserTypeCtx
-getUserTypes = fmap inferCtx'types getInferCtx
+getUserTypes = do
+  inferCtx <- fmap inferCtx'types getInferCtx
+  replCtx  <- getReplTypeCtx
+  return $ inferCtx <> replCtx
 
 -- | Get type-context or bindings of local variables to signatures.
 getTypeContext :: Repl TypeContext
@@ -157,5 +183,11 @@ hasType = fmap isRight . checkType
 
 logError :: Error -> Repl ()
 logError err = modify' $ \st -> st { replEnv'errors = err : replEnv'errors st }
+
+reportError :: Error -> Repl ()
+reportError err = do
+  logError err
+  liftIO $ T.putStrLn $ renderText err
+
 
 

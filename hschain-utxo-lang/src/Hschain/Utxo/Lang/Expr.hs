@@ -366,6 +366,9 @@ data Module = Module
 -- | Type context for inference algorithm
 type TypeContext = H.Context Loc Text
 
+emptyTypeContext :: TypeContext
+emptyTypeContext = H.Context mempty
+
 -- | Context for execution (reduction) of expressions of the language
 newtype ExecCtx = ExecCtx
   { execCtx'vars  :: Map VarName Lang  -- ^ bindings for free variables, outer scope of the execution
@@ -379,6 +382,9 @@ data InferCtx = InferCtx
   }
   deriving stock (Generic)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid InferCtx
+
+userTypesToInferCtx :: UserTypeCtx -> InferCtx
+userTypesToInferCtx ctx = InferCtx emptyTypeContext ctx
 
 -- | Evaluated module
 data ModuleCtx = ModuleCtx

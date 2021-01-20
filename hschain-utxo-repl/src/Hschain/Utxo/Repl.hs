@@ -1,4 +1,5 @@
 -- | Life-cycle of the REPL
+--
 module Hschain.Utxo.Repl(
     runReplApp
   , eval

@@ -19,6 +19,7 @@ import Data.Foldable
 
 import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Desugar
+import Hschain.Utxo.Lang.Exec.Module (checkUserTypeInCtx)
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
@@ -31,6 +32,7 @@ import Hschain.Utxo.Lang.Core.Compile.Expr (TermVal)
 import Safe
 
 import qualified Data.ByteString as BS
+import qualified Data.Map.Strict as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -47,8 +49,7 @@ withTypeCheck expr cont = do
   case eTy of
     Right _  -> cont expr
     Left err -> do
-      logError err
-      liftIO $ T.putStrLn $ renderText err
+      reportError err
 
 -- | Evaluate user expression
 evalExpr :: Lang -> Repl ()
@@ -63,8 +64,7 @@ evalExpr lang = do
         T.putStrLn $ renderText res
         when (not $ T.null debugTxt) $ T.putStrLn debugTxt
       Left err   -> do
-        logError err
-        liftIO $ T.putStrLn $ renderText err
+        reportError err
 
 evaluate :: InputEnv -> UserTypeCtx -> Lang -> Either Error (TermVal, T.Text)
 evaluate env types expr = runExec $ do
@@ -129,14 +129,12 @@ evalBind bind = do
                           }
     Nothing -> do
       let msg = InternalError $ Unexpected "No rhs expression"
-      logError msg
-      liftIO $ T.putStrLn $ renderText msg
+      reportError msg
   where
     trimClosure cl =
       case S.viewr (insertClosure bind cl) of
         S.EmptyR    -> S.empty
         rest S.:> _ -> rest
-
 
 bindFirstRhs :: Bind Lang -> Maybe Lang
 bindFirstRhs = fmap altToExpr . \case
@@ -159,7 +157,18 @@ parseBind input = fmap ParseBind $ fromParseResult $ onRepl P.parseBind input
 
 evalUserType :: UserType -> Repl ()
 evalUserType ut = do
-  liftIO $ print ut
+  prevClosure <- gets replEnv'typeClosure
+  case checkUserTypeInCtx (fromTypeClosure prevClosure) ut of
+    Nothing  -> do
+      modify' $ \st -> st
+        { replEnv'typeClosure = insertTypeClosure ut prevClosure
+        , replEnv'words = replEnv'words st <> getUserTypeNames ut
+        }
+    Just err -> do
+      reportError err
+  where
+    getUserTypeNames UserType{..} =
+      varName'name userType'name : (fmap consName'name $ M.keys userType'cases)
 
 parseUserType :: String -> Either String ParseRes
 parseUserType input = fmap ParseUserType $ fromParseResult $ onRepl P.parseUserType input
