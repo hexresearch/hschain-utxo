@@ -46,6 +46,7 @@ import qualified Data.Set as Set
 data ParseRes
   = ParseExpr Lang           -- ^ user input is expression
   | ParseBind (Bind Lang)    -- ^ user input is binding value to a variable
+  | ParseUserType UserType   -- ^ user type declaration
   | ParseCmd  CmdName Arg    -- ^ user input is special command
   | ParseErr Loc Text
   deriving (Show, Eq)
@@ -62,6 +63,8 @@ data ReplEnv = ReplEnv
   , replEnv'closure        :: Seq (Bind Lang)
   -- ^ Local variables or bindings
   -- defined by the user so far.
+  , replEnv'typeClosure    :: Seq UserType
+  -- ^ Local user types defined in the module
   , replEnv'words          :: ![Text]
   -- ^ Words for tab auto-completer
   , replEnv'txFile         :: Maybe FilePath
@@ -107,6 +110,7 @@ insertClosure bind defs = (S.|> bind ) $
   where
     (pre, post) = S.breakr (not . Set.null . Set.intersection names . bindNamesLhs) defs
     names = bindNamesLhs bind
+
 
 -- | Get context for execution. Bindings defined in local moduules and base library.
 getExecCtx :: Repl ExecCtx

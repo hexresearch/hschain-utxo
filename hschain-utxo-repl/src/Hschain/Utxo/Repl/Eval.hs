@@ -3,8 +3,10 @@
 module Hschain.Utxo.Repl.Eval(
     evalExpr
   , evalBind
+  , evalUserType
   , parseExpr
   , parseBind
+  , parseUserType
   , withTypeCheck
   , noTypeCheck
 ) where
@@ -35,7 +37,6 @@ import qualified Data.Text.IO as T
 import qualified Data.Vector as V
 
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
-import qualified Language.Haskell.Exts.SrcLoc as P
 
 noTypeCheck :: Lang -> (Lang -> Repl ()) -> Repl ()
 noTypeCheck expr cont = cont expr
@@ -136,20 +137,30 @@ evalBind bind = do
         S.EmptyR    -> S.empty
         rest S.:> _ -> rest
 
+
 bindFirstRhs :: Bind Lang -> Maybe Lang
 bindFirstRhs = fmap altToExpr . \case
   FunBind _ alts -> headMay alts
   PatBind _ alt  -> Just alt
 
+fromParseResult :: P.ParseResult a -> Either String a
+fromParseResult = \case
+  P.ParseOk a           -> Right a
+  P.ParseFailed loc msg -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
+
+onRepl :: (Maybe FilePath -> a) -> a
+onRepl f = f (Just "<repl>")
+
 parseExpr :: String -> Either String ParseRes
-parseExpr input = case P.parseExp (Just "<repl>") input of
-  P.ParseOk a           -> Right $ ParseExpr a
-  P.ParseFailed loc msg | msg == "Parse error: =" -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
-  P.ParseFailed loc msg -> Right $ ParseErr (P.toSrcInfo loc [] loc) (T.pack msg)
+parseExpr input = fmap ParseExpr $ fromParseResult $ onRepl P.parseExp input
 
 parseBind :: String -> Either String ParseRes
-parseBind input =
-  case P.parseBind (Just "<repl>") input of
-    P.ParseOk bind          -> Right $ ParseBind bind
-    P.ParseFailed loc msg   -> Left $ mconcat [T.unpack $ renderText loc, ": ", msg]
+parseBind input = fmap ParseBind $ fromParseResult $ onRepl P.parseBind input
+
+evalUserType :: UserType -> Repl ()
+evalUserType ut = do
+  liftIO $ print ut
+
+parseUserType :: String -> Either String ParseRes
+parseUserType input = fmap ParseUserType $ fromParseResult $ onRepl P.parseUserType input
 
