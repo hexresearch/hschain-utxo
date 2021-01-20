@@ -17,8 +17,9 @@ import Data.Aeson   (FromJSON(..), ToJSON(..))
 import Data.Either.Extra (eitherToMaybe)
 import GHC.Generics (Generic)
 
-import HSChain.Crypto.Classes (ByteRepr(..), defaultToJSON, defaultParseJSON)
+import HSChain.Crypto.Classes (defaultToJSON, defaultParseJSON)
 import HSChain.Crypto.Classes.Hash
+import HSChain.Crypto
 
 import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple

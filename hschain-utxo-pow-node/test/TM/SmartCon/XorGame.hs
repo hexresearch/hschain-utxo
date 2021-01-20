@@ -35,8 +35,8 @@ tests = testGroup "XorGame"
 
 xorGame :: Int64 -> Int64 -> Mine ()
 xorGame aliceGuess bobGuess = do
-  alice@KeyPair  {publicKey=pkAlice  } <- liftIO generateKeyPair
-  bob@KeyPair    {publicKey=pkBob    } <- liftIO generateKeyPair
+  alice@KeyPair  {getPublicKey=pkAlice  } <- liftIO generateKeyPair
+  bob@KeyPair    {getPublicKey=pkBob    } <- liftIO generateKeyPair
   let sigmaEnv = Sigma.Env [ alice, bob ]
   -- Alice and Bob mine some money
   bidAlice <- mineBlock (Just pkAlice) []

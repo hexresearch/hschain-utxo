@@ -40,7 +40,8 @@ import Data.Either.Extra (eitherToMaybe)
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
 
-import HSChain.Crypto.Classes (ByteRepr(..), defaultToJSON, defaultParseJSON)
+import HSChain.Crypto
+import HSChain.Crypto.Classes (defaultToJSON, defaultParseJSON)
 import HSChain.Crypto.Classes.Hash
 
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
@@ -84,15 +85,15 @@ verifyProofDTuple ProofDTuple{..}
 
 getCommitmentDTuple :: EC a => Response a -> Challenge a -> DTuple a -> (Commitment a, Commitment a)
 getCommitmentDTuple z ch DTuple{..} =
-  ( getCommitment z ch (PublicKey dtuple'g_y)
-  , getCommitment z ch (PublicKey dtuple'g_xy)
+  ( getCommitment z ch dtuple'g_y
+  , getCommitment z ch dtuple'g_xy
   )
 
 -- | Simulate proof of posession of discrete logarithm for given
 -- challenge
 simulateProofDTuple :: EC a => DTuple a -> Challenge a -> IO (ProofDTuple a)
 simulateProofDTuple dt e = do
-  z <- generateScalar
+  z <- generatePrivKey
   return ProofDTuple
     { proofDTuple'public      = dt
     , proofDTuple'commitmentA = getCommitmentDTuple z e dt

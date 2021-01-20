@@ -76,6 +76,7 @@ import Text.Show.Deriving
 import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr(..))
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto.SHA          (SHA256)
+import qualified HSChain.Crypto as Crypto
 import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.MultiSig              as Sigma
@@ -92,10 +93,10 @@ type CryptoAlg = Sigma.Ed25519
 type KeyPair    = Sigma.KeyPair    CryptoAlg
 
 -- | Public key.
-type PublicKey  = Sigma.PublicKey  CryptoAlg
+type PublicKey  = Crypto.PublicKey  CryptoAlg
 
 -- | Private key.
-type Secret     = Sigma.Secret     CryptoAlg
+type Secret     = Crypto.PrivKey    CryptoAlg
 
 -- | Environment to prove the ownership. It is a list of key-pairs
 -- that are owned by the prover.
@@ -120,11 +121,11 @@ instance Default SigMessage where
 
 -- | Generate new private key.
 newSecret :: IO Secret
-newSecret = Sigma.generateSecretKey
+newSecret = Crypto.generatePrivKey
 
 -- | Convert private key to public key.
 getPublicKey :: Secret -> PublicKey
-getPublicKey = Sigma.getPublicKey
+getPublicKey = Crypto.publicKey
 
 -- | Creates key-pair for given private key.
 getKeyPair :: Secret -> KeyPair
@@ -229,26 +230,22 @@ eliminateSigmaBool :: Sigma a -> Either Bool (Sigma a)
 eliminateSigmaBool = foldFix $ \case
   SigmaBool b -> Left b
   SigmaPk pk  -> Right $ Fix $ SigmaPk pk
-  SigmaAnd as ->
-    let (bools, sigmas) = partitionEithers as
-        boolRes = and bools
-    in  if boolRes
-          then
-              case sigmas of
-                []      -> Left True
-                [sigma] -> Right sigma
-                _       -> Right $ Fix $ SigmaAnd sigmas
-          else Left False
-  SigmaOr as ->
-    let (bools, sigmas) = partitionEithers as
-        boolRes = or bools
-    in  if boolRes
-          then Left True
-          else
-               case sigmas of
-                 []      -> Left False
-                 [sigma] -> Right sigma
-                 _       -> Right $ Fix $ SigmaOr sigmas
+  SigmaAnd as
+    | and bools -> case sigmas of
+       []       -> Left True
+       [sigma]  -> Right sigma
+       _        -> Right $ Fix $ SigmaAnd sigmas
+    | otherwise -> Left False
+    where
+      (bools, sigmas) = partitionEithers as
+  SigmaOr as
+    | or bools  -> Left True
+    | otherwise -> case sigmas of
+        []      -> Left False
+        [sigma] -> Right sigma
+        _       -> Right $ Fix $ SigmaOr sigmas
+    where
+      (bools, sigmas) = partitionEithers as
 
 toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
 toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
@@ -422,7 +419,7 @@ dlogInput :: PublicKey -> ProofInput
 dlogInput = Sigma.InputDLog
 
 dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
-dtupleInput genB (Sigma.PublicKey keyA) (Sigma.PublicKey keyB) =
+dtupleInput genB keyA keyB =
   Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
 
 $(deriveShow1 ''SigmaF)

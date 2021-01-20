@@ -13,6 +13,7 @@ module Hschain.Utxo.Lang.Sigma.DLog(
 
 import GHC.Generics (Generic)
 
+import HSChain.Crypto
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Types
 
@@ -53,7 +54,7 @@ instance ( CBOR.Serialise (ECPoint   a)
 -- challenge
 simulateProofDLog :: EC a => PublicKey a -> Challenge a -> IO (ProofDLog a)
 simulateProofDLog pubK e = do
-  z <- generateScalar
+  z <- generatePrivKey
   return ProofDLog
     { proofDLog'public      = pubK
     , proofDLog'commitmentA = getCommitment z e pubK
@@ -63,5 +64,6 @@ simulateProofDLog pubK e = do
 
 verifyProofDLog :: (EC a) => ProofDLog a -> Bool
 verifyProofDLog ProofDLog{..}
-  = fromGenerator proofDLog'responseZ == (proofDLog'commitmentA ^+^ (fromChallenge proofDLog'challengeE .*^ unPublicKey proofDLog'public))
+  =  publicKey proofDLog'responseZ
+  == (proofDLog'commitmentA ^+^ (fromChallenge proofDLog'challengeE .*^ proofDLog'public))
 
