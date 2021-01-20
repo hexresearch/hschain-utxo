@@ -165,13 +165,23 @@ deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Cha
 deriving stock    instance (Ord    (ECPoint a), Ord    (ECScalar a), Ord    (Challenge a)) => Ord    (OrChild a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (OrChild a)
 
+
+----------------------------------------------------------------
+-- Creation of proofs
+----------------------------------------------------------------
+
+
 -- | Create proof for sigma expression based on ownership of collection of keys (@Env@)
 newProof :: (EC a)
   => Env a -> SigmaE () (ProofInput a) -> ByteString -> IO (Either Text (Proof a))
 newProof env expr message = runProve $ do
-  commitments <- generateCommitments (markTree knownKeys expr)
+  commitments <- generateCommitments (markTree isProvable expr)
   toProof =<< generateProofs env commitments message
   where
+    isProvable input = pk `Set.member` knownKeys
+      where
+        pk = case input of InputDLog   k          -> k
+                           InputDTuple DTuple{..} -> dtuple'g_y
     knownKeys = Set.fromList $ getPublicKey <$> unEnv env
 
 -- Syntactic step that performs a type conversion only
@@ -211,16 +221,18 @@ ownsKey knownPKs = \case
 -- Building proof
 ----------------------------------------------------------------
 
--- Mark all nodes according to whether we can produce proof for them
-markTree :: (EC a) => Set (PublicKey a) -> SigmaE () (ProofInput a) -> SigmaE ProofVar (ProofInput a)
-markTree knownPKs = clean . check
+-- | First stage of building proof of sigma expression. We need to
+--   decide which nodes will get real proof and which are simulated.
+markTree
+  :: (a -> Bool)        -- ^ Predicate that shows whether we can prove leaf
+  -> SigmaE ()       a  -- ^ Original sigma expression
+  -> SigmaE ProofVar a  -- ^ Sigma expression with leafs marked
+markTree isProvable = clean . check
   where
-    checkKey k = (if k `Set.member` knownPKs then Real else Simulated)
-
-    -- Prover Step 1: Mark as real everything the prover can prove
+    -- Step 1: Mark as real everything the prover can prove.
     check = \case
-      Leaf () inp@(InputDLog k)            -> Leaf (checkKey k)          inp
-      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey dtuple'g_y) inp
+      Leaf () leaf | isProvable leaf -> Leaf Real      leaf
+                   | otherwise       -> Leaf Simulated leaf
       AND  () es -> AND k es'
         where
           es'  = map check es
@@ -231,7 +243,7 @@ markTree knownPKs = clean . check
           es'  = map check es
           k | any ((==Real) . sexprAnn) es' = Real
             | otherwise                     = Simulated
-    -- Prover Step 3: Change some "real" nodes to "simulated" to make sure each node
+    -- Change some "real" nodes to "simulated" to make sure each node
     -- has the right number of simulated children.
     clean expr = case expr of
       Leaf{}           -> expr
@@ -249,6 +261,7 @@ markTree knownPKs = clean . check
     splitOR (e:es) = case sexprAnn e of
       Simulated -> markSim e : splitOR es
       Real      -> clean   e : fmap markSim es
+
 
 -- | Genererate simalated proofs and commitments for real proofs
 -- Prover Steps 4, 5, and 6 together: find challenges for simulated nodes; simulate simulated leaves;
