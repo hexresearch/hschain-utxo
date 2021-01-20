@@ -30,16 +30,17 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Codec.Serialise as CBOR
 import qualified Language.Haskell.TH.Syntax as TH
 
--- | Expression that should be proven
+-- | Sigma expression which is tree of conjunctions and disjunctions
+--   of primitive predicates: 1) possession of private key, 2) that we
+--   know one private key of DH tuple
 data SigmaE k a
   = Leaf k a
-    -- ^ Proof of possession of discrete logarithm of point at
-    --   elliptic curve
+    -- ^ Primitive predicate
   | AND k [SigmaE k a]
     -- ^ AND connective
   | OR  k [SigmaE k a]
     -- ^ OR connective
-  deriving (Functor, Foldable, Traversable, Show, Eq)
+  deriving stock (Functor, Foldable, Traversable, Show, Eq)
 
 sexprAnn :: SigmaE k a -> k
 sexprAnn = \case
