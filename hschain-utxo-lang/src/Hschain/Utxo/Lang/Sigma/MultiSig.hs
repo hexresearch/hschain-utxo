@@ -93,13 +93,13 @@ module Hschain.Utxo.Lang.Sigma.MultiSig(
   , ResponseQuery(..)
   ) where
 
+import Control.Lens hiding (children)
 import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
 import Data.ByteString (ByteString)
-import Data.Bifunctor
 import Data.Either.Extra
 import Data.Maybe
 import Data.Set (Set)
@@ -275,17 +275,10 @@ ownsQuery knownKeys query = ownsKey knownKeys (commitmentQueryInput query)
 -- | Erase commitments for keys that we do not own.
 -- We should apply it before appending commitments so that partners could not cheat on somebody else's keys.
 filterCommitments :: EC a => Set (PublicKey a) -> ProofExpr CommitmentQuery a -> ProofExpr CommitmentQuery a
-filterCommitments knownKeys = \case
-  Leaf tag leaf -> Leaf tag $ first (\query ->
-    if ownsQuery knownKeys query
-      then query
-      else eraseCommitment query
-    ) leaf
-  AND  tag as -> AND tag $ fmap rec as
-  OR   tag as -> OR  tag $ fmap rec as
+filterCommitments knownKeys = mapped . _Left %~ upd
   where
-    rec = filterCommitments knownKeys
-
+    upd query | ownsQuery knownKeys query = query
+              | otherwise                 = eraseCommitment query
     eraseCommitment q = case q of
       CommitmentQueryLog{..}   -> q { comQuery'commitmentLog   = Nothing }
       CommitmentQueryTuple{..} -> q { comQuery'commitmentTuple = Nothing }
@@ -308,16 +301,11 @@ appendCommitment2 = appendProofExprBy appendComQueries
       _                                                                               -> Nothing
 
 toCommitmentExpr :: ProofExpr CommitmentQuery a -> Prove (ProofExpr CommitmentResult a)
-toCommitmentExpr tree = case tree of
-  Leaf tag a -> Leaf tag <$> either (fmap Left . toCommitmentResult) (pure . Right) a
-  AND tag as -> AND tag  <$> mapM toCommitmentExpr as
-  OR  tag as -> OR  tag  <$> mapM toCommitmentExpr as
-  where
+toCommitmentExpr = traverseOf (traverse . _Left) toCommitmentResult
+ where
     toCommitmentResult = \case
-      CommitmentQueryLog{..}   -> maybe noCommitmentError (\com -> pure $ CommitmentResultLog comQuery'publicLog com) comQuery'commitmentLog
+      CommitmentQueryLog{..}   -> maybe noCommitmentError (\com -> pure $ CommitmentResultLog   comQuery'publicLog   com) comQuery'commitmentLog
       CommitmentQueryTuple{..} -> maybe noCommitmentError (\com -> pure $ CommitmentResultTuple comQuery'publicTuple com) comQuery'commitmentTuple
-
-
     noCommitmentError = throwError "No commitment found"
 
 
@@ -432,19 +420,12 @@ commitmentResultInput = \case
   CommitmentResultTuple dtuple _ -> InputDTuple dtuple
 
 filterResponses :: EC a => Set (PublicKey a) -> ProofExpr ResponseQuery a -> ProofExpr ResponseQuery a
-filterResponses knownKeys = \case
-  Leaf tag leaf -> Leaf tag $ first (\query ->
-    if ownsResponse query
-      then query
-      else eraseResponse query
-    ) leaf
-  AND  tag as -> AND tag $ fmap rec as
-  OR   tag as -> OR  tag $ fmap rec as
+filterResponses knownKeys = mapped . _Left %~ (\query -> if ownsResponse query
+                                                then query
+                                                else eraseResponse query
+                                              )
   where
-    rec = filterResponses knownKeys
-
     eraseResponse q = q { responseQuery'response = Nothing }
-
     ownsResponse = ownsKey knownKeys . responseQueryInput
     responseQueryInput = commitmentResultInput . responseQuery'result
 
@@ -492,4 +473,3 @@ appendProofExprBy app treeA treeB = case (treeA, treeB) of
       (Left commitmentA, Left commitmentB)            -> fmap Left $ app commitmentA commitmentB
       (Right proofA, Right proofB) | proofA == proofB -> Just $ Right proofA
       _                                               -> Nothing
-
