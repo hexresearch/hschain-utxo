@@ -1,3 +1,9 @@
+* Check user types
+
+   * () - unexpected value
+       
+      > data F = F ()  -- produces error
+
 * Implement typical Bitcoin scenarios
 
 1. Оплата на хеш от адреса

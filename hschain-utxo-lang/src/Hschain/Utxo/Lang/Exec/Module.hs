@@ -6,7 +6,7 @@ module Hschain.Utxo.Lang.Exec.Module(
   , trimModuleByMain
   , fixTopLevelPatBinds
   , toUserTypeCtx
-  , checkUserTypeCtx
+  , checkUserTypes
   , checkUserTypeInCtx
 ) where
 
@@ -33,6 +33,7 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Lib.Base (baseNames, baseLibTypes)
 
 import qualified Type.Check.HM as H
+import qualified Data.Graph as G
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -102,6 +103,15 @@ isPrimType VarName{..} = S.member varName'name primTypes
 primTypes :: Set Text
 primTypes = S.fromList ["Int", "Bool", "Sigma", "()", "Text", "Bytes"]
 
+checkUserTypes :: Set VarName -> [UserType] -> Maybe Error
+checkUserTypes definedVals uts = L.foldl' (<|>) Nothing $ fmap checkSubgroup typeSubgroups
+  where
+    typeSubgroups = reverse $ fst $ foldl go ([], []) $ orderTypesByDeps uts
+      where
+        go (groups, approvedTypes) ty = ((ty, approvedTypes) : groups, ty : approvedTypes)
+
+    checkSubgroup (ty, approved) = checkUserTypeInCtx definedVals (toUserTypeCtx approved) ty
+
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
 evalModule :: TypeContext -> Module -> Either Error ModuleCtx
@@ -138,10 +148,16 @@ fixTopLevelPatBinds m
 
 
 evalModule' :: TypeContext -> Module -> Either Error ModuleCtx
-evalModule' typeCtx Module{..} = runInferM $ do
-  binds <- InferM $ lift $ evalStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
-  toModuleCtx $ Binds (binds'types module'binds) binds
+evalModule' typeCtx Module{..} = do
+  maybe (Right ()) Left $ checkUserTypes definedVals userTypes
+  runInferM $ do
+    binds <- InferM $ lift $ evalStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
+    toModuleCtx $ Binds (binds'types module'binds) binds
   where
+    userTypes = M.elems $ userTypeCtx'types module'userTypes
+    definedVals = case typeCtx of
+      H.Context defs -> S.fromList $ fmap (VarName noLoc) $ M.keys defs
+
     userTypeCtx = userTypesToTypeContext module'userTypes
 
     toModuleCtx :: Binds Lang -> InferM ModuleCtx
@@ -341,10 +357,22 @@ toUserTypeCtx :: [UserType] -> UserTypeCtx
 toUserTypeCtx typeDecls =
   setupUserTypeInfo $ (\ts -> UserTypeCtx (baseLibTypes <> ts) mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) typeDecls
 
--- | TODO: Check user type is correct:
---
--- * no name collisions
--- * kinds are right for all type applications
-checkUserTypeCtx :: UserTypeCtx -> Maybe Error
-checkUserTypeCtx _ = Nothing
+orderTypesByDeps :: [UserType] -> [UserType]
+orderTypesByDeps = G.flattenSCCs . G.stronglyConnComp . fmap toDep
+  where
+    toDep ut = (ut, userType'name ut, getTypeDeps ut)
+
+    getTypeDeps :: UserType -> [VarName]
+    getTypeDeps UserType{..} = getTypeNames =<< (V.toList . getConsTypes) =<< M.elems userType'cases
+
+    getTypeNames :: Type -> [VarName]
+    getTypeNames (H.Type ty) = foldFix go ty
+      where
+        go = \case
+          H.ConT loc name args -> VarName loc name : concat args
+          H.ArrowT _ a b       -> a <> b
+          H.TupleT _ ts        -> mconcat ts
+          H.ListT _ a          -> a
+          H.VarT _ _           -> []
+
 

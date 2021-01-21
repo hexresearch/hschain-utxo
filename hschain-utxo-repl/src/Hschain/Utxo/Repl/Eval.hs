@@ -158,12 +158,12 @@ parseBind input = fmap ParseBind $ fromParseResult $ onRepl P.parseBind input
 
 evalUserType :: UserType -> Repl ()
 evalUserType ut = do
-  prevClosure <- gets replEnv'typeClosure
+  prevClosure <- fmap trimClosure $ gets replEnv'typeClosure
   definedValues <- fmap (Set.fromList . fmap (VarName noLoc) . getEnvWords) get
   case checkUserTypeInCtx definedValues (fromTypeClosure prevClosure) ut of
     Nothing  -> do
       modify' $ \st -> st
-        { replEnv'typeClosure = insertTypeClosure ut prevClosure
+        { replEnv'typeClosure = prevClosure S.|> ut
         , replEnv'words = replEnv'words st <> getUserTypeNames ut
         }
     Just err -> do
@@ -171,6 +171,11 @@ evalUserType ut = do
   where
     getUserTypeNames UserType{..} =
       varName'name userType'name : (fmap consName'name $ M.keys userType'cases)
+
+    trimClosure closure = case S.viewr (insertTypeClosure ut closure) of
+      S.EmptyR -> S.empty
+      rest S.:> _ -> rest
+
 
 parseUserType :: String -> Either String ParseRes
 parseUserType input = fmap ParseUserType $ fromParseResult $ onRepl P.parseUserType input
