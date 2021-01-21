@@ -21,7 +21,12 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , markTree
   , ownsKey
   , getResponseForInput
-) where
+  -- * New API
+  , simulateProofs
+  , makeLocalCommitements
+  , computeRealChallenges
+  , evaluateRealProof
+  ) where
 
 import Control.Applicative
 import Control.DeepSeq
@@ -255,6 +260,122 @@ markTree isProvable = clean . check
       Simulated -> markSim e : splitOR es
       Real      -> clean   e : fmap markSim es
 
+
+-- | We generate challenges for every simulated node in the expression
+--   tree and simulate proof for them.
+--
+--   Root node must be marked as 'Real'
+simulateProofs
+  :: (EC a, MonadIO m)
+  => SigmaE ProofVar    (ProofInput a)
+  -> m (SigmaE (ProofSim a) (Either (ProofInput a) (AtomicProof a)))
+simulateProofs = goReal
+  where
+    goReal = \case
+      Leaf Real leaf -> pure $ Leaf RealS (Left leaf)
+      AND  Real es   -> AND RealS <$> traverse goReal es
+      OR   Real es   -> OR  RealS <$> traverse simulateOR es
+        where
+          simulateOR e = case sexprAnn e of
+            Real      -> goReal e
+            Simulated -> do ch <- liftIO generateChallenge
+                            goSim ch e
+      _ -> error "simulateProofs: simulated proof encountered"
+    goSim ch = \case
+      Leaf Simulated leaf   -> liftIO $ Leaf (SimulatedS ch) . Right <$> simulateAtomicProof leaf ch
+      AND  Simulated es     -> AND (SimulatedS ch) <$> traverse (goSim ch) es
+      OR   Simulated []     -> error "simulateProofs: Empty OR"
+      OR   Simulated (e:es) -> do
+        esWithCh <- liftIO $ forM es $ \x -> (,x) <$> generateChallenge
+        let ch0 = foldl xorChallenge ch $ map fst esWithCh
+        OR (SimulatedS ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
+      _ -> error "simulateProofs: internal error"
+
+-- | Make commitments for all real leaves
+makeLocalCommitements
+  :: (EC a, MonadIO m)
+  => SigmaE t (Either (ProofInput a) (AtomicProof a))
+  -> m (SigmaE t (Either (PartialProof a) (AtomicProof a)))
+makeLocalCommitements = traverse commit
+  where
+    commit (Right p) = pure $ Right p
+    commit (Left  p) = go p
+    go p = do r <- generatePrivKey
+              return $ Left PartialProof
+                            { pproofInput = p
+                            , pproofR     = r
+                            }
+
+-- | Now we have commitments for every real node we can compute root
+--   challenge for node and derive challenges for rest of node.
+computeRealChallenges
+  :: (EC a)
+  => ByteString
+  -> SigmaE (ProofSim  a) (Either (PartialProof a) (AtomicProof a))
+  -> SigmaE (Challenge a) (Either (PartialProof a) (AtomicProof a))
+computeRealChallenges message expr0 = goReal rootChallenge expr0
+  where
+    rootChallenge = getProofRootChallenge expr0 message
+    --
+    goReal ch = \case
+      Leaf RealS (Left p) -> Leaf ch $ Left p
+      Leaf _ _ -> error $ "impossible happened: Simulated leaf or mismatch"
+      --
+      AND RealS es -> AND ch $ goReal ch <$> es
+      AND _     _  -> error "Impossible happened: simulated AND"
+      --
+      OR RealS  es -> OR ch $ orChildren es
+      OR _      _  -> error "Impossible happened: simulated OR"
+      where
+        orChildren children = do
+          let challengeForReal = orChallenge ch [ c | SimulatedS c <- sexprAnn <$> children ]
+              update e
+                | RealS <- sexprAnn e = goReal challengeForReal e
+                | otherwise           = goSim e
+          fmap update children
+    --
+    goSim = \case
+      Leaf (SimulatedS ch) p -> Leaf ch p
+      Leaf _               _ -> error "Impossible happened: Real leaf or mismatch"
+      --
+      AND (SimulatedS ch) es -> AND ch $ goSim <$> es
+      AND _               _  -> error "Impossible happened: real AND"
+      --
+      OR  (SimulatedS ch) es -> OR ch $ goSim <$> es
+      OR  _               _  -> error "Impossible happened: real OR"
+
+evaluateRealProof
+  :: (EC a)
+  => Env a
+  -> SigmaE (Challenge a) (Either (PartialProof a) (AtomicProof a))
+  -> SigmaE (Challenge a) (AtomicProof a)
+evaluateRealProof env = go
+  where
+    go = \case
+      Leaf ch (Right p) -> Leaf ch p
+      Leaf ch (Left PartialProof{..}) -> case pproofInput of
+        InputDLog dlog -> Leaf ch $ ProofDL ProofDLog
+          { proofDLog'public      = dlog
+          , proofDLog'commitmentA = publicKey pproofR
+          , proofDLog'challengeE  = ch
+          , proofDLog'responseZ   = z
+          }
+        InputDTuple dtuple -> Leaf ch $ ProofDT $ ProofDTuple
+          { proofDTuple'public      = dtuple
+          , proofDTuple'commitmentA = ( pproofR .*^ dtuple'g   dtuple
+                                      , pproofR .*^ dtuple'g_x dtuple
+                                      )
+          , proofDTuple'challengeE  = ch
+          , proofDTuple'responseZ   = z
+          }
+        where
+          z = getResponseForInput env pproofR ch pproofInput
+      AND ch es -> AND ch $ go <$> es
+      OR  ch es -> OR  ch $ go <$> es
+
+----------------------------------------------------------------
+-- Old code
+----------------------------------------------------------------
 
 -- | Genererate simalated proofs and commitments for real proofs
 -- Prover Steps 4, 5, and 6 together: find challenges for simulated nodes; simulate simulated leaves;
