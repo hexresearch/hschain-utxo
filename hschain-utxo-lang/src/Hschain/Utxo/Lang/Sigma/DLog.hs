@@ -13,7 +13,7 @@
 -- 2. Verifier chooses random challenge $c : ℤ/q@, such @c@ is
 --    generated using hash of commitment and message.
 --
--- 3. Prover send @z = r·c^x@ and sends it to verifier. Proof is
+-- 3. Prover send @z = r + c·x : ℤ/q@ and sends it to verifier. Proof is
 --    accepted if @g^z = a·k^c@.
 module Hschain.Utxo.Lang.Sigma.DLog(
     ProofDLog(..)
