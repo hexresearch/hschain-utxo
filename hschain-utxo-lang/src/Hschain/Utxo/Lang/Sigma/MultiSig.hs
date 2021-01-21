@@ -82,14 +82,16 @@ module Hschain.Utxo.Lang.Sigma.MultiSig(
   , checkChallenges
   , generateSimulatedProofs
   , getChallenges
-  , CommitmentQueryExpr
-  , CommitmentExpr
-  , CommitmentSecretExpr
-  , ChallengeExpr
-  , ResponseQueryExpr
   , queryResponses
   , appendResponsesToProof
-) where
+    -- * Data types
+  , ProofExpr
+  , ChallengeResult(..)
+  , CommitmentResult(..)
+  , CommitmentSecret(..)
+  , CommitmentQuery(..)
+  , ResponseQuery(..)
+  ) where
 
 import Control.Applicative
 import Control.Monad
@@ -124,7 +126,7 @@ import qualified Data.List as L
 initMultiSigProof :: EC a
   => Set (PublicKey a)
   -> SigmaE () (ProofInput a)
-  -> Prove (CommitmentQueryExpr a)
+  -> Prove (ProofExpr CommitmentQuery a)
 initMultiSigProof knownKeys expr =
   fmap toComQueryExpr $ generateSimulatedProofs $ markTree isProvable expr
   where
@@ -147,7 +149,7 @@ initMultiSigProof knownKeys expr =
 type ProofExpr leaf a = SigmaE (ProofTag a) (Either (leaf a) (AtomicProof a))
 
 -- | Checks that right message was signed. Main prover uses the same message as me.
-checkChallenges :: EC a => CommitmentExpr a -> ChallengeExpr a -> ByteString -> Bool
+checkChallenges :: EC a => ProofExpr CommitmentResult a -> ProofExpr ChallengeResult a -> ByteString -> Bool
 checkChallenges commitments expectedCommitments message =
   getChallenges commitments message == Right expectedCommitments
 
@@ -183,8 +185,7 @@ generateSimulatedProofs tree = case sexprAnn tree of
                                   OR (ProofTag Simulated $ Just ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
       _ -> throwError "Real node"
 
-type CommitmentQueryExpr a  = ProofExpr CommitmentQuery a
-type CommitmentSecretExpr a = ProofExpr CommitmentSecret a
+
 
 data CommitmentQuery a
   = CommitmentQueryLog
@@ -222,10 +223,12 @@ deriving stock   instance (Eq (ECPoint a), Eq (Challenge a)) => Eq (CommitmentRe
 -- final step of sigma-protocol dialog.
 queryCommitments
   :: forall a . EC a
-  => Set (PublicKey a) -> CommitmentQueryExpr a -> Prove (CommitmentQueryExpr a, CommitmentSecretExpr a)
+  => Set (PublicKey a)
+  -> ProofExpr
+  CommitmentQuery a -> Prove (ProofExpr CommitmentQuery a, ProofExpr CommitmentSecret a)
 queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
   where
-    go :: CommitmentQueryExpr a -> Prove (CommitmentSecretExpr a)
+    go :: ProofExpr CommitmentQuery a -> Prove (ProofExpr CommitmentSecret a)
     go = \case
       -- if we own the key we generate randomness and commitment based on it
       Leaf tag (Left query) | ownsQuery knownKeys query -> do
@@ -255,7 +258,7 @@ queryCommitments knownKeys tree = fmap splitCommitmentAndSecret $ go tree
 
     splitCommitmentAndSecret expr = (eraseSecrets expr, expr)
 
-    eraseSecrets :: CommitmentSecretExpr a -> CommitmentQueryExpr a
+    eraseSecrets :: ProofExpr CommitmentSecret a -> ProofExpr CommitmentQuery a
     eraseSecrets = \case
       Leaf tag eSecret -> Leaf tag $ either (Left . comSecret'query) Right eSecret
       AND  tag es      -> AND tag $ fmap eraseSecrets es
@@ -271,7 +274,7 @@ ownsQuery knownKeys query = ownsKey knownKeys (commitmentQueryInput query)
 
 -- | Erase commitments for keys that we do not own.
 -- We should apply it before appending commitments so that partners could not cheat on somebody else's keys.
-filterCommitments :: EC a => Set (PublicKey a) -> CommitmentQueryExpr a -> CommitmentQueryExpr a
+filterCommitments :: EC a => Set (PublicKey a) -> ProofExpr CommitmentQuery a -> ProofExpr CommitmentQuery a
 filterCommitments knownKeys = \case
   Leaf tag leaf -> Leaf tag $ first (\query ->
     if ownsQuery knownKeys query
@@ -287,7 +290,7 @@ filterCommitments knownKeys = \case
       CommitmentQueryLog{..}   -> q { comQuery'commitmentLog   = Nothing }
       CommitmentQueryTuple{..} -> q { comQuery'commitmentTuple = Nothing }
 
-appendCommitments :: EC a => [(Set (PublicKey a), CommitmentQueryExpr a)] -> Prove (CommitmentExpr a)
+appendCommitments :: EC a => [(Set (PublicKey a), ProofExpr CommitmentQuery a)] -> Prove (ProofExpr CommitmentResult a)
 appendCommitments exprs = case fmap (uncurry filterCommitments) exprs of
   []   -> throwError "List of commitments is empty"
   a:as -> toCommitmentExpr =<< (liftEither $ maybeToEither commitmentsDoNotMatch $ foldM appendCommitment2 a as)
@@ -296,7 +299,7 @@ appendCommitments exprs = case fmap (uncurry filterCommitments) exprs of
 
 appendCommitment2
   :: EC a
-  => CommitmentQueryExpr a -> CommitmentQueryExpr a -> Maybe (CommitmentQueryExpr a)
+  => ProofExpr CommitmentQuery a -> ProofExpr CommitmentQuery a -> Maybe (ProofExpr CommitmentQuery a)
 appendCommitment2 = appendProofExprBy appendComQueries
   where
     appendComQueries a b = case (a, b) of
@@ -304,7 +307,7 @@ appendCommitment2 = appendProofExprBy appendComQueries
       (CommitmentQueryTuple inpA comA, CommitmentQueryTuple inpB comB) | inpA == inpB -> Just $ a { comQuery'commitmentTuple = comA <|> comB }
       _                                                                               -> Nothing
 
-toCommitmentExpr :: CommitmentQueryExpr a -> Prove (CommitmentExpr a)
+toCommitmentExpr :: ProofExpr CommitmentQuery a -> Prove (ProofExpr CommitmentResult a)
 toCommitmentExpr tree = case tree of
   Leaf tag a -> Leaf tag <$> either (fmap Left . toCommitmentResult) (pure . Right) a
   AND tag as -> AND tag  <$> mapM toCommitmentExpr as
@@ -317,8 +320,6 @@ toCommitmentExpr tree = case tree of
 
     noCommitmentError = throwError "No commitment found"
 
-type ChallengeExpr  a = ProofExpr ChallengeResult a
-type CommitmentExpr a = ProofExpr CommitmentResult a
 
 data ChallengeResult a = ChallengeResult
   { challengeResult'result     :: CommitmentResult a
@@ -327,7 +328,7 @@ data ChallengeResult a = ChallengeResult
 
 deriving stock   instance (Eq (ECPoint a), Eq (Challenge a)) => Eq (ChallengeResult a)
 
-getChallenges :: EC a => CommitmentExpr a -> ByteString -> Either Text (ChallengeExpr a)
+getChallenges :: EC a => ProofExpr CommitmentResult a -> ByteString -> Either Text (ProofExpr ChallengeResult a)
 getChallenges expr0 message = goReal ch0 expr0
   where
     -- Prover Step 8: compute the challenge for the root of the tree as the Fiat-Shamir hash of s
@@ -409,10 +410,7 @@ queryToProofDL ResponseQuery{..} = fmap (\resp -> case responseQuery'result of
     }
   ) responseQuery'response
 
-
-type ResponseQueryExpr a = ProofExpr ResponseQuery a
-
-queryResponses :: EC a => Env a -> CommitmentSecretExpr a -> ChallengeExpr a -> Prove (ResponseQueryExpr a)
+queryResponses :: EC a => Env a -> ProofExpr CommitmentSecret a -> ProofExpr ChallengeResult a -> Prove (ProofExpr ResponseQuery a)
 queryResponses env secretExpr expr = case (secretExpr, expr) of
   (Leaf _ (Left secretLeaf), Leaf tag (Left ChallengeResult{..})) -> return $ Leaf tag $ Left $ ResponseQuery
     { responseQuery'result     = challengeResult'result
@@ -433,7 +431,7 @@ commitmentResultInput = \case
   CommitmentResultLog   dlog _   -> InputDLog dlog
   CommitmentResultTuple dtuple _ -> InputDTuple dtuple
 
-filterResponses :: EC a => Set (PublicKey a) -> ResponseQueryExpr a -> ResponseQueryExpr a
+filterResponses :: EC a => Set (PublicKey a) -> ProofExpr ResponseQuery a -> ProofExpr ResponseQuery a
 filterResponses knownKeys = \case
   Leaf tag leaf -> Leaf tag $ first (\query ->
     if ownsResponse query
@@ -450,14 +448,14 @@ filterResponses knownKeys = \case
     ownsResponse = ownsKey knownKeys . responseQueryInput
     responseQueryInput = commitmentResultInput . responseQuery'result
 
-appendResponsesToProof :: EC a => [(Set (PublicKey a), ResponseQueryExpr a)] -> Prove (Proof a)
+appendResponsesToProof :: EC a => [(Set (PublicKey a), ProofExpr ResponseQuery a)] -> Prove (Proof a)
 appendResponsesToProof resps = case fmap (uncurry filterResponses) resps of
   []   -> throwError "List of responses is empty"
   a:as -> responsesToProof =<< (liftEither $ maybeToEither responsesDoNotMatch $ foldM appendResponse2 a as)
   where
     responsesDoNotMatch = "Responses expressions do not match"
 
-appendResponse2 :: EC a => ResponseQueryExpr a -> ResponseQueryExpr a -> Maybe (ResponseQueryExpr a)
+appendResponse2 :: EC a => ProofExpr ResponseQuery a -> ProofExpr ResponseQuery a -> Maybe (ProofExpr ResponseQuery a)
 appendResponse2 = appendProofExprBy app
   where
     app a b
@@ -471,7 +469,7 @@ appendResponse2 = appendProofExprBy app
         && responseQuery'challenge a  == responseQuery'challenge b
 
 
-responsesToProof :: ResponseQueryExpr a -> Prove (Proof a)
+responsesToProof :: ProofExpr ResponseQuery a -> Prove (Proof a)
 responsesToProof expr = toProof =<< go expr
   where
     go = \case
