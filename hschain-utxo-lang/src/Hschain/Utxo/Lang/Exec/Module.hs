@@ -110,7 +110,10 @@ checkUserTypes definedVals uts = L.foldl' (<|>) Nothing $ fmap checkSubgroup typ
       where
         go (groups, approvedTypes) ty = ((ty, approvedTypes) : groups, ty : approvedTypes)
 
-    checkSubgroup (ty, approved) = checkUserTypeInCtx definedVals (toUserTypeCtx approved) ty
+    checkSubgroup (ty, approved) = checkUserTypeInCtx definedVals (toUserTypeCtxNoBase approved) ty
+
+    toUserTypeCtxNoBase typeDecls =
+      setupUserTypeInfo $ (\ts -> UserTypeCtx ts mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) typeDecls
 
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
