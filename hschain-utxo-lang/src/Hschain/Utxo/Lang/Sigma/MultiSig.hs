@@ -100,6 +100,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Except
 
 import Data.ByteString (ByteString)
+import Data.Bifunctor
 import Data.Either.Extra
 import Data.Maybe
 import Data.Set (Set)
@@ -451,13 +452,11 @@ appendResponse2 = appendProofExprBy app
 
 
 responsesToProof :: ProofExpr ResponseQuery a -> Prove (Proof a)
-responsesToProof expr = toProof =<< go expr
+responsesToProof = toProof <=< go . first toChallenge
   where
-    go = \case
-      Leaf tag e -> fmap (Leaf tag) $ either (maybe noResp pure . queryToProofDL) pure e
-      AND tag as -> fmap (AND tag) $ mapM go as
-      OR  tag as -> fmap (OR  tag) $ mapM go as
-
+    go = traverse $ either (maybe noResp pure . queryToProofDL) pure
+    toChallenge (ProofTag _ (Just ch)) = ch
+    toChallenge _                      = error "Should have challenge in all nodes"
     noResp = throwError "Failed to find response"
 
 appendProofExprBy :: EC a => (leaf a -> leaf a -> Maybe (leaf a)) -> ProofExpr leaf a  -> ProofExpr leaf a -> Maybe (ProofExpr leaf a)
