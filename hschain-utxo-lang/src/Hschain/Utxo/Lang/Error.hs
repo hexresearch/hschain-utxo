@@ -85,13 +85,43 @@ data CoreScriptError
 
 -- | Error of user type declarations
 data TypeDeclError
-  = TypeIsDefined VarName VarName
-  | ConsIsDefined ConsName VarName
-  | RecFieldIsDefined VarName ConsName
-  | TypeIsNotDefined VarName
-  | TypeAppError Type KindError
+  = TypeIsDefined
+      { typeDeclError'userType    :: VarName
+      , typeDeclError'definedType :: VarName
+      }
+    -- ^ User type is already defined
+  | ConsDeclError
+      { typeDeclError'userType    :: VarName
+      , typeDeclError'userCons    :: ConsName
+      , typeDeclError'error       :: ConsDeclError
+      }
   deriving stock    (Show,Eq,Generic,Data)
 
+data ConsDeclError
+  = ConsIsDefined { consDeclError'definedType :: VarName }
+    -- ^ constructor name is already defined in another type
+  | RecFieldIsDefinedInCons
+      { consDeclError'userField   :: VarName
+      , consDeclError'definedCons :: ConsName
+      }
+    -- ^ record field is already defined in another constructor
+  | RecFieldIsDefinedAsValue
+      { consDeclError'userField    :: VarName
+      }
+    -- ^ record field is already defined as value
+  | RecFieldIsReservedName
+      { consDeclError'userField    :: VarName }
+    -- ^ record field name is a reserved name
+  | TypeArgIsNotDefined { consDeclError'typeArg     :: VarName }
+    -- ^ Type argument in the constructor is not defined
+  | TypeAppError
+      { consDeclError'typeArg     :: VarName
+      , consDeclError'kinds       :: KindError
+      }
+    -- ^ Wrong type application in the constructor
+  deriving stock    (Show,Eq,Generic,Data)
+
+-- | Error of type application when knids of types does not match.
 data KindError = KindError
   { kindError'expected :: Int
   , kindError'got      :: Int
