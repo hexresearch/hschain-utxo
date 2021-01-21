@@ -176,16 +176,16 @@ newProof env expr message = runProve $ do
 
 -- Syntactic step that performs a type conversion only
 toProof :: SigmaE (ProofTag a) (AtomicProof a) -> Prove (Proof a)
-toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (getProvenTree tree)
+toProof tree = liftA2 Proof (getRootChallenge tree) (getProvenTree tree)
   where
     getRootChallenge =
-      maybe (Left "No root challenge") Right . proofTag'challenge . sexprAnn
+      maybe (throwError "No root challenge") pure . proofTag'challenge . sexprAnn
 
     getProvenTree ptree = case ptree of
-      Leaf _ p  -> Right $ ProvenLeaf (responseZ p) (getProofInput p)
+      Leaf _ p  -> pure $ ProvenLeaf (responseZ p) (getProofInput p)
       AND _ es  -> ProvenAnd  <$> traverse getProvenTree es
       OR  _ es  -> case es of
-        []   -> Left "No children for OR-node"
+        []   -> throwError "No children for OR-node"
         a:as -> liftA2 ProvenOr (getOrleftmostChild a) (getOrRest as)
       where
         getOrleftmostChild = getProvenTree
@@ -193,7 +193,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
         getOrRest xs = fmap Seq.fromList $ traverse go xs
           where
             go x = do
-              ch <- maybe (Left err) Right $ proofTag'challenge $ sexprAnn x
+              ch <- maybe (throwError err) pure $ proofTag'challenge $ sexprAnn x
               t  <- getProvenTree x
               return $ OrChild ch t
 
