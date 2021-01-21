@@ -90,7 +90,7 @@ deriving instance ( Show (ECPoint   a)
                   , Show (Challenge a)
                   ) => Show (PartialProof a)
 
--- | Proof to reconstruct all chalenges from the root challenge.
+-- | Proof to reconstruct all challenges from the root challenge.
 data Proof a = Proof
   { proof'rootChallenge :: Challenge a   -- ^ root chalenge
   , proof'tree          :: ProvenTree a  -- ^ expression to prove
@@ -206,6 +206,10 @@ ownsKey knownPKs = \case
   InputDTuple DTuple{..} -> checkKey dtuple'g_y
   where
     checkKey k = k `Set.member` knownPKs
+
+----------------------------------------------------------------
+-- Building proof
+----------------------------------------------------------------
 
 -- Mark all nodes according to whether we can produce proof for them
 markTree :: (EC a) => Set (PublicKey a) -> SigmaE () (ProofInput a) -> SigmaE ProofVar (ProofInput a)

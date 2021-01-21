@@ -4,7 +4,17 @@
 -- k@ where k is point on curve (public key), and @g@ is generator of
 -- curve.
 --
--- This is derived from Schnorr signatures.
+-- This is derived from Schnorr signatures. Verification algorithm
+-- proceeds as follows:
+--
+-- 1. Prover chooses random @r : ℤ/q@, keeps it secret and sends
+--    commitment @a = g^r@ to verifier
+--
+-- 2. Verifier chooses random challenge $c : ℤ/q@, such @c@ is
+--    generated using hash of commitment and message.
+--
+-- 3. Prover send @z = r + c·x : ℤ/q@ and sends it to verifier. Proof is
+--    accepted if @g^z = a·k^c@.
 module Hschain.Utxo.Lang.Sigma.DLog(
     ProofDLog(..)
   , verifyProofDLog
@@ -20,19 +30,16 @@ import Hschain.Utxo.Lang.Sigma.Types
 import qualified Codec.Serialise as CBOR
 
 -- | Proof of possession of discrete logarithm (private key) of given
--- point on curve (public key). Spender proves knowledge of scalar @x@
--- such that
---
--- > u == g ^ x
---
--- where @u@ is public key. It is based on zero-knowledge sigma
--- protocols (Schnorr signatures).
+--   point on curve (public key).
 data ProofDLog a = ProofDLog
   { proofDLog'public      :: PublicKey a
-    -- ^ Possession private key corresponding to this public key is proven
+    -- ^ Public key
   , proofDLog'commitmentA :: Commitment a
-  , proofDLog'responseZ   :: Response   a
+    -- ^ Commitment of prover
   , proofDLog'challengeE  :: Challenge  a
+    -- ^ Challenge that generated noninteractively
+  , proofDLog'responseZ   :: Response   a
+    -- ^ Response of prover
   } deriving (Generic)
 
 deriving instance ( Show (ECPoint   a)
@@ -51,7 +58,10 @@ instance ( CBOR.Serialise (ECPoint   a)
          ) => CBOR.Serialise (ProofDLog a)
 
 -- | Simulate proof of posession of discrete logarithm for given
--- challenge
+--   challenge. It's possible to generate valid proof for any given
+--   pair of challenge @c@ and response @z@ by computing:
+--
+--   > a = g^zk^{-c}
 simulateProofDLog :: EC a => PublicKey a -> Challenge a -> IO (ProofDLog a)
 simulateProofDLog pubK e = do
   z <- generatePrivKey
