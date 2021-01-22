@@ -1,8 +1,4 @@
-* Check user types
-
-   * () - unexpected value
-       
-      > data F = F ()  -- produces error
+* Update REPL words on erasure of definitions or user-types
 
 * Implement typical Bitcoin scenarios
 
