@@ -12,8 +12,9 @@ module Hschain.Utxo.Lang.Sigma.Protocol(
   , getProofInput
 ) where
 
-import Data.Data
+import Codec.Serialise (Serialise)
 import Control.DeepSeq (NFData)
+import Data.Data
 import Data.Aeson   (FromJSON(..), ToJSON(..))
 import Data.Either.Extra (eitherToMaybe)
 import Data.Bifunctor
@@ -42,7 +43,8 @@ data SigmaE k a
     -- ^ AND connective
   | OR  k [SigmaE k a]
     -- ^ OR connective
-  deriving stock (Functor, Foldable, Traversable, Show, Eq)
+  deriving stock    (Functor, Foldable, Traversable, Show, Eq, Generic)
+  deriving anyclass (Serialise)
 
 instance Bifunctor SigmaE where
   first f = go where
