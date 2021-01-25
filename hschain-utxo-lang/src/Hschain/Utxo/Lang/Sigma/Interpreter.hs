@@ -5,7 +5,7 @@
 -- Supporting Noninteractive Zero-Knowledge Proofs" by Ergo Developers
 module Hschain.Utxo.Lang.Sigma.Interpreter(
     Proof
-  , newProof
+  , createProof
   , verifyProof
   , ProvenTree(..)
   , completeProvenTree
@@ -163,12 +163,26 @@ deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Cha
 ----------------------------------------------------------------
 
 
--- | Create proof for sigma expression based on ownership of collection of keys (@Env@)
-newProof :: (EC a)
-  => Env a -> SigmaE () (ProofInput a) -> ByteString -> IO (Either Text (Proof a))
-newProof env expr message = runProve $ do
-  commitments <- generateCommitments (markTree isProvable expr)
-  toProof =<< generateProofs env commitments message
+-- | Create proof for Σ-expression locally. No communication will be
+--   needed. Function will use private keys from 'Env' in order to
+--   compute necessary proofs
+createProof :: (EC a)
+  => Env a                    -- ^ List of keys for which we create
+  -> SigmaE () (ProofInput a) -- ^ Σ-expression for which we create proof
+  -> ByteString               -- ^ Message linked to sigma expression (TX hash)
+  -> IO (Either Text (Proof a))
+createProof env expr message = runProve $ do
+  -- 1. Mark which leaves are real and which are simulated
+  let marked = markTree isProvable expr
+  -- 2. Simulate proofs
+  simulated <- simulateProofs marked
+  -- 3. Generate commitments for real leaves
+  committed <- makeLocalCommitements simulated
+  -- 4. Compute challenges for all real nodes
+  let challenged = computeRealChallenges message committed
+  -- 5. Compute real proof
+  let proven = evaluateRealProof env challenged
+  toProof proven
   where
     isProvable input = leafPublicKey input `Set.member` knownKeys
     knownKeys = Set.fromList $ getPublicKey <$> unEnv env
@@ -247,7 +261,7 @@ markTree isProvable = clean . check
 --   Root node must be marked as 'Real'
 simulateProofs
   :: (EC a, MonadIO m)
-  => SigmaE ProofVar    (ProofInput a)
+  => SigmaE ProofVar (ProofInput a)
   -> m (SigmaE (ProofSim a) (Either (ProofInput a) (AtomicProof a)))
 simulateProofs = goReal
   where
@@ -357,43 +371,6 @@ evaluateRealProof env = go
 -- Old code
 ----------------------------------------------------------------
 
--- | Genererate simalated proofs and commitments for real proofs
--- Prover Steps 4, 5, and 6 together: find challenges for simulated nodes; simulate simulated leaves;
--- compute commitments for real leaves
-generateCommitments
-  :: (EC a)
-  => SigmaE ProofVar (ProofInput a)
-  -> Prove (SigmaE (ProofSim a) (Either (PartialProof a) (AtomicProof a)))
-generateCommitments tree = case sexprAnn tree of
-  Real      -> goReal tree
-  -- Prover Step 2: If the root of the tree is marked "simulated" then the prover does not have enough witnesses
-  -- to perform the proof. Abort.
-  Simulated -> throwError "The root is simulated. Can not produce the proof."
-  where
-    -- Go down expecting real node
-    goReal = \case
-      Leaf Real k -> do r <- generatePrivKey
-                        return $ Leaf RealS $ Left $ PartialProof
-                          { pproofInput = k
-                          , pproofR     = r
-                          }
-      AND Real es -> AND RealS <$> traverse goReal     es
-      OR  Real es -> OR  RealS <$> traverse simulateOR es
-        where
-          simulateOR e = case sexprAnn e of
-            Real      -> goReal e
-            Simulated -> do ch <- liftIO generateChallenge
-                            goSim ch e
-      _ -> throwError "Simulated node!"
-    --
-    goSim ch = \case
-      Leaf Simulated k      -> liftIO $ Leaf (SimulatedS ch) . Right <$> simulateAtomicProof k ch
-      AND  Simulated es     -> AND (SimulatedS ch) <$> traverse (goSim ch) es
-      OR   Simulated []     -> throwError "Empty OR"
-      OR   Simulated (e:es) -> do esWithCh <- liftIO $ forM es $ \x -> (,x) <$> generateChallenge
-                                  let ch0 = foldl xorChallenge ch $ map fst esWithCh
-                                  OR (SimulatedS ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
-      _ -> throwError "Real node"
 
 computeRootChallenge
   :: (EC a, CBOR.Serialise (ECPoint a))
@@ -438,71 +415,6 @@ getResponseForInput :: EC a => Env a -> ECScalar a -> Challenge a -> ProofInput 
 getResponseForInput env rnd ch inp = rnd .+. (sk .*. fromChallenge ch)
   where
     sk = getPrivateKeyForInput env inp
-
-generateProofs
-  :: forall a. (EC a)
-  => Env a
-  -> SigmaE (ProofSim a) (Either (PartialProof a) (AtomicProof a))
-  -> ByteString
-  -> Prove (SigmaE (Challenge a) (AtomicProof a))
-generateProofs (Env env) expr0 message = goReal ch0 expr0
-  where
-    -- Prover Steps 7: convert the relevant information in the tree (namely, tree structure, node types,
-    -- the statements being proven and commitments at the leaves)
-    -- to a string
-    --
-    -- Prover Step 8: compute the challenge for the root of the tree as the Fiat-Shamir hash of s
-    -- and the message being signed.
-    ch0 :: Challenge a
-    ch0 = getProofRootChallenge expr0 message
-
-    -- Prover Step 9: complete the proof by computing challenges at real
-    -- nodes and additionally responses at real leaves
-    goReal ch = \case
-      Leaf RealS (Left PartialProof{..}) -> do
-        let z = getResponseForInput (Env env) pproofR ch pproofInput
-        return $ case pproofInput of
-          InputDLog dlog ->
-            Leaf ch $ ProofDL ProofDLog
-              { proofDLog'public      = dlog
-              , proofDLog'commitmentA = publicKey pproofR
-              , proofDLog'challengeE  = ch
-              , proofDLog'responseZ   = z
-              }
-          InputDTuple dtuple ->
-            Leaf ch $ ProofDT $ ProofDTuple
-              { proofDTuple'public      = dtuple
-              , proofDTuple'commitmentA = ( pproofR .*^ dtuple'g   dtuple
-                                          , pproofR .*^ dtuple'g_x dtuple
-                                          )
-              , proofDTuple'challengeE  = ch
-              , proofDTuple'responseZ   = z
-              }
-      Leaf _ _ -> error $ "impossible happened: Simulated leaf or mismatch"
-      --
-      AND RealS es -> AND ch <$> traverse (goReal ch) es
-      AND _     _  -> error "Impossible happened: simulated AND"
-      --
-      OR RealS  es -> OR ch <$> orChildren ch es
-      OR _      _  -> error "Impossible happened: simulated OR"
-      where
-        orChildren rootCh children = do
-          let challengeForReal = orChallenge rootCh
-                [ c | SimulatedS c <- sexprAnn <$> children ]
-              update e
-                | RealS <- sexprAnn e = goReal challengeForReal e
-                | otherwise           = goSim e
-          traverse update children
-    -- This step is not needed, but might be useful to prevent side-channel timing attacks.
-    goSim = \case
-      Leaf (SimulatedS ch) (Right pdl) -> pure $ Leaf ch pdl
-      Leaf _               _           -> error "Impossible happened: Real leaf or mismatch"
-      --
-      AND (SimulatedS ch) es -> AND ch <$> traverse goSim es
-      AND _               _  -> error "Impossible happened: real AND"
-      --
-      OR  (SimulatedS ch) es -> OR ch <$> traverse goSim es
-      OR  _               _  -> error "Impossible happened: real OR"
 
 
 orChallenge :: EC a => Challenge a -> [Challenge a] -> Challenge a

@@ -170,7 +170,7 @@ instance Serialise a => FromJSON (Sigma a) where
 newProof :: ProofEnv -> Sigma ProofInput -> SigMessage -> IO (Either Text Proof)
 newProof env expr message =
   case toSigmaExprOrFail expr of
-    Right sigma -> Sigma.newProof env sigma $ encodeToBS message
+    Right sigma -> Sigma.createProof env sigma $ encodeToBS message
     Left  err   -> return $ Left err
 
 -- | Verify the proof.
