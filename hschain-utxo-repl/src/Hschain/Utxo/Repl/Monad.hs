@@ -15,6 +15,7 @@ module Hschain.Utxo.Repl.Monad(
   , checkType
   , hasType
   , getClosureExpr
+  , updateWords
   , insertClosure
   , closureToExpr
   , reportError
@@ -44,6 +45,7 @@ import Hschain.Utxo.Lang.Exec.Module (toUserTypeCtx)
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Repl.Imports
 import Hschain.Utxo.Lang.Exec.Module (appendExecCtx)
+import qualified Data.Map.Strict as M
 import qualified Data.Sequence as S
 import qualified Data.Set as Set
 import qualified Data.Text.IO as T
@@ -164,6 +166,19 @@ getImportFiles = fmap (getLoadedFiles . replEnv'imports) get
 -- | Get words for tab completion
 getEnvWords :: ReplEnv -> [Text]
 getEnvWords ReplEnv{..} = mappend replEnv'words (imports'names replEnv'imports)
+
+updateWords :: Repl ()
+updateWords = do
+  cl <- gets replEnv'closure
+  tyCl <- gets replEnv'typeClosure
+  modify' $ \st -> st { replEnv'words = closureWords cl <> typeClosureWords tyCl }
+  where
+    closureWords x = fmap varName'name $ bindNames =<< toList x
+    typeClosureWords x = getUserTypeNames =<< toList x
+
+    getUserTypeNames UserType{..} =
+      varName'name userType'name : (fmap consName'name $ M.keys userType'cases)
+
 
 -- | Get file that contains transaction for the current REPL session
 -- to execute script in the context of transaction

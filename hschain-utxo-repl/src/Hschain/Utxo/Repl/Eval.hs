@@ -15,7 +15,6 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 
 import Data.Maybe
-import Data.Foldable
 
 import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Desugar
@@ -32,7 +31,6 @@ import Hschain.Utxo.Lang.Core.Compile.Expr (TermVal)
 import Safe
 
 import qualified Data.ByteString as BS
-import qualified Data.Map.Strict as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -124,9 +122,8 @@ evalBind bind = do
   modify' $ \st -> st { replEnv'closure = trimClosure closure }
   case bindFirstRhs bind of
     Just lang -> withTypeCheck lang $ \_ -> do
-      modify' $ \st -> st { replEnv'closure = replEnv'closure st S.|> bind
-                          , replEnv'words   = (fmap varName'name $ toList $ bindNamesLhs bind) <> replEnv'words st
-                          }
+      modify' $ \st -> st { replEnv'closure = replEnv'closure st S.|> bind }
+      updateWords
     Nothing -> do
       let msg = InternalError $ Unexpected "No rhs expression"
       reportError msg
@@ -160,15 +157,10 @@ evalUserType ut = do
   prevClosure <- gets replEnv'typeClosure
   case checkUserTypeInCtx (fromTypeClosure prevClosure) ut of
     Nothing  -> do
-      modify' $ \st -> st
-        { replEnv'typeClosure = insertTypeClosure ut prevClosure
-        , replEnv'words = replEnv'words st <> getUserTypeNames ut
-        }
+      modify' $ \st -> st { replEnv'typeClosure = insertTypeClosure ut prevClosure }
+      updateWords
     Just err -> do
       reportError err
-  where
-    getUserTypeNames UserType{..} =
-      varName'name userType'name : (fmap consName'name $ M.keys userType'cases)
 
 parseUserType :: String -> Either String ParseRes
 parseUserType input = fmap ParseUserType $ fromParseResult $ onRepl P.parseUserType input
