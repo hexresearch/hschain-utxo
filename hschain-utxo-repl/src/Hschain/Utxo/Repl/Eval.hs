@@ -159,18 +159,11 @@ evalUserType ut = do
   definedValues <- fmap (Set.fromList . fmap (VarName noLoc) . getEnvWords) get
   case checkUserTypeInCtx definedValues (fromTypeClosure prevClosure) ut of
     Nothing  -> do
-<<<<<<< HEAD
       modify' $ \st -> st { replEnv'typeClosure = insertTypeClosure ut prevClosure }
       updateWords
-=======
-      modify' $ \st -> st
-        { replEnv'typeClosure = prevClosure S.|> ut
-        , replEnv'words = replEnv'words st <> getUserTypeNames ut
-        }
->>>>>>> origin/master
     Just err -> do
       reportError err
-
+  where
     trimClosure closure = case S.viewr (insertTypeClosure ut closure) of
       S.EmptyR -> S.empty
       rest S.:> _ -> rest
