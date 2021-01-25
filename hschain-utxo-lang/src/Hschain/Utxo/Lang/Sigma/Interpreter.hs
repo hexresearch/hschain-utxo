@@ -42,7 +42,6 @@ import qualified Data.Aeson      as JSON
 import Data.ByteString (ByteString)
 import Data.Foldable
 import Data.Maybe
-import Data.Monoid (All(..))
 import Data.Sequence (Seq)
 import Data.Set (Set)
 import Data.Text (Text)
@@ -437,21 +436,19 @@ generateProofs (Env env) expr0 message = goReal ch0 expr0
 orChallenge :: EC a => Challenge a -> [Challenge a] -> Challenge a
 orChallenge ch rest = foldl xorChallenge ch rest
 
--------------------------------------------------
--- verification
+----------------------------------------------------------------
+-- Verification
+----------------------------------------------------------------
 
--- | Verify proof. It checks if the proof is correct.
+-- | Check that proof is correct.
 verifyProof :: forall a. (EC a, Eq (Challenge a))
-  => Proof a -> ByteString -> Bool
-verifyProof proof message =
-     checkProofs compTree
-  && (checkHash (getVerifyRootChallenge compTree message))
+  => Proof a
+  -> ByteString
+  -> Bool
+verifyProof proof message
+  =  (getVerifyRootChallenge compTree message == proof'rootChallenge proof)
+  && all verifyAtomicProof compTree
   where
-    checkProofs :: SigmaE b (AtomicProof a) -> Bool
-    checkProofs = getAll . foldMap (All . verifyAtomicProof)
-
-    checkHash hash = proof'rootChallenge proof == hash
-
     compTree = completeProvenTree proof
 
 -- | Calculate all challenges for all nodes of a proof.
@@ -482,9 +479,3 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
       { orChild'challenge = orChallenge ch (toList $ fmap orChild'challenge children)
       , orChild'tree      = leftmost
       }
-
-{- For debug
-
-traceMsg :: Show a => String -> a -> a
-traceMsg msg a = trace (mconcat [msg, ": ", ppShow a]) a
--}
