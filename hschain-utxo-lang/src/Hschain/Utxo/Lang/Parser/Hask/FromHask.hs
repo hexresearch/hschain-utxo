@@ -285,6 +285,7 @@ toName = \case
 fromQName :: H.QName Loc -> ParseResult VarName
 fromQName = \case
   H.UnQual _ name -> return $ toName name
+  H.Special _ (H.UnitCon loc) -> return $ VarName loc "()"
   other           -> parseFailedBy "Unexpected name" other
 
 fromQualType :: H.Type Loc -> ParseResult Signature

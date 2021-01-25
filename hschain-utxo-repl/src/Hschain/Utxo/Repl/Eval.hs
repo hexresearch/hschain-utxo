@@ -34,6 +34,7 @@ import Safe
 import qualified Data.ByteString as BS
 import qualified Data.Map.Strict as M
 import qualified Data.Sequence as S
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Vector as V
@@ -157,11 +158,12 @@ parseBind input = fmap ParseBind $ fromParseResult $ onRepl P.parseBind input
 
 evalUserType :: UserType -> Repl ()
 evalUserType ut = do
-  prevClosure <- gets replEnv'typeClosure
-  case checkUserTypeInCtx (fromTypeClosure prevClosure) ut of
+  prevClosure <- fmap trimClosure $ gets replEnv'typeClosure
+  definedValues <- fmap (Set.fromList . fmap (VarName noLoc) . getEnvWords) get
+  case checkUserTypeInCtx definedValues (fromTypeClosure prevClosure) ut of
     Nothing  -> do
       modify' $ \st -> st
-        { replEnv'typeClosure = insertTypeClosure ut prevClosure
+        { replEnv'typeClosure = prevClosure S.|> ut
         , replEnv'words = replEnv'words st <> getUserTypeNames ut
         }
     Just err -> do
@@ -169,6 +171,11 @@ evalUserType ut = do
   where
     getUserTypeNames UserType{..} =
       varName'name userType'name : (fmap consName'name $ M.keys userType'cases)
+
+    trimClosure closure = case S.viewr (insertTypeClosure ut closure) of
+      S.EmptyR -> S.empty
+      rest S.:> _ -> rest
+
 
 parseUserType :: String -> Either String ParseRes
 parseUserType input = fmap ParseUserType $ fromParseResult $ onRepl P.parseUserType input

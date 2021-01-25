@@ -1,3 +1,5 @@
+* Update REPL words on erasure of definitions or user-types
+
 * Implement typical Bitcoin scenarios
 
 1. Оплата на хеш от адреса

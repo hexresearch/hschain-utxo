@@ -70,11 +70,15 @@ module Hschain.Utxo.Lang.Const(
   , checkMultiSig
   -- * Evaluation constants
   , evalReductionLimit
+  , reservedNames
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length, show, all, any, and, or, sum, product, negate)
 import Data.String
+import Data.Set (Set)
 import Data.Text (Text)
+
+import qualified Data.Set as S
 
 negate :: IsString a => a
 negate = "negate"
@@ -207,5 +211,9 @@ checkMultiSig = "checkMultiSig"
 evalReductionLimit :: Int
 evalReductionLimit = 10000
 
+reservedNames :: Set Text
+reservedNames = S.fromList
+  [ "if", "then", "else", "where", "let", "in", "import"
+  , "module", "data", "type", "otherwise" ]
 
 
