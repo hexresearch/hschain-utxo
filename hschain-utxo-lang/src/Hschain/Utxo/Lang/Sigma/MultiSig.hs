@@ -108,8 +108,6 @@ import Data.Text (Text)
 import qualified Data.Set as Set
 
 import HSChain.Crypto (PublicKey,CryptoAsymmetric(..))
-import Hschain.Utxo.Lang.Sigma.DLog
-import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Interpreter
@@ -128,9 +126,9 @@ initMultiSigProof :: EC a
   -> SigmaE () (ProofInput a)
   -> Prove (ProofExpr CommitmentQuery a)
 initMultiSigProof knownKeys expr =
-  fmap toComQueryExpr $ generateSimulatedProofs $ markTree isProvable expr
+  fmap toComQueryExpr $ generateSimulatedProofs $ markTree provable expr
   where
-    isProvable input = pk `Set.member` knownKeys
+    provable input = pk `Set.member` knownKeys
       where
         pk = case input of InputDLog   k          -> k
                            InputDTuple DTuple{..} -> dtuple'g_y
@@ -326,12 +324,12 @@ getChallenges expr0 message = goReal ch0 expr0
     extractCommitment =
       either
         (\case
-          CommitmentResultLog{..}   -> FiatShamirLeafDLog comResult'publicLog comResult'commitmentLog
-          CommitmentResultTuple{..} -> FiatShamirLeafDTuple comResult'publicTuple comResult'commitmentTuple
+          CommitmentResultLog{..}   -> CommitedDLog comResult'publicLog comResult'commitmentLog
+          CommitmentResultTuple{..} -> CommitedDTuple comResult'publicTuple comResult'commitmentTuple
         )
         (\case
-          ProofDL ProofDLog{..}     -> FiatShamirLeafDLog proofDLog'public proofDLog'commitmentA
-          ProofDT ProofDTuple{..}   -> FiatShamirLeafDTuple proofDTuple'public proofDTuple'commitmentA
+          ProofDL ProofDLog{..}     -> CommitedDLog proofDLog'public proofDLog'commitmentA
+          ProofDT ProofDTuple{..}   -> CommitedDTuple proofDTuple'public proofDTuple'commitmentA
         )
 
     withChallenge ch tag = tag { proofTag'challenge = Just ch }
@@ -403,7 +401,9 @@ queryResponses env secretExpr expr = case (secretExpr, expr) of
   (Leaf _ (Left secretLeaf), Leaf tag (Left ChallengeResult{..})) -> return $ Leaf tag $ Left $ ResponseQuery
     { responseQuery'result     = challengeResult'result
     , responseQuery'challenge  = challengeResult'challenge
-    , responseQuery'response   = fmap (\rand -> toResp challengeResult'challenge rand challengeResult'result) (getSecretRand secretLeaf)
+    , responseQuery'response   = do
+        rand <- getSecretRand secretLeaf
+        toResp challengeResult'challenge rand challengeResult'result
     }
   (Leaf _ _, Leaf tag (Right pdl)) -> return $ Leaf tag $ Right pdl
   (AND _ as, AND tag bs) -> fmap (AND tag) $ zipWithM (queryResponses env) as bs
@@ -451,7 +451,7 @@ appendResponse2 = appendProofExprBy app
 
 
 responsesToProof :: ProofExpr ResponseQuery a -> Prove (Proof a)
-responsesToProof = toProof <=< go . first toChallenge
+responsesToProof = fmap toProof . go . first toChallenge
   where
     go = traverse $ either (maybe noResp pure . queryToProofDL) pure
     toChallenge (ProofTag _ (Just ch)) = ch

@@ -40,7 +40,6 @@ import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
 import qualified Hschain.Utxo.Lang.Sigma as S
 import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.DTuple as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve as EC
 import qualified Hschain.Utxo.Lang.Crypto.Signature as Crypto
 

@@ -66,7 +66,6 @@ import qualified Hschain.Utxo.Lang.Sigma.Interpreter           as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.EllipticCurve         as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.MultiSig              as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Protocol              as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.DTuple                as Sigma
 import qualified Hschain.Utxo.Lang.Sigma.Types                 as Sigma
 import Hschain.Utxo.Lang.Sigma.Interpreter (Prove, runProve)
 
@@ -125,7 +124,10 @@ getPublicKey = Sigma.getPublicKey
 
 -- | Proof environment is a listavailable key-pairs.
 toProofEnv :: [KeyPair] -> ProofEnv
-toProofEnv ks = Sigma.Env ks
+toProofEnv keys = Sigma.Env $ \k ->
+  case [ sk | Sigma.KeyPair sk pk <- keys, k == pk ] of
+    []   -> Nothing
+    sk:_ -> Just sk
 
 -- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
 -- The last argument message is a serialised content of transaction.
@@ -190,7 +192,7 @@ eliminateSigmaBool = go
 
 -- | Wrapper to contruct proof environment from list of key-pairs.
 proofEnvFromKeys :: [KeyPair] -> ProofEnv
-proofEnvFromKeys = Sigma.Env
+proofEnvFromKeys = toProofEnv
 
 -- | Check if sigma expression is proven with given proof.
 equalSigmaProof :: Sigma.SigmaE () ProofInput -> Proof -> Bool
@@ -202,7 +204,7 @@ equalSigmaProof candidate proof =
 equalSigmaExpr :: Sigma.SigmaE () ProofInput -> Sigma.SigmaE () AtomicProof -> Bool
 equalSigmaExpr x y = case (x, y) of
   (Sigma.Leaf _ inp, Sigma.Leaf _ proof)
-    -> inp == Sigma.getProofInput proof
+    -> inp == Sigma.toProofInput proof
   (Sigma.OR  _ as, Sigma.OR  _ bs) -> equalList as bs
   (Sigma.AND _ as, Sigma.AND _ bs) -> equalList as bs
   _                                -> False
