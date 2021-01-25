@@ -16,6 +16,7 @@ import Data.Data
 import Control.DeepSeq (NFData)
 import Data.Aeson   (FromJSON(..), ToJSON(..))
 import Data.Either.Extra (eitherToMaybe)
+import Data.Bifunctor
 import GHC.Generics (Generic)
 
 import HSChain.Crypto.Classes (defaultToJSON, defaultParseJSON)
@@ -42,6 +43,15 @@ data SigmaE k a
   | OR  k [SigmaE k a]
     -- ^ OR connective
   deriving stock (Functor, Foldable, Traversable, Show, Eq)
+
+instance Bifunctor SigmaE where
+  first f = go where
+    go = \case
+      Leaf k a  -> Leaf (f k) a
+      AND  k es -> AND  (f k) (go <$> es)
+      OR   k es -> OR   (f k) (go <$> es)
+
+  second = fmap
 
 sexprAnn :: SigmaE k a -> k
 sexprAnn = \case
@@ -159,4 +169,3 @@ verifyAtomicProof :: (EC a) => AtomicProof a -> Bool
 verifyAtomicProof = \case
   ProofDL dlog   -> verifyProofDLog dlog
   ProofDT dtuple -> verifyProofDTuple dtuple
-

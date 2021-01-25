@@ -28,6 +28,15 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
+import qualified Codec.Serialise as CBOR
+import Data.ByteString (ByteString)
+import Data.Set (Set)
+import Data.Text (Text)
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.Aeson           as JSON
+import qualified Data.Set             as Set
+import GHC.Generics (Generic)
+
 import HSChain.Crypto.Classes.Hash (genericHashStep)
 import HSChain.Crypto              (CryptoHashable(..), PublicKey, PrivKey, CryptoAsymmetric(..))
 import Hschain.Utxo.Lang.Sigma.DLog
@@ -37,19 +46,10 @@ import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
 
-import qualified Codec.Serialise as CBOR
-import qualified Data.Aeson      as JSON
-import Data.ByteString (ByteString)
 import Data.Foldable
 import Data.Maybe
 import Data.Sequence (Seq)
-import Data.Set (Set)
-import Data.Text (Text)
-import GHC.Generics (Generic)
-
-import qualified Data.ByteString.Lazy as LB
 import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
 
 -----------------------------------------------------
 
