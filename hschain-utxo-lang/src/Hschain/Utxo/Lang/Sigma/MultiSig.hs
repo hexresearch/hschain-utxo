@@ -111,7 +111,6 @@ import HSChain.Crypto (PublicKey,CryptoAsymmetric(..))
 import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
-import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Interpreter
 

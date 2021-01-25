@@ -20,6 +20,7 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , markTree
   , ownsKey
   , getResponseForInput
+  , FiatShamirLeaf(..)
   -- * New API
   , simulateProofs
   , makeLocalCommitements
@@ -34,6 +35,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Except
 
 import qualified Codec.Serialise as CBOR
+import Data.Bifunctor
 import Data.ByteString (ByteString)
 import Data.Set (Set)
 import Data.Text (Text)
@@ -47,7 +49,6 @@ import HSChain.Crypto              (CryptoHashable(..), PublicKey, PrivKey, Cryp
 import Hschain.Utxo.Lang.Sigma.DLog
 import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
-import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
 
@@ -116,6 +117,21 @@ data ProvenTree a
   | ProvenAnd [ProvenTree a]
   -- ^ AND of subexpressions
   deriving (Generic)
+
+
+-- | Leaf of Fiat-Shamir tree.
+data FiatShamirLeaf a
+  = FiatShamirLeafDLog
+      { fsLeafDLog'public     :: PublicKey a
+      , fsLeafDLog'commitment :: Commitment a
+      }
+  | FiatShamirLeafDTuple
+      { fsLeafDTuple'public     :: DTuple a
+      , fsLeafDTuple'commitment :: (Commitment a, Commitment a)
+      }
+      deriving stock (Generic)
+
+instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (FiatShamirLeaf a)
 
 instance (EC a) => CBOR.Serialise (Proof a)
 instance (EC a) => JSON.FromJSON  (Proof a)
@@ -393,7 +409,7 @@ initRootChallenge
   -> ByteString
   -> Challenge a
 initRootChallenge expr message =
-  randomOracle $ (LB.toStrict $ CBOR.serialise $ toFiatShamir expr) <> message
+  randomOracle $ (LB.toStrict $ CBOR.serialise $ first (const ()) expr) <> message
 
 getProofRootChallenge ::
      forall a . (EC a)
