@@ -334,6 +334,30 @@ computeRealChallenges message expr0 = goReal rootChallenge expr0
       OR  (SimulatedS ch) es -> OR ch $ goSim <$> es
       OR  _               _  -> error "Impossible happened: real OR"
 
+getProofRootChallenge ::
+     forall a . (EC a)
+  => SigmaE (ProofSim a) (Partial PartialProof a)
+  -> ByteString
+  -> Challenge a
+getProofRootChallenge expr = computeRootChallenge (extractCommitment <$> expr)
+  where
+    extractCommitment = \case
+      Partial  p -> extractPartialProof p
+      Complete p -> extractAtomicProof  p
+
+    extractPartialProof x = case pproofInput x of
+      InputDLog dlog -> FiatShamirLeafDLog dlog  (publicKey rnd)
+      InputDTuple dt -> FiatShamirLeafDTuple dt  ( rnd .*^ dtuple'g   dt
+                                                 , rnd .*^ dtuple'g_x dt
+                                                 )
+      where
+        rnd = pproofR x
+
+    extractAtomicProof = \case
+      ProofDL dlog   -> FiatShamirLeafDLog   (proofDLog'public dlog)     (proofDLog'commitmentA dlog)
+      ProofDT dtuple -> FiatShamirLeafDTuple (proofDTuple'public dtuple) (proofDTuple'commitmentA dtuple)
+
+
 evaluateRealProof
   :: (EC a)
   => Env a
@@ -375,29 +399,6 @@ computeRootChallenge
   -> Challenge a
 computeRootChallenge expr message =
   randomOracle $ (LB.toStrict $ CBOR.serialise $ first (const ()) expr) <> message
-
-getProofRootChallenge ::
-     forall a . (EC a)
-  => SigmaE (ProofSim a) (Partial PartialProof a)
-  -> ByteString
-  -> Challenge a
-getProofRootChallenge expr = computeRootChallenge (extractCommitment <$> expr)
-  where
-    extractCommitment = \case
-      Partial  p -> extractPartialProof p
-      Complete p -> extractAtomicProof  p
-
-    extractPartialProof x = case pproofInput x of
-      InputDLog dlog -> FiatShamirLeafDLog dlog  (publicKey rnd)
-      InputDTuple dt -> FiatShamirLeafDTuple dt  ( rnd .*^ dtuple'g   dt
-                                                 , rnd .*^ dtuple'g_x dt
-                                                 )
-      where
-        rnd = pproofR x
-
-    extractAtomicProof = \case
-      ProofDL dlog   -> FiatShamirLeafDLog   (proofDLog'public dlog)     (proofDLog'commitmentA dlog)
-      ProofDT dtuple -> FiatShamirLeafDTuple (proofDTuple'public dtuple) (proofDTuple'commitmentA dtuple)
 
 getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> PrivKey a
 getPrivateKeyForInput (Env env) input =
