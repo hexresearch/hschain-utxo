@@ -127,29 +127,11 @@ instance ByteRepr (ECPoint a) => ByteRepr (ProofInput a) where
         InputDLog dlog     -> Left  $ encodeToBS dlog
         InputDTuple dtuple -> Right $ encodeToBS dtuple
 
-deriving instance ( Show (ECPoint a)
-                  , Show (Response a)
-                  , Show (Challenge   a)
-                  ) => Show (ProofInput a)
-
-deriving instance ( Eq (ECPoint a)
-                  , Eq (Response a)
-                  , Eq (Challenge   a)
-                  ) => Eq (ProofInput a)
-
-deriving instance ( Ord (ECPoint a)
-                  , Ord (Response a)
-                  , Ord (Challenge a)
-                  ) => Ord (ProofInput a)
-
-deriving instance ( NFData (ECPoint a)
-                  ) => NFData (ProofInput a)
-
-instance ( CBOR.Serialise (ECPoint a)
-         , CBOR.Serialise (ProofDTuple a)
-         , CBOR.Serialise (ProofDLog   a)
-         ) => CBOR.Serialise (ProofInput a)
-
+deriving stock instance (CryptoAsymmetric a) => Show (ProofInput a)
+deriving stock instance (EC a)               => Eq   (ProofInput a)
+deriving stock instance (EC a)               => Ord  (ProofInput a)
+instance (NFData (PublicKey a)) => NFData         (ProofInput a)
+instance (CryptoAsymmetric a)   => CBOR.Serialise (ProofInput a)
 instance (ByteRepr (ECPoint a)) => ToJSON (ProofInput a) where
   toJSON = defaultToJSON
 
@@ -170,14 +152,6 @@ instance ByteRepr (ECPoint a) => TH.Lift (ProofInput a) where
     where
       bs = encodeToBS pk
 
-deriving instance ( Show (ProofDTuple a)
-                  , Show (ProofDLog   a)
-                  ) => Show (AtomicProof a)
-
-deriving instance ( Eq (ProofDTuple a)
-                  , Eq (ProofDLog   a)
-                  ) => Eq (AtomicProof a)
-
-instance ( CBOR.Serialise (ProofDTuple a)
-         , CBOR.Serialise (ProofDLog a)
-         ) => CBOR.Serialise (AtomicProof a)
+deriving instance (CryptoAsymmetric a, Show (Challenge a)) => Show (AtomicProof a)
+deriving instance (EC a) => Eq (AtomicProof a)
+instance (EC a) => CBOR.Serialise (AtomicProof a)
