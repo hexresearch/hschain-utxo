@@ -321,7 +321,7 @@ getChallenges expr0 message = goReal ch0 expr0
   where
     -- Prover Step 8: compute the challenge for the root of the tree as the Fiat-Shamir hash of s
     -- and the message being signed.
-    ch0 = initRootChallenge (extractCommitment <$> expr0) message
+    ch0 = computeRootChallenge (extractCommitment <$> expr0) message
 
     extractCommitment =
       either

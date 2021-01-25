@@ -14,7 +14,7 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , ProofSim(..)
   , Prove(..)
   , runProve
-  , initRootChallenge
+  , computeRootChallenge
   , orChallenge
   , toProof
   , markTree
@@ -395,12 +395,12 @@ generateCommitments tree = case sexprAnn tree of
                                   OR (SimulatedS ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
       _ -> throwError "Real node"
 
-initRootChallenge
+computeRootChallenge
   :: (EC a, CBOR.Serialise (ECPoint a))
   => SigmaE k (FiatShamirLeaf a)
   -> ByteString
   -> Challenge a
-initRootChallenge expr message =
+computeRootChallenge expr message =
   randomOracle $ (LB.toStrict $ CBOR.serialise $ first (const ()) expr) <> message
 
 getProofRootChallenge ::
@@ -408,7 +408,7 @@ getProofRootChallenge ::
   => SigmaE (ProofSim a) (Either (PartialProof a) (AtomicProof a))
   -> ByteString
   -> Challenge a
-getProofRootChallenge expr = initRootChallenge (extractCommitment <$> expr)
+getProofRootChallenge expr = computeRootChallenge (extractCommitment <$> expr)
   where
     extractCommitment :: Either (PartialProof a) (AtomicProof a) -> FiatShamirLeaf a
     extractCommitment = either extractPartialProof extractAtomicProof
@@ -558,7 +558,7 @@ getVerifyRootChallenge ::
   => SigmaE k (AtomicProof a)
   -> ByteString
   -> Challenge a
-getVerifyRootChallenge expr = initRootChallenge (extractFiatShamirLeaf <$> expr)
+getVerifyRootChallenge expr = computeRootChallenge (extractFiatShamirLeaf <$> expr)
   where
     extractFiatShamirLeaf = \case
       ProofDL ProofDLog{..}   -> FiatShamirLeafDLog   proofDLog'public   proofDLog'commitmentA
