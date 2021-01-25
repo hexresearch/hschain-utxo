@@ -431,15 +431,16 @@ verifyProof proof message
   where
     compTree = completeProvenTree proof
 
--- | Calculate all challenges for all nodes of a proof.
+-- | In top-down traversal compute challenges for each leaf node in
+--   tree and build 'AtomicProof' for it.
 completeProvenTree :: EC a => Proof a -> SigmaE () (AtomicProof a)
 completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
-    go ch tree = case tree of
+    go ch = \case
       ProvenLeaf resp proofInp -> Leaf () $ getAtomicProof ch proofInp resp
-      ProvenOr leftmost rest -> OR   () $ toList $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree) $
+      ProvenOr leftmost rest   -> OR   () $ toList $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree) $
                                               (getLeftmostOrChallenge ch leftmost rest) Seq.<| rest
-      ProvenAnd children      -> AND  () $ fmap (go ch) children
+      ProvenAnd children       -> AND  () $ go ch <$> children
 
     getAtomicProof ch proofInp respZ = case proofInp of
       InputDLog dlog -> ProofDL $ ProofDLog
