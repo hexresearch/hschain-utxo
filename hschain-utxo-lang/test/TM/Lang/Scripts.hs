@@ -7,6 +7,8 @@ module TM.Lang.Scripts(
   , mkFullGame
   , mkHalfGame
   , patBindScript
+  , fullMixScript
+  , halfMixScript
 ) where
 
 import Data.ByteString (ByteString)
@@ -28,6 +30,8 @@ tests = testGroup "High level lang"
   , testScript "XOR half-game script"   mkHalfGame
   , testScript "XOR full-game script"   mkFullGame
   , testScript "All sorts of pat-binds" (pure patBindScript)
+  , testScript "ErgoMix full-script"    (pure fullMixScript)
+  , testScript "ErgoMix half-script"    mkHalfMixScript
   ]
 
 testScript :: String -> IO Module -> TestTree
@@ -166,4 +170,42 @@ main =
     (c, d) = getBoxArgs getSelf
     (User _ age) = john
 |]
+
+
+----------------------------------------------
+-- ErgoMix scripts
+
+fullMixScript :: Module
+fullMixScript = [utxoModule|
+
+main = pk d ||* dtuple c u d
+  where
+    (u, c, d) = getBoxArgs getSelf
+|]
+
+halfMixScript :: ByteString -> Module
+halfMixScript fullScriptHash = [utxoModule|
+
+main = fullMixTx &&* (bob ||* alice)
+  where
+    u = getArgs getSelf
+    (u0, c0, d0) = getArgs (getOutput 0) :: (Bytes, Bytes, Bytes)
+    (u1, c1, d1) = getArgs (getOutput 1) :: (Bytes, Bytes, Bytes)
+
+    bob   =  toSigma ((u0 == u) && (u1 == u) && (c0 == d1) && (c1 == d0))
+         &&* (dtuple u c0 d0 ||* dtuple u d0 c0)
+
+    fullMixBox b = sha256 (getBoxScript b) == $(fullScriptHash)
+    fullMixTx = toSigma (
+                 (getBoxValue (getOutput 0) == getBoxValue getSelf)
+              && (getBoxValue (getOutput 1) == getBoxValue getSelf)
+              && fullMixBox (getOutput 0)
+              && fullMixBox (getOutput 1))
+
+    alice = pk u
+|]
+
+mkHalfMixScript :: IO Module
+mkHalfMixScript =
+  pure $ halfMixScript $ hashScript $ toCoreScriptUnsafe fullMixScript
 
