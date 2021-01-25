@@ -325,17 +325,6 @@ getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr m
       ProofDL dlog   -> FiatShamirLeafDLog   (proofDLog'public dlog)     (proofDLog'commitmentA dlog)
       ProofDT dtuple -> FiatShamirLeafDTuple (proofDTuple'public dtuple) (proofDTuple'commitmentA dtuple)
 
-getVerifyRootChallenge ::
-     (EC a)
-  => SigmaE k (AtomicProof a)
-  -> ByteString
-  -> Challenge a
-getVerifyRootChallenge expr message = getRootChallengeBy extractFiatShamirLeaf expr message
-  where
-    extractFiatShamirLeaf = \case
-      ProofDL ProofDLog{..}   -> FiatShamirLeafDLog   proofDLog'public   proofDLog'commitmentA
-      ProofDT ProofDTuple{..} -> FiatShamirLeafDTuple proofDTuple'public proofDTuple'commitmentA
-
 getRootChallengeBy ::
      EC a
   => (leaf -> FiatShamirLeaf a)
@@ -479,3 +468,14 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
       { orChild'challenge = orChallenge ch (toList $ fmap orChild'challenge children)
       , orChild'tree      = leftmost
       }
+
+getVerifyRootChallenge ::
+     (EC a)
+  => SigmaE k (AtomicProof a)
+  -> ByteString
+  -> Challenge a
+getVerifyRootChallenge expr = initRootChallenge (extractFiatShamirLeaf <$> expr)
+  where
+    extractFiatShamirLeaf = \case
+      ProofDL ProofDLog{..}   -> FiatShamirLeafDLog   proofDLog'public   proofDLog'commitmentA
+      ProofDT ProofDTuple{..} -> FiatShamirLeafDTuple proofDTuple'public proofDTuple'commitmentA
