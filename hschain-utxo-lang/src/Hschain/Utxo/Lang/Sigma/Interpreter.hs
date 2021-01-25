@@ -8,7 +8,6 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , newProof
   , verifyProof
   , ProvenTree(..)
-  , OrChild(..)
   , completeProvenTree
   , ProofTag(..)
   , ProofVar(..)
@@ -105,6 +104,19 @@ data Proof a = Proof
   , proof'tree          :: ProvenTree a  -- ^ expression to prove
   } deriving (Generic)
 
+-- | Proof tree. It has same shape as original sigma expression.
+data ProvenTree a
+  = ProvenLeaf (ECScalar a) (ProofInput a)
+  -- ^ Primitive proof. It contains prover's response @z@ and
+  --   statement to prove
+  | ProvenOr (ProvenTree a) [(Challenge a, ProvenTree a)]
+  -- ^ OR of subexpressions. First node gets challenge which is
+  --   computed as xor of parent challenge and challenges of rest of
+  --   the nodes.
+  | ProvenAnd [ProvenTree a]
+  -- ^ AND of subexpressions
+  deriving (Generic)
+
 instance (EC a) => CBOR.Serialise (Proof a)
 instance (EC a) => JSON.FromJSON  (Proof a)
 instance (EC a) => JSON.ToJSON    (Proof a)
@@ -121,22 +133,6 @@ deriving stock   instance (Ord  (ECPoint a), Ord  (ECScalar a), Ord  (Challenge 
 
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (Proof a)
 
-
--- | Expression to prove.
-data ProvenTree a
-  = ProvenLeaf
-      { provenLeaf'responseZ :: ECScalar a
-      , provenLeaf'publicK   :: ProofInput a
-      }
-  | ProvenOr
-      { provenOr'leftmost  :: ProvenTree a
-      , provenOr'rest      :: [OrChild a]
-      } -- ^ we keep chalenges for all children but for the leftmost one.
-  | ProvenAnd
-      { provenAnd'children :: [ProvenTree a]
-      } -- ^ chalenges are calculated
-  deriving (Generic)
-
 instance (EC a) => CBOR.Serialise (ProvenTree a)
 instance (EC a) => JSON.FromJSON  (ProvenTree a)
 instance (EC a) => JSON.ToJSON    (ProvenTree a)
@@ -152,27 +148,6 @@ deriving stock   instance (Eq   (ECPoint a), Eq   (ECScalar a), Eq   (Challenge 
 deriving stock   instance (Ord  (ECPoint a), Ord  (ECScalar a), Ord  (Challenge a)) => Ord  (ProvenTree a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (ProvenTree a)
 
--- | Or-child should contain expression and challenge.
-data OrChild a = OrChild
-  { orChild'challenge :: Challenge a
-  , orChild'tree      :: ProvenTree a
-  } deriving (Generic)
-
-instance (EC a) => CBOR.Serialise (OrChild a)
-instance (EC a) => JSON.FromJSON  (OrChild a)
-instance (EC a) => JSON.ToJSON    (OrChild a)
-
-instance ( CryptoHashable (ECScalar  a)
-         , CryptoHashable (ECPoint   a)
-         , CryptoHashable (Challenge a)
-         ) => CryptoHashable (OrChild a) where
-  hashStep = genericHashStep hashDomain
-
-
-deriving stock    instance (Show   (ECPoint a), Show   (ECScalar a), Show   (Challenge a)) => Show   (OrChild a)
-deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Challenge a)) => Eq     (OrChild a)
-deriving stock    instance (Ord    (ECPoint a), Ord    (ECScalar a), Ord    (Challenge a)) => Ord    (OrChild a)
-deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (OrChild a)
 
 
 ----------------------------------------------------------------
@@ -204,7 +179,7 @@ toProof tree = Proof (sexprAnn tree) <$> getProvenTree tree
         getOrleftmostChild = getProvenTree
         getOrRest = traverse go
           where
-            go x = OrChild (sexprAnn x) <$> getProvenTree x
+            go x = (sexprAnn x ,) <$> getProvenTree x
 
 
 ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
@@ -547,7 +522,7 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
     go ch = \case
       ProvenLeaf resp proofInp -> Leaf () $ getAtomicProof ch proofInp resp
-      ProvenOr leftmost rest   -> OR   () $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree)
+      ProvenOr leftmost rest   -> OR   () $ fmap (uncurry go)
                                           $ getLeftmostOrChallenge ch leftmost rest : rest
       ProvenAnd children       -> AND  () $ go ch <$> children
 
@@ -565,10 +540,10 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
         , proofDTuple'challengeE  = ch
         }
 
-    getLeftmostOrChallenge ch leftmost children = OrChild
-      { orChild'challenge = orChallenge ch (orChild'challenge <$> children)
-      , orChild'tree      = leftmost
-      }
+    getLeftmostOrChallenge ch leftmost children =
+      ( orChallenge ch (fst <$> children)
+      , leftmost
+      )
 
 getVerifyRootChallenge ::
      (EC a)
