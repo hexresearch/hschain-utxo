@@ -30,6 +30,7 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
 
 import Control.Applicative
 import Control.DeepSeq
+import Control.Lens  hiding (children)
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Except
@@ -66,6 +67,18 @@ runProve :: Prove a -> IO (Either Text a)
 runProve (Prove p) = runExceptT p
 
 ----------------------------------------------------
+
+-- | Partial proof. We build proofs in several stages ant this means
+--   at some point we have complete (simulated) proofs and partial
+--   proofs at leaves.
+data Partial f a
+  = Complete (AtomicProof a)
+  | Partial  (f a)
+
+_Partial :: Prism (Partial f a) (Partial g a) (f a) (g a)
+_Partial = prism Partial $ \case
+  Complete p -> Left $ Complete p
+  Partial  p -> Right p
 
 -- | Annotation which shows whether node is real or we simulate it.
 data ProofVar
@@ -248,11 +261,11 @@ markTree isProvable = clean . check
 simulateProofs
   :: (EC a, MonadIO m)
   => SigmaE ProofVar (ProofInput a)
-  -> m (SigmaE (ProofSim a) (Either (ProofInput a) (AtomicProof a)))
+  -> m (SigmaE (ProofSim a) (Partial ProofInput a))
 simulateProofs = goReal
   where
     goReal = \case
-      Leaf Real leaf -> pure $ Leaf RealS (Left leaf)
+      Leaf Real leaf -> pure $ Leaf RealS (Partial leaf)
       AND  Real es   -> AND RealS <$> traverse goReal es
       OR   Real es   -> OR  RealS <$> traverse simulateOR es
         where
@@ -262,7 +275,7 @@ simulateProofs = goReal
                             goSim ch e
       _ -> error "simulateProofs: simulated proof encountered"
     goSim ch = \case
-      Leaf Simulated leaf   -> liftIO $ Leaf (SimulatedS ch) . Right <$> simulateAtomicProof leaf ch
+      Leaf Simulated leaf   -> liftIO $ Leaf (SimulatedS ch) . Complete <$> simulateAtomicProof leaf ch
       AND  Simulated es     -> AND (SimulatedS ch) <$> traverse (goSim ch) es
       OR   Simulated []     -> error "simulateProofs: Empty OR"
       OR   Simulated (e:es) -> do
@@ -274,31 +287,28 @@ simulateProofs = goReal
 -- | Make commitments for all real leaves
 makeLocalCommitements
   :: (EC a, MonadIO m)
-  => SigmaE t (Either (ProofInput a) (AtomicProof a))
-  -> m (SigmaE t (Either (PartialProof a) (AtomicProof a)))
-makeLocalCommitements = traverse commit
+  => SigmaE t (Partial ProofInput a)
+  -> m (SigmaE t (Partial PartialProof a))
+makeLocalCommitements = traverseOf (traverse . _Partial) commit
   where
-    commit (Right p) = pure $ Right p
-    commit (Left  p) = go p
-    go p = do r <- generatePrivKey
-              return $ Left PartialProof
-                            { pproofInput = p
-                            , pproofR     = r
-                            }
+    commit p = do r <- generatePrivKey
+                  return $ PartialProof { pproofInput = p
+                                        , pproofR     = r
+                                        }
 
 -- | Now we have commitments for every real node we can compute root
 --   challenge for node and derive challenges for rest of node.
 computeRealChallenges
   :: (EC a)
   => ByteString
-  -> SigmaE (ProofSim  a) (Either (PartialProof a) (AtomicProof a))
-  -> SigmaE (Challenge a) (Either (PartialProof a) (AtomicProof a))
+  -> SigmaE (ProofSim  a) (Partial PartialProof a)
+  -> SigmaE (Challenge a) (Partial PartialProof a)
 computeRealChallenges message expr0 = goReal rootChallenge expr0
   where
     rootChallenge = getProofRootChallenge expr0 message
     --
     goReal ch = \case
-      Leaf RealS (Left p) -> Leaf ch $ Left p
+      Leaf RealS (Partial p) -> Leaf ch $ Partial p
       Leaf _ _ -> error $ "impossible happened: Simulated leaf or mismatch"
       --
       AND RealS es -> AND ch $ goReal ch <$> es
@@ -327,13 +337,13 @@ computeRealChallenges message expr0 = goReal rootChallenge expr0
 evaluateRealProof
   :: (EC a)
   => Env a
-  -> SigmaE (Challenge a) (Either (PartialProof a) (AtomicProof a))
+  -> SigmaE (Challenge a) (Partial PartialProof a)
   -> SigmaE (Challenge a) (AtomicProof a)
 evaluateRealProof env = go
   where
     go = \case
-      Leaf ch (Right p) -> Leaf ch p
-      Leaf ch (Left PartialProof{..}) -> case pproofInput of
+      Leaf ch (Complete p) -> Leaf ch p
+      Leaf ch (Partial PartialProof{..}) -> case pproofInput of
         InputDLog dlog -> Leaf ch $ ProofDL ProofDLog
           { proofDLog'public      = dlog
           , proofDLog'commitmentA = publicKey pproofR
@@ -368,13 +378,14 @@ computeRootChallenge expr message =
 
 getProofRootChallenge ::
      forall a . (EC a)
-  => SigmaE (ProofSim a) (Either (PartialProof a) (AtomicProof a))
+  => SigmaE (ProofSim a) (Partial PartialProof a)
   -> ByteString
   -> Challenge a
 getProofRootChallenge expr = computeRootChallenge (extractCommitment <$> expr)
   where
-    extractCommitment :: Either (PartialProof a) (AtomicProof a) -> FiatShamirLeaf a
-    extractCommitment = either extractPartialProof extractAtomicProof
+    extractCommitment = \case
+      Partial  p -> extractPartialProof p
+      Complete p -> extractAtomicProof  p
 
     extractPartialProof x = case pproofInput x of
       InputDLog dlog -> FiatShamirLeafDLog dlog  (publicKey rnd)
