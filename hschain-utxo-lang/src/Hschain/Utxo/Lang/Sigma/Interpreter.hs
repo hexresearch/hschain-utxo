@@ -52,9 +52,6 @@ import Hschain.Utxo.Lang.Sigma.FiatShamirTree
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
 
-import Data.Foldable
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
 
 ----------------------------------------------------------------
 -- Data types
@@ -133,7 +130,7 @@ data ProvenTree a
       }
   | ProvenOr
       { provenOr'leftmost  :: ProvenTree a
-      , provenOr'rest      :: Seq (OrChild a)
+      , provenOr'rest      :: [OrChild a]
       } -- ^ we keep chalenges for all children but for the leftmost one.
   | ProvenAnd
       { provenAnd'children :: [ProvenTree a]
@@ -205,7 +202,7 @@ toProof tree = Proof (sexprAnn tree) <$> getProvenTree tree
         a:as -> liftA2 ProvenOr (getOrleftmostChild a) (getOrRest as)
       where
         getOrleftmostChild = getProvenTree
-        getOrRest xs = fmap Seq.fromList $ traverse go xs
+        getOrRest = traverse go
           where
             go x = OrChild (sexprAnn x) <$> getProvenTree x
 
@@ -550,8 +547,8 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
     go ch = \case
       ProvenLeaf resp proofInp -> Leaf () $ getAtomicProof ch proofInp resp
-      ProvenOr leftmost rest   -> OR   () $ toList $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree) $
-                                              (getLeftmostOrChallenge ch leftmost rest) Seq.<| rest
+      ProvenOr leftmost rest   -> OR   () $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree)
+                                          $ getLeftmostOrChallenge ch leftmost rest : rest
       ProvenAnd children       -> AND  () $ go ch <$> children
 
     getAtomicProof ch proofInp respZ = case proofInp of
@@ -569,7 +566,7 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
         }
 
     getLeftmostOrChallenge ch leftmost children = OrChild
-      { orChild'challenge = orChallenge ch (toList $ fmap orChild'challenge children)
+      { orChild'challenge = orChallenge ch (orChild'challenge <$> children)
       , orChild'tree      = leftmost
       }
 
