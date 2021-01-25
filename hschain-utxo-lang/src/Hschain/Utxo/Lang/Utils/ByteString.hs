@@ -16,6 +16,8 @@ import Data.Maybe
 import Data.Int
 import Data.Text (Text)
 
+import HSChain.Crypto.Classes (ByteRepr(..))
+
 import Hschain.Utxo.Lang.Core.Compile.Expr (TermVal(..), PrimCon(..))
 import Hschain.Utxo.Lang.Core.Types (Prim(..), TypeCore(..))
 import Hschain.Utxo.Lang.Sigma
@@ -76,6 +78,14 @@ instance IsTerm ByteString where
   fromTerm = \case
     PrimVal (PrimBytes n) -> Just n
     _                     -> Nothing
+
+instance IsTerm PublicKey where
+  termType = const BytesT
+
+  toTerm = toTerm . encodeToBS
+
+  fromTerm t = decodeFromBS =<< fromTerm t
+
 
 instance IsTerm Bool where
   termType = const BoolT

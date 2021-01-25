@@ -188,9 +188,9 @@ halfMixScript fullScriptHash = [utxoModule|
 
 main = fullMixTx &&* (bob ||* alice)
   where
-    u = getArgs getSelf
-    (u0, c0, d0) = getArgs (getOutput 0) :: (Bytes, Bytes, Bytes)
-    (u1, c1, d1) = getArgs (getOutput 1) :: (Bytes, Bytes, Bytes)
+    u = getBoxArgs getSelf
+    (u0, c0, d0) = getBoxArgs (getOutput 0) :: (Bytes, Bytes, Bytes)
+    (u1, c1, d1) = getBoxArgs (getOutput 1) :: (Bytes, Bytes, Bytes)
 
     bob   =  toSigma ((u0 == u) && (u1 == u) && (c0 == d1) && (c1 == d0))
          &&* (dtuple u c0 d0 ||* dtuple u d0 c0)
