@@ -33,6 +33,10 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Codec.Serialise as CBOR
 import qualified Language.Haskell.TH.Syntax as TH
 
+----------------------------------------------------------------
+-- Data types
+----------------------------------------------------------------
+
 -- | Sigma expression which is tree of conjunctions and disjunctions
 --   of primitive predicates: 1) possession of private key, 2) that we
 --   know one private key of DH tuple
@@ -46,23 +50,11 @@ data SigmaE k a
   deriving stock    (Functor, Foldable, Traversable, Show, Eq, Generic)
   deriving anyclass (Serialise)
 
-instance Bifunctor SigmaE where
-  first f = go where
-    go = \case
-      Leaf k a  -> Leaf (f k) a
-      AND  k es -> AND  (f k) (go <$> es)
-      OR   k es -> OR   (f k) (go <$> es)
-
-  second = fmap
-
 sexprAnn :: SigmaE k a -> k
 sexprAnn = \case
   Leaf k _ -> k
   AND  k _ -> k
   OR   k _ -> k
-
--- | Set of known keys
-newtype Env a = Env { unEnv :: [KeyPair a] }
 
 -- | Public proof data (inputs for proof algorithms)
 data ProofInput a
@@ -73,6 +65,53 @@ data ProofInput a
 leafPublicKey :: ProofInput a -> PublicKey a
 leafPublicKey (InputDLog   pk) = pk
 leafPublicKey (InputDTuple dh) = dtuple'g_y dh
+
+
+-- | Proof of one of two methods of key verification
+data AtomicProof a
+  = ProofDL (ProofDLog a)    -- ^ proof of knowledge of discrete log
+  | ProofDT (ProofDTuple a)  -- ^ proof of knowledge of Diffie-Helman tuple
+  deriving (Generic)
+
+getProofInput :: AtomicProof a -> ProofInput a
+getProofInput = \case
+  ProofDL ProofDLog{..}   -> InputDLog   proofDLog'public
+  ProofDT ProofDTuple{..} -> InputDTuple proofDTuple'public
+
+responseZ :: AtomicProof a -> Response a
+responseZ = \case
+  ProofDL ProofDLog{..}   -> proofDLog'responseZ
+  ProofDT ProofDTuple{..} -> proofDTuple'responseZ
+
+-- | Simulate proof of posession of discrete logarithm for given
+-- challenge
+simulateAtomicProof :: EC a => ProofInput a -> Challenge a -> IO (AtomicProof a)
+simulateAtomicProof inp e = case inp of
+  InputDLog dlog     -> fmap ProofDL $ simulateProofDLog dlog e
+  InputDTuple dtuple -> fmap ProofDT $ simulateProofDTuple dtuple e
+
+verifyAtomicProof :: (EC a) => AtomicProof a -> Bool
+verifyAtomicProof = \case
+  ProofDL dlog   -> verifyProofDLog dlog
+  ProofDT dtuple -> verifyProofDTuple dtuple
+
+
+-- | Set of known keys
+newtype Env a = Env { unEnv :: [KeyPair a] }
+
+
+
+----------------------------------------------------------------
+-- Instance
+----------------------------------------------------------------0
+
+instance Bifunctor SigmaE where
+  first f = go where
+    go = \case
+      Leaf k a  -> Leaf (f k) a
+      AND  k es -> AND  (f k) (go <$> es)
+      OR   k es -> OR   (f k) (go <$> es)
+  second = fmap
 
 
 instance ByteRepr (ECPoint a) => ByteRepr (ProofInput a) where
@@ -131,22 +170,6 @@ instance ByteRepr (ECPoint a) => TH.Lift (ProofInput a) where
     where
       bs = encodeToBS pk
 
--- | Proof of one of two methods of key verification
-data AtomicProof a
-  = ProofDL (ProofDLog a)    -- ^ proof of knowledge of discrete log
-  | ProofDT (ProofDTuple a)  -- ^ proof of knowledge of Diffie-Helman tuple
-  deriving (Generic)
-
-getProofInput :: AtomicProof a -> ProofInput a
-getProofInput = \case
-  ProofDL ProofDLog{..}   -> InputDLog   proofDLog'public
-  ProofDT ProofDTuple{..} -> InputDTuple proofDTuple'public
-
-responseZ :: AtomicProof a -> Response a
-responseZ = \case
-  ProofDL ProofDLog{..}   -> proofDLog'responseZ
-  ProofDT ProofDTuple{..} -> proofDTuple'responseZ
-
 deriving instance ( Show (ProofDTuple a)
                   , Show (ProofDLog   a)
                   ) => Show (AtomicProof a)
@@ -158,16 +181,3 @@ deriving instance ( Eq (ProofDTuple a)
 instance ( CBOR.Serialise (ProofDTuple a)
          , CBOR.Serialise (ProofDLog a)
          ) => CBOR.Serialise (AtomicProof a)
-
-
--- | Simulate proof of posession of discrete logarithm for given
--- challenge
-simulateAtomicProof :: EC a => ProofInput a -> Challenge a -> IO (AtomicProof a)
-simulateAtomicProof inp e = case inp of
-  InputDLog dlog     -> fmap ProofDL $ simulateProofDLog dlog e
-  InputDTuple dtuple -> fmap ProofDT $ simulateProofDTuple dtuple e
-
-verifyAtomicProof :: (EC a) => AtomicProof a -> Bool
-verifyAtomicProof = \case
-  ProofDL dlog   -> verifyProofDLog dlog
-  ProofDT dtuple -> verifyProofDTuple dtuple
