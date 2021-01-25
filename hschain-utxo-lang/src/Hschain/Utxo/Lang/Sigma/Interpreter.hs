@@ -116,20 +116,6 @@ data ProvenTree a
   deriving (Generic)
 
 
--- | Leaf of Fiat-Shamir tree.
-data FiatShamirLeaf a
-  = FiatShamirLeafDLog
-      { fsLeafDLog'public     :: PublicKey a
-      , fsLeafDLog'commitment :: Commitment a
-      }
-  | FiatShamirLeafDTuple
-      { fsLeafDTuple'public     :: DTuple a
-      , fsLeafDTuple'commitment :: (Commitment a, Commitment a)
-      }
-      deriving stock (Generic)
-
-instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (FiatShamirLeaf a)
-
 instance (EC a) => CBOR.Serialise (Proof a)
 instance (EC a) => JSON.FromJSON  (Proof a)
 instance (EC a) => JSON.ToJSON    (Proof a)
