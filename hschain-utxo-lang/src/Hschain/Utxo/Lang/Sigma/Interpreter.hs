@@ -14,7 +14,7 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , ProofTag(..)
   , Prove(..)
   , runProve
-  , getRootChallengeBy
+  , initRootChallenge
   , orChallenge
   , toProof
   , markTree
@@ -296,7 +296,7 @@ generateCommitments tree = case sexprAnn tree of
       _ -> throwError "Real node"
 
 initRootChallenge
-  :: forall k a. (EC a, CBOR.Serialise (ECPoint a))
+  :: (EC a, CBOR.Serialise (ECPoint a))
   => SigmaE k (FiatShamirLeaf a)
   -> ByteString
   -> Challenge a
@@ -308,7 +308,7 @@ getProofRootChallenge ::
   => SigmaE (ProofTag a) (Either (PartialProof a) (AtomicProof a))
   -> ByteString
   -> Challenge a
-getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr message
+getProofRootChallenge expr = initRootChallenge (extractCommitment <$> expr)
   where
     extractCommitment :: Either (PartialProof a) (AtomicProof a) -> FiatShamirLeaf a
     extractCommitment = either extractPartialProof extractAtomicProof
@@ -324,15 +324,6 @@ getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr m
     extractAtomicProof = \case
       ProofDL dlog   -> FiatShamirLeafDLog   (proofDLog'public dlog)     (proofDLog'commitmentA dlog)
       ProofDT dtuple -> FiatShamirLeafDTuple (proofDTuple'public dtuple) (proofDTuple'commitmentA dtuple)
-
-getRootChallengeBy ::
-     EC a
-  => (leaf -> FiatShamirLeaf a)
-  -> SigmaE k leaf
-  -> ByteString
-  -> Challenge a
-getRootChallengeBy extract expr message =
-  initRootChallenge (fmap extract expr) message
 
 getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> PrivKey a
 getPrivateKeyForInput (Env env) input =
