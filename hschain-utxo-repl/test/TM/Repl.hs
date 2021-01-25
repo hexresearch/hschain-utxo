@@ -23,6 +23,10 @@ tests = testGroup "repl"
   , testReplOk   "User defined data deckaration" dataDecls
   , testReplFail "add num and string" addNumAndText
   , testReplFail "var not in scope" varNotInScope
+  , testReplFail "type is not defined" typeIsNotDefined
+  , testReplFail "wrong kinds" wrongKinds1
+  , testReplFail "wrong kinds" wrongKinds2
+  , testReplOk   "unit as argument of constructor" unitConsArg
   ]
   where
     numOps =
@@ -78,6 +82,23 @@ tests = testGroup "repl"
       , ":t Rgb"
       , "f x = Rgb 1 2 x"
       , "Q (f 1)"
+      ]
+
+    typeIsNotDefined =
+      [ "data Color = Rgb Int Int Intt"
+      ]
+
+    wrongKinds1 =
+      [ "data T = A | B (Maybe Int Text)"
+      ]
+
+    wrongKinds2 =
+      [ "data T = A | B (Int Text)"
+      ]
+
+    unitConsArg =
+      [ "data F = F () Int"
+      , "q = F () 10"
       ]
 
 testReplOk :: String -> [String] -> TestTree

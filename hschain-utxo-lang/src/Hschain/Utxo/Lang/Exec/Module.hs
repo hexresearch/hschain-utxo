@@ -6,9 +6,11 @@ module Hschain.Utxo.Lang.Exec.Module(
   , trimModuleByMain
   , fixTopLevelPatBinds
   , toUserTypeCtx
-  , checkUserTypeCtx
+  , checkUserTypes
   , checkUserTypeInCtx
 ) where
+
+import Control.Applicative (Alternative(..))
 
 import Hex.Common.Text
 
@@ -20,7 +22,9 @@ import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Set (Set)
 import Data.Sequence (ViewL(..))
+import Data.Text (Text)
 
+import Hschain.Utxo.Lang.Const (reservedNames)
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
@@ -29,11 +33,87 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Lib.Base (baseNames, baseLibTypes)
 
 import qualified Type.Check.HM as H
+import qualified Data.Graph as G
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Sequence as Seq
+
+checkUserTypeInCtx :: Set VarName -> UserTypeCtx -> UserType -> Maybe Error
+checkUserTypeInCtx definedValues ctx ut = fmap TypeDeclError $
+      typeIsDefined (userType'name ut)
+  <|> (group $ fmap consIsDefined (M.keys $ userType'cases ut))
+  <|> (group $ fmap recFieldIsDefined ((\(name, defn) -> fmap (name, ) $ getRecFields defn) =<< constrs))
+  <|> (group $ fmap (uncurry checkKinds) argTypeNamesWithArity)
+  where
+    group = L.foldl' (<|>) Nothing
+    consDeclError = ConsDeclError (userType'name ut)
+
+    constrs = M.toList $ userType'cases ut
+    argTypeNamesWithArity = getTypeNamesWithArity =<< (\(name, defn) -> fmap (name, ) $ V.toList $ getConsTypes defn) =<< constrs
+
+    typeIsDefined name
+      | isPrimType name = Nothing
+      | otherwise       = fmap (TypeIsDefined name . userType'name) $ M.lookup name (userTypeCtx'types ctx)
+
+    consIsDefined cons = fmap (consDeclError cons . ConsIsDefined . userType'name . consInfo'def) $ M.lookup cons (userTypeCtx'constrs ctx)
+
+    recFieldIsDefined (cons, field)
+      | S.member (varName'name field) reservedNames = Just $ consDeclError cons $ RecFieldIsReservedName field
+      | S.member field definedValues                = Just $ consDeclError cons $ RecFieldIsDefinedAsValue field
+      | otherwise                                    =
+            fmap (consDeclError cons . RecFieldIsDefinedInCons field . fst) $ M.lookup (varName'name field) (userTypeCtx'recFields ctx)
+
+    checkKinds :: ConsName -> (VarName, Int) -> Maybe TypeDeclError
+    checkKinds cons (tyName, arity) =
+      case M.lookup tyName (userTypeCtx'types ctx) of
+        Just ty -> let expectedArity = getTypeArity ty
+                   in  if expectedArity /= arity
+                         then Just $ consDeclError cons $ TypeAppError tyName (KindError expectedArity arity)
+                         else Nothing
+        Nothing ->
+          if isPrimType tyName
+            then
+              if arity == 0
+                then Nothing
+                else Just $ consDeclError cons $ TypeAppError tyName (KindError 0 arity)
+            else
+              Just $ consDeclError cons $ TypeArgIsNotDefined tyName
+
+    getRecFields = \case
+      RecordCons fields -> V.toList $ fmap recordField'name fields
+      _                 -> []
+
+    getTypeNamesWithArity :: (ConsName, Type) -> [(ConsName, (VarName, Int))]
+    getTypeNamesWithArity (cons, (H.Type ty)) = fmap (cons, ) $ foldFix go ty
+      where
+        go = \case
+          H.ConT loc name args -> (VarName loc name, length args) : concat args
+          H.ArrowT _ a b       -> a <> b
+          H.TupleT _ ts        -> mconcat ts
+          H.ListT _ a          -> a
+          H.VarT _ _           -> []
+
+    getTypeArity = length . userType'args
+
+isPrimType :: VarName -> Bool
+isPrimType VarName{..} = S.member varName'name primTypes
+
+primTypes :: Set Text
+primTypes = S.fromList ["Int", "Bool", "Sigma", "()", "Text", "Bytes"]
+
+checkUserTypes :: Set VarName -> [UserType] -> Maybe Error
+checkUserTypes definedVals uts = L.foldl' (<|>) Nothing $ fmap checkSubgroup typeSubgroups
+  where
+    typeSubgroups = reverse $ fst $ foldl go ([], []) $ orderTypesByDeps uts
+      where
+        go (groups, approvedTypes) ty = ((ty, approvedTypes) : groups, ty : approvedTypes)
+
+    checkSubgroup (ty, approved) = checkUserTypeInCtx definedVals (toUserTypeCtxNoBase approved) ty
+
+    toUserTypeCtxNoBase typeDecls =
+      setupUserTypeInfo $ (\ts -> UserTypeCtx ts mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) typeDecls
 
 -- | Convert raw module data to context information that can be used
 -- to evaluate expressions that depend on this module.
@@ -71,10 +151,16 @@ fixTopLevelPatBinds m
 
 
 evalModule' :: TypeContext -> Module -> Either Error ModuleCtx
-evalModule' typeCtx Module{..} = runInferM $ do
-  binds <- InferM $ lift $ evalStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
-  toModuleCtx $ Binds (binds'types module'binds) binds
+evalModule' typeCtx Module{..} = do
+  maybe (Right ()) Left $ checkUserTypes definedVals userTypes
+  runInferM $ do
+    binds <- InferM $ lift $ evalStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
+    toModuleCtx $ Binds (binds'types module'binds) binds
   where
+    userTypes = M.elems $ userTypeCtx'types module'userTypes
+    definedVals = case typeCtx of
+      H.Context defs -> S.fromList $ fmap (VarName noLoc) $ M.keys defs
+
     userTypeCtx = userTypesToTypeContext module'userTypes
 
     toModuleCtx :: Binds Lang -> InferM ModuleCtx
@@ -274,17 +360,22 @@ toUserTypeCtx :: [UserType] -> UserTypeCtx
 toUserTypeCtx typeDecls =
   setupUserTypeInfo $ (\ts -> UserTypeCtx (baseLibTypes <> ts) mempty mempty mempty mempty) $ M.fromList $ fmap (\x -> (userType'name x, x)) typeDecls
 
--- | TODO: Check user type is correct in context of correct set of types:
---
--- * no name collisions
--- * kinds are right for all type applications
-checkUserTypeInCtx :: UserTypeCtx -> UserType -> Maybe Error
-checkUserTypeInCtx _ _ = Nothing
+orderTypesByDeps :: [UserType] -> [UserType]
+orderTypesByDeps = G.flattenSCCs . G.stronglyConnComp . fmap toDep
+  where
+    toDep ut = (ut, userType'name ut, getTypeDeps ut)
 
--- | TODO: Check user type is correct:
---
--- * no name collisions
--- * kinds are right for all type applications
-checkUserTypeCtx :: UserTypeCtx -> Maybe Error
-checkUserTypeCtx _ = Nothing
+    getTypeDeps :: UserType -> [VarName]
+    getTypeDeps UserType{..} = getTypeNames =<< (V.toList . getConsTypes) =<< M.elems userType'cases
+
+    getTypeNames :: Type -> [VarName]
+    getTypeNames (H.Type ty) = foldFix go ty
+      where
+        go = \case
+          H.ConT loc name args -> VarName loc name : concat args
+          H.ArrowT _ a b       -> a <> b
+          H.TupleT _ ts        -> mconcat ts
+          H.ListT _ a          -> a
+          H.VarT _ _           -> []
+
 

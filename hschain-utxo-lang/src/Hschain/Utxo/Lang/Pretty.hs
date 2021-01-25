@@ -199,6 +199,7 @@ instance Pretty Error where
     ParseError loc txt    -> hsep [hcat [pretty loc, ":"],  "parse error", pretty txt]
     ExecError err         -> pretty err
     TypeError err         -> pretty err
+    TypeDeclError err     -> pretty err
     PatError err          -> pretty err
     InternalError err     -> pretty err
     MonoError err         -> pretty err
@@ -272,6 +273,48 @@ instance Pretty MonoError where
     InlineError loc name          -> err loc $ hsep ["Failed to inline", pretty name]
     where
       err src msg = hsep [hcat [pretty src, ":"], msg]
+
+instance Pretty TypeDeclError where
+  pretty = \case
+    TypeIsDefined newName oldName       ->
+      err (varName'loc newName) $ inTy newName $ hsep ["Type", pretty newName, "is already defined at", pretty (varName'loc oldName)]
+    ConsDeclError userType userCons consErr ->
+      err (consName'loc userCons) $ inTyCons userType userCons $ consDeclMessage userCons consErr
+    where
+      err src msg = hsep [hcat [pretty src, ":"], msg]
+
+      inTy ty msg = vcat [msg, hcat ["In the data declaration of `", pretty ty, "`"]]
+      inCons cons msg = vcat [msg, hcat ["In the definition of type constructor `", pretty cons, "`"]]
+
+      inTyCons ty cons msg = inTy ty (inCons cons msg)
+
+consDeclMessage :: ConsName -> ConsDeclError -> Doc ann
+consDeclMessage userCons = \case
+  ConsIsDefined oldTypeName   ->
+    hcat  [ "Constructor `", pretty userCons
+          , "` is already defined in type `", pretty oldTypeName, "` at `", pretty (varName'loc oldTypeName), "`"]
+  RecFieldIsDefinedInCons fieldName oldConsName ->
+    hcat [ "Record field name `", pretty fieldName
+          , "` is already defined in the constructor `", pretty oldConsName  ,"` at `", pretty (consName'loc oldConsName), "`" ]
+  RecFieldIsDefinedAsValue fieldName ->
+    hcat [ "Record field name `", pretty fieldName
+          , "` is already defined as value"  ]
+  RecFieldIsReservedName fieldName ->
+    hcat [ "Record field `", pretty fieldName
+          , "` is reserved name"  ]
+  TypeArgIsNotDefined tyName ->
+    hcat [ "Type name `", pretty tyName, "` is not defined" ]
+  TypeAppError ty kindErr ->
+    hcat ["Wrong number of arguments for type `", pretty ty,  "` in application: ", pretty kindErr]
+
+instance Pretty KindError where
+  pretty KindError{..} = hcat ["expected ", arguments kindError'expected, ", but got ", arguments kindError'got]
+    where
+      arguments n = hsep [pretty n, hcat ["argument", suffix]]
+        where
+          suffix
+            | n == 1    = ""
+            | otherwise = "s"
 
 instance Pretty Loc where
   pretty x = pretty $ Hask.srcInfoSpan x
