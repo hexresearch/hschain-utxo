@@ -9,7 +9,6 @@
 module Hschain.Utxo.Lang.Sigma.FiatShamirTree(
     FiatShamir(..)
   , FiatShamirLeaf(..)
-  , fiatShamirCommitment
   , toFiatShamir
 ) where
 
@@ -21,7 +20,6 @@ import Hschain.Utxo.Lang.Sigma.Protocol
 import HSChain.Crypto
 
 import qualified Codec.Serialise          as CBOR
-import qualified Data.ByteString.Lazy     as BL
 
 
 -- | Tree that is used as input to Fiat-Shamir hash function
@@ -57,10 +55,6 @@ instance ( CBOR.Serialise (ECPoint a)
 instance ( CBOR.Serialise (ECPoint a)
          ) => CBOR.Serialise (FiatShamirLeaf a)
 
-
--- | Hash of Fiat-Shamir tree.
-fiatShamirCommitment :: (EC a, CBOR.Serialise b) => b -> Challenge a
-fiatShamirCommitment = randomOracle . BL.toStrict . CBOR.serialise
 
 -- | Convert sigma-expression to Fiat-Shamir tree.
 toFiatShamir
