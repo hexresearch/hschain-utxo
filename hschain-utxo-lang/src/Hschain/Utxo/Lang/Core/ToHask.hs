@@ -9,6 +9,7 @@ module Hschain.Utxo.Lang.Core.ToHask(
 
 import Hex.Common.Text (showt)
 
+import qualified Codec.Serialise as CBOR
 import Control.Monad.State.Strict
 import Data.ByteString (ByteString)
 import Data.Fix
@@ -16,7 +17,7 @@ import Data.String
 import Data.Void
 import Data.Text (Text)
 
-import HSChain.Crypto.Classes (ByteRepr(..), encodeBase58)
+import HSChain.Crypto.Classes (encodeBase58)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
@@ -26,6 +27,7 @@ import Hschain.Utxo.Lang.Expr (monoPrimopName)
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Pretty as H
 import qualified Hschain.Utxo.Lang.Const as Const
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 
 
@@ -88,7 +90,7 @@ toHaskExprCore = flip evalState (T.pack <$> stringPrettyLetters) . go []
       PrimText txt  -> fromText txt
       PrimBytes bs  -> H.App () (H.Var () (toQName "bytes")) (fromText $ encodeBase58 bs)
       PrimBool b    -> fromBool b
-      PrimSigma sig -> fromSigma $ mapPk encodeToBS sig
+      PrimSigma sig -> fromSigma $ mapPk (BL.toStrict . CBOR.serialise) sig
 
     fromText txt = H.Lit () $ H.String () str str
       where

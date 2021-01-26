@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveLift #-}
 -- | Types and functions for sigma-protocol.
 module Hschain.Utxo.Lang.Sigma.Protocol(
     SigmaE(..)
@@ -16,11 +17,9 @@ import Codec.Serialise (Serialise)
 import Control.DeepSeq (NFData)
 import Data.Data
 import Data.Aeson   (FromJSON(..), ToJSON(..))
-import Data.Either.Extra (eitherToMaybe)
 import Data.Bifunctor
 import GHC.Generics (Generic)
 
-import HSChain.Crypto.Classes (defaultToJSON, defaultParseJSON)
 import HSChain.Crypto.Classes.Hash
 import HSChain.Crypto
 
@@ -29,7 +28,6 @@ import Hschain.Utxo.Lang.Sigma.DTuple
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Types
 
-import qualified Data.ByteString.Lazy as LB
 import qualified Codec.Serialise as CBOR
 import qualified Language.Haskell.TH.Syntax as TH
 
@@ -113,30 +111,13 @@ instance Bifunctor SigmaE where
       OR   k es -> OR   (f k) (go <$> es)
   second = fmap
 
-
-instance ByteRepr (ECPoint a) => ByteRepr (ProofInput a) where
-  decodeFromBS bs = fromEither =<< (eitherToMaybe $ CBOR.deserialiseOrFail $ LB.fromStrict bs)
-    where
-      fromEither = \case
-        Left lbs  -> fmap InputDLog   $ decodeFromBS lbs
-        Right rbs -> fmap InputDTuple $ decodeFromBS rbs
-
-  encodeToBS = LB.toStrict . CBOR.serialise . toEither
-    where
-      toEither = \case
-        InputDLog dlog     -> Left  $ encodeToBS dlog
-        InputDTuple dtuple -> Right $ encodeToBS dtuple
-
 deriving stock instance (CryptoAsymmetric a) => Show (ProofInput a)
 deriving stock instance (EC a)               => Eq   (ProofInput a)
 deriving stock instance (EC a)               => Ord  (ProofInput a)
 instance (NFData (PublicKey a)) => NFData         (ProofInput a)
 instance (CryptoAsymmetric a)   => CBOR.Serialise (ProofInput a)
-instance (ByteRepr (ECPoint a)) => ToJSON (ProofInput a) where
-  toJSON = defaultToJSON
-
-instance (ByteRepr (ECPoint a)) => FromJSON (ProofInput a) where
-  parseJSON = defaultParseJSON "ProofInput"
+instance (CryptoAsymmetric a)   => ToJSON (ProofInput a)
+instance (CryptoAsymmetric a)   => FromJSON (ProofInput a)
 
 instance CryptoHashable (ECPoint a) => CryptoHashable (ProofInput a) where
   hashStep = genericHashStep hashDomain
@@ -147,10 +128,7 @@ instance Typeable a => Data (ProofInput a) where
   gunfold _ _  = error       "ProofInput.gunfold"
   dataTypeOf _ = mkNoRepType "Hschain.Utxo.Lang.Sigma.Types.ProofInput"
 
-instance ByteRepr (ECPoint a) => TH.Lift (ProofInput a) where
-  lift pk = [| let Just k = decodeFromBS bs in k |]
-    where
-      bs = encodeToBS pk
+deriving instance TH.Lift (PublicKey a) => TH.Lift (ProofInput a)
 
 deriving instance (CryptoAsymmetric a, Show (Challenge a)) => Show (AtomicProof a)
 deriving instance (EC a) => Eq (AtomicProof a)
