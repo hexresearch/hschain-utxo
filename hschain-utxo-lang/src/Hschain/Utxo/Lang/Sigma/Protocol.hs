@@ -131,7 +131,7 @@ instance (CryptoAsymmetric a)   => CBOR.Serialise (ProofInput a)
 instance (CryptoAsymmetric a)   => ToJSON (ProofInput a)
 instance (CryptoAsymmetric a)   => FromJSON (ProofInput a)
 
-instance CryptoHashable (ECPoint a) => CryptoHashable (ProofInput a) where
+instance (CryptoAsymmetric a) => CryptoHashable (ProofInput a) where
   hashStep = genericHashStep hashDomain
 
 instance Typeable a => Data (ProofInput a) where
@@ -143,7 +143,7 @@ instance Typeable a => Data (ProofInput a) where
 deriving instance TH.Lift (PublicKey a) => TH.Lift (ProofInput a)
 
 deriving instance (EC a) => Show (AtomicProof a)
-deriving instance (EC a) => Eq (AtomicProof a)
+deriving instance (EC a) => Eq   (AtomicProof a)
 instance (EC a) => CBOR.Serialise (AtomicProof a)
 
-instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (FiatShamirLeaf a)
+instance (CryptoAsymmetric a) => CBOR.Serialise (FiatShamirLeaf a)
