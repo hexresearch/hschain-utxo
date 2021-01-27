@@ -59,7 +59,7 @@ newWallet userId pubKey = liftIO $ do
 
 -- | Read public key
 getWalletPublicKey :: Wallet -> PublicKey
-getWalletPublicKey = getPublicKey . wallet'privateKey
+getWalletPublicKey = toPublicKey . wallet'privateKey
 
 -- | Read public key
 getWalletPrivateKey :: Wallet -> Secret

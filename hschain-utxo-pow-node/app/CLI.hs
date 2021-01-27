@@ -84,7 +84,7 @@ parseSend = do
   pure $ do
     keymap :: Map Text Text <- decodeFileThrow "keyring.yaml"
     let Just (sk :: Secret) = decodeBase58 $ keymap ! key
-        pk = getPublicKey sk
+        pk = toPublicKey sk
     --
     env   <- mkEnv
     boxes <- debugGetState (nodeRoutes env)
