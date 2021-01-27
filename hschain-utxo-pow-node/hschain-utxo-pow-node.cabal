@@ -170,6 +170,7 @@ Test-suite hschain-utxo-pow-node-tests
   Main-is:             Main.hs
   Other-modules:       TM.Store
                        TM.BCH.Util
+                       TM.SmartCon.ErgoMix
                        TM.SmartCon.XorGame
                        TM.SmartCon.PayForCoffee
                        TM.SmartCon.Basic

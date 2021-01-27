@@ -21,6 +21,7 @@ import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Types
 
+import qualified Data.Text as T
 
 -- | Executes spend-script in transaction. Spend script should be
 --   well-typed and evaluate to either sigma-expression or boolean.
@@ -70,7 +71,7 @@ verifyInput txArg input@BoxInput{..} = do
         , verifyProof proof boxInput'sigMsg
           -> pure ()
       -- Otherwise failure
-      _ -> Left "Sigma expression proof is not valid"
+      other -> Left $ T.unlines ["Sigma expression proof is not valid:", renderText other]
   where
     false = Left "Script evaluated to False"
 

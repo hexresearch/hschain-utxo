@@ -28,7 +28,8 @@ module Hschain.Utxo.Lang.Sigma(
   , emptyProofEnv
   , proofEnvFromKeys
   , newSecret
-  , getPublicKey
+  , newKeyPair
+  , toPublicKey
   , getKeyPair
   , toProofEnv
   , equalSigmaExpr
@@ -46,6 +47,8 @@ module Hschain.Utxo.Lang.Sigma(
   , checkChallenges
   , dlogInput
   , dtupleInput
+  , getSecretKey
+  , getPublicKey
   ) where
 
 import Hex.Common.Serialise
@@ -124,12 +127,22 @@ newSecret :: IO Secret
 newSecret = Crypto.generatePrivKey
 
 -- | Convert private key to public key.
-getPublicKey :: Secret -> PublicKey
-getPublicKey = Crypto.publicKey
+toPublicKey :: Secret -> PublicKey
+toPublicKey = Crypto.publicKey
 
 -- | Creates key-pair for given private key.
 getKeyPair :: Secret -> KeyPair
-getKeyPair secret = Sigma.KeyPair secret (getPublicKey secret)
+getKeyPair secret = Sigma.KeyPair secret (toPublicKey secret)
+
+newKeyPair :: IO KeyPair
+newKeyPair = fmap getKeyPair newSecret
+
+getSecretKey :: KeyPair -> Secret
+getSecretKey = Sigma.getSecretKey
+
+getPublicKey :: KeyPair -> PublicKey
+getPublicKey = Sigma.getPublicKey
+
 
 -- | Proof environment is a listavailable key-pairs.
 toProofEnv :: [KeyPair] -> ProofEnv

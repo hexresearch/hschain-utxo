@@ -22,7 +22,7 @@ singleOwnerGenesis = fmap withSecret newSecret
       , tx'dataInputs = V.empty
       }
       where
-        publicKey = getPublicKey secret
+        publicKey = toPublicKey secret
 
         box = Box
           { box'value  = initMoney

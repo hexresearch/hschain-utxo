@@ -1,6 +1,7 @@
 -- | Basic tests for sigma-protocols
 module TM.Tx.Sigma(
-  tests
+    tests
+  , verifyTx
 ) where
 
 import Test.Tasty
@@ -21,13 +22,13 @@ tests = testGroup "sigma-protocols"
 initTx :: IO (Tx, GTx (Sigma ProofInput) Box)
 initTx = do
   aliceSecret <- newSecret
-  let alicePubKey = getPublicKey aliceSecret
+  let alicePubKey = toPublicKey aliceSecret
       aliceProofEnv = toProofEnv [getKeyPair aliceSecret]
   resTx <- newProofTx aliceProofEnv $ tx alicePubKey
   return (resTx, tx alicePubKey)
   where
     tx pubKey = Tx
-      { tx'inputs  = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
+      { tx'inputs  = return $ singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
       , tx'outputs = return $ Box
           { box'value  = 1
           , box'script = mainScriptUnsafe $ pk' pubKey
@@ -45,7 +46,7 @@ verifyAliceTx = fmap (verifyTx . fst) initTx
 bobStealsTx :: Tx -> IO Tx
 bobStealsTx aliceTx = do
   bobSecret <- newSecret
-  let bobPubKey = getPublicKey bobSecret
+  let bobPubKey = toPublicKey bobSecret
       -- robbery happens: we substitute ownership of all boxes to Bob's key
       stealScript box = box
         { box'script = mainScriptUnsafe $ pk $ bytes $ encodeToBS bobPubKey

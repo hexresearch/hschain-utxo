@@ -45,7 +45,6 @@ import HSChain.Crypto.Classes (defaultToJSON, defaultParseJSON)
 import HSChain.Crypto.Classes.Hash
 
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
-import Hschain.Utxo.Lang.Sigma.Types
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Codec.Serialise as CBOR
@@ -85,9 +84,12 @@ verifyProofDTuple ProofDTuple{..}
 
 getCommitmentDTuple :: EC a => Response a -> Challenge a -> DTuple a -> (Commitment a, Commitment a)
 getCommitmentDTuple z ch DTuple{..} =
-  ( getCommitment z ch dtuple'g_y
-  , getCommitment z ch dtuple'g_xy
+  ( toCommitment z ch dtuple'g   dtuple'g_y
+  , toCommitment z ch dtuple'g_x dtuple'g_xy
   )
+
+toCommitment :: EC a => Response a -> Challenge a -> ECPoint a -> PublicKey a -> Commitment a
+toCommitment z ch gen pk = (z .*^ gen)  ^+^ negateP (fromChallenge ch .*^ pk)
 
 -- | Simulate proof of posession of discrete logarithm for given
 -- challenge

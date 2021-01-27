@@ -217,7 +217,7 @@ initGenesis secret = ([tx], masterBoxId)
       , tx'dataInputs = []
       }
 
-    publicKey = getPublicKey secret
+    publicKey = toPublicKey secret
 
     box = Box
       { box'value  = initMoney
