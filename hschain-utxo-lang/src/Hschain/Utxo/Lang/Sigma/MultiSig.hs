@@ -102,6 +102,7 @@ import Data.Either.Extra
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
+import qualified Data.Set as Set
 
 import HSChain.Crypto (PublicKey,CryptoAsymmetric(..))
 import Hschain.Utxo.Lang.Sigma.DLog
@@ -125,8 +126,12 @@ initMultiSigProof :: EC a
   -> SigmaE () (ProofInput a)
   -> Prove (CommitmentQueryExpr a)
 initMultiSigProof knownKeys expr =
-  fmap toComQueryExpr $ generateSimulatedProofs $ markTree knownKeys expr
+  fmap toComQueryExpr $ generateSimulatedProofs $ markTree isProvable expr
   where
+    isProvable input = pk `Set.member` knownKeys
+      where
+        pk = case input of InputDLog   k          -> k
+                           InputDTuple DTuple{..} -> dtuple'g_y
     toComQueryExpr = fmap (either (Left . toComQuery) Right)
 
     toComQuery = \case
@@ -327,7 +332,7 @@ getChallenges expr0 message = goReal ch0 expr0
   where
     -- Prover Step 8: compute the challenge for the root of the tree as the Fiat-Shamir hash of s
     -- and the message being signed.
-    ch0 = getRootChallengeBy extractCommitment expr0 message
+    ch0 = initRootChallenge (extractCommitment <$> expr0) message
 
     extractCommitment =
       either

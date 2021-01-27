@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Sigma.Protocol(
   , Env(..)
   , AtomicProof(..)
   , ProofInput(..)
+  , leafPublicKey
   , simulateAtomicProof
   , verifyAtomicProof
   , responseZ
@@ -56,6 +57,11 @@ data ProofInput a
   = InputDLog   (PublicKey a)      -- ^ proof of discrte log
   | InputDTuple (DTuple a)  -- ^ proof of Diffie-Hellman tuple
   deriving (Generic)
+
+leafPublicKey :: ProofInput a -> PublicKey a
+leafPublicKey (InputDLog   pk) = pk
+leafPublicKey (InputDTuple dh) = dtuple'g_y dh
+
 
 instance ByteRepr (ECPoint a) => ByteRepr (ProofInput a) where
   decodeFromBS bs = fromEither =<< (eitherToMaybe $ CBOR.deserialiseOrFail $ LB.fromStrict bs)

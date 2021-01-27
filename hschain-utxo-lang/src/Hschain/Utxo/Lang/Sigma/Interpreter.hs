@@ -14,7 +14,7 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , ProofTag(..)
   , Prove(..)
   , runProve
-  , getRootChallengeBy
+  , initRootChallenge
   , orChallenge
   , toProof
   , markTree
@@ -42,7 +42,6 @@ import qualified Data.Aeson      as JSON
 import Data.ByteString (ByteString)
 import Data.Foldable
 import Data.Maybe
-import Data.Monoid (All(..))
 import Data.Sequence (Seq)
 import Data.Set (Set)
 import Data.Text (Text)
@@ -165,27 +164,34 @@ deriving stock    instance (Eq     (ECPoint a), Eq     (ECScalar a), Eq     (Cha
 deriving stock    instance (Ord    (ECPoint a), Ord    (ECScalar a), Ord    (Challenge a)) => Ord    (OrChild a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (OrChild a)
 
+
+----------------------------------------------------------------
+-- Creation of proofs
+----------------------------------------------------------------
+
+
 -- | Create proof for sigma expression based on ownership of collection of keys (@Env@)
 newProof :: (EC a)
   => Env a -> SigmaE () (ProofInput a) -> ByteString -> IO (Either Text (Proof a))
 newProof env expr message = runProve $ do
-  commitments <- generateCommitments (markTree knownKeys expr)
+  commitments <- generateCommitments (markTree isProvable expr)
   toProof =<< generateProofs env commitments message
   where
+    isProvable input = leafPublicKey input `Set.member` knownKeys
     knownKeys = Set.fromList $ getPublicKey <$> unEnv env
 
 -- Syntactic step that performs a type conversion only
 toProof :: SigmaE (ProofTag a) (AtomicProof a) -> Prove (Proof a)
-toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (getProvenTree tree)
+toProof tree = liftA2 Proof (getRootChallenge tree) (getProvenTree tree)
   where
     getRootChallenge =
-      maybe (Left "No root challenge") Right . proofTag'challenge . sexprAnn
+      maybe (throwError "No root challenge") pure . proofTag'challenge . sexprAnn
 
     getProvenTree ptree = case ptree of
-      Leaf _ p  -> Right $ ProvenLeaf (responseZ p) (getProofInput p)
+      Leaf _ p  -> pure $ ProvenLeaf (responseZ p) (getProofInput p)
       AND _ es  -> ProvenAnd  <$> traverse getProvenTree es
       OR  _ es  -> case es of
-        []   -> Left "No children for OR-node"
+        []   -> throwError "No children for OR-node"
         a:as -> liftA2 ProvenOr (getOrleftmostChild a) (getOrRest as)
       where
         getOrleftmostChild = getProvenTree
@@ -193,7 +199,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
         getOrRest xs = fmap Seq.fromList $ traverse go xs
           where
             go x = do
-              ch <- maybe (Left err) Right $ proofTag'challenge $ sexprAnn x
+              ch <- maybe (throwError err) pure $ proofTag'challenge $ sexprAnn x
               t  <- getProvenTree x
               return $ OrChild ch t
 
@@ -201,9 +207,7 @@ toProof tree = Prove $ ExceptT $ pure $ liftA2 Proof (getRootChallenge tree) (ge
 
 
 ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
-ownsKey knownPKs = \case
-  InputDLog   k          -> checkKey k
-  InputDTuple DTuple{..} -> checkKey dtuple'g_y
+ownsKey knownPKs = checkKey . leafPublicKey
   where
     checkKey k = k `Set.member` knownPKs
 
@@ -211,16 +215,18 @@ ownsKey knownPKs = \case
 -- Building proof
 ----------------------------------------------------------------
 
--- Mark all nodes according to whether we can produce proof for them
-markTree :: (EC a) => Set (PublicKey a) -> SigmaE () (ProofInput a) -> SigmaE ProofVar (ProofInput a)
-markTree knownPKs = clean . check
+-- | First stage of building proof of sigma expression. We need to
+--   decide which nodes will get real proof and which are simulated.
+markTree
+  :: (a -> Bool)        -- ^ Predicate that shows whether we can prove leaf
+  -> SigmaE ()       a  -- ^ Original sigma expression
+  -> SigmaE ProofVar a  -- ^ Sigma expression with leafs marked
+markTree isProvable = clean . check
   where
-    checkKey k = (if k `Set.member` knownPKs then Real else Simulated)
-
-    -- Prover Step 1: Mark as real everything the prover can prove
+    -- Step 1: Mark as real everything the prover can prove.
     check = \case
-      Leaf () inp@(InputDLog k)            -> Leaf (checkKey k)          inp
-      Leaf () inp@(InputDTuple DTuple{..}) -> Leaf (checkKey dtuple'g_y) inp
+      Leaf () leaf | isProvable leaf -> Leaf Real      leaf
+                   | otherwise       -> Leaf Simulated leaf
       AND  () es -> AND k es'
         where
           es'  = map check es
@@ -231,7 +237,7 @@ markTree knownPKs = clean . check
           es'  = map check es
           k | any ((==Real) . sexprAnn) es' = Real
             | otherwise                     = Simulated
-    -- Prover Step 3: Change some "real" nodes to "simulated" to make sure each node
+    -- Change some "real" nodes to "simulated" to make sure each node
     -- has the right number of simulated children.
     clean expr = case expr of
       Leaf{}           -> expr
@@ -249,6 +255,7 @@ markTree knownPKs = clean . check
     splitOR (e:es) = case sexprAnn e of
       Simulated -> markSim e : splitOR es
       Real      -> clean   e : fmap markSim es
+
 
 -- | Genererate simalated proofs and commitments for real proofs
 -- Prover Steps 4, 5, and 6 together: find challenges for simulated nodes; simulate simulated leaves;
@@ -289,7 +296,7 @@ generateCommitments tree = case sexprAnn tree of
       _ -> throwError "Real node"
 
 initRootChallenge
-  :: forall k a. (EC a, CBOR.Serialise (ECPoint a))
+  :: (EC a, CBOR.Serialise (ECPoint a))
   => SigmaE k (FiatShamirLeaf a)
   -> ByteString
   -> Challenge a
@@ -301,7 +308,7 @@ getProofRootChallenge ::
   => SigmaE (ProofTag a) (Either (PartialProof a) (AtomicProof a))
   -> ByteString
   -> Challenge a
-getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr message
+getProofRootChallenge expr = initRootChallenge (extractCommitment <$> expr)
   where
     extractCommitment :: Either (PartialProof a) (AtomicProof a) -> FiatShamirLeaf a
     extractCommitment = either extractPartialProof extractAtomicProof
@@ -318,38 +325,14 @@ getProofRootChallenge expr message = getRootChallengeBy extractCommitment expr m
       ProofDL dlog   -> FiatShamirLeafDLog   (proofDLog'public dlog)     (proofDLog'commitmentA dlog)
       ProofDT dtuple -> FiatShamirLeafDTuple (proofDTuple'public dtuple) (proofDTuple'commitmentA dtuple)
 
-getVerifyRootChallenge ::
-     (EC a)
-  => SigmaE k (AtomicProof a)
-  -> ByteString
-  -> Challenge a
-getVerifyRootChallenge expr message = getRootChallengeBy extractFiatShamirLeaf expr message
-  where
-    extractFiatShamirLeaf = \case
-      ProofDL ProofDLog{..}   -> FiatShamirLeafDLog   proofDLog'public   proofDLog'commitmentA
-      ProofDT ProofDTuple{..} -> FiatShamirLeafDTuple proofDTuple'public proofDTuple'commitmentA
-
-getRootChallengeBy ::
-     EC a
-  => (leaf -> FiatShamirLeaf a)
-  -> SigmaE k leaf
-  -> ByteString
-  -> Challenge a
-getRootChallengeBy extract expr message =
-  initRootChallenge (fmap extract expr) message
-
 getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> PrivKey a
-getPrivateKeyForInput (Env env) = \case
-  InputDLog dlog ->
-    let [sk] = [ getSecretKey | KeyPair{..} <- env
-                              , dlog == getPublicKey
-                              ]
-    in  sk
-  InputDTuple dtuple ->
-    let [sk] = [ getSecretKey | KeyPair{..} <- env
-                              , dtuple'g_y dtuple == getPublicKey
-                              ]
-    in  sk
+getPrivateKeyForInput (Env env) input =
+  let [sk] = [ getSecretKey | KeyPair{..} <- env
+                            , getPublicKey == pk
+                            ]
+  in  sk
+  where
+    pk = leafPublicKey input
 
 getResponseForInput :: EC a => Env a -> ECScalar a -> Challenge a -> ProofInput a -> ECScalar a
 getResponseForInput env rnd ch inp = rnd .+. (sk .*. fromChallenge ch)
@@ -433,32 +416,31 @@ generateProofs (Env env) expr0 message = goReal ch0 expr0
 orChallenge :: EC a => Challenge a -> [Challenge a] -> Challenge a
 orChallenge ch rest = foldl xorChallenge ch rest
 
--------------------------------------------------
--- verification
+----------------------------------------------------------------
+-- Verification
+----------------------------------------------------------------
 
--- | Verify proof. It checks if the proof is correct.
+-- | Check that proof is correct.
 verifyProof :: forall a. (EC a, Eq (Challenge a))
-  => Proof a -> ByteString -> Bool
-verifyProof proof message =
-     checkProofs compTree
-  && (checkHash (getVerifyRootChallenge compTree message))
+  => Proof a
+  -> ByteString
+  -> Bool
+verifyProof proof message
+  =  (getVerifyRootChallenge compTree message == proof'rootChallenge proof)
+  && all verifyAtomicProof compTree
   where
-    checkProofs :: SigmaE b (AtomicProof a) -> Bool
-    checkProofs = getAll . foldMap (All . verifyAtomicProof)
-
-    checkHash hash = proof'rootChallenge proof == hash
-
     compTree = completeProvenTree proof
 
--- | Calculate all challenges for all nodes of a proof.
+-- | In top-down traversal compute challenges for each leaf node in
+--   tree and build 'AtomicProof' for it.
 completeProvenTree :: EC a => Proof a -> SigmaE () (AtomicProof a)
 completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
-    go ch tree = case tree of
+    go ch = \case
       ProvenLeaf resp proofInp -> Leaf () $ getAtomicProof ch proofInp resp
-      ProvenOr leftmost rest -> OR   () $ toList $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree) $
+      ProvenOr leftmost rest   -> OR   () $ toList $ fmap (\OrChild{..} -> go orChild'challenge orChild'tree) $
                                               (getLeftmostOrChallenge ch leftmost rest) Seq.<| rest
-      ProvenAnd children      -> AND  () $ fmap (go ch) children
+      ProvenAnd children       -> AND  () $ go ch <$> children
 
     getAtomicProof ch proofInp respZ = case proofInp of
       InputDLog dlog -> ProofDL $ ProofDLog
@@ -479,8 +461,13 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
       , orChild'tree      = leftmost
       }
 
-{- For debug
-
-traceMsg :: Show a => String -> a -> a
-traceMsg msg a = trace (mconcat [msg, ": ", ppShow a]) a
--}
+getVerifyRootChallenge ::
+     (EC a)
+  => SigmaE k (AtomicProof a)
+  -> ByteString
+  -> Challenge a
+getVerifyRootChallenge expr = initRootChallenge (extractFiatShamirLeaf <$> expr)
+  where
+    extractFiatShamirLeaf = \case
+      ProofDL ProofDLog{..}   -> FiatShamirLeafDLog   proofDLog'public   proofDLog'commitmentA
+      ProofDT ProofDTuple{..} -> FiatShamirLeafDTuple proofDTuple'public proofDTuple'commitmentA
