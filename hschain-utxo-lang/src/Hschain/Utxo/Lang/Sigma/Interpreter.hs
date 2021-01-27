@@ -178,10 +178,7 @@ newProof env expr message = runProve $ do
   commitments <- generateCommitments (markTree isProvable expr)
   toProof =<< generateProofs env commitments message
   where
-    isProvable input = pk `Set.member` knownKeys
-      where
-        pk = case input of InputDLog   k          -> k
-                           InputDTuple DTuple{..} -> dtuple'g_y
+    isProvable input = leafPublicKey input `Set.member` knownKeys
     knownKeys = Set.fromList $ getPublicKey <$> unEnv env
 
 -- Syntactic step that performs a type conversion only
@@ -211,9 +208,7 @@ toProof tree = liftA2 Proof (getRootChallenge tree) (getProvenTree tree)
 
 
 ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
-ownsKey knownPKs = \case
-  InputDLog   k          -> checkKey k
-  InputDTuple DTuple{..} -> checkKey dtuple'g_y
+ownsKey knownPKs = checkKey . leafPublicKey
   where
     checkKey k = k `Set.member` knownPKs
 
@@ -352,17 +347,13 @@ getRootChallengeBy extract expr message =
   initRootChallenge (fmap extract expr) message
 
 getPrivateKeyForInput :: EC a => Env a -> ProofInput a -> PrivKey a
-getPrivateKeyForInput (Env env) = \case
-  InputDLog dlog ->
-    let [sk] = [ getSecretKey | KeyPair{..} <- env
-                              , dlog == getPublicKey
-                              ]
-    in  sk
-  InputDTuple dtuple ->
-    let [sk] = [ getSecretKey | KeyPair{..} <- env
-                              , dtuple'g_y dtuple == getPublicKey
-                              ]
-    in  sk
+getPrivateKeyForInput (Env env) input =
+  let [sk] = [ getSecretKey | KeyPair{..} <- env
+                            , getPublicKey == pk
+                            ]
+  in  sk
+  where
+    pk = leafPublicKey input
 
 getResponseForInput :: EC a => Env a -> ECScalar a -> Challenge a -> ProofInput a -> ECScalar a
 getResponseForInput env rnd ch inp = rnd .+. (sk .*. fromChallenge ch)
