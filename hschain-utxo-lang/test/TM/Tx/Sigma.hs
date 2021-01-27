@@ -28,7 +28,7 @@ initTx = do
   return (resTx, tx alicePubKey)
   where
     tx pubKey = Tx
-      { tx'inputs  = singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
+      { tx'inputs  = return $ singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
       , tx'outputs = return $ Box
           { box'value  = 1
           , box'script = mainScriptUnsafe $ pk' pubKey

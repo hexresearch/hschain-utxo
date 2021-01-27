@@ -10,7 +10,6 @@ import Test.Tasty.HUnit
 import Data.Fix
 
 import HSChain.Crypto (hashBlob)
-import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..))
 import Hschain.Utxo.Lang.Sigma.Protocol (ProofInput(..))
@@ -18,9 +17,6 @@ import Hschain.Utxo.Lang.Sigma.DTuple (DTuple(..))
 import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Types
 import TM.Tx.Sigma (verifyTx)
-
-import Debug.Trace
-import qualified Data.Text as T
 
 tests :: TestTree
 tests = testGroup "sigma-protocols"
@@ -39,7 +35,7 @@ verifyDtupleProof = do
       inp = InputDTuple $ DTuple groupGenerator gx gy gxy
       expr = Fix $ SigmaPk inp
   eProof <- newProof (toProofEnv [bob]) expr msg
-  return $ either (const False) (\proof -> trace (show proof) $ verifyProof proof msg) eProof
+  return $ either (const False) (\proof -> verifyProof proof msg) eProof
   where
     msg = SigMessage $ hashBlob "tx message"
 
@@ -48,7 +44,8 @@ verifyDtupleTx = do
   alice <- newKeyPair
   bob   <- newKeyPair
   tx <- dtupleTx (getPublicKey alice) bob
-  return $ trace (T.unpack $ renderText tx) (verifyTx tx)
+  return $ verifyTx tx
+
 
 dtupleTx :: PublicKey -> KeyPair -> IO Tx
 dtupleTx gx keys = newProofTx (toProofEnv [keys]) $ Tx
@@ -74,8 +71,4 @@ dtupleTx gx keys = newProofTx (toProofEnv [keys]) $ Tx
               , box'args   = mempty
               , box'script = mainScriptUnsafe $ pk' (getPublicKey keys)
               }
-
-
-
-
 

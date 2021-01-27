@@ -475,8 +475,8 @@ hashScript = getSha256 . unScript
 singleOwnerSigma :: PublicKey -> Sigma ProofInput
 singleOwnerSigma pubKey = Fix $ SigmaPk $ dlogInput pubKey
 
-singleOwnerInput :: BoxId -> PublicKey -> Vector ExpectedBox
-singleOwnerInput boxId pubKey = return $ BoxInputRef
+singleOwnerInput :: BoxId -> PublicKey -> ExpectedBox
+singleOwnerInput boxId pubKey = BoxInputRef
   { boxInputRef'id      = boxId
   , boxInputRef'args    = mempty
   , boxInputRef'proof   = Just $ singleOwnerSigma pubKey
