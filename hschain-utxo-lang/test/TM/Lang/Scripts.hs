@@ -49,7 +49,7 @@ checkModule = either Just (const Nothing) . toCoreScript
 
 singleOwnerScript :: IO Module
 singleOwnerScript = do
-  pubKey <- fmap getPublicKey newSecret
+  pubKey <- fmap toPublicKey newSecret
   return $ [utxoModule| pk $(pubKey) |]
 
 --------------------------------------------------------------
@@ -57,8 +57,8 @@ singleOwnerScript = do
 
 mkCoffeeScript :: IO Module
 mkCoffeeScript = do
-  senderPk   <- fmap getPublicKey newSecret
-  receiverPk <- fmap getPublicKey newSecret
+  senderPk   <- fmap toPublicKey newSecret
+  receiverPk <- fmap toPublicKey newSecret
   let spendHeight = 10
   return $ coffeeScript spendHeight senderPk receiverPk
 
@@ -87,8 +87,8 @@ mkAtomicSwap2 = do
 
 getAliceBobKeys :: IO (PublicKey, PublicKey)
 getAliceBobKeys = do
-  alicePk <- fmap getPublicKey newSecret
-  bobPk   <- fmap getPublicKey newSecret
+  alicePk <- fmap toPublicKey newSecret
+  bobPk   <- fmap toPublicKey newSecret
   return (alicePk, bobPk)
 
 atomicSwap1 :: Int64 -> PublicKey -> PublicKey -> Module
@@ -113,7 +113,7 @@ atomicSwap2 deadlineAlice swapHash alicePubKey bobPubKey = [utxoModule|
 
 mkFullGame :: IO Module
 mkFullGame = do
-  alicePk <- fmap getPublicKey newSecret
+  alicePk <- fmap toPublicKey newSecret
   return $ fullGameScript "1234"  alicePk
 
 mkHalfGame :: IO Module

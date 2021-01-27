@@ -39,7 +39,7 @@ tests = testGroup "signatures"
 verifySignPrimitives :: IO Bool
 verifySignPrimitives = do
   secret <- newSecret
-  let pubKey = getPublicKey secret
+  let pubKey = toPublicKey secret
   sig <- sign secret toyMessage
   return $ verify pubKey sig toyMessage
 
@@ -59,7 +59,7 @@ pkExpr = bytes . encodeToBS
 testCheckSig :: IO Bool
 testCheckSig = do
   alice <- newSecret
-  let alicePubKey = getPublicKey alice
+  let alicePubKey = toPublicKey alice
   env  <- inputEnv [alice] testMsg
   let script = checkSig (pkExpr alicePubKey) (int 0)
   return $ evalProg env script == Right (PrimVal (PrimBool True))
@@ -69,7 +69,7 @@ testCheckSig = do
 testCheckMultiSig :: Int -> IO Bool
 testCheckMultiSig sigCount = do
   privKeys <- replicateM 3 newSecret
-  let pubKeys = fmap getPublicKey privKeys
+  let pubKeys = fmap toPublicKey privKeys
   -- all signatures but first dropCount keys are present, and we duplicate first signature as fill in
   env <- inputEnv (dupFirst $ dropPrivs privKeys) testMsg
   let script = checkMultiSig (int 2) (listExpr BytesT $ fmap pkExpr pubKeys) (listExpr IntT $ fmap int [0, 1, 2])
