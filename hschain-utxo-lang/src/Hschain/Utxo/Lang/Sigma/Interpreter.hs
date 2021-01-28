@@ -94,7 +94,7 @@ data PartialProof a = PartialProof
   , pproofR     :: ECScalar   a
   }
 
-deriving instance (CryptoAsymmetric a) => Show (PartialProof a)
+deriving instance (EC a) => Show (PartialProof a)
 
 -- | Proof to reconstruct all challenges from the root challenge.
 data Proof a = Proof
@@ -139,7 +139,7 @@ instance ( CryptoHashable (Challenge a)
          ) => CryptoHashable (Proof a) where
   hashStep = genericHashStep hashDomain
 
-deriving stock instance (CryptoAsymmetric a, Show (Challenge a)) => Show (Proof a)
+deriving stock instance (EC a) => Show (Proof a)
 deriving stock instance (EC a) => Eq   (Proof a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (Proof a)
 
@@ -152,7 +152,7 @@ instance ( CryptoHashable (Challenge a)
          ) => CryptoHashable (ProvenTree a) where
   hashStep = genericHashStep hashDomain
 
-deriving stock   instance (CryptoAsymmetric a, Show (Challenge a)) => Show (ProvenTree a)
+deriving stock   instance (EC a) => Show (ProvenTree a)
 deriving stock   instance (EC a) => Eq   (ProvenTree a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (ProvenTree a)
 

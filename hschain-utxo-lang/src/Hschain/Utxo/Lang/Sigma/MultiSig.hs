@@ -212,7 +212,7 @@ data CommitmentResult a
     , comResult'commitmentTuple :: (Commitment a, Commitment a)
     }
 
-deriving stock   instance (Eq (ECPoint a), Eq (Challenge a)) => Eq (CommitmentResult a)
+deriving stock instance (EC a) => Eq (CommitmentResult a)
 
 -- | Prover sends request to other party to fill randomness in the expression leaves.
 -- If partner founds key that he owns, he generates randomness and commitment
@@ -314,7 +314,7 @@ data ChallengeResult a = ChallengeResult
   , challengeResult'challenge  :: Challenge a
   }
 
-deriving stock   instance (Eq (ECPoint a), Eq (Challenge a)) => Eq (ChallengeResult a)
+deriving stock instance (EC a) => Eq (ChallengeResult a)
 
 getChallenges :: EC a => ProofExpr CommitmentResult a -> ByteString -> Either Text (ProofExpr ChallengeResult a)
 getChallenges expr0 message = goReal ch0 expr0

@@ -111,9 +111,9 @@ instance Bifunctor SigmaE where
       OR   k es -> OR   (f k) (go <$> es)
   second = fmap
 
-deriving stock instance (CryptoAsymmetric a) => Show (ProofInput a)
-deriving stock instance (EC a)               => Eq   (ProofInput a)
-deriving stock instance (EC a)               => Ord  (ProofInput a)
+deriving stock instance (EC a)  => Show (ProofInput a)
+deriving stock instance (EC a)  => Eq   (ProofInput a)
+deriving stock instance (EC a)  => Ord  (ProofInput a)
 instance (NFData (PublicKey a)) => NFData         (ProofInput a)
 instance (CryptoAsymmetric a)   => CBOR.Serialise (ProofInput a)
 instance (CryptoAsymmetric a)   => ToJSON (ProofInput a)
@@ -130,6 +130,6 @@ instance Typeable a => Data (ProofInput a) where
 
 deriving instance TH.Lift (PublicKey a) => TH.Lift (ProofInput a)
 
-deriving instance (CryptoAsymmetric a, Show (Challenge a)) => Show (AtomicProof a)
+deriving instance (EC a) => Show (AtomicProof a)
 deriving instance (EC a) => Eq (AtomicProof a)
 instance (EC a) => CBOR.Serialise (AtomicProof a)

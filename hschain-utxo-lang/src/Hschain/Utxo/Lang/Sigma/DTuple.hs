@@ -106,9 +106,9 @@ simulateProofDTuple dt e = do
 -- Instances
 ----------------------------------------------------------------
 
-deriving instance Show (ECPoint a) => Show (DTuple a)
-deriving instance Eq (ECPoint a)   => Eq (DTuple a)
-deriving instance Ord (ECPoint a)  => Ord (DTuple a)
+deriving instance (EC a) => Show (DTuple a)
+deriving instance (EC a) => Eq (DTuple a)
+deriving instance (EC a, Ord (ECPoint a))  => Ord (DTuple a)
 deriving instance NFData (ECPoint a)  => NFData (DTuple a)
 instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (DTuple a)
 
@@ -118,8 +118,8 @@ instance CryptoHashable (ECPoint a) => CryptoHashable (DTuple a) where
 instance (CryptoAsymmetric a) => ToJSON   (DTuple a) where
 instance (CryptoAsymmetric a) => FromJSON (DTuple a) where
 
-deriving instance (Show (ECPoint a), Show (Response a), Show (Challenge a)) => Show (ProofDTuple a)
-deriving instance (Eq (ECPoint a), Eq (Response a), Eq (Challenge a)) => Eq (ProofDTuple a)
-instance (CBOR.Serialise (ECPoint a), CBOR.Serialise (Response a), CBOR.Serialise (Challenge a)) => CBOR.Serialise (ProofDTuple a)
+deriving instance (EC a) => Show (ProofDTuple a)
+deriving instance (EC a) => Eq (ProofDTuple a)
+instance (EC a) => CBOR.Serialise (ProofDTuple a)
 
 deriving instance TH.Lift (PublicKey a) => TH.Lift (DTuple a)
