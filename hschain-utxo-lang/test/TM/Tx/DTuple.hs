@@ -11,10 +11,10 @@ import Data.Fix
 
 import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Parser.Quoter
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..))
 import Hschain.Utxo.Lang.Sigma.Protocol (ProofInput(..))
 import Hschain.Utxo.Lang.Sigma.DTuple (DTuple(..))
-import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Types
 import TM.Tx.Sigma (verifyTx)
 
@@ -69,6 +69,7 @@ dtupleTx gx keys = newProofTx (toProofEnv [keys]) $ Tx
     outBox = Box
               { box'value  = 1
               , box'args   = mempty
-              , box'script = mainScriptUnsafe $ pk' (getPublicKey keys)
+              , box'script = let pubKey = getPublicKey keys
+                             in  [utxo| pk $(pubKey) |]
               }
 

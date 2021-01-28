@@ -37,7 +37,6 @@ import Hschain.Utxo.Test.Client.Scripts.MultiSig (getSharedBoxTx, simpleSpendTo,
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Utils.Hash
-import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.State.React (react)
 
 import System.Random
@@ -429,22 +428,21 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
     -- | Pays to me delayed by postDelay and partner with revoce key can claim it
     myBox = Box
       { box'value  = myValue
-      , box'script = mainScriptUnsafe revoceScript
+      , box'script = revoceScript
       , box'args   = mempty
       }
 
-    revoceScript =
-          (pk' myPk &&* (toSigma $ getHeight >* getBoxPostHeight getSelf + int postDelay))
-      ||* (pk' partnerPk &&* (toSigma $ sha256 readKey ==* bytes revoceHash))
+    revoceScript = [utxo|
+          (pk $(myPk) &&* (getHeight >* (getBoxPostHeight getSelf + $(postDelay))))
+      ||* (pk $(partnerPk) &&* (sha256 getArgs ==* $(revoceHash)))
+      |]
       where
         revoceHash = getSha256 revoceSecret
-
-    readKey = getArgs
 
     -- | Pays to partner right away
     partnerBox = Box
       { box'value  = partnerValue
-      , box'script = mainScriptUnsafe $ pk' partnerPk
+      , box'script = [utxo| pk $(partnerPk) |]
       , box'args   = mempty
       }
 

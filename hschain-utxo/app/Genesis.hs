@@ -4,7 +4,6 @@ module Main where
 import Data.Aeson.Encode.Pretty
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build
 
 import Data.ByteString.Char8 as B
 import Data.ByteString.Lazy as LB
@@ -26,17 +25,9 @@ singleOwnerGenesis = fmap withSecret newSecret
 
         box = Box
           { box'value  = initMoney
-          , box'script = mainScriptUnsafe $ pk' publicKey
+          , box'script = [utxo| pk $(publicKey) |]
           , box'args   = mempty
           }
 
         initMoney = 1000000
-
-
-
-
-
-
-
-
 

@@ -7,7 +7,6 @@ module Hschain.Utxo.Test.Client.Scripts.Utils(
   , User(..)
   , Scene(..)
   , getTxHash
-  , mainScriptUnsafe
   , postTxDebug
   , postTxSuccess
   , postTxFailure

@@ -11,6 +11,7 @@ module Hschain.Utxo.Test.Client.Scripts.MultiSig(
   , simpleSpendTo
 ) where
 
+import Data.Boolean
 import Control.Monad
 import Control.Monad.IO.Class
 
@@ -23,8 +24,6 @@ import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Monad
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build
-
 
 -- | Alice and Bob create joint box that is guarded by multisig and then spend it.
 multiSigExchange :: App ()
@@ -79,7 +78,7 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
 
     commonBox = Box
       { box'value  = aliceValue + bobValue
-      , box'script = mainScriptUnsafe $ pk' alicePk &&* pk' bobPk
+      , box'script = [utxo| pk $(alicePk) &&* pk $(bobPk) |]
       , box'args   = mempty
       }
 

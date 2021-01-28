@@ -19,7 +19,6 @@ import System.Random
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Lang.Utils.Hash(getSha256)
 
 import Hschain.Utxo.Test.Client.Monad hiding (getHeight)
@@ -407,7 +406,7 @@ checkTxResponce isOk msg resp = do
 -- generic utils
 
 singleOwnerScript :: PublicKey -> Script
-singleOwnerScript pubKey = mainScriptUnsafe $ pk' pubKey
+singleOwnerScript pubKey = [utxo| pk $(pubKey) |]
 
 getChangeBox :: Int64 -> PublicKey -> Box
 getChangeBox value pubKey = Box

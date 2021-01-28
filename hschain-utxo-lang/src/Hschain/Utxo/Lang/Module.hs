@@ -7,6 +7,8 @@ module Hschain.Utxo.Lang.Module(
   , recFieldExecCtx
   , getModuleCtxNames
   , userTypesToInferCtx
+  , mainExprModule
+  , simpleModule
 ) where
 
 import GHC.Generics
@@ -67,6 +69,20 @@ recSelectorExpr field (cons, RecordFieldOrder fields) =
   where
     v = VarName noLoc "$v"
     args = fmap (\x -> if (field == x) then (PVar noLoc v) else PWildCard noLoc) fields
+
+-------------------------------------------------
+
+mainExprModule :: Lang -> Module
+mainExprModule expr = simpleModule (bind "main" expr)
+
+simpleModule :: Binds Lang -> Module
+simpleModule = Module noLoc mempty
+
+bind :: Text -> Lang -> Binds Lang
+bind name expr = simpleBind (VarName noLoc name) expr
+
+simpleBind :: VarName -> Lang -> Binds Lang
+simpleBind v a = Binds mempty [FunBind v [Alt [] (UnguardedRhs a) Nothing]]
 
 ------------------------------------------------------
 -- instances

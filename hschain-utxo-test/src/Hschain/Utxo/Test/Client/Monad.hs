@@ -21,7 +21,6 @@ module Hschain.Utxo.Test.Client.Monad(
   , runTest
   , toHspec
   , initGenesis
-  , mainScriptUnsafe
   , newBlockChan
   , getBlockTChan
   , findTx
@@ -50,7 +49,6 @@ import Test.Hspec
 
 import Hschain.Utxo.API.Rest
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build (pk', mainScriptUnsafe)
 import Hschain.Utxo.State.Types
 import Hschain.Utxo.State.React (react)
 import Hschain.Utxo.Back.Config
@@ -221,7 +219,7 @@ initGenesis secret = ([tx], masterBoxId)
 
     box = Box
       { box'value  = initMoney
-      , box'script = mainScriptUnsafe $ pk' publicKey
+      , box'script = [utxo| pk $(publicKey) |]
       , box'args   = mempty
       }
 
