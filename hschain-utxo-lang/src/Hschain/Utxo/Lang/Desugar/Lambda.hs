@@ -1,11 +1,7 @@
 -- | Simplifies lambda-calculus expressions
 module Hschain.Utxo.Lang.Desugar.Lambda(
-    joinLamArgs
-  , joinLetBinds
-  , removeInfixApply
+    desugarLambdaCalculus
   , simplifyLet
-  , substLamPats
-  , desugarLambdaCalculus
 ) where
 
 import Data.Fix

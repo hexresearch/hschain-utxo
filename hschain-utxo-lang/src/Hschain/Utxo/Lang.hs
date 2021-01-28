@@ -3,7 +3,6 @@ module Hschain.Utxo.Lang(
   module X
 ) where
 
-import Data.Boolean                 as X
 
 import Hschain.Utxo.Lang.Compile    as X
 import Hschain.Utxo.Lang.Core.Eval  as X

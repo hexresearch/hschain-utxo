@@ -2,8 +2,6 @@
 -- defined in the module @Hschain.Utxo.Compile.LambdaLifting.Expr@
 module Hschain.Utxo.Lang.Desugar.ExtendedLC(
     toExtendedLC
-  , exprToExtendedLC
-  , fromType
 ) where
 
 import Control.Arrow (first)

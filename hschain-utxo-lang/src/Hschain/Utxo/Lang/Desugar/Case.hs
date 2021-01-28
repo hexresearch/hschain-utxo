@@ -3,7 +3,6 @@
 -- variables patterns, wildcards and primitives
 module Hschain.Utxo.Lang.Desugar.Case(
     desugarCase
-  , desugarCaseExpr
 ) where
 
 import Hex.Common.Text

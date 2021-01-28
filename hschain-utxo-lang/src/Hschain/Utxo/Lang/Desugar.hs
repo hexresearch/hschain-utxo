@@ -6,22 +6,16 @@
 module Hschain.Utxo.Lang.Desugar(
     desugar
   , unfoldLamList
-  , unfoldLetArg
   , unfoldInfixApply
   , singleLet
   , app1
   , app2
-  , app3
   , bindBodyToExpr
-  , bindGroupToLet
   , simpleBind
-  , desugarRecordUpdate
-  , recordFieldUpdateFunName
   , module Hschain.Utxo.Lang.Desugar.FreshVar
   , module Hschain.Utxo.Lang.Desugar.PatternCompiler
   , module Hschain.Utxo.Lang.Desugar.Records
 ) where
-
 
 import Data.Fix
 import Data.Map.Strict (Map)
@@ -44,29 +38,17 @@ desugar ctx expr = removeRecordCons ctx expr
 unfoldLamList :: Loc -> [Pat] -> Lang -> Lang
 unfoldLamList loc pats a = L.foldl' (\z x -> z . Fix . Lam loc x) id pats a
 
-unfoldLetArg :: Loc -> VarName -> [VarName] -> Lang -> Lang -> Lang
-unfoldLetArg loc v args a = singleLet loc v (Fix $ LamList loc (fmap varToPat args) a)
-
-varToPat :: VarName -> Pat
-varToPat v = PVar (getLoc v) v
-
 singleLet :: Loc -> VarName -> Lang -> Lang -> Lang
 singleLet loc v body expr = Fix $ Let loc (simpleBind v body) expr
 
 unfoldInfixApply :: Loc -> Lang -> VarName -> Lang -> Lang
 unfoldInfixApply loc a v b = app2 (Fix $ Var loc v) a b
 
-bindGroupToLet :: [Bind Lang] -> Lang -> Lang
-bindGroupToLet bgs expr = Fix $ Let noLoc (Binds mempty bgs) expr
-
 app1 :: Lang -> Lang -> Lang
 app1 f a = Fix (Apply (getLoc a) f a)
 
 app2 :: Lang -> Lang -> Lang -> Lang
 app2 f a b = Fix (Apply (getLoc f) (Fix (Apply (getLoc a) f a)) b)
-
-app3 :: Lang -> Lang -> Lang -> Lang -> Lang
-app3 f a b c = Fix $ Apply (getLoc f) (app2 f a b) c
 
 bindBodyToExpr :: MonadLang m => Map VarName Signature -> Bind Lang -> m Lang
 bindBodyToExpr typeMap = \case
@@ -79,14 +61,4 @@ simpleBind :: VarName -> Lang -> Binds Lang
 simpleBind v a = Binds mempty [FunBind v [Alt [] (UnguardedRhs a) Nothing]]
 
 -----------------------------------------------------------------
-
-desugarRecordUpdate :: VarName -> Lang -> Lang -> Lang
-desugarRecordUpdate field val expr =
-  app2 (Fix $ Var (getLoc field) $ recordFieldUpdateFunName field) val expr
-
-recordFieldUpdateFunName :: VarName -> VarName
-recordFieldUpdateFunName VarName{..} = VarName
-  { varName'loc  = varName'loc
-  , varName'name = secretVar $ mappend "update_" varName'name
-  }
 

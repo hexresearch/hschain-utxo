@@ -3,7 +3,6 @@
 module Hschain.Utxo.Lang.Desugar.Records(
     removeRecordCons
   , orderRecordFieldsFromContext
-  , removeRecordUpdate
   , removeRecords
 ) where
 

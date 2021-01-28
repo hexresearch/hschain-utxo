@@ -2,12 +2,11 @@
 module Hschain.Utxo.Lang.Exec.Module(
     evalModule
   , checkMainModule
-  , appendExecCtx
   , trimModuleByMain
   , fixTopLevelPatBinds
   , toUserTypeCtx
-  , checkUserTypes
   , checkUserTypeInCtx
+  , appendExecCtx
 ) where
 
 import Control.Applicative (Alternative(..))
@@ -248,6 +247,12 @@ appendRecordFuns m =
         pvx  = PVar noLoc vx
         wild = PWildCard noLoc
 
+recordFieldUpdateFunName :: VarName -> VarName
+recordFieldUpdateFunName VarName{..} = VarName
+  { varName'loc  = varName'loc
+  , varName'name = secretVar $ mappend "update_" varName'name
+  }
+
 ------------------------------------------------------------
 -- compile main module
 
@@ -379,5 +384,4 @@ orderTypesByDeps = G.flattenSCCs . G.stronglyConnComp . fmap toDep
           H.TupleT _ ts        -> mconcat ts
           H.ListT _ a          -> a
           H.VarT _ _           -> []
-
 
