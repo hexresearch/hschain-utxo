@@ -2,7 +2,9 @@
 -- | Functions to construct AST for our language programmatically (not parsed from the code).
 -- They are well-typed with usage of phantom type but under the hood they all use type Lang.
 module Hschain.Utxo.Lang.Build(
-    simpleModule
+    Expr(..)
+  , SigmaBool
+  , simpleModule
   , mainExprModule
   , mainScript
   , mainScriptUnsafe
@@ -12,7 +14,6 @@ module Hschain.Utxo.Lang.Build(
   , bytes
   , pk
   , pk'
-  , SigmaBool
   , toSigma
   , getHeight
   , getSelf, getInput, getOutput
@@ -38,13 +39,16 @@ module Hschain.Utxo.Lang.Build(
   , pair
   , tuple3
   , tuple4
+  , module Data.Boolean
 ) where
 
 import Data.Text (Text)
+import Data.Text.Prettyprint.Doc
 
 import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
@@ -64,6 +68,14 @@ import HSChain.Crypto (ByteRepr(..))
 import Hschain.Utxo.Lang.Sigma (PublicKey)
 
 import qualified Hschain.Utxo.Lang.Const as Const
+
+-- | Type for expression of our language that has type.
+--
+-- This is phantom type for covenience of type-checker.
+newtype Expr a = Expr Lang
+
+-- | Type tag for type-safe construction
+data SigmaBool
 
 -- | Creates module  out of single main expression and ignores the errors of compilation.
 mainScriptUnsafe :: Expr SigmaBool -> Script
@@ -362,3 +374,8 @@ instance Semigroup (Expr (Vector a)) where
 instance Monoid (Expr (Vector a)) where
   mempty = fromVec mempty
 
+instance Pretty (Expr a) where
+  pretty (Expr a) = pretty a
+
+deriving stock   instance Show (Expr a)
+deriving stock   instance Eq   (Expr a)

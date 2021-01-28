@@ -14,12 +14,11 @@ import qualified Data.Map.Strict as M
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Compile.Dependencies
 import Hschain.Utxo.Lang.Compile.Expr
-import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr (PrimCon(..), conType)
+import Hschain.Utxo.Lang.Core.Types             (Name, Typed(..), typeCoreToType)
+import Hschain.Utxo.Lang.Core.Compile.Expr (PrimCon(..), conType, monoPrimopNameMap)
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (primToType,primopToType,runCheck)
-import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..), typeCoreToType, varT, funT, listT
-                              , arrowT, intT, boolT, bytesT, sigmaT
-                              , monoPrimopNameMap)
+import Hschain.Utxo.Lang.Expr ( Loc, noLoc, VarName(..))
+import Hschain.Utxo.Lang.Const (funT, boolT, bytesT, sigmaT, listT, varT, intT, arrowT)
 
 import qualified Type.Check.HM as H
 import qualified Data.Sequence as S

@@ -83,6 +83,8 @@ import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Build (Expr(..))
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, ProofInput)
 import Hschain.Utxo.Lang.Types (Script)
 import Hschain.Utxo.Lang.Infer
@@ -90,6 +92,7 @@ import Hschain.Utxo.Lang.Lib.Base (baseLibInferCtx, baseLibTypeContext)
 import Hschain.Utxo.Lang.Parser.Hask
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Build (mainExprModule)
+import Hschain.Utxo.Lang.Const (intT', boolT', bytesT', textT', sigmaT', listT', tupleT')
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T

@@ -12,8 +12,10 @@ import Data.Fix
 import Data.Maybe
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Expr hiding (Expr)
+import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Monad
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Build
 import Hschain.Utxo.Lang.Desugar.Lambda
@@ -315,7 +317,7 @@ removeTopLevelLambdasDef def@Def{..} =
 
 
 getFreshTypeName :: MonadLang m => m (H.Type () Text)
-getFreshTypeName = fmap varT getFreshVarName
+getFreshTypeName = fmap Const.varT getFreshVarName
 
 -- | Substitutes user defined types with corresponding primitive core types.
 substCoreType :: UserCoreTypeCtx -> H.Type () Text -> H.Type () Text

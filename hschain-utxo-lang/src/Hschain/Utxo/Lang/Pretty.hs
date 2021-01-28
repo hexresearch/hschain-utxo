@@ -20,6 +20,7 @@ import Data.Text.Prettyprint.Doc.Render.Text (renderStrict)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Infer()
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Types
@@ -178,9 +179,6 @@ instance Pretty S.ProofInput where
 
 instance ByteRepr (EC.ECPoint a) => Pretty (EC.ECPoint a) where
   pretty = pretty . encodeBase58
-
-instance Pretty (Expr a) where
-  pretty (Expr a) = pretty a
 
 instance Pretty ConsName where
   pretty (ConsName _ txt) = pretty txt

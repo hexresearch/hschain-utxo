@@ -21,6 +21,7 @@ import Type.Check.HM (getLoc)
 
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Exec.Subst
 import Hschain.Utxo.Lang.Desugar.FreshVar

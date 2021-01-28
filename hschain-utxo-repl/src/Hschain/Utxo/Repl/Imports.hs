@@ -10,7 +10,7 @@ module Hschain.Utxo.Repl.Imports(
 import Control.Exception.Base
 import Control.Monad.IO.Class
 
-import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec (evalModule)

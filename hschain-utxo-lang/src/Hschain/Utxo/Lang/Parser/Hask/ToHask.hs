@@ -9,6 +9,7 @@ import Data.Fix
 import Data.Maybe
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Sigma
 

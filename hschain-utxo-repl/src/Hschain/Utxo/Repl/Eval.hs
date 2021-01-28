@@ -20,6 +20,8 @@ import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Exec.Module (checkUserTypeInCtx)
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Compile (compile)

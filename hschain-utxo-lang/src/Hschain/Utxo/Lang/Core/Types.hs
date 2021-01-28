@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Core.Types (
   , Typed(..)
   , Prim(..)
   , TypeCoreError(..)
+  , typeCoreToType
     -- * Lens
   , typed'typeL
   , typed'valueL
@@ -18,7 +19,9 @@ import Control.DeepSeq
 
 import Data.Aeson
 import Data.Data
+import Data.Function (on)
 import Data.Int
+import Data.String
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
@@ -26,8 +29,11 @@ import GHC.Generics (Generic)
 
 import Hex.Common.Lens (makeLensesWithL)
 import Hschain.Utxo.Lang.Sigma
+import Hschain.Utxo.Lang.Const (intT, boolT, bytesT, textT, unitT, maybeT
+                               , sumT, tupleT, listT, sigmaT, boxT, arrowT)
 import HSChain.Crypto.Classes (ViaBase58(..))
 
+import qualified Type.Check.HM as H
 
 -- | Errors for core language type-checker.
 data TypeCoreError
@@ -89,6 +95,21 @@ boxTuple = TupleT [BytesT, BytesT, IntT, argsTuple, IntT]
 
 argsTuple :: TypeCore
 argsTuple = TupleT [ListT IntT, ListT TextT, ListT BoolT, ListT BytesT]
+
+typeCoreToType :: (H.DefLoc loc, IsString v) => TypeCore -> H.Type loc v
+typeCoreToType = \case
+  IntT      -> intT
+  BoolT     -> boolT
+  BytesT    -> bytesT
+  TextT     -> textT
+  SigmaT    -> sigmaT
+  BoxT      -> boxT
+  a :-> b   -> (arrowT `on` typeCoreToType) a b
+  ListT a   -> listT (typeCoreToType a)
+  TupleT xs -> tupleT $ typeCoreToType <$> xs
+  UnitT     -> unitT
+  MaybeT a  -> maybeT (typeCoreToType a)
+  SumT ts   -> sumT (fmap typeCoreToType ts)
 
 -----------------------------------------------------
 -- instances

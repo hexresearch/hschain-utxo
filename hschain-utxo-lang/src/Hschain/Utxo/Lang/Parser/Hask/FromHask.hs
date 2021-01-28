@@ -19,6 +19,8 @@ import Language.Haskell.Exts.Parser (
 import HSChain.Crypto (decodeBase58)
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Exec.Module (toUserTypeCtx)
 import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies

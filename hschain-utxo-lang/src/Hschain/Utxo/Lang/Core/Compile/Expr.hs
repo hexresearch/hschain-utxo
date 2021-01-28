@@ -29,6 +29,10 @@ module Hschain.Utxo.Lang.Core.Compile.Expr(
   , Identity(..)
   , Proxy
   , Void
+  , monoPrimopName
+  , polyPrimOpName
+  , monomorphicPrimops
+  , monoPrimopNameMap
   ) where
 
 import Hex.Common.Text (showt)
@@ -51,9 +55,12 @@ import GHC.Generics (Generic, Rep, M1(..), (:+:)(..), (:*:)(..), D, C, U1, S, fr
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Types (Script(..))
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Type.Check.HM as H
+
+import qualified Hschain.Utxo.Lang.Const as Const
 
 coreProgToScript :: Core Void -> Script
 coreProgToScript = Script . LB.toStrict . serialise
@@ -406,3 +413,128 @@ instance (GFieldInfo f, GFieldInfo g) => GFieldInfo (f :*: g) where
 instance Serialise Void where
   encode = absurd
   decode = fail "Cannot decode Void"
+
+----------------------------------------------------------------
+-- Names
+----------------------------------------------------------------
+
+-- | Name of monomorphic primop which is used in high level language
+monoPrimopName :: PrimOp a -> Maybe Name
+monoPrimopName = \case
+  OpAdd         -> Just "+"
+  OpSub         -> Just "-"
+  OpMul         -> Just "*"
+  OpDiv         -> Just "/"
+  OpNeg         -> Just "negate"
+  --
+  OpBoolAnd     -> Just "&&"
+  OpBoolOr      -> Just "||"
+  OpBoolNot     -> Just "not"
+  --
+  OpSigAnd       -> Just Const.sigmaAnd
+  OpSigOr        -> Just Const.sigmaOr
+  OpSigPK        -> Just "pk"
+  OpSigDTuple    -> Just "dtuple"
+  OpSigBool      -> Just "toSigma"
+  OpSigListAnd   -> Just "andSigma"
+  OpSigListOr    -> Just "orSigma"
+  OpSigListAll _ -> Nothing
+  OpSigListAny _ -> Nothing
+  --
+  OpCheckSig      -> Just Const.checkSig
+  OpCheckMultiSig -> Just Const.checkMultiSig
+  --
+  OpSHA256      -> Just Const.sha256
+  OpTextLength  -> Just Const.lengthText
+  OpBytesLength -> Just Const.lengthBytes
+  OpTextAppend  -> Just Const.appendText
+  OpBytesAppend -> Just Const.appendBytes
+  OpToBytes   _ -> Nothing
+  OpFromBytes _ -> Nothing
+  --
+  OpArgs _       -> Nothing
+  OpGetBoxId     -> Just Const.getBoxId
+  OpGetBoxScript -> Just Const.getBoxScript
+  OpGetBoxValue  -> Just Const.getBoxValue
+  OpGetBoxArgs _ -> Nothing
+  OpGetBoxPostHeight -> Just $ Const.getBoxPostHeight
+  --
+  OpEnvGetHeight  -> Just Const.getHeight
+  OpEnvGetSelf    -> Just Const.getSelf
+  OpEnvGetInputs  -> Just Const.getInputs
+  OpEnvGetOutputs -> Just Const.getOutputs
+  OpEnvGetDataInputs -> Just Const.getDataInputs
+  -- Polymorphic functions
+  OpShow _ -> Nothing
+  OpEQ _   -> Nothing
+  OpNE _   -> Nothing
+  OpGT _   -> Nothing
+  OpGE _   -> Nothing
+  OpLT _   -> Nothing
+  OpLE _   -> Nothing
+  --
+  OpListMap{}    -> Nothing
+  OpListAt{}     -> Nothing
+  OpListAppend{} -> Nothing
+  OpListLength{} -> Nothing
+  OpListFoldr{}  -> Nothing
+  OpListFoldl{}  -> Nothing
+  OpListFilter{} -> Nothing
+  OpListSum      -> Just "sum"
+  OpListProduct  -> Just "product"
+  OpListAnd      -> Just "and"
+  OpListOr       -> Just "or"
+  OpListAll{}    -> Nothing
+  OpListAny{}    -> Nothing
+
+polyPrimOpName :: PrimOp a -> Maybe Name
+polyPrimOpName = \case
+  OpShow _ -> Just "show"
+  OpEQ _   -> Just "=="
+  OpNE _   -> Just "/="
+  OpGT _   -> Just ">"
+  OpGE _   -> Just ">="
+  OpLT _   -> Just "<"
+  OpLE _   -> Just "<="
+  --
+  OpFromBytes _ -> Just Const.deserialiseBytes
+  OpToBytes   _ -> Just Const.serialiseBytes
+  --
+  OpArgs _       -> Just $ Const.getArgs
+  OpGetBoxArgs _ -> Just $ Const.getBoxArgs
+  --
+  OpListMap{}    -> Just "map"
+  OpListAt{}     -> Just "listAt"
+  OpListAppend{} -> Just "++"
+  OpListLength{} -> Just "length"
+  OpListFoldr{}  -> Just "foldr"
+  OpListFoldl{}  -> Just "foldl"
+  OpListFilter{} -> Just "filter"
+  OpListAll{}    -> Just "all"
+  OpListAny{}    -> Just "any"
+  _              -> Nothing
+
+
+-- | List of all monomorphic primops
+monomorphicPrimops :: [PrimOp a]
+monomorphicPrimops =
+  [ OpAdd, OpSub, OpMul, OpDiv, OpNeg
+  , OpBoolAnd, OpBoolOr, OpBoolNot
+  , OpSigAnd, OpSigOr, OpSigPK, OpSigDTuple, OpSigBool, OpSigListAnd, OpSigListOr
+  , OpCheckSig, OpCheckMultiSig
+  , OpSHA256, OpTextLength, OpBytesLength, OpTextAppend, OpBytesAppend
+  , OpEnvGetHeight, OpEnvGetSelf, OpEnvGetInputs, OpEnvGetOutputs, OpEnvGetDataInputs
+  , OpGetBoxId, OpGetBoxScript, OpGetBoxValue, OpGetBoxPostHeight
+  , OpListSum
+  , OpListProduct
+  , OpListAnd
+  , OpListOr
+  ]
+
+-- | Name map for substitution of monomorphic primops
+monoPrimopNameMap :: M.Map Name (PrimOp a)
+monoPrimopNameMap = M.fromList
+  [ (nm,op) | op      <- monomorphicPrimops
+            , Just nm <- [ monoPrimopName op ]
+            ]
+

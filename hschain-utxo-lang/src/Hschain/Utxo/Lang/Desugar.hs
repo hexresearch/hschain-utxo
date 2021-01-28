@@ -30,6 +30,7 @@ import Type.Check.HM (getLoc)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Desugar.FreshVar
 import Hschain.Utxo.Lang.Desugar.PatternCompiler
 import Hschain.Utxo.Lang.Desugar.Records

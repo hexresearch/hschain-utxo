@@ -10,9 +10,9 @@ import Control.Applicative
 
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Compile.Hask.Utils
-import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..), monoPrimopName, polyPrimOpName)
+import Hschain.Utxo.Lang.Expr (Loc, noLoc, VarName(..))
 import Hschain.Utxo.Lang.Core.Types (Prim(..), Typed(..))
-import Hschain.Utxo.Lang.Core.Compile.Expr (conName)
+import Hschain.Utxo.Lang.Core.Compile.Expr (conName, monoPrimopName, polyPrimOpName)
 
 import Data.Fix
 

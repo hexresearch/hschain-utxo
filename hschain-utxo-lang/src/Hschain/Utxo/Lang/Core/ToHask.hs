@@ -21,7 +21,6 @@ import HSChain.Crypto.Classes (ByteRepr(..), encodeBase58)
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Sigma
-import Hschain.Utxo.Lang.Expr (monoPrimopName)
 
 import qualified Language.Haskell.Exts.Syntax as H
 import qualified Language.Haskell.Exts.Pretty as H
