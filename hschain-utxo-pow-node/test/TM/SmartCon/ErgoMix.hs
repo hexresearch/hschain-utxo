@@ -83,7 +83,6 @@ bobJoinMix bobGuess env bob pkAlice bidBob bidAlicePool = do
                        in [mixer gy gxy, mixer gxy gy]
         , tx'dataInputs = []
         }
-  liftIO $ pprint tx
   _ <- mineBlock Nothing [tx]
   let txId = computeTxId tx
   return (computeBoxId txId 0, computeBoxId txId 1)

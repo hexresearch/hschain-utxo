@@ -383,11 +383,11 @@ equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
 -- It expects the complete list of commitments from all participants (result of the function @appendCommitments@),
 -- challenges and the message to be signed and returns boolean.
 
-type QueryCommitments  = Sigma.CommitmentQueryExpr  CryptoAlg
-type CommitmentSecrets = Sigma.CommitmentSecretExpr CryptoAlg
-type Commitments       = Sigma.CommitmentExpr       CryptoAlg
-type Challenges        = Sigma.ChallengeExpr        CryptoAlg
-type QueryResponses    = Sigma.ResponseQueryExpr    CryptoAlg
+type QueryCommitments  = Sigma.ProofExpr Sigma.CommitmentQuery  CryptoAlg
+type CommitmentSecrets = Sigma.ProofExpr Sigma.CommitmentSecret CryptoAlg
+type Commitments       = Sigma.ProofExpr Sigma.CommitmentResult CryptoAlg
+type Challenges        = Sigma.ProofExpr Sigma.ChallengeResult  CryptoAlg
+type QueryResponses    = Sigma.ProofExpr Sigma.ResponseQuery    CryptoAlg
 
 -- | Inits multi-sig proof. Marks tree nodes as simulated and real proofs based
 -- on set of known public keys of the group of partners who sign the message.

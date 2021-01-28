@@ -5,6 +5,7 @@ module Hschain.Utxo.Lang.Parser.Hask.ToHask(
   , toHaskType
 ) where
 
+import qualified Codec.Serialise as CBOR
 import Data.Fix
 import Data.Maybe
 
@@ -13,6 +14,7 @@ import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Sigma
 
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -83,8 +85,8 @@ toLiteral loc = \case
     sigma src x = foldFix go x
       where
         go = \case
-          SigmaPk pkey -> let keyTxt = encodeBase58 pkey
-                            in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
+          SigmaPk pkey -> let keyTxt = encodeBase58 $ BL.toStrict $ CBOR.serialise pkey
+                          in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
           SigmaAnd as  -> foldl1 (ap2 (VarName src Const.sigmaAnd)) as
           SigmaOr  as  -> foldl1 (ap2 (VarName src Const.sigmaOr)) as
           SigmaBool b  -> H.Con src $ bool src b

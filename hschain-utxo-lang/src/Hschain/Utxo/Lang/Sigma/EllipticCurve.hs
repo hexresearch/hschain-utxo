@@ -82,6 +82,9 @@ instance ByteRepr (Challenge a) => CBOR.Serialise (Challenge a) where
   encode = defaultCborEncode
   decode = defaultCborDecode "Challenge"
 
+instance (ByteRepr (Challenge a)) => Show (Challenge a) where
+  show  = defaultShow
+
 
 ----------------------------------------------------------------
 -- Ed25519 elliptic curve
@@ -105,7 +108,7 @@ instance CryptoAsymmetric Ed25519 where
 
 instance EC Ed25519 where
   newtype Challenge Ed25519 = ChallengeEd25519 BS.ByteString
-    deriving stock   (Show,Eq,Ord,Generic)
+    deriving stock   (Eq,Ord,Generic)
     deriving newtype (NFData)
   generateChallenge = ChallengeEd25519 <$> RND.getRandomBytes 31
   randomOracle

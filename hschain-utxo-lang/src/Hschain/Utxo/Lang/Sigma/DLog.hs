@@ -42,20 +42,9 @@ data ProofDLog a = ProofDLog
     -- ^ Response of prover
   } deriving (Generic)
 
-deriving instance ( Show (ECPoint   a)
-                  , Show (ECScalar  a)
-                  , Show (Challenge a)
-                  ) => Show (ProofDLog a)
-
-deriving instance ( Eq (ECPoint   a)
-                  , Eq (ECScalar  a)
-                  , Eq (Challenge a)
-                  ) => Eq (ProofDLog a)
-
-instance ( CBOR.Serialise (ECPoint   a)
-         , CBOR.Serialise (ECScalar  a)
-         , CBOR.Serialise (Challenge a)
-         ) => CBOR.Serialise (ProofDLog a)
+deriving instance (EC a) => Show (ProofDLog a)
+deriving instance (EC a) => Eq   (ProofDLog a)
+instance (EC a) => CBOR.Serialise (ProofDLog a)
 
 -- | Simulate proof of posession of discrete logarithm for given
 --   challenge. It's possible to generate valid proof for any given
