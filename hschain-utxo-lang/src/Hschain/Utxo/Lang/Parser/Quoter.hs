@@ -83,13 +83,14 @@ import Hschain.Utxo.Lang.Compile
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Sigma (Sigma, PublicKey, ProofInput)
 import Hschain.Utxo.Lang.Types (Script)
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base (baseLibInferCtx, baseLibTypeContext)
 import Hschain.Utxo.Lang.Parser.Hask
 import Hschain.Utxo.Lang.Pretty
-import Hschain.Utxo.Lang.Build (mainExprModule)
+import Hschain.Utxo.Lang.Const (intT', boolT', bytesT', textT', sigmaT', listT', tupleT')
 
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -143,7 +144,7 @@ defQuoteModule str = do
 parseScript :: (String, Int, Int) -> String -> TH.Q Module
 parseScript pos@(file, _, _) str =
   case parseExp (Just file) str of
-    ParseOk expr -> fmap (mainExprModule . Expr) $ typeCheckExpr expr
+    ParseOk expr -> fmap mainExprModule $ typeCheckExpr expr
     ParseFailed _ _ ->
       case parseModule (Just file) str of
         ParseOk m           -> typeCheckModule m

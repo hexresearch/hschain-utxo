@@ -15,6 +15,7 @@ import Hschain.Utxo.Lang.Parser.Hask
 import Hschain.Utxo.Lang.Core.Compile (coreProgToScript,typeCheck)
 import Hschain.Utxo.Lang.Core.Types
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Exec.Module

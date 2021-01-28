@@ -21,8 +21,10 @@ import Data.Text (Text)
 
 import Type.Check.HM (appE, varE, lamE, conT, monoT, forAllT, stripSignature)
 
-import Hschain.Utxo.Lang.Desugar hiding (app1, app2, app3)
+import Hschain.Utxo.Lang.Desugar hiding (app1, app2)
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Core.Types (Prim(..))
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
@@ -32,6 +34,9 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import qualified Type.Check.HM as H
+
+import Hschain.Utxo.Lang.Const ( varT, intT, boolT, bytesT, textT, unitT
+                               , tupleT, listT, sigmaT, arrowT)
 
 import qualified Hschain.Utxo.Lang.Const as Const
 import qualified Hschain.Utxo.Lang.Desugar as D

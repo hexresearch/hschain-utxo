@@ -17,7 +17,6 @@ import Control.Monad.State.Strict
 import Data.String
 import Data.Text (Text)
 
-import Hschain.Utxo.Lang.Build()
 import Hschain.Utxo.Lang.Desugar
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Exec.Module

@@ -23,6 +23,8 @@ import Language.Haskell.Exts.Parser (
 import Language.Haskell.Exts.Pretty
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Parser.Hask.Dependencies
 import Hschain.Utxo.Lang.Parser.Hask.FromHask
 import Hschain.Utxo.Lang.Parser.Hask.ToHask

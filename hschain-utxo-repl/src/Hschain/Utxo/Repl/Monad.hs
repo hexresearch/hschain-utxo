@@ -38,6 +38,8 @@ import System.Console.Repline
 import System.Console.Haskeline.MonadException
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Error

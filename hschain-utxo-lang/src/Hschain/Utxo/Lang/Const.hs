@@ -71,6 +71,12 @@ module Hschain.Utxo.Lang.Const(
   -- * Evaluation constants
   , evalReductionLimit
   , reservedNames
+  -- * type constants
+  , maybeT, boolT, intT, textT, listT, sumT, tupleT, sigmaT, boxT, bytesT, unitT
+  , maybeT', boolT', intT', textT', listT', sumT', tupleT', sigmaT', boxT', bytesT', unitT'
+  , varT
+  , funT
+  , arrowT
 ) where
 
 import Prelude hiding (map, filter, foldr, foldl, length, show, all, any, and, or, sum, product, negate)
@@ -78,7 +84,9 @@ import Data.String
 import Data.Set (Set)
 import Data.Text (Text)
 
+import qualified Data.List as L
 import qualified Data.Set as S
+import qualified Type.Check.HM as H
 
 negate :: IsString a => a
 negate = "negate"
@@ -216,4 +224,60 @@ reservedNames = S.fromList
   [ "if", "then", "else", "where", "let", "in", "import"
   , "module", "data", "type", "otherwise" ]
 
+----------------------------------------------------------
+-- type constants
+
+intT, boolT, boxT, textT, sigmaT, bytesT, unitT :: (IsString v, H.DefLoc loc) => H.Type loc v
+intT    = intT'    H.defLoc
+boolT   = boolT'   H.defLoc
+bytesT  = bytesT'  H.defLoc
+boxT    = boxT'    H.defLoc
+textT   = textT'   H.defLoc
+sigmaT  = sigmaT'  H.defLoc
+unitT   = unitT'   H.defLoc
+
+tupleT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v
+tupleT = tupleT' H.defLoc
+
+sumT :: IsString v => H.DefLoc loc => [H.Type loc v] -> H.Type loc v
+sumT = sumT' H.defLoc
+
+listT :: H.DefLoc loc => H.Type loc v -> H.Type loc v
+listT = listT' H.defLoc
+
+maybeT :: IsString v => H.DefLoc loc => H.Type loc v -> H.Type loc v
+maybeT = maybeT' H.defLoc
+
+arrowT :: H.DefLoc loc => H.Type loc v -> H.Type loc v -> H.Type loc v
+arrowT = H.arrowT H.defLoc
+
+varT :: H.DefLoc loc => v -> H.Type loc v
+varT = H.varT H.defLoc
+
+funT :: H.DefLoc loc => [H.Type loc v] -> H.Type loc v -> H.Type loc v
+funT args resT = L.foldr arrowT resT args
+
+constType :: v -> loc -> H.Type loc v
+constType name loc = H.conT loc name []
+
+intT', boolT', boxT', textT', sigmaT', bytesT', unitT' :: (IsString v, H.DefLoc loc) => loc -> H.Type loc v
+boxT'    = constType "Box"
+textT'   = constType "Text"
+bytesT'  = constType "Bytes"
+intT'    = constType "Int"
+boolT'   = constType "Bool"
+sigmaT'  = constType "Sigma"
+unitT'   = constType "()"
+
+listT' :: loc -> H.Type loc v -> H.Type loc v
+listT' loc a = H.listT loc a
+
+maybeT' :: IsString v => loc -> H.Type loc v -> H.Type loc v
+maybeT' loc a = H.conT loc "Maybe" [a]
+
+tupleT' :: loc -> [H.Type loc v] -> H.Type loc v
+tupleT' loc ts = H.tupleT loc ts
+
+sumT' :: IsString v => loc -> [H.Type loc v] -> H.Type loc v
+sumT' loc ts = H.conT loc "Sum" ts
 

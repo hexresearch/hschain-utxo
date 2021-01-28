@@ -21,13 +21,14 @@ import qualified Data.Text       as T
 
 import Hschain.Utxo.Lang.Exec.Subst (subst)
 import Hschain.Utxo.Lang.Expr hiding (Type)
+import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Desugar.ExtendedLC
 import Hschain.Utxo.Lang.Compile.Expr
 import Hschain.Utxo.Lang.Types          (Script(..))
 import Hschain.Utxo.Lang.Compile.Infer
 import Hschain.Utxo.Lang.Compile.Monomorphize
 import Hschain.Utxo.Lang.Core.Types        (Typed(..), TypeCore(..), Name)
-import Hschain.Utxo.Lang.Core.Compile.Expr (Core,coreProgToScript)
+import Hschain.Utxo.Lang.Core.Compile.Expr (Core,coreProgToScript, monoPrimopNameMap)
 import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Pretty

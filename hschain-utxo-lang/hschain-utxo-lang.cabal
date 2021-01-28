@@ -20,7 +20,6 @@ library
   Ghc-options:         -Wall
   exposed-modules:
       Hschain.Utxo.Lang
-      Hschain.Utxo.Lang.Build
       Hschain.Utxo.Lang.Compile
       Hschain.Utxo.Lang.Compile.Build
       Hschain.Utxo.Lang.Compile.Dependencies
@@ -55,6 +54,8 @@ library
       Hschain.Utxo.Lang.Expr
       Hschain.Utxo.Lang.Const
       Hschain.Utxo.Lang.Infer
+      Hschain.Utxo.Lang.Module
+      Hschain.Utxo.Lang.UserType
       Hschain.Utxo.Lang.Lib.Base
       Hschain.Utxo.Lang.Monad
       Hschain.Utxo.Lang.Parser.Hask

@@ -34,7 +34,6 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Monad
 
 
@@ -150,14 +149,16 @@ toSendTx wallet Send{..} SendBack{..} =
     senderUtxo
       | sendBack'totalAmount > send'amount = Just $ Box
                 { box'value  = sendBack'totalAmount - send'amount
-                , box'script = mainScriptUnsafe $ pk' $ getWalletPublicKey wallet
+                , box'script = let pubKey = getWalletPublicKey wallet
+                               in  [utxo| pk $(pubKey) |]
                 , box'args   = mempty
                 }
       | otherwise                 = Nothing
 
     receiverUtxo = Box
       { box'value  = send'amount
-      , box'script = mainScriptUnsafe $ pk' $ getWalletPublicKey send'recepientWallet
+      , box'script = let pubKey = getWalletPublicKey send'recepientWallet
+                     in  [utxo| pk $(pubKey) |]
       , box'args   = mempty
       }
 
@@ -190,6 +191,6 @@ singleOwnerBoxRef wallet boxId = BoxInputRef
 singleSpendBox :: Int64 -> PublicKey -> Box
 singleSpendBox value pubKey = Box
   { box'value  = value
-  , box'script = mainScriptUnsafe $ pk' pubKey
+  , box'script = [utxo| pk $(pubKey) |]
   , box'args   = mempty
   }

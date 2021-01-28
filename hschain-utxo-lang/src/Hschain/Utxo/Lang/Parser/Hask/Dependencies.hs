@@ -17,6 +17,7 @@ import Language.Haskell.Exts.Parser (
     ParseResult(..))
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.UserType
 import Hschain.Utxo.Lang.Parser.Hask.Utils
 
 import qualified Data.Map.Strict as Map

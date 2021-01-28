@@ -6,8 +6,6 @@ module Hschain.Utxo.Test.Client.Scripts.Lightning.Tx(
   , closeChanTx
 ) where
 
-import HSChain.Crypto (ByteRepr(..))
-
 import Control.Monad.IO.Class
 
 import Data.ByteString (ByteString)
@@ -15,7 +13,6 @@ import Data.Int
 import Data.Maybe
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Build
 import Hschain.Utxo.Test.Client.Wallet
 import Hschain.Utxo.Test.Client.Scripts.Lightning.Protocol
 
@@ -33,12 +30,9 @@ fundingTx wallet (value, change) inputIds otherPubKey = newProofTx  (getProofEnv
   where
     fundBox = Box
       { box'value  = value
-      , box'script = mainScriptUnsafe $ toSigma $ checkMultiSig (int 2) (fromVec keys) (fromVec indices)
+      , box'script = [utxo| toSigma (checkMultiSig 2 [$(ownerPubKey), $(otherPubKey)] [0, 1]) |]
       , box'args   = mempty
       }
-      where
-        keys = fmap (bytes . encodeToBS) [ownerPubKey, otherPubKey]
-        indices = fmap int [0, 1]
 
     changeBox
       | change <= 0 = Nothing
@@ -60,27 +54,28 @@ commitmentTx myPk commonBoxId (myValue, otherValue) otherPk spendDelay revokeHas
   where
     myBox = Box
       { box'value  = myValue
-      , box'script = mainScriptUnsafe revokeScript
+      , box'script = revokeScript
       , box'args   = mempty
       }
       where
-        revokeScript =
-              (pk' myPk &&* (toSigma $ getHeight >* getBoxPostHeight getSelf + int (fromIntegral spendDelay)))
-          ||* (pk' otherPk &&* (toSigma $ sha256 readKey ==* bytes revokeHash))
-
-    readKey = getArgs
+        revokeScript = [utxo|
+              (pk $(myPk) &&* (getHeight >* (getBoxPostHeight getSelf + $(spendDelay))))
+          ||* (pk $(otherPk) &&* (sha256 getArgs ==* $(revokeHash)))
+          |]
 
     otherBox = singleSpendBox otherValue otherPk
 
     fromHtlc Htlc{..} = Box
       { box'value  = abs $ htlc'value
-      , box'script = mainScriptUnsafe $ htlcScript htlc'payHash (if (htlc'value > 0) then (otherPk, myPk) else (myPk, otherPk)) (fromIntegral htlc'time)
+      , box'script = htlcScript htlc'payHash (if (htlc'value > 0) then (otherPk, myPk) else (myPk, otherPk)) (fromIntegral htlc'time)
       , box'args   = mempty
       }
 
-    htlcScript payHash (receiverKey, senderKey) time =
-          (pk' receiverKey &&* (toSigma $ sha256 readKey ==* bytes payHash))
-      ||* (pk' senderKey &&* (toSigma $ getHeight >=* int time))
+    htlcScript :: ByteString -> (PublicKey, PublicKey) -> Int -> Script
+    htlcScript payHash (receiverKey, senderKey) time = [utxo|
+          (pk $(receiverKey) &&* (sha256 getArgs ==* $(payHash)))
+      ||* (pk $(senderKey) &&* (getHeight >=* $(time)))
+      |]
 
 closeChanTx :: BoxId -> Balance -> (PublicKey, PublicKey) -> Tx
 closeChanTx commonBoxId (valA, valB) (pkA, pkB) =

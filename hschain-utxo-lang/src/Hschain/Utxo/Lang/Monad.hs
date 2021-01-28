@@ -12,6 +12,8 @@ import Hschain.Utxo.Lang.Error            as X
 import Hschain.Utxo.Lang.Desugar.FreshVar as X
 
 import Hschain.Utxo.Lang.Expr
+import Hschain.Utxo.Lang.Module
+import Hschain.Utxo.Lang.UserType
 
 -- | Monad for language execution and type-checking.
 --

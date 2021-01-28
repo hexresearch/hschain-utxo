@@ -3,7 +3,6 @@
 module Hschain.Utxo.Lang.Desugar.Records(
     removeRecordCons
   , orderRecordFieldsFromContext
-  , removeRecordUpdate
   , removeRecords
 ) where
 
@@ -11,6 +10,7 @@ import Control.Arrow (first)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Monad
+import Hschain.Utxo.Lang.UserType
 
 import Data.Fix
 import Data.Maybe
