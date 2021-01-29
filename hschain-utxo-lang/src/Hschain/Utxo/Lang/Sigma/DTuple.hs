@@ -110,7 +110,7 @@ deriving instance (EC a) => Show (DTuple a)
 deriving instance (EC a) => Eq (DTuple a)
 deriving instance (EC a, Ord (ECPoint a))  => Ord (DTuple a)
 deriving instance NFData (ECPoint a)  => NFData (DTuple a)
-instance (CBOR.Serialise (ECPoint a)) => CBOR.Serialise (DTuple a)
+instance (CryptoAsymmetric a) => CBOR.Serialise (DTuple a)
 
 instance CryptoHashable (ECPoint a) => CryptoHashable (DTuple a) where
   hashStep = genericHashStep hashDomain

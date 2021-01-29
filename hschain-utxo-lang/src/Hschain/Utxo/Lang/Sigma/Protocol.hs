@@ -7,11 +7,12 @@ module Hschain.Utxo.Lang.Sigma.Protocol(
   , AtomicProof(..)
   , ProofInput(..)
   , leafPublicKey
+  , FiatShamirLeaf(..)
   , simulateAtomicProof
   , verifyAtomicProof
   , responseZ
   , getProofInput
-) where
+  ) where
 
 import Codec.Serialise (Serialise)
 import Control.DeepSeq (NFData)
@@ -54,22 +55,35 @@ sexprAnn = \case
   AND  k _ -> k
   OR   k _ -> k
 
+
 -- | Public proof data (inputs for proof algorithms)
 data ProofInput a
   = InputDLog   (PublicKey a)      -- ^ proof of discrte log
   | InputDTuple (DTuple a)  -- ^ proof of Diffie-Hellman tuple
   deriving (Generic)
 
-leafPublicKey :: ProofInput a -> PublicKey a
-leafPublicKey (InputDLog   pk) = pk
-leafPublicKey (InputDTuple dh) = dtuple'g_y dh
-
+-- | Leaf of Fiat-Shamir tree.
+data FiatShamirLeaf a
+  = FiatShamirLeafDLog
+      { fsLeafDLog'public     :: PublicKey a
+      , fsLeafDLog'commitment :: Commitment a
+      }
+  | FiatShamirLeafDTuple
+      { fsLeafDTuple'public     :: DTuple a
+      , fsLeafDTuple'commitment :: (Commitment a, Commitment a)
+      }
+      deriving stock (Generic)
 
 -- | Proof of one of two methods of key verification
 data AtomicProof a
   = ProofDL (ProofDLog a)    -- ^ proof of knowledge of discrete log
   | ProofDT (ProofDTuple a)  -- ^ proof of knowledge of Diffie-Helman tuple
   deriving (Generic)
+
+
+leafPublicKey :: ProofInput a -> PublicKey a
+leafPublicKey (InputDLog   pk) = pk
+leafPublicKey (InputDTuple dh) = dtuple'g_y dh
 
 getProofInput :: AtomicProof a -> ProofInput a
 getProofInput = \case
@@ -93,10 +107,8 @@ verifyAtomicProof = \case
   ProofDL dlog   -> verifyProofDLog dlog
   ProofDT dtuple -> verifyProofDTuple dtuple
 
-
 -- | Set of known keys
 newtype Env a = Env { unEnv :: [KeyPair a] }
-
 
 
 ----------------------------------------------------------------
@@ -119,7 +131,7 @@ instance (CryptoAsymmetric a)   => CBOR.Serialise (ProofInput a)
 instance (CryptoAsymmetric a)   => ToJSON (ProofInput a)
 instance (CryptoAsymmetric a)   => FromJSON (ProofInput a)
 
-instance CryptoHashable (ECPoint a) => CryptoHashable (ProofInput a) where
+instance (CryptoAsymmetric a) => CryptoHashable (ProofInput a) where
   hashStep = genericHashStep hashDomain
 
 instance Typeable a => Data (ProofInput a) where
@@ -131,5 +143,7 @@ instance Typeable a => Data (ProofInput a) where
 deriving instance TH.Lift (PublicKey a) => TH.Lift (ProofInput a)
 
 deriving instance (EC a) => Show (AtomicProof a)
-deriving instance (EC a) => Eq (AtomicProof a)
+deriving instance (EC a) => Eq   (AtomicProof a)
 instance (EC a) => CBOR.Serialise (AtomicProof a)
+
+instance (CryptoAsymmetric a) => CBOR.Serialise (FiatShamirLeaf a)
