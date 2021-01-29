@@ -47,15 +47,18 @@ data ModuleCtx = ModuleCtx
   deriving stock (Generic)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid ModuleCtx
 
+-- | Header of the module
 data ModuleHead = ModuleHead
   { moduleHead'name    :: !VarName             -- ^ module name
   , moduleHead'exports :: !(Maybe ExportList)  -- ^ export list
   }
   deriving stock (Eq, Show, Generic, Data, Typeable)
 
+-- | Export list
 data ExportList = ExportList Loc [ExportItem]
   deriving stock (Eq, Show, Generic, Data, Typeable)
 
+-- | Export list items.
 data ExportItem
   = ExportVar VarName                   -- ^ export variable
   | ExportTypeAbs VarName               -- ^ export type or type synonym
@@ -63,6 +66,7 @@ data ExportItem
   | ExportModule VarName                -- ^ module re-export
   deriving stock (Eq, Show, Generic, Data, Typeable)
 
+-- | Module import
 data Import = Import
   { import'name      :: !VarName               -- ^ module name
   , import'loc       :: !Loc                   -- ^ source code location
@@ -72,13 +76,15 @@ data Import = Import
   }
   deriving stock (Eq, Show, Generic, Data, Typeable)
 
+-- | Import list
 data ImportList = ImportList
-  { importList'loc    :: Loc
-  , importList'hides  :: Bool
-  , importList'items  :: [ImportItem]
+  { importList'loc    :: Loc             -- ^ source code location
+  , importList'hides  :: Bool            -- ^ if True import hides items otherwise imports
+  , importList'items  :: [ImportItem]    -- ^ list of items for import or exclusion
   }
   deriving stock (Eq, Show, Generic, Data, Typeable)
 
+-- | Import item for the import list.
 data ImportItem
   = ImportVar VarName                 -- ^ import variable
   | ImportAbs VarName                 -- ^ import type or typesymomym by name only
