@@ -13,7 +13,6 @@ import Control.Monad.State.Strict
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Error
 
 import System.Console.Repline hiding (options)
 import System.Process

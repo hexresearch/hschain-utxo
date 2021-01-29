@@ -74,7 +74,9 @@ evaluate env types expr = runExec $ do
   where
     main = Module
       { module'loc       = noLoc
+      , module'head      = Nothing
       , module'userTypes = types
+      , module'imports   = []
       , module'binds     = Binds mempty $
           [ FunBind
                  { bind'name = "main"
