@@ -130,20 +130,55 @@ fromHaskExp topExp = case topExp of
 
 fromHaskModule :: H.Module Loc -> ParseResult Module
 fromHaskModule = \case
-  H.Module loc Nothing [] [] decls -> fromDecls loc decls
-  _                                -> err
+  H.Module loc mHead [] imports decls -> fromDecls mHead imports loc decls
+  _                                   -> err
   where
     err = ParseFailed (H.fromSrcInfo noLoc) "Failed to parse module"
 
-fromDecls :: Loc -> [H.Decl Loc] -> ParseResult Module
-fromDecls loc ds = do
+fromDecls :: (Maybe (H.ModuleHead Loc)) -> [H.ImportDecl Loc] -> Loc -> [H.Decl Loc] -> ParseResult Module
+fromDecls mHead imports loc ds = do
   decls <- mapM toDecl ds
   bg <- toBindGroup decls
+  hd <- mapM toHead mHead
   return $ Module
     { module'loc       = loc
+    , module'head      = hd
     , module'userTypes = toUserTypes decls
+    , module'imports   = fmap toImport imports
     , module'binds     = bg
     }
+  where
+    toHead (H.ModuleHead _ name _ mExports) = do
+      es <- mapM fromExportList mExports
+      return $ ModuleHead
+        { moduleHead'name    = fromModuleName name
+        , moduleHead'exports = es
+        }
+
+    fromExportList (H.ExportSpecList src es) = fmap (ExportList src) (mapM fromExportItem es)
+
+    fromExportItem = \case
+      H.EVar _ v   -> fmap ExportVar $ fromQName v
+      H.EAbs _ _ v -> fmap ExportTypeAbs $ fromQName v
+      H.EThingWith _ _ v cs -> fmap (\name -> ExportTypeWith name (fmap fromCName cs)) (fromQName v)
+      H.EModuleContents _ v  -> return $ ExportModule $ fromModuleName v
+
+    toImport imp = Import
+      { import'name      = fromModuleName $ H.importModule imp
+      , import'loc       = H.importAnn imp
+      , import'qualified = H.importQualified imp
+      , import'as        = fmap fromModuleName $ H.importAs imp
+      , import'list      = fmap fromImportList $ H.importSpecs imp
+      }
+
+    fromImportList (H.ImportSpecList src hides items) =
+      ImportList src hides (fmap fromImportItem items)
+
+    fromImportItem = \case
+      H.IVar _ v -> ImportVar $ toName v
+      H.IAbs _ _ v -> ImportAbs $ toName v
+      H.IThingAll _ v -> ImportTypeAll $ toName v
+      H.IThingWith _ v cs -> ImportTypeWith (toName v) (fmap fromCName cs)
 
 toUserTypes :: [Decl] -> UserTypeCtx
 toUserTypes ds =
@@ -289,6 +324,14 @@ fromQName = \case
   H.UnQual _ name -> return $ toName name
   H.Special _ (H.UnitCon loc) -> return $ VarName loc "()"
   other           -> parseFailedBy "Unexpected name" other
+
+fromCName :: H.CName Loc -> VarName
+fromCName = \case
+  H.VarName _ v -> toName v
+  H.ConName _ v -> toName v
+
+fromModuleName :: H.ModuleName Loc -> VarName
+fromModuleName (H.ModuleName loc name) = VarName loc (T.pack name)
 
 fromQualType :: H.Type Loc -> ParseResult Signature
 fromQualType x = case x of

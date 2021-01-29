@@ -96,7 +96,44 @@ toLiteral loc = \case
 
 -- | TODO implement rendering of type declarations
 toHaskModule :: Module -> H.Module Loc
-toHaskModule (Module loc _ bs) = H.Module loc Nothing [] [] (toDecl bs)
+toHaskModule (Module loc mHead imps _ bs) =
+  H.Module loc (fmap toModuleHead mHead) [] (fmap toImportDecl imps) (toDecl bs)
+
+toModuleHead :: ModuleHead -> H.ModuleHead Loc
+toModuleHead ModuleHead{..} =
+  H.ModuleHead (varName'loc moduleHead'name) (toModuleName moduleHead'name) Nothing (fmap toExportList moduleHead'exports)
+  where
+    toExportList (ExportList loc es) = H.ExportSpecList loc (fmap toExportItem es)
+
+    toExportItem = \case
+      ExportVar v         -> H.EVar (varName'loc v) (toQName v)
+      ExportTypeAbs v     -> let loc = varName'loc v
+                             in  H.EAbs loc (H.NoNamespace loc) (toQName v)
+      ExportTypeWith v cs -> let loc = varName'loc v
+                             in  H.EThingWith loc (H.NoWildcard loc) (toQName v) (fmap toCName cs)
+      ExportModule v -> H.EModuleContents (varName'loc v) (toModuleName v)
+
+toImportDecl :: Import -> H.ImportDecl Loc
+toImportDecl Import{..} = H.ImportDecl
+  { H.importAnn       = import'loc
+  , H.importModule    = toModuleName import'name
+  , H.importQualified = import'qualified
+  , H.importSrc       = False
+  , H.importSafe      = False
+  , H.importPkg       = Nothing
+  , H.importAs        = fmap toModuleName import'as
+  , H.importSpecs     = fmap toImportSpecs import'list
+  }
+  where
+    toImportSpecs (ImportList loc hides items) =
+      H.ImportSpecList loc hides (fmap toItem items)
+
+    toItem = \case
+      ImportVar v     -> H.IVar (varName'loc v) (toIdentName v)
+      ImportAbs v     -> let loc = varName'loc v
+                         in  H.IAbs loc (H.NoNamespace loc) (toIdentName v)
+      ImportTypeAll v -> H.IThingAll (varName'loc v) (toIdentName v)
+      ImportTypeWith v cs -> H.IThingWith (varName'loc v) (toIdentName v) (fmap toCName cs)
 
 toDecl :: Binds Lang -> [H.Decl Loc]
 toDecl bs = toBind =<< binds'decls bs
@@ -176,7 +213,6 @@ toIdentName (VarName loc name) = H.Ident loc (T.unpack name)
 toSymbolName :: VarName -> H.Name Loc
 toSymbolName VarName{..} = H.Symbol varName'loc (T.unpack varName'name)
 
-
 toType :: Signature -> H.Type Loc
 toType x = case splitToPreds x of
   (_, ty) -> toHaskType ty
@@ -202,6 +238,12 @@ toHaskType = foldFix go . HM.unType
 
 toQName :: VarName -> H.QName Loc
 toQName x = H.UnQual (HM.getLoc x) $ toIdentName x
+
+toCName :: VarName -> H.CName Loc
+toCName v = H.VarName (varName'loc v) $ toIdentName v
+
+toModuleName :: VarName -> H.ModuleName Loc
+toModuleName VarName{..} = H.ModuleName varName'loc (T.unpack varName'name)
 
 toSymbolQName :: VarName -> H.QName Loc
 toSymbolQName x@(VarName loc _) = H.UnQual loc $ toSymbolName x

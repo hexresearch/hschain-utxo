@@ -1,6 +1,12 @@
 -- | Module level definitions and evaluation contexts.
 module Hschain.Utxo.Lang.Module(
     Module(..)
+  , ModuleHead(..)
+  , ExportList(..)
+  , ExportItem(..)
+  , Import(..)
+  , ImportList(..)
+  , ImportItem(..)
   , ModuleCtx(..)
   , ExecCtx(..)
   , InferCtx(..)
@@ -26,9 +32,11 @@ import qualified Type.Check.HM as H
 
 -- | The type represents modules.
 data Module = Module
-  { module'loc       :: !Loc          -- ^ source code location
-  , module'userTypes :: !UserTypeCtx  -- ^ user-defined types
-  , module'binds     :: !(Binds Lang) -- ^ values (functions)
+  { module'loc       :: !Loc                 -- ^ source code location
+  , module'head      :: !(Maybe ModuleHead)  -- ^ module header
+  , module'imports   :: ![Import]            -- ^ list of imports
+  , module'userTypes :: !UserTypeCtx         -- ^ user-defined types
+  , module'binds     :: !(Binds Lang)        -- ^ values (functions)
   } deriving (Data, Typeable)
 
 -- | Evaluated module
@@ -38,6 +46,45 @@ data ModuleCtx = ModuleCtx
   }
   deriving stock (Generic)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid ModuleCtx
+
+data ModuleHead = ModuleHead
+  { moduleHead'name    :: !VarName             -- ^ module name
+  , moduleHead'exports :: !(Maybe ExportList)  -- ^ export list
+  }
+  deriving stock (Eq, Show, Generic, Data, Typeable)
+
+data ExportList = ExportList Loc [ExportItem]
+  deriving stock (Eq, Show, Generic, Data, Typeable)
+
+data ExportItem
+  = ExportVar VarName                   -- ^ export variable
+  | ExportTypeAbs VarName               -- ^ export type or type synonym
+  | ExportTypeWith VarName [VarName]    -- ^ export type with some of it constructors
+  | ExportModule VarName                -- ^ module re-export
+  deriving stock (Eq, Show, Generic, Data, Typeable)
+
+data Import = Import
+  { import'name      :: !VarName               -- ^ module name
+  , import'loc       :: !Loc                   -- ^ source code location
+  , import'qualified :: !Bool                  -- ^ is module imported qualified
+  , import'as        :: !(Maybe VarName)       -- ^ as synonym for module name
+  , import'list      :: !(Maybe ImportList)    -- ^ explicit import list
+  }
+  deriving stock (Eq, Show, Generic, Data, Typeable)
+
+data ImportList = ImportList
+  { importList'loc    :: Loc
+  , importList'hides  :: Bool
+  , importList'items  :: [ImportItem]
+  }
+  deriving stock (Eq, Show, Generic, Data, Typeable)
+
+data ImportItem
+  = ImportVar VarName                 -- ^ import variable
+  | ImportAbs VarName                 -- ^ import type or typesymomym by name only
+  | ImportTypeAll VarName             -- ^ import datatype with all constructors, i.e. @T(..)@
+  | ImportTypeWith VarName [VarName]  -- ^ import type with some contructors
+  deriving (Eq, Show, Generic, Data, Typeable)
 
 getModuleCtxNames :: ModuleCtx -> [Text]
 getModuleCtxNames = M.keys . H.unContext . inferCtx'binds . moduleCtx'types
@@ -76,7 +123,7 @@ mainExprModule :: Lang -> Module
 mainExprModule expr = simpleModule (bind "main" expr)
 
 simpleModule :: Binds Lang -> Module
-simpleModule = Module noLoc mempty
+simpleModule = Module noLoc Nothing [] mempty
 
 bind :: Text -> Lang -> Binds Lang
 bind name expr = simpleBind (VarName noLoc name) expr
