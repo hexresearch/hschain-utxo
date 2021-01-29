@@ -173,6 +173,7 @@ Test-suite hschain-utxo-lang-tests
                        TM.Core.Common
                        TM.Core.Int
                        TM.Core.List
+                       TM.Lang.Imports
                        TM.Lang.Scripts
                        TM.Lang.UserTypes
                        TM.Tx.DTuple

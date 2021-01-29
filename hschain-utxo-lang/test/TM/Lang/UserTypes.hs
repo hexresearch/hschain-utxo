@@ -7,12 +7,8 @@ module TM.Lang.UserTypes(
 ) where
 
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Error
-
 import Test.Tasty
-import Test.Tasty.HUnit
-
-import qualified Data.Text as T
+import TM.Core.Common (testScript)
 
 tests :: TestTree
 tests = testGroup "User types"
@@ -22,16 +18,6 @@ tests = testGroup "User types"
   , testScript "Encode user type"        encodeUserType
   , testScript "Equality for user type"  genEquality
   ]
-
-testScript :: String -> Module -> TestTree
-testScript msg prog = testCase msg $ do
-  let mErr = checkModule prog
-  case mErr of
-    Just err -> assertFailure $ T.unpack $ renderText err
-    Nothing  -> return ()
-
-checkModule :: Module -> Maybe Error
-checkModule = either Just (const Nothing) . toCoreScript
 
 -- | Program with user-defined data-types.
 prog1 :: Module

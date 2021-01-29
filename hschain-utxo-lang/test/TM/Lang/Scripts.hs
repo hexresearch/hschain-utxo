@@ -14,11 +14,11 @@ module TM.Lang.Scripts(
 import Data.ByteString (ByteString)
 import Data.Int
 import Hschain.Utxo.Lang
-import Hschain.Utxo.Lang.Error
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import TM.Core.Common (checkModule)
 import qualified Data.Text as T
 
 tests :: TestTree
@@ -40,9 +40,6 @@ testScript msg prog = testCase msg $ do
   case mErr of
     Just err -> assertFailure $ T.unpack $ renderText err
     Nothing  -> return ()
-
-checkModule :: Module -> Maybe Error
-checkModule = either Just (const Nothing) . toCoreScript
 
 --------------------------------------------------------------
 -- single ownership test
