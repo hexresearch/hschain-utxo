@@ -6,6 +6,8 @@ module TM.Core.Common
   , testProgramFail
   , mkBoxInput
   , mkBoxOutput
+  , checkModule
+  , testScript
   ) where
 
 import Data.Int
@@ -13,12 +15,13 @@ import Data.Int
 import Test.Tasty
 import Test.Tasty.HUnit
 import HSChain.Crypto (hash)
-import Hschain.Utxo.Lang.Types
+import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Core.RefEval
 import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck
 import Hschain.Utxo.Lang.Core.Types
 
+import qualified Data.Text   as T
 import qualified Data.Vector as V
 
 env :: InputEnv
@@ -85,5 +88,14 @@ testProgramBy nm prog res
       Right r   -> [ testCase "simple dB" $ Right r @=? evalProg env prog ]
 
 
+checkModule :: Module -> Maybe Error
+checkModule = either Just (const Nothing) . toCoreScript
+
+testScript :: String -> Module -> TestTree
+testScript msg prog = testCase msg $ do
+  let mErr = checkModule prog
+  case mErr of
+    Just err -> assertFailure $ T.unpack $ renderText err
+    Nothing  -> return ()
 
 

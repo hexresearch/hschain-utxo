@@ -8,6 +8,7 @@ import Hschain.Utxo.Lang.Compile    as X
 import Hschain.Utxo.Lang.Core.Eval  as X
 import Hschain.Utxo.Lang.Sigma      as X
 import Hschain.Utxo.Lang.Expr       as X
+import Hschain.Utxo.Lang.Error      as X
 import Hschain.Utxo.Lang.Exec       as X
 import Hschain.Utxo.Lang.Pretty     as X
 import Hschain.Utxo.Lang.Module     as X
