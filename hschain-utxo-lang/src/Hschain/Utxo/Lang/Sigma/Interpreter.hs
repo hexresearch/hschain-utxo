@@ -226,12 +226,12 @@ markTree isProvable = clean . check
                    | otherwise       -> Leaf Simulated leaf
       AND  () es -> AND k es'
         where
-          es'  = map check es
+          es' = check <$> es
           k | all ((==Real) . sexprAnn) es' = Real
             | otherwise                     = Simulated
       OR   () es -> OR k es'
         where
-          es'  = map check es
+          es' = check <$> es
           k | any ((==Real) . sexprAnn) es' = Real
             | otherwise                     = Simulated
     -- Change some "real" nodes to "simulated" to make sure each node
@@ -280,7 +280,7 @@ simulateProofs = goReal
       OR   Simulated []     -> error "simulateProofs: Empty OR"
       OR   Simulated (e:es) -> do
         esWithCh <- liftIO $ forM es $ \x -> (,x) <$> generateChallenge
-        let ch0 = foldl xorChallenge ch $ map fst esWithCh
+        let ch0 = foldl xorChallenge ch $ fst <$> esWithCh
         OR (SimulatedS ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
       _ -> error "simulateProofs: internal error"
 
@@ -440,8 +440,8 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
     go ch = \case
       ProvenLeaf resp proofInp -> Leaf () $ getAtomicProof ch proofInp resp
-      ProvenOr leftmost rest   -> OR   () $ fmap (uncurry go)
-                                          $ getLeftmostOrChallenge ch leftmost rest : rest
+      ProvenOr leftmost rest   -> OR   () $  uncurry go
+                                         <$> getLeftmostOrChallenge ch leftmost rest : rest
       ProvenAnd children       -> AND  () $ go ch <$> children
 
     getAtomicProof ch proofInp respZ = case proofInp of
