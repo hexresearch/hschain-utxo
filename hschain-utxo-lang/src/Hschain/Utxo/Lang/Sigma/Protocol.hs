@@ -99,8 +99,8 @@ responseZ = \case
 -- challenge
 simulateAtomicProof :: EC a => ProofInput a -> Challenge a -> IO (AtomicProof a)
 simulateAtomicProof inp e = case inp of
-  InputDLog dlog     -> fmap ProofDL $ simulateProofDLog dlog e
-  InputDTuple dtuple -> fmap ProofDT $ simulateProofDTuple dtuple e
+  InputDLog   dlog   -> ProofDL <$> simulateProofDLog dlog e
+  InputDTuple dtuple -> ProofDT <$> simulateProofDTuple dtuple e
 
 verifyAtomicProof :: (EC a) => AtomicProof a -> Bool
 verifyAtomicProof = \case
