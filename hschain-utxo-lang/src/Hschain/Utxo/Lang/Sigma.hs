@@ -62,11 +62,9 @@ import Data.ByteString (ByteString)
 import Data.Boolean
 import Data.Bifunctor
 import Data.Data
-import Data.Default
 import Data.Either
 import Data.Fix
 import Data.Functor.Classes (Eq1(..))
-import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Eq.Deriving
@@ -118,9 +116,6 @@ newtype SigMessage = SigMessage (Hash SHA256)
   deriving stock    (Generic)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "SigMessage" ByteString)
-
-instance Default SigMessage where
-  def = fromJust $ decodeFromBS ""
 
 -- | Generate new private key.
 newSecret :: IO Secret
