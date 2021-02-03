@@ -249,9 +249,9 @@ toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
 toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
 
 toSigmaExprOrFail :: Sigma a -> Either Text (Sigma.SigmaE () a)
-toSigmaExprOrFail a = bimap catchBoolean id $ toSigmaExpr a
-  where
-    catchBoolean = const "Expression is constant boolean. It is not  a sigma-expression"
+toSigmaExprOrFail
+  = first (const "Expression is constant boolean. It is not  a sigma-expression")
+  . toSigmaExpr
 
 toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
 toPrimSigmaExpr = foldFix $ \case
