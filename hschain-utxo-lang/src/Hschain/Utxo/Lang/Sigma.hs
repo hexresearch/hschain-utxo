@@ -23,7 +23,6 @@ module Hschain.Utxo.Lang.Sigma(
   , SigmaF(..)
   , newProof
   , verifyProof
-  , emptyProofEnv
   , proofEnvFromKeys
   , newSecret
   , newKeyPair
@@ -259,10 +258,6 @@ toPrimSigmaExpr = foldFix $ \case
   SigmaAnd as  -> fmap (Sigma.AND ()) $ sequence as
   SigmaOr  as  -> fmap (Sigma.OR  ()) $ sequence as
   SigmaBool _  -> Nothing
-
--- | Empty proof environment. It holds no keys.
-emptyProofEnv :: ProofEnv
-emptyProofEnv = Sigma.Env []
 
 -- | Wrapper to contruct proof environment from list of key-pairs.
 proofEnvFromKeys :: [KeyPair] -> ProofEnv
