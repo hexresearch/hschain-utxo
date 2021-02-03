@@ -25,6 +25,7 @@ library
                      , aeson
                      , bytestring
                      , hschain-utxo-lang
+                     , hschain-crypto
                      , optparse-applicative
                      , serialise
                      , text

@@ -57,8 +57,8 @@ toSigma loc = foldFix $ \case
     toQOp op = H.QVarOp loc (toQName $ VarName loc op)
 
     fromProofInput = \case
-      Sigma.InputDLog   pk -> app loc "pk" [toText loc $ publicKeyToText pk]
-      Sigma.InputDTuple dt -> app loc "proofDTuple" $ fmap (toText loc . publicKeyToText)
+      Sigma.InputDLog   pk -> app loc "pk" [toText loc $ encodeBase58 pk]
+      Sigma.InputDTuple dt -> app loc "proofDTuple" $ fmap (toText loc . encodeBase58)
         [ Sigma.dtuple'g    dt
         , Sigma.dtuple'g_x  dt
         , Sigma.dtuple'g_y  dt

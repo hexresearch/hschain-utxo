@@ -23,8 +23,6 @@ module Hschain.Utxo.Lang.Sigma(
   , SigmaF(..)
   , newProof
   , verifyProof
-  , publicKeyFromText
-  , publicKeyToText
   , emptyProofEnv
   , proofEnvFromKeys
   , newSecret
@@ -142,14 +140,6 @@ getPublicKey = Sigma.getPublicKey
 -- | Proof environment is a listavailable key-pairs.
 toProofEnv :: [KeyPair] -> ProofEnv
 toProofEnv ks = Sigma.Env ks
-
--- | Parse public key from text.
-publicKeyFromText :: Text -> Maybe PublicKey
-publicKeyFromText = serialiseFromText
-
--- | Convert public key to text.
-publicKeyToText :: PublicKey -> Text
-publicKeyToText = serialiseToText
 
 instance Serialise a => ToJSON (Sigma a) where
   toJSON = serialiseToJSON
