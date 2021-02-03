@@ -337,42 +337,34 @@ orChallenge ch rest = foldl xorChallenge ch rest
 ----------------------------------------------------------------
 
 
--- | Check that proof is correct.
+-- | Check that proof is correct. To do so we compute commitments for
+--   every node in Σ-expression tree compute Fiat-Shamir hash and
+--   check that it's same as root challenge.
 verifyProof :: forall a. (EC a, Eq (Challenge a))
   => Proof a
   -> ByteString
   -> Bool
-verifyProof proof message
-  =  (computeRootChallenge compTree message == proof'rootChallenge proof)
-  && all verifyAtomicProof compTree
+verifyProof proof message =
+  computeRootChallenge compTree message == proof'rootChallenge proof
   where
     compTree = completeProvenTree proof
 
 -- | In top-down traversal compute challenges for each leaf node in
 --   tree and build 'AtomicProof' for it.
-completeProvenTree :: EC a => Proof a -> SigmaE () (AtomicProof a)
+completeProvenTree :: EC a => Proof a -> SigmaE () (CommitedProof a)
 completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
   where
     go ch = \case
-      ProvenLeaf resp proofInp -> Leaf () $ getAtomicProof ch proofInp resp
-      ProvenOr leftmost rest   -> OR   () $  uncurry go
-                                         <$> getLeftmostOrChallenge ch leftmost rest : rest
-      ProvenAnd children       -> AND  () $ go ch <$> children
-
-    getAtomicProof ch proofInp respZ = case proofInp of
-      InputDLog dlog -> ProofDL $ ProofDLog
-        { proofDLog'public      = dlog
-        , proofDLog'commitmentA = getCommitment respZ ch dlog
-        , proofDLog'responseZ   = respZ
-        , proofDLog'challengeE  = ch
-        }
-      InputDTuple dtuple -> ProofDT $ ProofDTuple
-        { proofDTuple'public      = dtuple
-        , proofDTuple'commitmentA = getCommitmentDTuple respZ ch dtuple
-        , proofDTuple'responseZ   = respZ
-        , proofDTuple'challengeE  = ch
-        }
-
+      ProvenLeaf z p         -> Leaf () $ computeLeafCommitments ch z p
+      ProvenOr leftmost rest -> OR   () $  uncurry go
+                                       <$> getLeftmostOrChallenge ch leftmost rest : rest
+      ProvenAnd es           -> AND  () $ go ch <$> es
+    -- Compute commitments for each leaf
+    computeLeafCommitments ch z = \case
+      InputDLog   pk -> CommitedDLog   pk (getCommitment       z ch pk)
+      InputDTuple dh -> CommitedDTuple dh (getCommitmentDTuple z ch dh)
+    -- Challenge for leftmost children of OR node is computed as xor
+    -- of parent challenge rest of challenges
     getLeftmostOrChallenge ch leftmost children =
       ( orChallenge ch (fst <$> children)
       , leftmost

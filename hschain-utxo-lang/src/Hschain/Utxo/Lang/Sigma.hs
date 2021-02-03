@@ -196,7 +196,7 @@ equalSigmaProof candidate proof =
       candidate
       (Sigma.completeProvenTree proof)
 
-equalSigmaExpr :: Sigma.SigmaE () ProofInput -> Sigma.SigmaE () AtomicProof -> Bool
+equalSigmaExpr :: Sigma.SigmaE () ProofInput -> Sigma.SigmaE () (Sigma.CommitedProof CryptoAlg) -> Bool
 equalSigmaExpr x y = case (x, y) of
   (Sigma.Leaf _ inp, Sigma.Leaf _ proof)
     -> inp == Sigma.toProofInput proof
