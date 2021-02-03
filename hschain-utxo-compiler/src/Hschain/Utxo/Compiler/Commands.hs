@@ -23,6 +23,7 @@ import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Infer
 import Hschain.Utxo.Lang.Lib.Base
 
+import HSChain.Crypto (encodeBase58)
 import qualified Hschain.Utxo.Lang.Sigma as Sigma
 
 import qualified Codec.Serialise as S
@@ -86,7 +87,7 @@ getPublicKey input output = do
   eSecret <- fmap S.deserialiseOrFail $ LB.readFile input
   either (const failToReadInput) onSecret eSecret
   where
-    onSecret secret = saveKey output $ Sigma.publicKeyToText $ Sigma.getPublicKey secret
+    onSecret secret = saveKey output $ encodeBase58 $ Sigma.getPublicKey secret
 
     failToReadInput = failToRead "secret" input
 

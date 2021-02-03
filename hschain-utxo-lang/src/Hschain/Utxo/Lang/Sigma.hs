@@ -23,9 +23,6 @@ module Hschain.Utxo.Lang.Sigma(
   , SigmaF(..)
   , newProof
   , verifyProof
-  , publicKeyFromText
-  , publicKeyToText
-  , emptyProofEnv
   , proofEnvFromKeys
   , newSecret
   , newKeyPair
@@ -62,11 +59,9 @@ import Data.ByteString (ByteString)
 import Data.Boolean
 import Data.Bifunctor
 import Data.Data
-import Data.Default
 import Data.Either
 import Data.Fix
 import Data.Functor.Classes (Eq1(..))
-import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Eq.Deriving
@@ -119,9 +114,6 @@ newtype SigMessage = SigMessage (Hash SHA256)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "SigMessage" ByteString)
 
-instance Default SigMessage where
-  def = fromJust $ decodeFromBS ""
-
 -- | Generate new private key.
 newSecret :: IO Secret
 newSecret = Crypto.generatePrivKey
@@ -147,14 +139,6 @@ getPublicKey = Sigma.getPublicKey
 -- | Proof environment is a listavailable key-pairs.
 toProofEnv :: [KeyPair] -> ProofEnv
 toProofEnv ks = Sigma.Env ks
-
--- | Parse public key from text.
-publicKeyFromText :: Text -> Maybe PublicKey
-publicKeyFromText = serialiseFromText
-
--- | Convert public key to text.
-publicKeyToText :: PublicKey -> Text
-publicKeyToText = serialiseToText
 
 instance Serialise a => ToJSON (Sigma a) where
   toJSON = serialiseToJSON
@@ -264,9 +248,9 @@ toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
 toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
 
 toSigmaExprOrFail :: Sigma a -> Either Text (Sigma.SigmaE () a)
-toSigmaExprOrFail a = bimap catchBoolean id $ toSigmaExpr a
-  where
-    catchBoolean = const "Expression is constant boolean. It is not  a sigma-expression"
+toSigmaExprOrFail
+  = first (const "Expression is constant boolean. It is not  a sigma-expression")
+  . toSigmaExpr
 
 toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
 toPrimSigmaExpr = foldFix $ \case
@@ -274,10 +258,6 @@ toPrimSigmaExpr = foldFix $ \case
   SigmaAnd as  -> fmap (Sigma.AND ()) $ sequence as
   SigmaOr  as  -> fmap (Sigma.OR  ()) $ sequence as
   SigmaBool _  -> Nothing
-
--- | Empty proof environment. It holds no keys.
-emptyProofEnv :: ProofEnv
-emptyProofEnv = Sigma.Env []
 
 -- | Wrapper to contruct proof environment from list of key-pairs.
 proofEnvFromKeys :: [KeyPair] -> ProofEnv
