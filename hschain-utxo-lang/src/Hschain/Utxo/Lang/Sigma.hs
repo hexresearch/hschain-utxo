@@ -54,7 +54,6 @@ import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
-import Data.Bifunctor
 import Data.Either
 import Data.Functor.Classes (Eq1(..))
 import Data.Set (Set)
@@ -190,14 +189,6 @@ eliminateSigmaBool = go
         where
           (bools, sigmas) = partitionEithers $ eliminateSigmaBool <$> as
 
-toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
-toSigmaExpr = eliminateSigmaBool
-
-toSigmaExprOrFail :: Sigma a -> Either Text (Sigma.SigmaE () a)
-toSigmaExprOrFail
-  = first (const "Expression is constant boolean. It is not  a sigma-expression")
-  . toSigmaExpr
-
 -- | Wrapper to contruct proof environment from list of key-pairs.
 proofEnvFromKeys :: [KeyPair] -> ProofEnv
 proofEnvFromKeys = Sigma.Env
@@ -314,9 +305,9 @@ type QueryResponses    = Sigma.ProofExpr Sigma.ResponseQuery    CryptoAlg
 -- It creates value to query commitments.
 initMultiSigProof :: Set PublicKey -> Sigma ProofInput -> Prove QueryCommitments
 initMultiSigProof knownKeys expr =
-  case toSigmaExprOrFail expr of
+  case eliminateSigmaBool expr of
     Right sigma -> Sigma.initMultiSigProof knownKeys sigma
-    Left err    -> throwError err
+    Left  _     -> throwError "Expression is constant boolean. It is not  a sigma-expression"
 
 -- | Every partner creates a commitment of random secret based on his public keys.
 -- The result of the function is a pair of public commitmnets that are handed to the main prover
