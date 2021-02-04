@@ -165,7 +165,7 @@ dtupleInput genB keyA keyB =
 -- | Tries to remove all boolean constants.
 -- returns Left boolean if it's not possible
 -- to eliminate boolean constants.
-eliminateSigmaBool :: Sigma a -> Either Bool (Sigma.SigmaE () a)
+eliminateSigmaBool :: Sigma.SigmaE () (Either Bool a) -> Either Bool (Sigma.SigmaE () a)
 eliminateSigmaBool = go
   where
     go = \case
