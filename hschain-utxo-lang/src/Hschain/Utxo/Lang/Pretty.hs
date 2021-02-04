@@ -199,11 +199,18 @@ instance Pretty Error where
     TypeError err         -> pretty err
     TypeDeclError err     -> pretty err
     PatError err          -> pretty err
+    ImportError err       -> pretty err
     InternalError err     -> pretty err
     MonoError err         -> pretty err
     CoreScriptError err   -> pretty err
     FreeVariable txt      -> "Free variable: " <> pretty txt
     ErrorList es          -> vcat $ fmap pretty es
+
+instance Pretty ImportError where
+  pretty = \case
+    ModuleNotFound v     -> hsep ["Error: Module not found", pretty v]
+    CycleDependencies vs -> vcat ["Error: Module imports form cycle.", indent 4 $ vcat $ fmap pretty vs]
+    ModuleNameNotMatchHeader name modName -> hsep ["Error: Module file name do not match module header name, expected", pretty name, "but got", pretty modName]
 
 instance Pretty ExecError where
   pretty = \case

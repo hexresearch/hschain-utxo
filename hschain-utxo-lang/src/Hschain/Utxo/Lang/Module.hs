@@ -1,6 +1,7 @@
 -- | Module level definitions and evaluation contexts.
 module Hschain.Utxo.Lang.Module(
     Module(..)
+  , getModuleName
   , ModuleHead(..)
   , ExportList(..)
   , ExportItem(..)
@@ -53,6 +54,9 @@ data ModuleHead = ModuleHead
   , moduleHead'exports :: !(Maybe ExportList)  -- ^ export list
   }
   deriving stock (Eq, Show, Generic, Data, Typeable)
+
+getModuleName :: Module -> VarName
+getModuleName Module{..} = maybe (VarName noLoc "Main") moduleHead'name module'head
 
 -- | Export list
 data ExportList = ExportList Loc [ExportItem]

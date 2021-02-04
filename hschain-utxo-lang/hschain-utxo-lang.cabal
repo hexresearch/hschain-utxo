@@ -54,6 +54,7 @@ library
       Hschain.Utxo.Lang.Expr
       Hschain.Utxo.Lang.Const
       Hschain.Utxo.Lang.Infer
+      Hschain.Utxo.Lang.Linker
       Hschain.Utxo.Lang.Module
       Hschain.Utxo.Lang.UserType
       Hschain.Utxo.Lang.Lib.Base
@@ -94,7 +95,9 @@ library
                      , data-default
                      , deepseq
                      , deriving-compat
+                     , directory
                      , extra
+                     , filepath
                      , lens
                      , recursion-schemes
                      , groom

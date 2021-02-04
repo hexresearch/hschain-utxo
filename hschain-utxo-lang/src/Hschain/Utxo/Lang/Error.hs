@@ -10,7 +10,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 
 import Hschain.Utxo.Lang.Expr
-import Hschain.Utxo.Lang.Core.Types (TypeCore,TypeCoreError(..))
+import Hschain.Utxo.Lang.Core.Types (Name,TypeCore,TypeCoreError(..))
 
 import qualified Language.Haskell.Exts.SrcLoc as H
 import qualified Language.Haskell.Exts.Parser as H
@@ -26,6 +26,7 @@ data Error
   | InternalError InternalError     -- ^ errors of this type should not happen in production
   | MonoError MonoError             -- ^ errors during monomorphizing
   | CoreScriptError CoreScriptError -- ^ errors of core scripts
+  | ImportError ImportError         -- ^ errors that happen on import of external modules
   | FreeVariable Text
   | ErrorList [Error]               -- ^ reports several errors
   deriving stock    (Show,Eq,Generic,Data)
@@ -128,10 +129,15 @@ data KindError = KindError
   }
   deriving stock    (Show,Eq,Generic,Data)
 
+-- | Errors that happen on import of external modules
+data ImportError
+  = ModuleNotFound VarName
+  | CycleDependencies [VarName]
+  | ModuleNameNotMatchHeader Name VarName
+  deriving stock    (Show,Eq,Generic,Data)
+
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a
 typeCoreMismatch ta tb = throwError $ TypeCoreMismatch ta tb
-
-
 
 -- | Lift type-errors
 eitherTypeError :: Either TypeError a -> Either Error a
