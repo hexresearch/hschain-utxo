@@ -29,7 +29,6 @@ module Hschain.Utxo.Lang.Sigma(
   , toPublicKey
   , getKeyPair
   , toProofEnv
-  , equalSigmaExpr
   , equalSigmaProof
   , eliminateSigmaBool
   -- * Multi-signatures
