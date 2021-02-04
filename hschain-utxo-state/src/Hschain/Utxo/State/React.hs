@@ -56,7 +56,7 @@ updateBoxChain TxArg{..} bch@BoxChain{..}
 -- to get the sigma-expression of the evaluation of the transaction script.
 --
 -- Also it returns debug-log for transaction execution.
-execInBoxChain :: Tx -> BoxChain -> Either Text (Vector BoolExprResult)
+execInBoxChain :: Tx -> BoxChain -> Either Text (Vector ScriptEvalResult)
 execInBoxChain tx bch = do
   txArg <- toTxArg bch tx
   either (Left . renderText) Right $ Core.evalToSigma txArg

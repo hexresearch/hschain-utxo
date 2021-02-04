@@ -10,7 +10,6 @@ import Control.Monad
 import Control.Exception
 
 import Data.Int
-import Data.Fix
 import Data.Foldable
 import Data.Text (Text)
 import Data.Map.Strict (Map,(!))
@@ -103,7 +102,7 @@ parseSend = do
                                     ]
           , tx'outputs = V.fromList [
               Box { box'value  = amount
-                  , box'script = coreProgToScript $ EPrim $ PrimSigma $ Fix $ SigmaPk $ dlogInput pk
+                  , box'script = coreProgToScript $ EPrim $ PrimSigma $ sigmaPk $ dlogInput pk
                   , box'args   = mempty
                   }
               ]

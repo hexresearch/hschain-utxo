@@ -84,7 +84,6 @@ library
                      , hschain-crypto
                      , aeson
                      , array
-                     , Boolean
                      , base64-bytestring
                      , base58-bytestring
                      , bytestring

@@ -19,7 +19,7 @@ tests = testGroup "sigma-protocols"
   ]
 
 -- | Inits transaction that is owned by alice and has correct proof.
-initTx :: IO (Tx, GTx (Sigma ProofInput) Box)
+initTx :: IO (Tx, GTx (SigmaE () ProofInput) Box)
 initTx = do
   aliceSecret <- newSecret
   let alicePubKey = toPublicKey aliceSecret
@@ -29,7 +29,7 @@ initTx = do
   where
     tx pubKey = Tx
       { tx'inputs  = return $ singleOwnerInput (BoxId $ hashBlob "box-1") pubKey
-      , tx'outputs = return $ Box
+       , tx'outputs = return $ Box
           { box'value  = 1
           , box'script = [utxo| pk $(pubKey) |]
           , box'args   = mempty

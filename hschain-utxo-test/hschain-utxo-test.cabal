@@ -44,7 +44,6 @@ library
                      , hschain-utxo-lang
                      , hschain-utxo-service
                      , hschain-utxo-state
-                     , Boolean
                      , containers
                      , cryptonite
                      , data-fix                  >=0.3

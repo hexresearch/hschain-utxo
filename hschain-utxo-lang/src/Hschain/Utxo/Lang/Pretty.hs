@@ -11,7 +11,6 @@ import Codec.Serialise (deserialiseOrFail)
 import Hex.Common.Serialise
 
 import Data.Bool
-import Data.Fix
 import Data.Void
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
@@ -164,12 +163,12 @@ instance Pretty Env where
 instance Pretty Proof where
   pretty proof = pretty $ P.ppShow proof
 
-instance Pretty a => Pretty (S.Sigma a) where
-  pretty = foldFix $ \case
-      S.SigmaPk k    -> parens $ hsep ["pk", pretty k]
-      S.SigmaAnd as  -> parens $ hsep $ Const.sigmaAnd : as
-      S.SigmaOr  as  -> parens $ hsep $ Const.sigmaOr  : as
-      S.SigmaBool b  -> "Sigma" <> pretty b
+instance Pretty a => Pretty (S.SigmaE () (Either Bool a)) where
+  pretty = \case
+    S.Leaf () (Right k) -> parens $ hsep ["pk", pretty k]
+    S.Leaf () (Left  b) -> "Sigma" <> pretty b
+    S.AND  () as        -> parens $ hsep $ Const.sigmaAnd : fmap pretty as
+    S.OR   () as        -> parens $ hsep $ Const.sigmaOr  : fmap pretty as
 
 instance Pretty S.ProofInput where
   pretty = \case

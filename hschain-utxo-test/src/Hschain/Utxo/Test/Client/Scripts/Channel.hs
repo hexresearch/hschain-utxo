@@ -87,7 +87,7 @@ data PlayerEnv = PlayerEnv
   -- ^ partner's public key
   , playerEnv'commonBoxId   :: !BoxId
   -- ^ shared boxId with initial balance
-  , playerEnv'commonScript  :: !(Sigma ProofInput)
+  , playerEnv'commonScript  :: !(SigmaE () ProofInput)
   -- ^ common sigma expression that guards shared balance box
   , playerEnv'revoceProc    :: !RevoceProc
   }
@@ -312,7 +312,7 @@ signOffChainTx (Player me) (Player other) preTx = liftIO $ do
       myProofEnv = getProofEnv $ playerEnv'wallet myEnv
       otherProofEnv = getProofEnv $ playerEnv'wallet otherEnv
   proof <- fmap eitherToMaybe $ runProve $ do
-    comQueryExpr <- initMultiSigProof knownKeys commonScript
+    comQueryExpr <- initMultiSigProof knownKeys $ Right <$> commonScript
     (myCommitments,    mySecret)    <- queryCommitments myKeys    comQueryExpr
     (otherCommitments, otherSecret) <- queryCommitments otherKeys comQueryExpr
     commitments <- appendCommitments [(myKeys, myCommitments), (otherKeys, otherCommitments)]
@@ -372,7 +372,7 @@ extractRevoceBox p secret = do
 
 
 
-newGame :: BoxId -> Sigma ProofInput -> Balance -> Wallet -> Wallet -> App Game
+newGame :: BoxId -> SigmaE () ProofInput -> Balance -> Wallet -> Wallet -> App Game
 newGame commonBoxId commonScript balance alice bob = do
   alicePlayer <- newPlayer commonBoxId commonScript balance alice (getWalletPublicKey bob)
   bobPlayer   <- newPlayer commonBoxId commonScript balance bob   (getWalletPublicKey alice)
@@ -381,7 +381,7 @@ newGame commonBoxId commonScript balance alice bob = do
     , game'bob   = bobPlayer
     }
 
-newPlayer :: BoxId -> Sigma ProofInput -> Balance -> Wallet -> PublicKey -> App Player
+newPlayer :: BoxId -> SigmaE () ProofInput -> Balance -> Wallet -> PublicKey -> App Player
 newPlayer commonBoxId commonScript balance wallet partnerPubKey = do
   proc <- newRevoceProc wallet
   player <- liftIO $ do

@@ -15,12 +15,12 @@ module Hschain.Utxo.Lang.Sigma(
   , AtomicProof
   , SigMessage(..)
   , Sigma
+  , Sigma.SigmaE(..)
   , sigmaPk
   , dlogSigma
   , dtupleSigma
-  , mapPk
-  , mapPkM
-  , SigmaF(..)
+  , dlogInput
+  , dtupleInput
   , newProof
   , verifyProof
   , proofEnvFromKeys
@@ -29,7 +29,6 @@ module Hschain.Utxo.Lang.Sigma(
   , toPublicKey
   , getKeyPair
   , toProofEnv
-  , equalSigmaExpr
   , equalSigmaProof
   , eliminateSigmaBool
   -- * Multi-signatures
@@ -42,34 +41,22 @@ module Hschain.Utxo.Lang.Sigma(
   , queryResponses
   , appendResponsesToProof
   , checkChallenges
-  , dlogInput
-  , dtupleInput
   , getSecretKey
   , getPublicKey
   ) where
 
-import Hex.Common.Serialise
-
 import Control.Monad.Except
-import Control.DeepSeq (NFData,NFData1)
+import Control.DeepSeq (NFData)
 import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
-import Data.Boolean
-import Data.Bifunctor
-import Data.Data
 import Data.Either
-import Data.Fix
 import Data.Functor.Classes (Eq1(..))
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Eq.Deriving
-import Data.Ord.Deriving
 
-import GHC.Generics (Generic, Generic1)
-
-import Text.Show.Deriving
+import GHC.Generics (Generic)
 
 import HSChain.Crypto.Classes      (ViaBase58(..), ByteRepr(..))
 import HSChain.Crypto.Classes.Hash
@@ -140,22 +127,13 @@ getPublicKey = Sigma.getPublicKey
 toProofEnv :: [KeyPair] -> ProofEnv
 toProofEnv ks = Sigma.Env ks
 
-instance Serialise a => ToJSON (Sigma a) where
-  toJSON = serialiseToJSON
-
-instance Serialise a => FromJSON (Sigma a) where
-  parseJSON = serialiseFromJSON
-
 -- | Creates proof for sigma expression with given collection of key-pairs (@ProofEnv@).
 -- The last argument message is a serialised content of transaction.
 -- It's message to be signed.
 --
 -- For the message use getTxBytes from TX that has no proof.
-newProof :: ProofEnv -> Sigma ProofInput -> SigMessage -> IO (Either Text Proof)
-newProof env expr message =
-  case toSigmaExprOrFail expr of
-    Right sigma -> Sigma.createProof env sigma $ encodeToBS message
-    Left  err   -> return $ Left err
+newProof :: ProofEnv -> Sigma.SigmaE () ProofInput -> SigMessage -> IO (Either Text Proof)
+newProof env expr message = Sigma.createProof env expr $ encodeToBS message
 
 -- | Verify the proof.
 --
@@ -165,116 +143,68 @@ newProof env expr message =
 verifyProof :: Proof -> SigMessage -> Bool
 verifyProof proof = Sigma.verifyProof proof . encodeToBS
 
-type Sigma k = Fix (SigmaF k)
-
-mapPk :: (a -> b) -> Sigma a -> Sigma b
-mapPk f = foldFix $ \case
-  SigmaPk a   -> Fix $ SigmaPk (f a)
-  SigmaAnd as -> Fix $ SigmaAnd as
-  SigmaOr  as -> Fix $ SigmaOr  as
-  SigmaBool b -> Fix $ SigmaBool b
-
-mapPkM :: Monad m => (a -> m b) -> Sigma a -> m (Sigma b)
-mapPkM f = foldFixM $ \case
-  SigmaPk a   -> fmap (Fix . SigmaPk) (f a)
-  SigmaAnd as -> pure $ Fix $ SigmaAnd as
-  SigmaOr  as -> pure $ Fix $ SigmaOr  as
-  SigmaBool b -> pure $ Fix $ SigmaBool b
-
-instance Boolean (Sigma k) where
-  true  = Fix $ SigmaBool True
-  false = Fix $ SigmaBool False
-
-  notB  = error "Not is not defined for Sigma-expressions"
-  (&&*) a b = Fix $ SigmaAnd [a, b]
-  (||*) a b = Fix $ SigmaOr [a, b]
+type Sigma k = Sigma.SigmaE () (Either Bool k)
 
 sigmaPk :: k -> Sigma k
-sigmaPk k = Fix $ SigmaPk k
+sigmaPk k = Sigma.Leaf () (Right k)
 
-dlogSigma :: PublicKey -> Sigma ProofInput
-dlogSigma k = sigmaPk $ dlogInput k
+dlogSigma :: PublicKey -> Sigma.SigmaE () ProofInput
+dlogSigma k = Sigma.Leaf () $ dlogInput k
 
-dtupleSigma :: ECPoint -> PublicKey -> PublicKey -> Sigma ProofInput
-dtupleSigma genB keyA keyB = sigmaPk $ dtupleInput genB keyA keyB
+dtupleSigma :: ECPoint -> PublicKey -> PublicKey -> Sigma.SigmaE () ProofInput
+dtupleSigma genB keyA keyB = Sigma.Leaf () $ dtupleInput genB keyA keyB
 
--- | Sigma-expression
-data SigmaF k a =
-    SigmaPk k      -- ownership of the key (contains public key)
-  | SigmaAnd [a]   -- and-expression
-  | SigmaOr  [a]   -- or-expression
-  | SigmaBool Bool -- wraps boolean constants
-  deriving stock (Functor, Foldable, Traversable, Show, Read, Eq, Ord, Generic, Generic1, Data)
-  deriving anyclass (NFData, NFData1, Serialise)
+dlogInput :: PublicKey -> ProofInput
+dlogInput = Sigma.InputDLog
 
-instance Serialise k => Serialise (Fix (SigmaF k))
+dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
+dtupleInput genB keyA keyB =
+  Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
 
-instance (CryptoHashable k, CryptoHashable a) => CryptoHashable (SigmaF k a) where
-  hashStep = genericHashStep Sigma.hashDomain
-
-fromSigmaExpr :: Sigma.SigmaE () a -> Sigma a
-fromSigmaExpr = \case
-  Sigma.Leaf _ k -> Fix $ SigmaPk k
-  Sigma.AND _ as -> Fix $ SigmaAnd $ fmap rec as
-  Sigma.OR _ as  -> Fix $ SigmaOr  $ fmap rec as
-  where
-    rec  = fromSigmaExpr
 
 -- | Tries to remove all boolean constants.
 -- returns Left boolean if it's not possible
 -- to eliminate boolean constants.
-eliminateSigmaBool :: Sigma a -> Either Bool (Sigma a)
-eliminateSigmaBool = foldFix $ \case
-  SigmaBool b -> Left b
-  SigmaPk pk  -> Right $ Fix $ SigmaPk pk
-  SigmaAnd as
-    | and bools -> case sigmas of
-       []       -> Left True
-       [sigma]  -> Right sigma
-       _        -> Right $ Fix $ SigmaAnd sigmas
-    | otherwise -> Left False
-    where
-      (bools, sigmas) = partitionEithers as
-  SigmaOr as
-    | or bools  -> Left True
-    | otherwise -> case sigmas of
-        []      -> Left False
-        [sigma] -> Right sigma
-        _       -> Right $ Fix $ SigmaOr sigmas
-    where
-      (bools, sigmas) = partitionEithers as
-
-toSigmaExpr :: Sigma a -> Either Bool (Sigma.SigmaE () a)
-toSigmaExpr a = (maybe (Left False) Right . toPrimSigmaExpr) =<< eliminateSigmaBool a
-
-toSigmaExprOrFail :: Sigma a -> Either Text (Sigma.SigmaE () a)
-toSigmaExprOrFail
-  = first (const "Expression is constant boolean. It is not  a sigma-expression")
-  . toSigmaExpr
-
-toPrimSigmaExpr :: Sigma a -> Maybe (Sigma.SigmaE () a)
-toPrimSigmaExpr = foldFix $ \case
-  SigmaPk k    -> Just $ Sigma.Leaf () k
-  SigmaAnd as  -> fmap (Sigma.AND ()) $ sequence as
-  SigmaOr  as  -> fmap (Sigma.OR  ()) $ sequence as
-  SigmaBool _  -> Nothing
+eliminateSigmaBool :: Sigma.SigmaE () (Either Bool a) -> Either Bool (Sigma.SigmaE () a)
+eliminateSigmaBool = go
+  where
+    go = \case
+      Sigma.Leaf _ (Left  b) -> Left b
+      Sigma.Leaf _ (Right a) -> Right $ Sigma.Leaf () a
+      Sigma.AND _ as
+        | and bools -> case sigmas of
+           []       -> Left True
+           [sigma]  -> Right sigma
+           _        -> Right $ Sigma.AND () sigmas
+        | otherwise -> Left False
+        where
+          (bools, sigmas) = partitionEithers $ eliminateSigmaBool <$> as
+      Sigma.OR () as
+        | or bools  -> Left True
+        | otherwise -> case sigmas of
+            []      -> Left False
+            [sigma] -> Right sigma
+            _       -> Right $ Sigma.OR () sigmas
+        where
+          (bools, sigmas) = partitionEithers $ eliminateSigmaBool <$> as
 
 -- | Wrapper to contruct proof environment from list of key-pairs.
 proofEnvFromKeys :: [KeyPair] -> ProofEnv
 proofEnvFromKeys = Sigma.Env
 
 -- | Check if sigma expression is proven with given proof.
-equalSigmaProof :: Sigma ProofInput -> Proof -> Bool
+equalSigmaProof :: Sigma.SigmaE () ProofInput -> Proof -> Bool
 equalSigmaProof candidate proof =
   equalSigmaExpr
       candidate
-      (fromSigmaExpr $ Sigma.completeProvenTree proof)
+      (Sigma.completeProvenTree proof)
 
-equalSigmaExpr :: Sigma ProofInput -> Sigma AtomicProof -> Bool
-equalSigmaExpr (Fix x) (Fix y) = case (x, y) of
-  (SigmaPk inp, SigmaPk proof)     -> inp == Sigma.getProofInput proof
-  (SigmaOr as, SigmaOr bs)         -> equalList as bs
-  (SigmaAnd as, SigmaAnd bs)       -> equalList as bs
+equalSigmaExpr :: Sigma.SigmaE () ProofInput -> Sigma.SigmaE () AtomicProof -> Bool
+equalSigmaExpr x y = case (x, y) of
+  (Sigma.Leaf _ inp, Sigma.Leaf _ proof)
+    -> inp == Sigma.getProofInput proof
+  (Sigma.OR  _ as, Sigma.OR  _ bs) -> equalList as bs
+  (Sigma.AND _ as, Sigma.AND _ bs) -> equalList as bs
   _                                -> False
   where
     equalList = liftEq equalSigmaExpr
@@ -374,9 +304,9 @@ type QueryResponses    = Sigma.ProofExpr Sigma.ResponseQuery    CryptoAlg
 -- It creates value to query commitments.
 initMultiSigProof :: Set PublicKey -> Sigma ProofInput -> Prove QueryCommitments
 initMultiSigProof knownKeys expr =
-  case toSigmaExprOrFail expr of
+  case eliminateSigmaBool expr of
     Right sigma -> Sigma.initMultiSigProof knownKeys sigma
-    Left err    -> throwError err
+    Left  _     -> throwError "Expression is constant boolean. It is not  a sigma-expression"
 
 -- | Every partner creates a commitment of random secret based on his public keys.
 -- The result of the function is a pair of public commitmnets that are handed to the main prover
@@ -407,14 +337,3 @@ appendResponsesToProof = Sigma.appendResponsesToProof
 checkChallenges :: Commitments -> Challenges -> SigMessage -> Bool
 checkChallenges commitments challenges message =
   Sigma.checkChallenges commitments challenges (encodeToBS message)
-
-dlogInput :: PublicKey -> ProofInput
-dlogInput = Sigma.InputDLog
-
-dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
-dtupleInput genB keyA keyB =
-  Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
-
-$(deriveShow1 ''SigmaF)
-$(deriveEq1   ''SigmaF)
-$(deriveOrd1  ''SigmaF)

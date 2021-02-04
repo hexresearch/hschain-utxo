@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Core.Eval(
   , execScriptToSigma
 ) where
 
-import Data.Fix
 import Data.Text
 import Data.Bifunctor
 import Data.Void
@@ -15,7 +14,7 @@ import Hschain.Utxo.Lang.Core.Compile.Expr
 import Hschain.Utxo.Lang.Core.Compile.TypeCheck (typeCheck)
 import Hschain.Utxo.Lang.Core.RefEval           (evalProg)
 import Hschain.Utxo.Lang.Core.Types             (TypeCore(..),Prim(..))
-import Hschain.Utxo.Lang.Expr                   (BoolExprResult(..))
+import Hschain.Utxo.Lang.Expr                   (ScriptEvalResult(..))
 import Hschain.Utxo.Lang.Error
 import Hschain.Utxo.Lang.Pretty
 import Hschain.Utxo.Lang.Sigma
@@ -25,7 +24,7 @@ import qualified Data.Text as T
 
 -- | Executes spend-script in transaction. Spend script should be
 --   well-typed and evaluate to either sigma-expression or boolean.
-execScriptToSigma :: InputEnv -> Core Void -> Either Error (Sigma ProofInput)
+execScriptToSigma :: InputEnv -> Core Void -> Either Error ScriptEvalResult
 execScriptToSigma env prog = do
   -- Type check expression
   ty <- first (CoreScriptError . TypeCoreError)
@@ -36,21 +35,21 @@ execScriptToSigma env prog = do
     _      -> Left $ CoreScriptError ResultIsNotSigma
   -- Evaluate script
   case evalProg env prog of
-    Right (PrimVal (PrimBool  b)) -> Right $ Fix $ SigmaBool b
+    Right (PrimVal (PrimBool  b)) -> pure $ ConstBool b
     Right (PrimVal (PrimSigma s)) -> case eliminateSigmaBool s of
-      Left  b  -> Right $ Fix $ SigmaBool b
-      Right s' -> Right   s'
-    Left _             -> Right $ Fix $ SigmaBool False
+      Left  b  -> pure $ ConstBool   b
+      Right s' -> pure $ SigmaResult s'
+    Left _ -> Right $ ConstBool False
     _ -> error "Internal error:  Left $ E.CoreScriptError E.ResultIsNotSigma"
 
 
-evalToSigma :: TxArg -> Either Error (Vector BoolExprResult)
+evalToSigma :: TxArg -> Either Error (Vector ScriptEvalResult)
 evalToSigma tx = mapM (evalInput . getInputEnv tx) $ txArg'inputs tx
 
-evalInput :: InputEnv -> Either Error BoolExprResult
+evalInput :: InputEnv -> Either Error ScriptEvalResult
 evalInput env =
   case coreProgFromScript $ box'script $ postBox'content $ boxInput'box $ inputEnv'self env of
-    Just prog -> fmap (either ConstBool SigmaResult . eliminateSigmaBool) $ execScriptToSigma env prog
+    Just prog -> execScriptToSigma env prog
     Nothing   -> Left $ ExecError FailedToDecodeScript
 
 verifyInput :: TxArg -> BoxInput -> Either Text ()
@@ -62,16 +61,12 @@ verifyInput txArg input@BoxInput{..} = do
     -- Script evaluated to literal Bool
     ConstBool True  -> pure ()
     ConstBool False -> false
-    SigmaResult sigma -> case sigma of
-      Fix (SigmaBool True)  -> pure ()
-      Fix (SigmaBool False) -> false
-      -- Attempt to prove sigma expression
-      _ | Just proof <- boxInput'proof
-        , equalSigmaProof sigma proof
-        , verifyProof proof boxInput'sigMsg
-          -> pure ()
-      -- Otherwise failure
-      other -> Left $ T.unlines ["Sigma expression proof is not valid:", renderText other]
+    SigmaResult sigma
+      | Just proof <- boxInput'proof
+      , equalSigmaProof sigma proof
+      , verifyProof proof boxInput'sigMsg
+        -> pure ()
+      | otherwise -> Left $ T.unlines ["Sigma expression proof is not valid"]
   where
     false = Left "Script evaluated to False"
 

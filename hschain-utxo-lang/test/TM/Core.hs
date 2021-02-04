@@ -1,7 +1,6 @@
 -- |
 module TM.Core ( tests )where
 
-import Data.Fix
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -17,7 +16,7 @@ tests :: TestTree
 tests = testGroup "core"
   [ testGroup "Literal"
     [ testProgram nm (progLiteral p) p
-    | (nm,p) <- [ ("sigma", PrimSigma $ Fix $ SigmaBool True)
+    | (nm,p) <- [ ("sigma", PrimSigma $ Leaf () $ Left True)
                 , ("bool" , PrimBool False)
                 , ("int",   PrimInt  123)
                 , ("text",  PrimText "XX")

@@ -120,7 +120,7 @@ signSigma secretFile exprFile txFile output = do
       file <- LB.readFile secretFile
       return $ either (const failToReadSecret) id $ S.deserialiseOrFail file
 
-    readExpr :: IO BoolExprResult
+    readExpr :: IO ScriptEvalResult
     readExpr = do
       file <- LB.readFile exprFile
       return $ fromMaybe failToReadExpression $ decode' file

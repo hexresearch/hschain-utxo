@@ -9,7 +9,6 @@ module TM.Core.List(
   , withBigList
 ) where
 
-import Data.Fix
 import Data.Int
 
 import Test.Tasty
@@ -35,12 +34,13 @@ tests = testGroup "core-lists"
     , testProgram     "Any list"               (progAnyList 2) (PrimBool True)
     , testProgram     "All list"               (progAllList 2) (PrimBool False)
     , testProgram     "All sigma list"         progSigmaAllList
-      (PrimSigma (Fix (SigmaAnd [Fix (SigmaBool True), Fix (SigmaBool False), Fix (SigmaBool True)])))
+      (PrimSigma $ AND () [sigmaB True, sigmaB False, sigmaB True])
     , testProgramFail "Too many reductions"     (progBigListReduce bigSize)
     , testProgram     "Ok amount of reductions" (progBigListReduce okSize) (PrimInt (sum ([0 .. okSize] :: [Int64])))
     ]
   ]
   where
+    sigmaB = Leaf () . Left
     bigSize = 1000000
     okSize  = 1000
 
