@@ -54,7 +54,6 @@ import Codec.Serialise
 
 import Data.Aeson
 import Data.ByteString (ByteString)
-import Data.Boolean
 import Data.Bifunctor
 import Data.Either
 import Data.Functor.Classes (Eq1(..))
@@ -155,14 +154,6 @@ mapPk = fmap . fmap
 
 mapPkM :: Applicative m => (a -> m b) -> Sigma a -> m (Sigma b)
 mapPkM = traverse . traverse
-
-instance Boolean (Sigma k) where
-  true  = Sigma.Leaf () $ Left True
-  false = Sigma.Leaf () $ Left False
-
-  notB  = error "Not is not defined for Sigma-expressions"
-  (&&*) a b = Sigma.AND () [a, b]
-  (||*) a b = Sigma.OR  () [a, b]
 
 sigmaPk :: k -> Sigma k
 sigmaPk k = Sigma.Leaf () (Right k)
