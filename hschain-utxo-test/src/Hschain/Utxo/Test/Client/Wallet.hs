@@ -27,7 +27,6 @@ import Control.Concurrent.STM
 import Control.Monad.IO.Class
 import Control.Monad.Except
 
-import Data.Fix
 import Data.Int
 import Data.Maybe
 import Data.Text (Text)
@@ -77,7 +76,7 @@ getBalance Wallet{..} = do
 -- | Create proof for a most simple expression of @pk user-key@
 getOwnerProof :: MonadIO io => Wallet -> Tx -> io (Either Text Proof)
 getOwnerProof w@Wallet{..} tx =
-  liftIO $ newProof env (Fix $ SigmaPk $ dlogInput (getWalletPublicKey w)) (getSigMessage SigAll tx)
+  liftIO $ newProof env (Leaf () $ dlogInput (getWalletPublicKey w)) (getSigMessage SigAll tx)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 
@@ -109,21 +108,21 @@ newSendTx wallet send@Send{..} = do
       totalAmount <- fmap (fromMaybe 0) $ getBoxBalance send'from
       return $ SendBack totalAmount
 
-newProofOrFail :: ProofEnv -> Sigma ProofInput -> SigMessage -> App Proof
+newProofOrFail :: ProofEnv -> SigmaE () ProofInput -> SigMessage -> App Proof
 newProofOrFail env expr message = do
   eProof <- liftIO $ newProof env expr message
   case eProof of
     Right proof -> return proof
     Left err    -> throwError err
 
-getTxSigmaUnsafe :: Tx -> App (Vector (Sigma ProofInput))
+getTxSigmaUnsafe :: Tx -> App (Vector (SigmaE () ProofInput))
 getTxSigmaUnsafe tx = either throwError pure =<< getTxSigma tx
 
-getSigmaForProof :: Tx -> App (Vector (Sigma ProofInput))
+getSigmaForProof :: Tx -> App (Vector (SigmaE () ProofInput))
 getSigmaForProof tx = getTxSigmaUnsafe tx
 
-singleOwnerSigmaExpr :: Wallet -> Sigma ProofInput
-singleOwnerSigmaExpr wallet = Fix $ SigmaPk $ dlogInput $ getWalletPublicKey wallet
+singleOwnerSigmaExpr :: Wallet -> SigmaE () ProofInput
+singleOwnerSigmaExpr wallet = Leaf () $ dlogInput $ getWalletPublicKey wallet
 
 -- | Sends money with exchange
 --
@@ -178,7 +177,7 @@ extractSenderReceiverIds tx =
     toBoxId = computeBoxId txId
 
 -- | BoxInputRef for single owner of the input.
-singleOwnerBoxRef :: Wallet -> BoxId -> BoxInputRef (Sigma ProofInput)
+singleOwnerBoxRef :: Wallet -> BoxId -> BoxInputRef (SigmaE () ProofInput)
 singleOwnerBoxRef wallet boxId = BoxInputRef
   { boxInputRef'id    = boxId
   , boxInputRef'proof = Just $ singleOwnerSigmaExpr wallet

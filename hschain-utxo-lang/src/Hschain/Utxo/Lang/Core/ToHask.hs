@@ -12,7 +12,6 @@ import Hex.Common.Text (showt)
 import qualified Codec.Serialise as CBOR
 import Control.Monad.State.Strict
 import Data.ByteString (ByteString)
-import Data.Fix
 import Data.String
 import Data.Void
 import Data.Text (Text)
@@ -98,14 +97,15 @@ toHaskExprCore = flip evalState (T.pack <$> stringPrettyLetters) . go []
     fromBool b = H.Con () $ if b then toQName "True" else toQName "False"
 
     fromSigma :: Sigma ByteString -> H.Exp ()
-    fromSigma = foldFix rec
+    fromSigma = rec
       where
         rec = \case
-          SigmaPk pkey -> let keyTxt = encodeBase58 pkey
-                          in  ap1 Const.pk $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (ap2 Const.sigmaAnd) as
-          SigmaOr  as  -> foldl1 (ap2 Const.sigmaOr) as
-          SigmaBool b  -> fromBool b
+          Leaf _ (Right pkey) -> let keyTxt = encodeBase58 pkey
+                                 in  ap1 Const.pk $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
+          Leaf _ (Left  b)    -> fromBool b
+          AND  _ as  -> foldl1 (ap2 Const.sigmaAnd) $ rec <$> as
+          OR   _ as  -> foldl1 (ap2 Const.sigmaOr)  $ rec <$> as
+
 
         ap1 f a = H.App () (toVar f) a
         ap2 f a b = H.App src (H.App () (toVar f) a) b

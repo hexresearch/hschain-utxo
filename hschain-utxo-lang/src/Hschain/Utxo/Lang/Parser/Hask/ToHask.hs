@@ -82,14 +82,14 @@ toLiteral loc = \case
     lit = H.Lit loc
 
     sigma :: Loc -> Sigma ProofInput -> H.Exp Loc
-    sigma src x = foldFix go x
+    sigma src x = go x
       where
         go = \case
-          SigmaPk pkey -> let keyTxt = encodeBase58 $ BL.toStrict $ CBOR.serialise pkey
-                          in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
-          SigmaAnd as  -> foldl1 (ap2 (VarName src Const.sigmaAnd)) as
-          SigmaOr  as  -> foldl1 (ap2 (VarName src Const.sigmaOr)) as
-          SigmaBool b  -> H.Con src $ bool src b
+          Leaf _ (Right pkey) -> let keyTxt = encodeBase58 $ BL.toStrict $ CBOR.serialise pkey
+                                 in  ap (VarName src "pk") $ lit $ H.String src (T.unpack keyTxt) (T.unpack keyTxt)
+          Leaf _ (Left b) -> H.Con src $ bool src b
+          AND  _ as       -> foldl1 (ap2 (VarName src Const.sigmaAnd)) $ go <$> as
+          OR   _ as       -> foldl1 (ap2 (VarName src Const.sigmaOr))  $ go <$> as
 
         ap f a = H.App (HM.getLoc f) (toVar (HM.getLoc f) f) a
         ap2 f a b = H.App src (H.App src (toVar src f) a) b

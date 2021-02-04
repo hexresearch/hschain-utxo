@@ -12,7 +12,6 @@ module Hschain.Utxo.Lang.Compile.Hask.Utils(
 
 import Hex.Common.Text (showt)
 
-import Data.Fix
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 
@@ -47,12 +46,15 @@ toTypedPat :: Loc -> Typed (HM.Type () Name) Name -> H.Pat Loc
 toTypedPat loc (Typed name ty) = H.PatTypeSig loc (H.PVar loc $ toName $ VarName loc name) (toType loc ty)
 
 toSigma :: Loc -> Sigma ProofInput -> H.Exp Loc
-toSigma loc = foldFix $ \case
-  SigmaBool b  -> H.App loc (H.Var loc $ toQName $ VarName loc "toSigma") (toBool loc b)
-  SigmaAnd  as -> sigmaOp "&&" as
-  SigmaOr   as -> sigmaOp "||" as
-  SigmaPk   pk -> fromProofInput pk
+toSigma loc = go
   where
+    go = \case
+      Leaf _ (Left b)   -> H.App loc (H.Var loc $ toQName $ VarName loc "toSigma") (toBool loc b)
+      Leaf _ (Right pk) -> fromProofInput pk
+      AND  _ as         -> sigmaOp "&&" $ go <$> as
+      OR   _ as         -> sigmaOp "||" $ go <$> as
+
+
     sigmaOp op args = L.foldr1 (\a b -> H.InfixApp loc a (toQOp op) b) args
     toQOp op = H.QVarOp loc (toQName $ VarName loc op)
 

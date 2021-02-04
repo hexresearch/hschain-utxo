@@ -182,7 +182,7 @@ getState = call C.getState
 getBoxChainEnv :: App Env
 getBoxChainEnv = fmap unGetEnvResponse $ call C.getEnv
 
-getTxSigma :: Tx -> App (Either Text (Vector (Sigma ProofInput)))
+getTxSigma :: Tx -> App (Either Text (Vector (SigmaE () ProofInput)))
 getTxSigma tx = do
   resp <- call $ C.getTxSigma tx
   logTest $ T.unlines ["PRE TX SIGMA:", showt resp]

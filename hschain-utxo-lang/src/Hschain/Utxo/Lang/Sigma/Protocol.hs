@@ -46,8 +46,8 @@ data SigmaE k a
     -- ^ AND connective
   | OR  k [SigmaE k a]
     -- ^ OR connective
-  deriving stock    (Functor, Foldable, Traversable, Show, Eq, Generic)
-  deriving anyclass (Serialise)
+  deriving stock    (Functor,Foldable,Traversable,Show,Eq,Ord,Generic,Data)
+  deriving anyclass (Serialise,NFData)
 
 sexprAnn :: SigmaE k a -> k
 sexprAnn = \case
@@ -147,3 +147,6 @@ deriving instance (EC a) => Eq   (AtomicProof a)
 instance (EC a) => CBOR.Serialise (AtomicProof a)
 
 instance (CryptoAsymmetric a) => CBOR.Serialise (FiatShamirLeaf a)
+
+instance (ToJSON   k, ToJSON   a) => ToJSON   (SigmaE k a) where
+instance (FromJSON k, FromJSON a) => FromJSON (SigmaE k a) where

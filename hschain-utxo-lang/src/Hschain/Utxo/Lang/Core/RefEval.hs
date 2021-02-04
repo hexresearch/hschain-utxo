@@ -18,7 +18,6 @@ import Data.ByteString (ByteString)
 import Data.Bool
 import Data.Text       (Text)
 import Data.Typeable
-import Data.Fix
 import Data.Foldable (foldrM)
 import Data.Vector.Generic ((!?))
 import qualified Data.Vector          as V
@@ -183,21 +182,23 @@ evalPrimOp env = \case
       False -> match y
   OpBoolNot -> pure $ lift1 not
   --
-  OpSigBool   -> pure $ lift1 $ Fix . SigmaBool
-  OpSigAnd    -> pure $ lift2 $ \a b -> Fix $ SigmaAnd [a,b]
-  OpSigOr     -> pure $ lift2 $ \a b -> Fix $ SigmaOr  [a,b]
-  OpSigPK     -> pure $ evalLift1 $ \t -> fmap (Fix . SigmaPk . dlogInput) $ parsePublicKey t
-  OpSigDTuple -> pure $ evalLift3 $ \genB keyA keyB -> liftA3 (\gB pkA pkB -> Fix $ SigmaPk $ dtupleInput gB pkA pkB) (parseGenerator genB) (parsePublicKey keyA) (parsePublicKey keyB)
-  OpSigListAnd   -> pure $ lift1 $ Fix . SigmaAnd
-  OpSigListOr    -> pure $ lift1 $ Fix . SigmaOr
+  OpSigBool   -> pure $ lift1 $ Leaf () . Left
+  OpSigAnd    -> pure $ lift2 $ \a b -> AND () [a,b]
+  OpSigOr     -> pure $ lift2 $ \a b -> OR  () [a,b]
+  OpSigPK     -> pure $ evalLift1 $ \t -> fmap (sigmaPk . dlogInput) $ parsePublicKey t
+  OpSigDTuple -> pure $ evalLift3 $ \genB keyA keyB ->
+    liftA3 (\gB pkA pkB -> sigmaPk $ dtupleInput gB pkA pkB)
+           (parseGenerator genB) (parsePublicKey keyA) (parsePublicKey keyB)
+  OpSigListAnd   -> pure $ lift1 $ AND ()
+  OpSigListOr    -> pure $ lift1 $ OR  ()
   OpSigListAll _ -> pure $ Val2F $ \valF valXS -> fmap inj $ do
     f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val]        valXS
-    fmap (Fix . SigmaAnd) $ mapM (match <=< f) xs
+    AND () <$> mapM (match <=< f) xs
   OpSigListAny _ -> pure $ Val2F $ \valF valXS -> fmap inj $ do
     f  <- match @(Val -> Eval Val) valF
     xs <- match @[Val]        valXS
-    fmap (Fix . SigmaOr) $ mapM (match <=< f) xs
+    OR () <$> mapM (match <=< f) xs
   --
   OpCheckSig -> pure $ evalLift2 $ \bs sigIndex -> do
     pk  <- parsePublicKey bs
@@ -382,7 +383,7 @@ instance MatchPrim LB.ByteString where
   match (ValP (PrimBytes a)) = pure $ LB.fromStrict a
   match _                    = throwError "Expecting Bytes"
 
-instance k ~ ProofInput => MatchPrim (Sigma k) where
+instance (k ~ (), a ~ Either Bool ProofInput) => MatchPrim (SigmaE k a) where
   match (ValP (PrimSigma a)) = pure a
   match _                    = throwError "Expecting Sigma"
 
@@ -414,7 +415,7 @@ instance InjPrim ByteString    where inj = ValP . PrimBytes
 instance InjPrim LB.ByteString where inj = inj . LB.toStrict
 instance InjPrim (Hash a)      where inj (Hash h) = inj h
 
-instance k ~ ProofInput => InjPrim (Sigma k) where
+instance (k ~ (), a ~ Either Bool ProofInput) => InjPrim (SigmaE k a) where
   inj = ValP . PrimSigma
 
 instance InjPrim a => InjPrim [a] where

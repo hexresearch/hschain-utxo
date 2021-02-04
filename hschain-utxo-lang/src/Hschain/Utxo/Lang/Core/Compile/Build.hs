@@ -30,7 +30,6 @@ module Hschain.Utxo.Lang.Core.Compile.Build(
 
 import Data.ByteString (ByteString)
 import Data.Int
-import Data.Fix
 import Data.Text (Text)
 
 import Hschain.Utxo.Lang.Core.Compile.Expr
@@ -63,7 +62,7 @@ bytes :: ByteString -> Core v
 bytes b = EPrim $ PrimBytes b
 
 sigmaBool :: Bool -> Core v
-sigmaBool b = EPrim $ PrimSigma $ Fix $ SigmaBool b
+sigmaBool b = EPrim $ PrimSigma $ Leaf () $ Left b
 
 equals :: TypeCore -> Core v -> Core v -> Core v
 equals t a b = ap (EPrimOp (OpEQ t)) [a, b]

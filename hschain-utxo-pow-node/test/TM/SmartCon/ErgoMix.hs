@@ -6,7 +6,6 @@ module TM.SmartCon.ErgoMix where
 import Control.Monad.Reader
 
 import Data.ByteString (ByteString)
-import Data.Fix
 import Test.Tasty
 import Test.Tasty.HUnit
 import Prelude hiding ((<*))
@@ -68,13 +67,13 @@ bobJoinMix bobGuess env bob pkAlice bidBob bidAlicePool = do
             , BoxInputRef
                 { boxInputRef'id      = bidAlicePool
                 , boxInputRef'args    = mempty
-                , boxInputRef'proof   = Just $ Fix $ Sigma.SigmaOr
-                                                [ Fix $ Sigma.SigmaOr $ (if bobGuess then id else reverse)
-                                                  [ Sigma.dtupleSigma gx gy gxy
-                                                  , Sigma.dtupleSigma gx gxy gy
-                                                  ]
-                                                , Sigma.dlogSigma gx
-                                                ]
+                , boxInputRef'proof   = Just $ Sigma.OR ()
+                    [ Sigma.OR () $ (if bobGuess then id else reverse)
+                      [ Sigma.dtupleSigma gx gy gxy
+                      , Sigma.dtupleSigma gx gxy gy
+                      ]
+                    , Sigma.dlogSigma gx
+                    ]
                 , boxInputRef'sigs    = []
                 , boxInputRef'sigMask = SigAll
                 }
@@ -113,7 +112,7 @@ aliceSpends bid alice pkBob = do
     spendInput = BoxInputRef
       { boxInputRef'id      = bid
       , boxInputRef'args    = mempty
-      , boxInputRef'proof   = Just $ Fix $ Sigma.SigmaOr
+      , boxInputRef'proof   = Just $ Sigma.OR ()
             [ Sigma.dlogSigma g_xy
             , Sigma.dtupleSigma g_y g_x g_xy
             ]
@@ -137,7 +136,7 @@ bobSpends bid bob pkAlice = do
     spendInput = BoxInputRef
       { boxInputRef'id      = bid
       , boxInputRef'args    = mempty
-      , boxInputRef'proof   = Just $ Fix $ Sigma.SigmaOr
+      , boxInputRef'proof   = Just $ Sigma.OR ()
             [ Sigma.dlogSigma g_y
             , Sigma.dtupleSigma g_xy g_x g_y
             ]

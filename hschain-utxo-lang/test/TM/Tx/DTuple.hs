@@ -7,8 +7,6 @@ module TM.Tx.DTuple(
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Data.Fix
-
 import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Parser.Quoter
@@ -33,7 +31,7 @@ verifyDtupleProof = do
       gy  = getPublicKey bob
       gxy = y .*^ gx
       inp = InputDTuple $ DTuple groupGenerator gx gy gxy
-      expr = Fix $ SigmaPk inp
+      expr = Leaf () inp
   eProof <- newProof (toProofEnv [bob]) expr msg
   return $ either (const False) (\proof -> verifyProof proof msg) eProof
   where
@@ -61,7 +59,7 @@ dtupleTx gx keys = newProofTx (toProofEnv [keys]) $ Tx
     inBox = BoxInputRef
               { boxInputRef'id      = BoxId $ hashBlob "box-1"
               , boxInputRef'args    = mempty
-              , boxInputRef'proof   = Just $ Fix $ SigmaPk $ dtupleInput gx gy gxy
+              , boxInputRef'proof   = Just $ Leaf () $ dtupleInput gx gy gxy
               , boxInputRef'sigs    = []
               , boxInputRef'sigMask = SigAll
               }

@@ -31,7 +31,7 @@ module Hschain.Utxo.Lang.Expr(
   , bindAlts
   , getBindsNames
   , secretVar
-  , BoolExprResult(..)
+  , ScriptEvalResult(..)
   , mapDeclsM
   , fromParserLoc
   , emptyTypeContext
@@ -278,17 +278,17 @@ secretVar = flip mappend "___"
 
 -- | Result of the script can be boolean constant or sigma-expression
 -- that user have to prove.
-data BoolExprResult
-  = ConstBool Bool
-  | SigmaResult (Sigma ProofInput)
+data ScriptEvalResult
+  = ConstBool   !Bool
+  | SigmaResult !(SigmaE () ProofInput)
   deriving (Show, Eq)
 
-instance ToJSON BoolExprResult where
+instance ToJSON ScriptEvalResult where
   toJSON = \case
     ConstBool b -> object ["bool"  .= b]
     SigmaResult s -> object ["sigma" .= s]
 
-instance FromJSON BoolExprResult where
+instance FromJSON ScriptEvalResult where
   parseJSON = withObject "BoolExprResult" $ \obj ->
         (ConstBool <$> obj .: "bool")
     <|> (SigmaResult <$> obj .: "sigma")

@@ -130,7 +130,7 @@ badBlock txs = mineBlockE Nothing Nothing txs >>= \case
   Left  _ -> return ()
   Right _ -> error "Block should be rejected"
 
-badTx :: Sigma.ProofEnv -> GTx (Sigma.Sigma Sigma.ProofInput) Box -> Mine ()
+badTx :: Sigma.ProofEnv -> GTx (Sigma.SigmaE () Sigma.ProofInput) Box -> Mine ()
 badTx env tx = do
   tx' <- newProofTx env tx
   badBlock [tx']
@@ -154,7 +154,7 @@ mineBlockE mpk mFee txs = Mine $ do
       coinbaseBox = Box { box'value  = miningRewardAmount + fee
                         , box'script = coreProgToScript $ case mpk of
                             Nothing -> EPrim $ PrimBool True
-                            Just pk -> EPrim $ PrimSigma $ Sigma.dlogSigma pk
+                            Just pk -> EPrim $ PrimSigma $ Sigma.Leaf () $ Right $ Sigma.dlogInput pk
                         , box'args   = mempty
                         }
       coinbase = Tx { tx'inputs  = V.singleton BoxInputRef
@@ -205,17 +205,17 @@ mineBlockE mpk mFee txs = Mine $ do
 ----------------------------------------------------------------
 
 -- | Create BoxInputRef which is protected by simple signature script
-simpleInputRef :: BoxId -> Sigma.PublicKey -> BoxInputRef (Sigma.Sigma Sigma.ProofInput)
+simpleInputRef :: BoxId -> Sigma.PublicKey -> BoxInputRef (Sigma.SigmaE () Sigma.ProofInput)
 simpleInputRef boxId pk = BoxInputRef
   { boxInputRef'id      = boxId
   , boxInputRef'args    = mempty
-  , boxInputRef'proof   = Just $ Sigma.dlogSigma pk
+  , boxInputRef'proof   = Just $ Sigma.Leaf () $ Sigma.dlogInput pk
   , boxInputRef'sigs    = []
   , boxInputRef'sigMask = SigAll
   }
 
 simpleScript :: Sigma.PublicKey -> Script
-simpleScript pk = coreProgToScript $ EPrim $ PrimSigma $ Sigma.dlogSigma pk
+simpleScript pk = coreProgToScript $ EPrim $ PrimSigma $ Sigma.Leaf () $ Right $ Sigma.dlogInput pk
 
 -- | Unspendable box
 burnBox :: Money -> Box

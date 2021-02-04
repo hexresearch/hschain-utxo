@@ -11,7 +11,6 @@ module Hschain.Utxo.Test.Client.Scripts.MultiSig(
   , simpleSpendTo
 ) where
 
-import Data.Boolean
 import Control.Monad
 import Control.Monad.IO.Class
 
@@ -50,7 +49,7 @@ multiSigExchange = do
     bobShareValue   = 6
 
 
-getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId, Sigma ProofInput)
+getSharedBoxTx :: Wallet -> Wallet -> (Int64, Int64) -> (Int64, Int64) -> BoxId -> BoxId -> App (Tx, BoxId, SigmaE () ProofInput)
 getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBox bobBox = liftIO $ do
   aliceProof <- fmap eitherToMaybe $ newProof aliceEnv (singleOwnerSigmaExpr alice) message
   bobProof   <- fmap eitherToMaybe $ newProof bobEnv   (singleOwnerSigmaExpr bob)   message
@@ -82,7 +81,9 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
       , box'args   = mempty
       }
 
-    commonScript = dlogSigma alicePk &&* dlogSigma bobPk
+    commonScript = AND () [ dlogSigma alicePk
+                          , dlogSigma bobPk
+                          ]
 
     alicePk = getWalletPublicKey alice
     bobPk   = getWalletPublicKey bob
@@ -94,7 +95,7 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
 spendCommonBoxTx :: Wallet -> Wallet -> BoxId -> (Int64, Int64) -> App (Tx, BoxId, BoxId)
 spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
   proof <- fmap eitherToMaybe $ runProve $ do
-    comQueryExpr <- initMultiSigProof knownKeys commonScript
+    comQueryExpr <- initMultiSigProof knownKeys $ Right <$> commonScript
     (aliceCommitments, aliceSecret) <- queryCommitments aliceKeys comQueryExpr
     (bobCommitments,   bobSecret)   <- queryCommitments bobKeys   comQueryExpr
     commitments <- appendCommitments [(aliceKeys, aliceCommitments), (bobKeys, bobCommitments)]
@@ -127,8 +128,9 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
       , boxInputRef'sigMask = SigAll
       }
 
-    commonScript = dlogSigma alicePk &&* dlogSigma bobPk
-
+    commonScript = AND () [ dlogSigma alicePk
+                          , dlogSigma bobPk
+                          ]
     aliceBox = singleSpendBox aliceValue alicePk
     bobBox   = singleSpendBox bobValue   bobPk
 

@@ -126,7 +126,6 @@ executable hschain-utxo-pow-node-cli
                      , text
                      , yaml
                      , vector
-                     , data-fix                  >=0.3
                      , servant
                      , servant-client
                      , servant-client-core
