@@ -88,7 +88,7 @@ toHaskExprCore = flip evalState (T.pack <$> stringPrettyLetters) . go []
       PrimText txt  -> fromText txt
       PrimBytes bs  -> H.App () (H.Var () (toQName "bytes")) (fromText $ encodeBase58 bs)
       PrimBool b    -> fromBool b
-      PrimSigma sig -> fromSigma $ mapPk (BL.toStrict . CBOR.serialise) sig
+      PrimSigma sig -> fromSigma $ (fmap . fmap) (BL.toStrict . CBOR.serialise) sig
 
     fromText txt = H.Lit () $ H.String () str str
       where

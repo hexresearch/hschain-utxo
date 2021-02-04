@@ -19,8 +19,6 @@ module Hschain.Utxo.Lang.Sigma(
   , sigmaPk
   , dlogSigma
   , dtupleSigma
-  , mapPk
-  , mapPkM
   , newProof
   , verifyProof
   , proofEnvFromKeys
@@ -147,12 +145,6 @@ verifyProof :: Proof -> SigMessage -> Bool
 verifyProof proof = Sigma.verifyProof proof . encodeToBS
 
 type Sigma k = Sigma.SigmaE () (Either Bool k)
-
-mapPk :: (a -> b) -> Sigma a -> Sigma b
-mapPk = fmap . fmap
-
-mapPkM :: Applicative m => (a -> m b) -> Sigma a -> m (Sigma b)
-mapPkM = traverse . traverse
 
 sigmaPk :: k -> Sigma k
 sigmaPk k = Sigma.Leaf () (Right k)
