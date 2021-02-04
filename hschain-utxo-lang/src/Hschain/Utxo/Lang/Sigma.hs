@@ -19,6 +19,8 @@ module Hschain.Utxo.Lang.Sigma(
   , sigmaPk
   , dlogSigma
   , dtupleSigma
+  , dlogInput
+  , dtupleInput
   , newProof
   , verifyProof
   , proofEnvFromKeys
@@ -40,8 +42,6 @@ module Hschain.Utxo.Lang.Sigma(
   , queryResponses
   , appendResponsesToProof
   , checkChallenges
-  , dlogInput
-  , dtupleInput
   , getSecretKey
   , getPublicKey
   ) where
@@ -154,6 +154,14 @@ dlogSigma k = Sigma.Leaf () $ dlogInput k
 
 dtupleSigma :: ECPoint -> PublicKey -> PublicKey -> Sigma.SigmaE () ProofInput
 dtupleSigma genB keyA keyB = Sigma.Leaf () $ dtupleInput genB keyA keyB
+
+dlogInput :: PublicKey -> ProofInput
+dlogInput = Sigma.InputDLog
+
+dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
+dtupleInput genB keyA keyB =
+  Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
+
 
 -- | Tries to remove all boolean constants.
 -- returns Left boolean if it's not possible
@@ -330,10 +338,3 @@ appendResponsesToProof = Sigma.appendResponsesToProof
 checkChallenges :: Commitments -> Challenges -> SigMessage -> Bool
 checkChallenges commitments challenges message =
   Sigma.checkChallenges commitments challenges (encodeToBS message)
-
-dlogInput :: PublicKey -> ProofInput
-dlogInput = Sigma.InputDLog
-
-dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
-dtupleInput genB keyA keyB =
-  Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
