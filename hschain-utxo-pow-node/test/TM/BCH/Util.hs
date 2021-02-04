@@ -209,7 +209,7 @@ simpleInputRef :: BoxId -> Sigma.PublicKey -> BoxInputRef (Sigma.SigmaE () Sigma
 simpleInputRef boxId pk = BoxInputRef
   { boxInputRef'id      = boxId
   , boxInputRef'args    = mempty
-  , boxInputRef'proof   = Just $ Sigma.Leaf () $ Sigma.dlogInput pk
+  , boxInputRef'proof   = Just $ Sigma.dlogSigma pk
   , boxInputRef'sigs    = []
   , boxInputRef'sigMask = SigAll
   }

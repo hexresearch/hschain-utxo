@@ -76,7 +76,7 @@ getBalance Wallet{..} = do
 -- | Create proof for a most simple expression of @pk user-key@
 getOwnerProof :: MonadIO io => Wallet -> Tx -> io (Either Text Proof)
 getOwnerProof w@Wallet{..} tx =
-  liftIO $ newProof env (Leaf () $ dlogInput (getWalletPublicKey w)) (getSigMessage SigAll tx)
+  liftIO $ newProof env (dlogSigma (getWalletPublicKey w)) (getSigMessage SigAll tx)
   where
     env = toProofEnv [getKeyPair wallet'privateKey]
 

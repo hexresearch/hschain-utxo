@@ -59,7 +59,7 @@ dtupleTx gx keys = newProofTx (toProofEnv [keys]) $ Tx
     inBox = BoxInputRef
               { boxInputRef'id      = BoxId $ hashBlob "box-1"
               , boxInputRef'args    = mempty
-              , boxInputRef'proof   = Just $ Leaf () $ dtupleInput gx gy gxy
+              , boxInputRef'proof   = Just $ dtupleSigma gx gy gxy
               , boxInputRef'sigs    = []
               , boxInputRef'sigMask = SigAll
               }
