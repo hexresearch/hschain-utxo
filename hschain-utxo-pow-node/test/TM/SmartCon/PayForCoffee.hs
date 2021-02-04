@@ -32,7 +32,7 @@ payforCoffee isBob = do
   -- H=1 Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []
   -- H=2 Alice sends reward to Bob with time-lock
-  txToBob <- newProofTx sigmaEnv $ Tx
+  Right txToBob <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
     , tx'outputs =
       [ Box { box'value  = 100
@@ -48,7 +48,7 @@ payforCoffee isBob = do
   case isBob of
     True -> do
       -- H=3 Bob tries to spend transaction
-      txBob <- newProofTx sigmaEnv $ Tx
+      Right txBob <- newProofTx sigmaEnv $ Tx
         { tx'inputs  = [ simpleInputRef coffeeBoxId pkBob ]
         , tx'outputs = [ burnBox 100 ]
         , tx'dataInputs = []
@@ -63,7 +63,7 @@ payforCoffee isBob = do
     ----------------------------------------
     False -> do
       -- H=3 Alice tries to spend transaction
-      txAlice <- newProofTx sigmaEnv $ Tx
+      Right txAlice <- newProofTx sigmaEnv $ Tx
         { tx'inputs  = [ simpleInputRef coffeeBoxId pkAlice ]
         , tx'outputs = [ burnBox 100 ]
         , tx'dataInputs = []

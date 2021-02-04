@@ -44,8 +44,8 @@ xorGame aliceGuess bobGuess = do
   (commitmentHash, secret) <- makeAliceSecret aliceGuess
   let fullScript = fullGameScript commitmentHash (encodeToBS pkAlice)
       halfScript = halfGameScript $ hashScript fullScript
-  -- Alice posts half-game transaction
-  txAlice <- newProofTx sigmaEnv $ Tx
+  -- Right Alice posts half-game transaction
+  Right txAlice <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
     , tx'outputs = [
         Box { box'value  = 100
@@ -58,7 +58,7 @@ xorGame aliceGuess bobGuess = do
   let aliceGameBid = computeBoxId (computeTxId txAlice) 0
   _ <- mineBlock Nothing [ txAlice ]
   -- Bob posts full game script
-  txBob <- newProofTx sigmaEnv $ Tx
+  Right txBob <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidBob pkBob
                    , BoxInputRef { boxInputRef'id      = aliceGameBid
                                  , boxInputRef'args    = mempty
@@ -105,13 +105,13 @@ xorGame aliceGuess bobGuess = do
     -- Alice wins
     True -> do
       badTx sigmaEnv bobWin
-      tx <- newProofTx sigmaEnv aliceWin
+      Right tx <- newProofTx sigmaEnv aliceWin
       _  <- mineBlock Nothing [tx]
       pure ()
     -- Bob wins
     False -> do
       badTx sigmaEnv aliceWin
-      tx <- newProofTx sigmaEnv bobWin
+      Right tx <- newProofTx sigmaEnv bobWin
       _  <- mineBlock Nothing [tx]
       pure ()
 

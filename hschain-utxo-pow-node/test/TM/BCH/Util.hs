@@ -132,7 +132,7 @@ badBlock txs = mineBlockE Nothing Nothing txs >>= \case
 
 badTx :: Sigma.ProofEnv -> GTx (Sigma.SigmaE () Sigma.ProofInput) Box -> Mine ()
 badTx env tx = do
-  tx' <- newProofTx env tx
+  Right tx' <- newProofTx env tx
   badBlock [tx']
 
 -- | Same as 'mineBlock' but doesn't throw exception when block is rejected.

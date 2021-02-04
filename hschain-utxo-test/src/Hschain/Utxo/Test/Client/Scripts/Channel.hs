@@ -447,8 +447,9 @@ offChainPreTx revoceSecret commonBoxId (myValue, partnerValue) myPk partnerPk = 
       }
 
 getRevoceTx :: Wallet -> RevoceBox -> App (Tx, BoxId)
-getRevoceTx wallet RevoceBox{..} =
-  fmap appendBoxId $ newProofTx (getProofEnv wallet) preTx
+getRevoceTx wallet RevoceBox{..} = do
+  Right tx <- newProofTx (getProofEnv wallet) preTx
+  pure $ appendBoxId tx 
   where
     appendBoxId tx@Tx{..} = (tx, computeBoxId (computeTxId tx) 0)
 
