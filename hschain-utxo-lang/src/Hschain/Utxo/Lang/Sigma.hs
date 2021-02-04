@@ -17,10 +17,7 @@ module Hschain.Utxo.Lang.Sigma(
   , Sigma
   , Sigma.SigmaE(..)
   , sigmaPk
-  , dlogSigma
-  , dtupleSigma
-  , dlogInput
-  , dtupleInput
+  , SigmaLike(..)
   , newProof
   , Sigma.verifyProof
   , Sigma.verifyProofExpr
@@ -140,18 +137,24 @@ type Sigma k = Sigma.SigmaE () (Either Bool k)
 sigmaPk :: k -> Sigma k
 sigmaPk k = Sigma.Leaf () (Right k)
 
-dlogSigma :: PublicKey -> Sigma.SigmaE () ProofInput
-dlogSigma k = Sigma.Leaf () $ dlogInput k
+class SigmaLike a where
+  dlogSigma   :: PublicKey -> a
+  dtupleSigma :: ECPoint -> PublicKey -> PublicKey -> a
 
-dtupleSigma :: ECPoint -> PublicKey -> PublicKey -> Sigma.SigmaE () ProofInput
-dtupleSigma genB keyA keyB = Sigma.Leaf () $ dtupleInput genB keyA keyB
+instance SigmaLike ProofInput where
+  dlogSigma   = Sigma.InputDLog
+  dtupleSigma genB keyA keyB =
+    Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
 
-dlogInput :: PublicKey -> ProofInput
-dlogInput = Sigma.InputDLog
+instance SigmaLike (Sigma.SigmaE () ProofInput) where
+  dlogSigma = Sigma.Leaf () . dlogSigma
+  dtupleSigma genB keyA keyB = Sigma.Leaf () $ dtupleSigma genB keyA keyB
 
-dtupleInput :: ECPoint -> PublicKey -> PublicKey -> ProofInput
-dtupleInput genB keyA keyB =
-  Sigma.InputDTuple $ Sigma.DTuple Sigma.groupGenerator genB keyA keyB
+instance SigmaLike (Sigma.SigmaE () (Either e ProofInput)) where
+  dlogSigma = Sigma.Leaf () . Right . dlogSigma
+  dtupleSigma genB keyA keyB = Sigma.Leaf () $ Right $ dtupleSigma genB keyA keyB
+
+
 
 
 -- | Tries to remove all boolean constants.

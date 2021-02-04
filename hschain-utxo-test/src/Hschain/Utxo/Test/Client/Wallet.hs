@@ -122,7 +122,7 @@ getSigmaForProof :: Tx -> App (Vector (SigmaE () ProofInput))
 getSigmaForProof tx = getTxSigmaUnsafe tx
 
 singleOwnerSigmaExpr :: Wallet -> SigmaE () ProofInput
-singleOwnerSigmaExpr wallet = Leaf () $ dlogInput $ getWalletPublicKey wallet
+singleOwnerSigmaExpr wallet = dlogSigma $ getWalletPublicKey wallet
 
 -- | Sends money with exchange
 --

@@ -102,7 +102,7 @@ parseSend = do
                                     ]
           , tx'outputs = V.fromList [
               Box { box'value  = amount
-                  , box'script = coreProgToScript $ EPrim $ PrimSigma $ sigmaPk $ dlogInput pk
+                  , box'script = coreProgToScript $ EPrim $ PrimSigma $ dlogSigma pk
                   , box'args   = mempty
                   }
               ]

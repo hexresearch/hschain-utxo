@@ -185,9 +185,9 @@ evalPrimOp env = \case
   OpSigBool   -> pure $ lift1 $ Leaf () . Left
   OpSigAnd    -> pure $ lift2 $ \a b -> AND () [a,b]
   OpSigOr     -> pure $ lift2 $ \a b -> OR  () [a,b]
-  OpSigPK     -> pure $ evalLift1 $ \t -> fmap (sigmaPk . dlogInput) $ parsePublicKey t
+  OpSigPK     -> pure $ evalLift1 $ \t -> fmap (sigmaPk . dlogSigma) $ parsePublicKey t
   OpSigDTuple -> pure $ evalLift3 $ \genB keyA keyB ->
-    liftA3 (\gB pkA pkB -> sigmaPk $ dtupleInput gB pkA pkB)
+    liftA3 (\gB pkA pkB -> sigmaPk $ dtupleSigma gB pkA pkB)
            (parseGenerator genB) (parsePublicKey keyA) (parsePublicKey keyB)
   OpSigListAnd   -> pure $ lift1 $ AND ()
   OpSigListOr    -> pure $ lift1 $ OR  ()

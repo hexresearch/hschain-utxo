@@ -471,14 +471,11 @@ hashScript = getSha256 . unScript
 --------------------------------------------
 -- useful utils
 
-singleOwnerSigma :: PublicKey -> SigmaE () ProofInput
-singleOwnerSigma pubKey = Leaf () $ dlogInput pubKey
-
 singleOwnerInput :: BoxId -> PublicKey -> ExpectedBox
 singleOwnerInput boxId pubKey = BoxInputRef
   { boxInputRef'id      = boxId
   , boxInputRef'args    = mempty
-  , boxInputRef'proof   = Just $ singleOwnerSigma pubKey
+  , boxInputRef'proof   = Just $ dlogSigma pubKey
   , boxInputRef'sigs    = mempty
   , boxInputRef'sigMask = SigAll
   }

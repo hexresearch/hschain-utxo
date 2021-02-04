@@ -154,7 +154,7 @@ mineBlockE mpk mFee txs = Mine $ do
       coinbaseBox = Box { box'value  = miningRewardAmount + fee
                         , box'script = coreProgToScript $ case mpk of
                             Nothing -> EPrim $ PrimBool True
-                            Just pk -> EPrim $ PrimSigma $ Sigma.Leaf () $ Right $ Sigma.dlogInput pk
+                            Just pk -> EPrim $ PrimSigma $ Sigma.dlogSigma pk
                         , box'args   = mempty
                         }
       coinbase = Tx { tx'inputs  = V.singleton BoxInputRef
@@ -215,7 +215,7 @@ simpleInputRef boxId pk = BoxInputRef
   }
 
 simpleScript :: Sigma.PublicKey -> Script
-simpleScript pk = coreProgToScript $ EPrim $ PrimSigma $ Sigma.Leaf () $ Right $ Sigma.dlogInput pk
+simpleScript pk = coreProgToScript $ EPrim $ PrimSigma $ Sigma.dlogSigma pk
 
 -- | Unspendable box
 burnBox :: Money -> Box
