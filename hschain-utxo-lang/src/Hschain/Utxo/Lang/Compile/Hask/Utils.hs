@@ -28,7 +28,6 @@ import qualified Type.Check.HM as HM(LocFunctor(..), Type)
 
 import qualified Hschain.Utxo.Lang.Parser.Hask.ToHask as H(toHaskType)
 import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.DTuple as Sigma
 
 toName :: VarName -> H.Name Loc
 toName (VarName loc txt) = H.Ident loc $ T.unpack txt

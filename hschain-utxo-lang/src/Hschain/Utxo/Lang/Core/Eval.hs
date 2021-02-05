@@ -63,8 +63,7 @@ verifyInput txArg input@BoxInput{..} = do
     ConstBool False -> false
     SigmaResult sigma
       | Just proof <- boxInput'proof
-      , equalSigmaProof sigma proof
-      , verifyProof proof boxInput'sigMsg
+      , verifyProofExpr proof boxInput'sigMsg sigma
         -> pure ()
       | otherwise -> Left $ T.unlines ["Sigma expression proof is not valid"]
   where

@@ -11,8 +11,7 @@ import HSChain.Crypto (hashBlob)
 import Hschain.Utxo.Lang.Sigma
 import Hschain.Utxo.Lang.Parser.Quoter
 import Hschain.Utxo.Lang.Sigma.EllipticCurve (EC(..))
-import Hschain.Utxo.Lang.Sigma.Protocol (ProofInput(..))
-import Hschain.Utxo.Lang.Sigma.DTuple (DTuple(..))
+import Hschain.Utxo.Lang.Sigma.Protocol (ProofInput(..),DTuple(..))
 import Hschain.Utxo.Lang.Types
 import TM.Tx.Sigma (verifyTx)
 

@@ -11,7 +11,7 @@ import Prelude hiding ((<*))
 
 import Hschain.Utxo.Lang.Types
 import Hschain.Utxo.Lang.Sigma.Types (generateKeyPair, KeyPair(..))
-import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
+import qualified Hschain.Utxo.Lang.Sigma as Sigma
 
 import TM.BCH.Util
 
@@ -32,7 +32,7 @@ tests = testGroup "Running blockchain"
 noDoubleTx :: Mine ()
 noDoubleTx = do
   alice@KeyPair  {getPublicKey=pkAlice  } <- liftIO generateKeyPair
-  let sigmaEnv = Sigma.Env [ alice ]
+  let sigmaEnv = Sigma.toProofEnv [ alice ]
   -- H=1. Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []
   -- H=2. Alice spends mining reward
@@ -60,7 +60,7 @@ simpleTransfers = do
   alice@KeyPair  {getPublicKey=pkAlice  } <- liftIO generateKeyPair
   bob@KeyPair    {getPublicKey=pkBob    } <- liftIO generateKeyPair
   charlie@KeyPair{getPublicKey=pkCharlie} <- liftIO generateKeyPair
-  let sigmaEnv = Sigma.Env [ alice, bob, charlie ]
+  let sigmaEnv = Sigma.toProofEnv [ alice, bob, charlie ]
   ----------------------------------------
   -- H=1 Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []

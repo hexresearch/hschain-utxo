@@ -66,8 +66,6 @@ library
       Hschain.Utxo.Lang.Parser.Quoter
       Hschain.Utxo.Lang.Pretty
       Hschain.Utxo.Lang.Sigma
-      Hschain.Utxo.Lang.Sigma.DTuple
-      Hschain.Utxo.Lang.Sigma.DLog
       Hschain.Utxo.Lang.Sigma.EllipticCurve
       Hschain.Utxo.Lang.Sigma.Interpreter
       Hschain.Utxo.Lang.Sigma.MultiSig

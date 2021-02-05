@@ -14,7 +14,7 @@ import Prelude hiding ((<*))
 
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Sigma.Types (generateKeyPair, KeyPair(..))
-import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
+import qualified Hschain.Utxo.Lang.Sigma as Sigma
 
 import TM.BCH.Util
 
@@ -28,7 +28,7 @@ payforCoffee :: Bool -> Mine ()
 payforCoffee isBob = do
   alice@KeyPair{getPublicKey=pkAlice} <- liftIO $ generateKeyPair
   bob@KeyPair  {getPublicKey=pkBob  } <- liftIO $ generateKeyPair
-  let sigmaEnv = Sigma.Env [ alice, bob ]
+  let sigmaEnv = Sigma.toProofEnv [ alice, bob ]
   -- H=1 Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []
   -- H=2 Alice sends reward to Bob with time-lock
