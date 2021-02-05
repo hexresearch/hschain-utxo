@@ -13,7 +13,6 @@ import Prelude hiding ((<*))
 import Hschain.Utxo.Lang
 import Hschain.Utxo.Lang.Sigma.EllipticCurve(EC(..))
 import qualified Hschain.Utxo.Lang.Sigma          as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Protocol as Sigma
 import System.Random (randomIO)
 
 import TM.BCH.Util
@@ -29,7 +28,7 @@ ergoMixTest = do
   bob   <- liftIO newKeyPair
   let pkAlice = getPublicKey alice
       pkBob   = getPublicKey bob
-      sigmaEnv = Sigma.Env [ alice, bob ]
+      sigmaEnv = Sigma.toProofEnv [ alice, bob ]
   -- Alice and Bob mine some money
   bidAlice <- mineBlock (Just pkAlice) []
   bidBob   <- mineBlock (Just pkBob  ) []

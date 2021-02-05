@@ -23,7 +23,6 @@ module Hschain.Utxo.Lang.Sigma(
   , dtupleInput
   , newProof
   , verifyProof
-  , proofEnvFromKeys
   , newSecret
   , newKeyPair
   , toPublicKey
@@ -189,10 +188,6 @@ eliminateSigmaBool = go
             _       -> Right $ Sigma.OR () sigmas
         where
           (bools, sigmas) = partitionEithers $ eliminateSigmaBool <$> as
-
--- | Wrapper to contruct proof environment from list of key-pairs.
-proofEnvFromKeys :: [KeyPair] -> ProofEnv
-proofEnvFromKeys = toProofEnv
 
 -- | Check if sigma expression is proven with given proof.
 equalSigmaProof :: Sigma.SigmaE () ProofInput -> Proof -> Bool

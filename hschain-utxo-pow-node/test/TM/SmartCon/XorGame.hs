@@ -22,7 +22,6 @@ import Hschain.Utxo.Lang.Sigma.Types (generateKeyPair, KeyPair(..))
 import Hschain.Utxo.Lang
 
 import qualified Hschain.Utxo.Lang.Sigma            as Sigma
-import qualified Hschain.Utxo.Lang.Sigma.Protocol   as Sigma
 import qualified Hschain.Utxo.Lang.Utils.Hash       as H
 
 import TM.BCH.Util
@@ -37,7 +36,7 @@ xorGame :: Int64 -> Int64 -> Mine ()
 xorGame aliceGuess bobGuess = do
   alice@KeyPair  {getPublicKey=pkAlice  } <- liftIO generateKeyPair
   bob@KeyPair    {getPublicKey=pkBob    } <- liftIO generateKeyPair
-  let sigmaEnv = Sigma.Env [ alice, bob ]
+  let sigmaEnv = Sigma.toProofEnv [ alice, bob ]
   -- Alice and Bob mine some money
   bidAlice <- mineBlock (Just pkAlice) []
   bidBob   <- mineBlock (Just pkBob  ) []

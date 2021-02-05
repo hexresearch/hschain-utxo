@@ -65,7 +65,7 @@ getWalletPrivateKey = wallet'privateKey
 
 -- | Gets user proof environment or list of keys
 getProofEnv :: Wallet -> ProofEnv
-getProofEnv Wallet{..} = proofEnvFromKeys [getKeyPair wallet'privateKey]
+getProofEnv Wallet{..} = toProofEnv [getKeyPair wallet'privateKey]
 
 -- | Query the user balance.
 getBalance :: Wallet -> App Money
