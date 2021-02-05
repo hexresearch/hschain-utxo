@@ -47,6 +47,7 @@ import Data.Data
 import Data.Aeson   (FromJSON(..), ToJSON(..))
 import Data.Maybe
 import Data.Functor.Identity
+import Data.Functor.Classes
 import Data.Bifunctor
 import GHC.Generics (Generic)
 
@@ -103,6 +104,14 @@ instance Bifunctor SigmaE where
       OR   k es -> OR   (f k) (go <$> es)
   second = fmap
 
+instance Eq k =>  Eq1 (SigmaE k) where
+  liftEq = liftEq2 (==)
+instance Eq2 SigmaE where
+  liftEq2 eqK eqA = (===) where
+    Leaf k a  === Leaf l b  = eqK k l && eqA a b
+    AND  k as === AND  l bs = eqK k l && liftEq (===) as bs
+    OR   k as === OR   l bs = eqK k l && liftEq (===) as bs
+    _         === _         = False
 
 
 -- | Proof to reconstruct all challenges from the root challenge.

@@ -51,7 +51,7 @@ import Codec.Serialise
 import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.Either
-import Data.Functor.Classes (Eq1(..))
+import Data.Functor.Classes (Eq2(..))
 import Data.Set (Set)
 import Data.Text (Text)
 
@@ -197,14 +197,7 @@ equalSigmaProof candidate proof =
       (Sigma.completeProvenTree proof)
 
 equalSigmaExpr :: Sigma.SigmaE () ProofInput -> Sigma.SigmaE () (Sigma.CommitedProof CryptoAlg) -> Bool
-equalSigmaExpr x y = case (x, y) of
-  (Sigma.Leaf _ inp, Sigma.Leaf _ proof)
-    -> inp == Sigma.toProofInput proof
-  (Sigma.OR  _ as, Sigma.OR  _ bs) -> equalList as bs
-  (Sigma.AND _ as, Sigma.AND _ bs) -> equalList as bs
-  _                                -> False
-  where
-    equalList = liftEq equalSigmaExpr
+equalSigmaExpr = liftEq2 (\_ _ -> True) (\inp proof -> inp == Sigma.toProofInput proof)
 
 ----------------------------------------------------------------------------
 -- Multi signatures
