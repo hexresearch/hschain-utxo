@@ -156,7 +156,7 @@ evalModule' typeCtx Module{..} = do
   maybe (Right ()) Left $ checkUserTypes definedVals userTypes
   runInferM $ do
     binds <- InferM $ lift $ evalStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
-    toModuleCtx $ Binds (binds'types module'binds) binds
+    fmap setExports $ toModuleCtx $ Binds (binds'types module'binds) binds
   where
     userTypes = M.elems $ userTypeCtx'types module'userTypes
     definedVals = case typeCtx of
@@ -164,10 +164,15 @@ evalModule' typeCtx Module{..} = do
 
     userTypeCtx = userTypesToTypeContext module'userTypes
 
+    setExports m = case moduleHead'exports =<< module'head of
+      Just (ExportList _ items) -> m { moduleCtx'exports = Just items }
+      _                         -> m
+
     toModuleCtx :: Binds Lang -> InferM ModuleCtx
     toModuleCtx bs = fmap (\es -> ModuleCtx
       { moduleCtx'types = InferCtx ((H.Context types) <> userTypeCtx) module'userTypes
       , moduleCtx'exprs = ExecCtx (M.fromList es)
+      , moduleCtx'exports = Nothing
       }) exprs
       where
         types = M.mapKeys varName'name $ binds'types bs

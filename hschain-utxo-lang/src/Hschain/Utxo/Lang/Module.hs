@@ -42,8 +42,9 @@ data Module = Module
 
 -- | Evaluated module
 data ModuleCtx = ModuleCtx
-  { moduleCtx'types  :: !InferCtx
-  , moduleCtx'exprs  :: !ExecCtx
+  { moduleCtx'types   :: !InferCtx
+  , moduleCtx'exprs   :: !ExecCtx
+  , moduleCtx'exports :: !(Maybe [ExportItem])
   }
   deriving stock (Generic)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid ModuleCtx
