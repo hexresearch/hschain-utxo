@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 -- | The module defines functions to create proofs for sigma-expressions
 -- and verify them.
 --
@@ -7,6 +8,7 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
     Proof
   , createProof
   , verifyProof
+  , verifyProofExpr
   , ProvenTree(..)
   , completeProvenTree
   , ProofTag(..)
@@ -39,11 +41,12 @@ import Data.Aeson      (ToJSON,FromJSON)
 import Data.ByteString (ByteString)
 import Data.Set        (Set)
 import Data.Text       (Text)
+import Data.Functor.Classes (Eq2(..))
 import qualified Data.ByteString.Lazy  as LB
 import qualified Data.Set              as Set
 import GHC.Generics (Generic)
 
-import HSChain.Crypto              (PublicKey, PrivKey, CryptoAsymmetric(..))
+import HSChain.Crypto              (PublicKey, PrivKey, CryptoAsymmetric(..), ByteRepr(..))
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Types
@@ -340,14 +343,32 @@ orChallenge ch rest = foldl xorChallenge ch rest
 -- | Check that proof is correct. To do so we compute commitments for
 --   every node in Σ-expression tree compute Fiat-Shamir hash and
 --   check that it's same as root challenge.
-verifyProof :: forall a. (EC a, Eq (Challenge a))
-  => Proof a
-  -> ByteString
+verifyProof
+  :: (EC a, ByteRepr msg)
+  => Proof a -- ^ Proof
+  -> msg     -- ^ Message being verified by proof
   -> Bool
-verifyProof proof message =
+verifyProof proof (encodeToBS -> message) =
   computeRootChallenge compTree message == proof'rootChallenge proof
   where
     compTree = completeProvenTree proof
+
+-- | Check that proof is correct and matches given Σ-expression.
+verifyProofExpr
+  :: (EC a, ByteRepr msg)
+  => Proof a                  -- ^ Proof under consideration
+  -> msg                      -- ^ Message being verified by proof
+  -> SigmaE () (ProofInput a) -- ^ Σ-expression being proven
+  -> Bool
+verifyProofExpr proof (encodeToBS -> message) expr
+  =  matches
+  && computeRootChallenge compTree message == proof'rootChallenge proof
+  where
+    compTree = completeProvenTree proof
+    -- Proof proves given
+    matches  = liftEq2 (\_ _ -> True) (\inp p -> inp == toProofInput p)
+      expr compTree
+
 
 -- | In top-down traversal compute challenges for each leaf node in
 --   tree and build 'AtomicProof' for it.

@@ -22,13 +22,13 @@ module Hschain.Utxo.Lang.Sigma(
   , dlogInput
   , dtupleInput
   , newProof
-  , verifyProof
+  , Sigma.verifyProof
+  , Sigma.verifyProofExpr
   , newSecret
   , newKeyPair
   , toPublicKey
   , getKeyPair
   , toProofEnv
-  , equalSigmaProof
   , eliminateSigmaBool
   -- * Multi-signatures
   , Prove
@@ -51,7 +51,6 @@ import Codec.Serialise
 import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.Either
-import Data.Functor.Classes (Eq2(..))
 import Data.Set (Set)
 import Data.Text (Text)
 
@@ -136,14 +135,6 @@ toProofEnv keys = Sigma.Env $ \k ->
 newProof :: ProofEnv -> Sigma.SigmaE () ProofInput -> SigMessage -> IO (Either Text Proof)
 newProof env expr message = Sigma.createProof env expr $ encodeToBS message
 
--- | Verify the proof.
---
--- > verifyProof proof message
---
--- For the message use getTxBytes from TX.
-verifyProof :: Proof -> SigMessage -> Bool
-verifyProof proof = Sigma.verifyProof proof . encodeToBS
-
 type Sigma k = Sigma.SigmaE () (Either Bool k)
 
 sigmaPk :: k -> Sigma k
@@ -189,15 +180,6 @@ eliminateSigmaBool = go
         where
           (bools, sigmas) = partitionEithers $ eliminateSigmaBool <$> as
 
--- | Check if sigma expression is proven with given proof.
-equalSigmaProof :: Sigma.SigmaE () ProofInput -> Proof -> Bool
-equalSigmaProof candidate proof =
-  equalSigmaExpr
-      candidate
-      (Sigma.completeProvenTree proof)
-
-equalSigmaExpr :: Sigma.SigmaE () ProofInput -> Sigma.SigmaE () (Sigma.CommitedProof CryptoAlg) -> Bool
-equalSigmaExpr = liftEq2 (\_ _ -> True) (\inp proof -> inp == Sigma.toProofInput proof)
 
 ----------------------------------------------------------------------------
 -- Multi signatures
