@@ -14,8 +14,6 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , completeProvenTree
   , ProofVar(..)
   , ProofSim(..)
-  , Prove(..)
-  , runProve
   , computeRootChallenge
   , toProof
   , markTree
@@ -56,7 +54,7 @@ import Data.Bifunctor
 import Data.ByteString (ByteString)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Set        (Set)
-import Data.Text       (Text,pack)
+import Data.Text       (Text)
 import Data.Functor.Classes (Eq2(..))
 import qualified Data.ByteString.Lazy  as LB
 import qualified Data.Set              as Set
@@ -71,19 +69,6 @@ import Hschain.Utxo.Lang.Sigma.Types
 ----------------------------------------------------------------
 -- Data types
 ----------------------------------------------------------------
-
--- | Prove monad
-newtype Prove a = Prove (ExceptT Text IO a)
-  deriving newtype (Functor, Monad, Applicative, MonadError Text, MonadIO)
-
-instance MonadFail Prove where
-  fail = throwError . pack
-
--- | Run prove monad.
-runProve :: Prove a -> IO (Either Text a)
-runProve (Prove p) = runExceptT p
-
-----------------------------------------------------
 
 -- | Partial proof. We build proofs in several stages ant this means
 --   at some point we have complete (simulated) proofs and partial
@@ -134,7 +119,7 @@ createProof :: (EC a)
   -> SigmaE () (ProofInput a) -- ^ Σ-expression for which we create proof
   -> ByteString               -- ^ Message linked to sigma expression (TX hash)
   -> IO (Either Text (Proof a))
-createProof env expr message = runProve $ do
+createProof env expr message = runExceptT $ do
   -- 1. Mark which leaves are real and which are simulated.
   let marked = markTree (isProvable env . getPK) expr
   -- 2. Generate simulated proofs in leaves marked as simulated
