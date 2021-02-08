@@ -17,7 +17,6 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , computeRootChallenge
   , toProof
   , markTree
-  , getResponseForInput
   , CommitedProof(..)
   -- * New API
   , simulateProofs
@@ -282,7 +281,8 @@ evaluateRealProof
 evaluateRealProof env = traverseSigmaE $ \ch leaf -> case leaf of
   Complete p               -> pure p
   Partial PartialProof{..} -> do
-    z <- getResponseForInput env pproofR ch (toProofInput pproofInput)
+    sk <- lookupSecret env (getPK pproofInput)
+    let z = computeResponseForInput sk pproofR ch
     pure $ case pproofInput of
       CommitedDLog dlog a -> ProofDL ProofDLog
         { proofDLog'public      = dlog
@@ -325,15 +325,9 @@ computeRootChallenge expr message
   $ LB.toStrict (serialise $ bimap (const ()) toCommitedProof expr)
   <> message
 
-getResponseForInput :: EC a => Env a -> ECScalar a -> Challenge a -> ProofInput a -> Maybe (ECScalar a)
-getResponseForInput env r ch inp = do
-  sk <- lookupSecret env (getPK inp)
-  pure $! r .+. (sk .*. fromChallenge ch)
-
 computeResponseForInput :: EC a => PrivKey a -> ECScalar a -> Challenge a -> ECScalar a
 computeResponseForInput sk r ch
   = r .+. (sk .*. fromChallenge ch)
-
 
 xorChallengesOf :: EC a => Fold s (Challenge a) -> Challenge a -> s -> Challenge a
 xorChallengesOf l = foldlOf' l xorChallenge
