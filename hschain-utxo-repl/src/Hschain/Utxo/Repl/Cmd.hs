@@ -73,7 +73,8 @@ load args = mapM_ loadScript $ getFiles args
 loadScript :: FilePath -> Repl ()
 loadScript file = do
   st <- get
-  eRes <- I.load file $ replEnv'imports st
+  path <- getPath
+  eRes <- I.load path file $ replEnv'imports st
   case eRes of
     Right imp -> put $ st { replEnv'imports = imp }
     Left err  -> printErr err

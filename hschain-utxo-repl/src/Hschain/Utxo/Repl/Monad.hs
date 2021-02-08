@@ -22,6 +22,7 @@ module Hschain.Utxo.Repl.Monad(
   , insertTypeClosure
   , fromTypeClosure
   , getReplTypeCtx
+  , getPath
 ) where
 
 import Control.Monad.Except
@@ -36,6 +37,7 @@ import Data.Text (Text)
 
 import System.Console.Repline
 import System.Console.Haskeline.MonadException
+import System.Directory (getCurrentDirectory)
 
 import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Module
@@ -77,9 +79,12 @@ data ReplEnv = ReplEnv
   -- ^ Local user types defined in the module
   , replEnv'words          :: ![Text]
   -- ^ Words for tab auto-completer
+  , replEnv'path           :: ![FilePath]
+  -- ^ PATH, where to look for imports
   , replEnv'txFile         :: Maybe FilePath
   -- ^ File with the transaction to execute script
   , replEnv'errors         :: [Error]
+  -- ^ Log of errors that happened during session
   }
 
 -- | REPL monad.
@@ -100,6 +105,7 @@ runRepl tx (Repl app) = evalStateT app defEnv
         , replEnv'typeClosure   = S.empty
         , replEnv'words         = mempty
         , replEnv'txFile        = Nothing
+        , replEnv'path          = []
         , replEnv'errors        = []
         }
 
@@ -206,5 +212,9 @@ reportError err = do
   logError err
   liftIO $ T.putStrLn $ renderText err
 
-
+getPath :: Repl [FilePath]
+getPath = do
+  env <- gets replEnv'path
+  curPath <- liftIO getCurrentDirectory
+  return $ curPath : env
 

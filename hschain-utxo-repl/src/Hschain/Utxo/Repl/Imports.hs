@@ -18,7 +18,6 @@ import Data.Default
 import Data.Monoid (Endo(..))
 import Data.Map.Strict (Map)
 
-import System.Directory (getCurrentDirectory)
 
 import Data.Text as T
 import qualified Data.Map.Strict as M
@@ -59,28 +58,23 @@ rmLoaded file imp@Imports{..} = imp
 --
 -- It takes filepath to the module and current import context and returns
 -- updated context or error.
-load :: MonadIO io => FilePath -> Imports -> io (Either Error Imports)
-load file imp0 = liftIO $ runExceptT $ do
+load :: MonadIO io => [FilePath] -> FilePath -> Imports -> io (Either Error Imports)
+load path file imp0 = liftIO $ runExceptT $ do
   let imp = updateCurrent $ rmLoaded file imp0
-  path   <- getPath
   impCtx <- ExceptT $ loadImportsFromFile path file
   depCtx <- liftEither $ evalImports impCtx
   return $ updateImports depCtx imp
   where
     updateImports (DepCtx m) = appEndo $ mconcat $ fmap (Endo . (\(name, ctx) -> loadCtx (T.unpack name) ctx)) $ M.toList m
 
--- | TODO: consider spec of PATH in config file.
-getPath :: MonadIO io => io [FilePath]
-getPath = fmap pure $ liftIO getCurrentDirectory
-
 -- | Reloads all modules that were loaded in the REPL session
-reload :: MonadIO io => Imports -> io (Either Error Imports)
-reload x = go (getLoadedFiles x) x
+reload :: MonadIO io => [FilePath] -> Imports -> io (Either Error Imports)
+reload path x = go (getLoadedFiles x) x
   where
     go files imp = case files of
         []        -> return $ Right imp
         file:rest -> do
-          eRes <- load file imp
+          eRes <- load path file imp
           case eRes of
             Right res -> go rest res
             Left err  -> return $ Left err
