@@ -34,12 +34,16 @@ module Hschain.Utxo.Lang.Sigma(
   , eliminateSigmaBool
     -- * Distributed proof
     -- ** Main prover
+  , Partial
+  , DuringCommitment
+  , DuringChallenge
   , Sigma.mainStartProof
   , Sigma.mainProcessCommitment
   , Sigma.mainAdvanceToChallenge
   , Sigma.mainProcessChallengeResponse
   , Sigma.mainAdvanceToProof
     -- ** Subordinate prover
+  , SubordinateProof
   , Sigma.proverGenerateCommitment
   , Sigma.proverProcessChallenge
   ) where
@@ -96,6 +100,11 @@ newtype SigMessage = SigMessage (Hash SHA256)
   deriving anyclass (Serialise)
   deriving (ToJSON, FromJSON, ToJSONKey, FromJSONKey) via (ViaBase58 "SigMessage" ByteString)
 
+type Partial f = Sigma.Partial f CryptoAlg
+type DuringCommitment = Sigma.DuringCommitment CryptoAlg
+type DuringChallenge  = Sigma.DuringChallenge  CryptoAlg
+type SubordinateProof = Sigma.SubordinateProof CryptoAlg
+
 -- | Generate new private key.
 newSecret :: IO Secret
 newSecret = Crypto.generatePrivKey
@@ -116,7 +125,6 @@ getSecretKey = Sigma.getSecretKey
 
 getPublicKey :: KeyPair -> PublicKey
 getPublicKey = Sigma.getPublicKey
-
 
 -- | Proof environment is a listavailable key-pairs.
 toProofEnv :: [KeyPair] -> ProofEnv
