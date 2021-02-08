@@ -7,27 +7,21 @@ module Hschain.Utxo.Repl.Imports(
   , getLoadedFiles
 ) where
 
-import Control.Exception.Base
-import Control.Monad.IO.Class
+import Control.Monad.Except
 
 import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Lib.Base
 import Hschain.Utxo.Lang.Error
-import Hschain.Utxo.Lang.Exec (evalModule)
+import Hschain.Utxo.Lang.Linker
 
 import Data.Default
+import Data.Monoid (Endo(..))
 import Data.Map.Strict (Map)
-import Data.Text (Text)
 
+import System.Directory (getCurrentDirectory)
+
+import Data.Text as T
 import qualified Data.Map.Strict as M
-
-import qualified Hschain.Utxo.Lang.Parser.Hask as P
-
--- | Errors that can gappen on import
-data ImportError
-  = ImportParseError P.SrcLoc String     -- ^ failed to parse the module
-  | ImportTypeError Error                -- ^ module has type errors
-  | ImportFileMissing FilePath           -- ^ no file found at the requested path
 
 -- | Context that holds data of imported modules
 data Imports = Imports
@@ -65,23 +59,22 @@ rmLoaded file imp@Imports{..} = imp
 --
 -- It takes filepath to the module and current import context and returns
 -- updated context or error.
-load :: MonadIO io => FilePath -> Imports -> io (Either ImportError Imports)
-load file imp0 = liftIO $ do
+load :: MonadIO io => FilePath -> Imports -> io (Either Error Imports)
+load file imp0 = liftIO $ runExceptT $ do
   let imp = updateCurrent $ rmLoaded file imp0
-  eStr :: Either IOException String <- try $ readFile file
-  case eStr of
-    Right str ->
-      case P.parseModule (Just file) str of
-        P.ParseOk m -> do
-          let typeCtx = inferCtx'binds $ moduleCtx'types $ imports'current imp
-          case evalModule typeCtx m of
-            Right modCtx -> return $ Right $ loadCtx file modCtx imp
-            Left  tyErr  -> return $ Left $ ImportTypeError tyErr
-        P.ParseFailed loc err -> return $ Left $ ImportParseError loc err
-    Left _ -> return $ Left $ ImportFileMissing file
+  path   <- getPath
+  impCtx <- ExceptT $ loadImportsFromFile path file
+  depCtx <- liftEither $ evalImports impCtx
+  return $ updateImports depCtx imp
+  where
+    updateImports (DepCtx m) = appEndo $ mconcat $ fmap (Endo . (\(name, ctx) -> loadCtx (T.unpack name) ctx)) $ M.toList m
+
+-- | TODO: consider spec of PATH in config file.
+getPath :: MonadIO io => io [FilePath]
+getPath = fmap pure $ liftIO getCurrentDirectory
 
 -- | Reloads all modules that were loaded in the REPL session
-reload :: MonadIO io => Imports -> io (Either ImportError Imports)
+reload :: MonadIO io => Imports -> io (Either Error Imports)
 reload x = go (getLoadedFiles x) x
   where
     go files imp = case files of
@@ -98,6 +91,7 @@ reload x = go (getLoadedFiles x) x
 loadBase :: Imports -> Imports
 loadBase imp = imp { imports'base = ModuleCtx
   { moduleCtx'types = baseLibInferCtx
+  , moduleCtx'exports = Nothing
   , moduleCtx'exprs = mempty } }
 
 updateCurrent :: Imports -> Imports

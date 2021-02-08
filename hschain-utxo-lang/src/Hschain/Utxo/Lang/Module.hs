@@ -152,3 +152,4 @@ deriving stock   instance Eq   ModuleCtx
 deriving stock   instance Show InferCtx
 deriving stock   instance Eq   InferCtx
 deriving stock   instance Show Module
+deriving stock   instance Eq   Module

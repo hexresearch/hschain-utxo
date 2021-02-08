@@ -15,6 +15,7 @@ import Hex.Common.Text
 
 import Control.Monad.State.Strict
 
+import Data.Bifunctor
 import Data.Either
 import Data.Fix
 import Data.Map.Strict (Map)
@@ -155,8 +156,8 @@ evalModule' :: TypeContext -> Module -> Either Error ModuleCtx
 evalModule' typeCtx Module{..} = do
   maybe (Right ()) Left $ checkUserTypes definedVals userTypes
   runInferM $ do
-    binds <- InferM $ lift $ evalStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
-    fmap setExports $ toModuleCtx $ Binds (binds'types module'binds) binds
+    (binds, typeCtxInfer) <- InferM $ lift $ runStateT (mapM (checkBind $ binds'types module'binds) (binds'decls module'binds)) (typeCtx <> userTypeCtx)
+    fmap setExports $ toModuleCtx typeCtxInfer $ Binds (binds'types module'binds) binds
   where
     userTypes = M.elems $ userTypeCtx'types module'userTypes
     definedVals = case typeCtx of
@@ -168,13 +169,15 @@ evalModule' typeCtx Module{..} = do
       Just (ExportList _ items) -> m { moduleCtx'exports = Just items }
       _                         -> m
 
-    toModuleCtx :: Binds Lang -> InferM ModuleCtx
-    toModuleCtx bs = fmap (\es -> ModuleCtx
-      { moduleCtx'types = InferCtx ((H.Context types) <> userTypeCtx) module'userTypes
+    toModuleCtx :: TypeContext -> Binds Lang -> InferM ModuleCtx
+    toModuleCtx typeCtxInfer bs = fmap (\es -> ModuleCtx
+      { moduleCtx'types = InferCtx ((restrictToDefinedNames es $ typeCtxInfer <> (H.Context types)) <> userTypeCtx) module'userTypes
       , moduleCtx'exprs = ExecCtx (M.fromList es)
       , moduleCtx'exports = Nothing
       }) exprs
       where
+        restrictToDefinedNames es  (H.Context m) = H.Context $ M.intersection m (M.fromList $ fmap (first varName'name) es)
+
         types = M.mapKeys varName'name $ binds'types bs
 
         exprs = mapM procBind $ binds'decls bs

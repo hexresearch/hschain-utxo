@@ -31,6 +31,7 @@ library
                      , containers
                      , data-default
                      , data-fix                  >=0.3
+                     , directory
                      , exceptions
                      , haskeline
                      , haskell-src-exts

@@ -1,7 +1,9 @@
 -- | Functions to load module dependencies and check them for recursive depenendencies.
 module Hschain.Utxo.Lang.Linker(
     ImportDeps(..)
+  , DepCtx(..)
   , loadImports
+  , loadImportsFromFile
   , evalImports
 ) where
 
@@ -32,10 +34,11 @@ import qualified Type.Check.HM as H
 data ImportDeps = ImportDeps
   { importDeps'modules :: Map Name Module   -- ^ loaded modules
   , importDeps'order   :: [Name]            -- ^ order by dependencies, from less deps to main
-  }
+  } deriving (Show, Eq)
 
 -- | Context for dependencies
 newtype DepCtx = DepCtx (Map Name ModuleCtx)
+  deriving newtype (Show, Eq)
 
 -- | Evaluate all dependnecies (imported modules)
 evalImports :: ImportDeps -> Either Error DepCtx
@@ -86,6 +89,11 @@ importToTypeCtx (DepCtx depCtx) Import{..} = do
           ImportVar v -> [varName'name v]
           _           -> []
 
+loadImportsFromFile :: [FilePath] -> FilePath -> IO (Either Error ImportDeps)
+loadImportsFromFile path file = do
+  str <- readFile file
+  fmap join $ mapM (loadImports path) $ fromParseError $ parseModule  (Just file) str
+
 -- | Reads imported modules and checks for import errors.
 -- We check:
 --
@@ -93,8 +101,8 @@ importToTypeCtx (DepCtx depCtx) Import{..} = do
 -- * all module names from headers match names of the files
 -- * reuqired modules are present as files
 loadImports :: [FilePath] -> Module -> IO (Either Error ImportDeps)
-loadImports path modules = do
-  eMods <- readModules path modules
+loadImports path m = do
+  eMods <- readModules path m
   return $ check =<< eMods
   where
     check mods = case checkModuleHeaders mods of
@@ -104,8 +112,10 @@ loadImports path modules = do
 -- | Reads all import modules from files.
 readModules :: [FilePath] -> Module -> IO (Either Error ImportDeps)
 readModules path mainMod =
-  runExceptT $ fmap (\m -> ImportDeps m []) $ go (M.singleton "Main" mainMod) [mainMod]
+  runExceptT $ fmap (\m -> ImportDeps m []) $ go (M.singleton modName mainMod) [mainMod]
   where
+    modName = maybe "Main" (varName'name . moduleHead'name) $ module'head mainMod
+
     go :: Map Name Module -> [Module] -> ExceptT Error IO (Map Name Module)
     go res = \case
       []     -> pure res

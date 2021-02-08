@@ -12,10 +12,8 @@ import Hex.Common.Aeson
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
 
-import Data.String
 import Data.Text.Prettyprint.Doc
 import Hschain.Utxo.Repl.Monad
-import Hschain.Utxo.Repl.Imports (ImportError(..))
 
 import Safe
 
@@ -23,11 +21,8 @@ import System.Exit
 
 import Hschain.Utxo.Lang
 
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
-
 import qualified Hschain.Utxo.Lang.Parser.Hask as P
-
 import qualified Hschain.Utxo.Repl.Imports as I
 
 -- | List of possible commands
@@ -83,16 +78,7 @@ loadScript file = do
     Right imp -> put $ st { replEnv'imports = imp }
     Left err  -> printErr err
   where
-    printErr err = liftIO $
-      case err of
-        ImportTypeError tyErr    -> T.putStrLn $ renderText tyErr
-        ImportParseError loc msg -> showParseErr loc msg
-        ImportFileMissing missingFile   -> T.putStrLn $ mconcat ["File not found: ", fromString missingFile]
-
-    showParseErr loc msg = T.putStrLn $ T.unlines
-      [ mconcat ["Failed to load script ", T.pack file]
-      , mconcat [(renderText loc), " Parsing exited with error: ", fromString msg]
-      ]
+    printErr err = liftIO $ T.putStrLn $ renderText err
 
 resetEvalCtx :: Repl ()
 resetEvalCtx = modify' $ \st ->
@@ -158,5 +144,4 @@ parseCmd input =
     _            -> err
   where
     err = Left "No command found"
-
 
