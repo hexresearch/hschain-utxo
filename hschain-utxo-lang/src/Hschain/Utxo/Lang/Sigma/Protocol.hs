@@ -5,7 +5,6 @@ module Hschain.Utxo.Lang.Sigma.Protocol(
     -- ** Σ-expressions AST
     SigmaE(..)
   , sexprAnn
-  , mapSigmaE
   , traverseSigmaE
   , zipSigmaE
   , Proof(..)
@@ -47,7 +46,6 @@ import Control.DeepSeq (NFData)
 import Data.Data
 import Data.Aeson   (FromJSON(..), ToJSON(..))
 import Data.Maybe
-import Data.Functor.Identity
 import Data.Functor.Classes
 import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty(..))
@@ -93,9 +91,6 @@ traverseSigmaE f = go
       Leaf k a  -> Leaf k <$> f k a
       AND  k es -> AND  k <$> traverse go es
       OR   k es -> OR   k <$> traverse go es
-
-mapSigmaE :: (k -> a -> b) -> SigmaE k a -> SigmaE k b
-mapSigmaE f = runIdentity . traverseSigmaE (\k a -> Identity $ f k a)
 
 -- | Zip two sigma expressions. If their shapes do not match @Nothing@ is returned
 zipSigmaE
