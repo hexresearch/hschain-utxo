@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module TM.Core.List(
     tests
   , progListAt

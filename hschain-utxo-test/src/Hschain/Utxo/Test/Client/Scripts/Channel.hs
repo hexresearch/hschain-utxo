@@ -22,7 +22,6 @@ import Control.Monad.IO.Class
 import Control.Monad.Extra
 
 import Data.ByteString (ByteString)
-import Data.Either.Extra
 import Data.List.Extra (firstJust)
 import Data.Int
 import Data.Maybe
@@ -302,26 +301,35 @@ signOffChainTx :: Player -> Player -> Tx -> App Tx
 signOffChainTx (Player me) (Player other) preTx = liftIO $ do
   myEnv <- readTVarIO me
   otherEnv <- readTVarIO other
-  let myPk = getWalletPublicKey $ playerEnv'wallet myEnv
-      otherPk = playerEnv'partnerPubKey myEnv
-      knownKeys = [myPk, otherPk]
-      myKeys = [myPk]
-      otherKeys = [otherPk]
+  let myPK    = getWalletPublicKey $ playerEnv'wallet myEnv
+      otherPK = playerEnv'partnerPubKey myEnv
+      knownKeys = [myPK, otherPK]
+      -- myKeys = [myPk]
+      -- otherKeys = [otherPk]
       commonScript = playerEnv'commonScript myEnv
       message = getSigMessage SigAll preTx
-      myProofEnv = getProofEnv $ playerEnv'wallet myEnv
-      otherProofEnv = getProofEnv $ playerEnv'wallet otherEnv
-  proof <- fmap eitherToMaybe $ runProve $ do
-    comQueryExpr <- initMultiSigProof knownKeys $ Right <$> commonScript
-    (myCommitments,    mySecret)    <- queryCommitments myKeys    comQueryExpr
-    (otherCommitments, otherSecret) <- queryCommitments otherKeys comQueryExpr
-    commitments <- appendCommitments [(myKeys, myCommitments), (otherKeys, otherCommitments)]
-    challenges <- getChallenges commitments message
-    myResponses    <- queryResponses myProofEnv    mySecret challenges
-    otherResponses <- queryResponses otherProofEnv otherSecret   challenges
-    proof <- appendResponsesToProof [(myKeys, myResponses), (otherKeys, otherResponses)]
-    return proof
-  return $ appendProof proof preTx
+      mySK    = getWalletPrivateKey $ playerEnv'wallet myEnv
+      otherSK = getWalletPrivateKey $ playerEnv'wallet otherEnv
+  proof <- do
+    mainS1 <- mainStartProof knownKeys commonScript
+    -- Produce commitments
+    (exprMy,    cmtMy)    <- proverGenerateCommitment myPK    commonScript
+    (exprOther, cmtOther) <- proverGenerateCommitment otherPK commonScript
+    -- Merge commitments
+    let Right mainS2 =  mainProcessCommitment myPK    cmtMy
+                    <=< mainProcessCommitment otherPK cmtOther
+                     $ mainS1
+        Just (mainS3,msgChallenge) = mainAdvanceToChallenge message mainS2
+    -- Generate responses
+    let Right respMy    = proverProcessChallenge mySK    message exprMy    msgChallenge
+        Right respOther = proverProcessChallenge otherSK message exprOther msgChallenge
+    -- Merge responses
+    let Right mainS4 =  mainProcessChallengeResponse myPK    respMy
+                    <=< mainProcessChallengeResponse otherPK respOther
+                     $ mainS3
+        Just proof = mainAdvanceToProof mainS4
+    pure proof
+  return $ appendProof (Just proof) preTx
   where
     appendProof proof tx@Tx{..} = tx { tx'inputs = fmap (\ref -> ref { boxInputRef'proof = proof }) tx'inputs }
 

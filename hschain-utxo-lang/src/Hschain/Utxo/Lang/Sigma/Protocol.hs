@@ -7,6 +7,7 @@ module Hschain.Utxo.Lang.Sigma.Protocol(
   , sexprAnn
   , mapSigmaE
   , traverseSigmaE
+  , zipSigmaE
   , Proof(..)
   , ProvenTree(..)
     -- ** Leaves
@@ -49,6 +50,7 @@ import Data.Maybe
 import Data.Functor.Identity
 import Data.Functor.Classes
 import Data.Bifunctor
+import Data.List.NonEmpty (NonEmpty(..))
 import GHC.Generics (Generic)
 
 import HSChain.Crypto.Classes.Hash
@@ -69,9 +71,9 @@ import qualified Language.Haskell.TH.Syntax as TH
 data SigmaE k a
   = Leaf k a
     -- ^ Primitive predicate
-  | AND k [SigmaE k a]
+  | AND k (NonEmpty (SigmaE k a))
     -- ^ AND connective
-  | OR  k [SigmaE k a]
+  | OR  k (NonEmpty (SigmaE k a))
     -- ^ OR connective
   deriving stock    (Functor,Foldable,Traversable,Show,Eq,Ord,Generic,Data)
   deriving anyclass (Serialise,NFData,ToJSON,FromJSON)
@@ -95,6 +97,20 @@ traverseSigmaE f = go
 mapSigmaE :: (k -> a -> b) -> SigmaE k a -> SigmaE k b
 mapSigmaE f = runIdentity . traverseSigmaE (\k a -> Identity $ f k a)
 
+-- | Zip two sigma expressions. If their shapes do not match @Nothing@ is returned
+zipSigmaE
+  :: (k -> a -> b -> c) -> SigmaE k a -> SigmaE l b -> Maybe (SigmaE k c)
+zipSigmaE f = go
+  where
+    go (Leaf k a) (Leaf _ b) = Just $ Leaf k (f k a b)
+    go (AND  k a) (AND  _ b) = AND k <$> goNE a b
+    go (OR   k a) (OR   _ b) = OR  k <$> goNE a b
+    go _          _          = Nothing
+    --
+    goNE (a :| as) (b :| bs) = (:|) <$> go a b <*> goL as bs
+    goL []     []     = Just []
+    goL (a:as) (b:bs) = (:) <$> go a b <*> goL as bs
+    goL _      _      = Nothing
 
 instance Bifunctor SigmaE where
   first f = go where
@@ -129,7 +145,7 @@ data ProvenTree a
   -- ^ OR of subexpressions. First node gets challenge which is
   --   computed as xor of parent challenge and challenges of rest of
   --   the nodes.
-  | ProvenAnd [ProvenTree a]
+  | ProvenAnd (NonEmpty (ProvenTree a))
   -- ^ AND of subexpressions
   deriving (Generic)
 
@@ -160,6 +176,12 @@ deriving stock   instance (EC a) => Show (ProvenTree a)
 deriving stock   instance (EC a) => Eq   (ProvenTree a)
 deriving anyclass instance (NFData (ECPoint a), NFData (ECScalar a), NFData (Challenge a)) => NFData (ProvenTree a)
 
+
+----------------------------------------------------------------
+-- Leaves of expression tree
+----------------------------------------------------------------
+
+-- | Statement being proven.
 
 ----------------------------------------------------------------
 -- Leaves of expression tree

@@ -12,6 +12,7 @@ import Hex.Common.Serialise
 
 import Data.Bool
 import Data.Void
+import Data.Foldable
 import Data.ByteString.Lazy (fromStrict)
 import Data.Text (Text)
 import Data.Text.Prettyprint.Doc
@@ -166,8 +167,8 @@ instance Pretty a => Pretty (S.SigmaE () (Either Bool a)) where
   pretty = \case
     S.Leaf () (Right k) -> parens $ hsep ["pk", pretty k]
     S.Leaf () (Left  b) -> "Sigma" <> pretty b
-    S.AND  () as        -> parens $ hsep $ Const.sigmaAnd : fmap pretty as
-    S.OR   () as        -> parens $ hsep $ Const.sigmaOr  : fmap pretty as
+    S.AND  () as        -> parens $ hsep $ Const.sigmaAnd : fmap pretty (toList as)
+    S.OR   () as        -> parens $ hsep $ Const.sigmaOr  : fmap pretty (toList as)
 
 instance Pretty S.ProofInput where
   pretty = \case

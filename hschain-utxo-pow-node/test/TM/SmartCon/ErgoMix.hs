@@ -6,6 +6,7 @@ module TM.SmartCon.ErgoMix where
 import Control.Monad.Reader
 
 import Data.ByteString (ByteString)
+import qualified Data.List.NonEmpty as NE
 import Test.Tasty
 import Test.Tasty.HUnit
 import Prelude hiding ((<*))
@@ -67,7 +68,7 @@ bobJoinMix bobGuess env bob pkAlice bidBob bidAlicePool = do
                 { boxInputRef'id      = bidAlicePool
                 , boxInputRef'args    = mempty
                 , boxInputRef'proof   = Just $ Sigma.OR ()
-                    [ Sigma.OR () $ (if bobGuess then id else reverse)
+                    [ Sigma.OR () $ (if bobGuess then id else NE.reverse)
                       [ Sigma.dtupleSigma gx gy gxy
                       , Sigma.dtupleSigma gx gxy gy
                       ]

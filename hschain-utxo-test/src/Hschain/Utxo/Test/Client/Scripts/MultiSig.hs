@@ -24,6 +24,7 @@ import Hschain.Utxo.Test.Client.Monad
 import Hschain.Utxo.Test.Client.Scripts.Utils
 import Hschain.Utxo.Lang
 
+
 -- | Alice and Bob create joint box that is guarded by multisig and then spend it.
 multiSigExchange :: App ()
 multiSigExchange = do
@@ -94,17 +95,27 @@ getSharedBoxTx alice bob (aliceValue, aliceChange) (bobValue, bobChange) aliceBo
 
 spendCommonBoxTx :: Wallet -> Wallet -> BoxId -> (Int64, Int64) -> App (Tx, BoxId, BoxId)
 spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
-  proof <- fmap eitherToMaybe $ runProve $ do
-    comQueryExpr <- initMultiSigProof knownKeys $ Right <$> commonScript
-    (aliceCommitments, aliceSecret) <- queryCommitments aliceKeys comQueryExpr
-    (bobCommitments,   bobSecret)   <- queryCommitments bobKeys   comQueryExpr
-    commitments <- appendCommitments [(aliceKeys, aliceCommitments), (bobKeys, bobCommitments)]
-    challenges <- getChallenges commitments message
-    aliceResponses <- queryResponses aliceEnv aliceSecret challenges
-    bobResponses   <- queryResponses bobEnv   bobSecret   challenges
-    proof <- appendResponsesToProof [(aliceKeys, aliceResponses), (bobKeys, bobResponses)]
+  proof <- do
+    -- Start proof building
+    mainS1 <- mainStartProof knownKeys commonScript
+    -- A&B produce commitments
+    (exprAlice,msgCmtA) <- proverGenerateCommitment alicePk commonScript
+    (exprBob,  msgCmtB) <- proverGenerateCommitment bobPk   commonScript
+    -- Main builder merge commitments & generates challenges
+    let Right mainS2 =  mainProcessCommitment alicePk msgCmtA
+                    <=< mainProcessCommitment bobPk   msgCmtB
+                     $  mainS1
+    let Just (mainS3,msgChlg) = mainAdvanceToChallenge message mainS2
+    -- A&B generate responses
+    let Right rspA = proverProcessChallenge aliceSk message exprAlice msgChlg
+        Right rspB = proverProcessChallenge bobSk   message exprBob   msgChlg
+    -- Main builder merge responses
+    let Right mainS4 =  mainProcessChallengeResponse bobPk   rspB
+                    <=< mainProcessChallengeResponse alicePk rspA
+                     $  mainS3
+        Just proof = mainAdvanceToProof mainS4
     return proof
-  return $ appendOutputs $ getPreTx proof
+  return $ appendOutputs $ getPreTx $ Just proof
   where
     appendOutputs tx = (tx, boxId 0, boxId 1)
       where
@@ -136,13 +147,9 @@ spendCommonBoxTx alice bob commonBoxId (aliceValue, bobValue) = liftIO $ do
 
     alicePk  = getWalletPublicKey alice
     bobPk    = getWalletPublicKey bob
-
+    aliceSk  = getWalletPrivateKey alice
+    bobSk    = getWalletPrivateKey bob
     knownKeys = [alicePk, bobPk]
-    aliceKeys = [alicePk]
-    bobKeys   = [bobPk]
-
-    aliceEnv  = getProofEnv alice
-    bobEnv    = getProofEnv bob
 
 
 simpleSpendTo :: Bool -> Text -> Wallet -> BoxId -> PublicKey -> Int64 -> App ()

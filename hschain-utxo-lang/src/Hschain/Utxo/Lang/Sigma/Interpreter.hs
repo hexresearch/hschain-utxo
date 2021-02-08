@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ViewPatterns #-}
 -- | The module defines functions to create proofs for sigma-expressions
 -- and verify them.
@@ -11,16 +12,13 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , verifyProofExpr
   , ProvenTree(..)
   , completeProvenTree
-  , ProofTag(..)
   , ProofVar(..)
   , ProofSim(..)
   , Prove(..)
   , runProve
   , computeRootChallenge
-  , orChallenge
   , toProof
   , markTree
-  , ownsKey
   , getResponseForInput
   , CommitedProof(..)
   -- * New API
@@ -28,7 +26,22 @@ module Hschain.Utxo.Lang.Sigma.Interpreter(
   , makeLocalCommitements
   , computeRealChallenges
   , evaluateRealProof
+  -- * Distributed proof creation
+  -- $distributed
+  -- ** Types
   , Partial(..)
+  , DuringCommitment(..)
+  , DuringChallenge(..)
+    -- ** Main prover
+  , mainStartProof
+  , mainProcessCommitment
+  , mainAdvanceToChallenge
+  , mainProcessChallengeResponse
+  , mainAdvanceToProof
+    -- ** Subordinate prover
+  , SubordinateProof(..)
+  , proverGenerateCommitment
+  , proverProcessChallenge
   ) where
 
 import Codec.Serialise (Serialise, serialise)
@@ -38,9 +51,12 @@ import Control.Monad.Except
 import Control.DeepSeq
 
 import Data.Aeson      (ToJSON,FromJSON)
+import Data.Traversable
+import Data.Bifunctor
 import Data.ByteString (ByteString)
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Set        (Set)
-import Data.Text       (Text)
+import Data.Text       (Text,pack)
 import Data.Functor.Classes (Eq2(..))
 import qualified Data.ByteString.Lazy  as LB
 import qualified Data.Set              as Set
@@ -59,6 +75,9 @@ import Hschain.Utxo.Lang.Sigma.Types
 -- | Prove monad
 newtype Prove a = Prove (ExceptT Text IO a)
   deriving newtype (Functor, Monad, Applicative, MonadError Text, MonadIO)
+
+instance MonadFail Prove where
+  fail = throwError . pack
 
 -- | Run prove monad.
 runProve :: Prove a -> IO (Either Text a)
@@ -98,14 +117,7 @@ data ProofSim a
   = RealS
   | SimulatedS (Challenge a)
 
--- | Proof tag and challenge.
-data ProofTag a = ProofTag
-  { proofTag'flag      :: ProofVar
-  , proofTag'challenge :: Maybe (Challenge a)
-  }
-
-deriving stock   instance Eq   (Challenge a) => Eq   (ProofTag a)
-deriving stock   instance Show (Challenge a) => Show (ProofTag a)
+deriving instance (EC a) => Show (ProofSim a)
 
 $(makePrisms ''Partial)
 $(makePrisms ''ProofSim)
@@ -137,10 +149,6 @@ createProof env expr message = runProve $ do
     Nothing -> throwError "No key"
     Just p  -> pure $ toProof p
 
-ownsKey :: EC a => Set (PublicKey a) -> ProofInput a -> Bool
-ownsKey knownPKs = checkKey . getPK
-  where
-    checkKey k = k `Set.member` knownPKs
 
 
 ----------------------------------------------------------------
@@ -184,9 +192,15 @@ markTree provable = clean . check
       AND  _ es -> AND  Simulated $ markSim <$> es
       OR   _ es -> OR   Simulated $ markSim <$> es
     -- Only leave one leaf of OR as real
-    splitOR []     = error "Impossible"
-    splitOR (e:es) = case sexprAnn e of
-      Simulated -> markSim e : splitOR es
+    --
+    -- FIXME: Express mark everything but first as simulated more
+    --        clearly (and hopefully possible to abstract)
+    splitOR (e:|es) = case sexprAnn e of
+      Simulated -> markSim e :| splitORL es
+      Real      -> clean   e :| fmap markSim es
+    splitORL []     = error "Impossible"
+    splitORL (e:es) = case sexprAnn e of
+      Simulated -> markSim e : splitORL es
       Real      -> clean   e : fmap markSim es
 
 
@@ -211,13 +225,12 @@ simulateProofs = goReal
                             goSim ch e
       _ -> error "simulateProofs: simulated proof encountered"
     goSim ch = \case
-      Leaf Simulated leaf   -> liftIO $ Leaf (SimulatedS ch) . Complete <$> simulateAtomicProof leaf ch
-      AND  Simulated es     -> AND (SimulatedS ch) <$> traverse (goSim ch) es
-      OR   Simulated []     -> error "simulateProofs: Empty OR"
-      OR   Simulated (e:es) -> do
-        esWithCh <- liftIO $ forM es $ \x -> (,x) <$> generateChallenge
-        let ch0 = foldl xorChallenge ch $ fst <$> esWithCh
-        OR (SimulatedS ch) <$> traverse (uncurry goSim) ((ch0,e) : esWithCh)
+      Leaf Simulated leaf    -> liftIO $ Leaf (SimulatedS ch) . Complete <$> simulateAtomicProof leaf ch
+      AND  Simulated es      -> AND (SimulatedS ch) <$> traverse (goSim ch) es
+      OR   Simulated (e:|es) -> do
+        esWithCh <- liftIO $ for es $ \x -> (,x) <$> generateChallenge
+        let ch0 = xorChallengesOf (each . _1) ch esWithCh
+        OR (SimulatedS ch) <$> traverse (uncurry goSim) ((ch0,e) :| esWithCh)
       _ -> error "simulateProofs: internal error"
 
 -- | Generate commitments for all real leaves. Since we aren't sending
@@ -258,7 +271,7 @@ computeRealChallenges message expr0 = goReal rootChallenge expr0
       where
         orChildren children = update <$> children
           where
-            challengeForReal = orChallenge ch [ c | SimulatedS c <- sexprAnn <$> children ]
+            challengeForReal = xorChallengesOf (each . to sexprAnn . _SimulatedS) ch children
             update e
               | RealS <- sexprAnn e = goReal challengeForReal e
               | otherwise           = goSim e
@@ -304,11 +317,9 @@ toProof :: SigmaE (Challenge a) (AtomicProof a) -> Proof a
 toProof tree = Proof (sexprAnn tree) $ getProvenTree tree
   where
     getProvenTree = \case
-      Leaf _ p  -> ProvenLeaf (responseZ p) (toProofInput p)
-      AND  _ es -> ProvenAnd $ getProvenTree <$> es
-      OR   _ es -> case es of
-        []   -> error "toProof: No children for OR-node"
-        a:as -> ProvenOr (getProvenTree a) (getOrRest <$> as)
+      Leaf _ p       -> ProvenLeaf (responseZ p) (toProofInput p)
+      AND  _ es      -> ProvenAnd $ getProvenTree <$> es
+      OR   _ (a:|as) -> ProvenOr (getProvenTree a) (getOrRest <$> as)
       where
         getOrRest x = (sexprAnn x, getProvenTree x)
 
@@ -332,8 +343,317 @@ getResponseForInput env r ch inp = do
   sk <- lookupSecret env (getPK inp)
   pure $! r .+. (sk .*. fromChallenge ch)
 
-orChallenge :: EC a => Challenge a -> [Challenge a] -> Challenge a
-orChallenge ch rest = foldl xorChallenge ch rest
+computeResponseForInput :: EC a => PrivKey a -> ECScalar a -> Challenge a -> ECScalar a
+computeResponseForInput sk r ch
+  = r .+. (sk .*. fromChallenge ch)
+
+
+xorChallengesOf :: EC a => Fold s (Challenge a) -> Challenge a -> s -> Challenge a
+xorChallengesOf l = foldlOf' l xorChallenge
+
+----------------------------------------------------------------
+-- Distributed proof
+----------------------------------------------------------------
+
+-- $distributed
+--
+-- Distributed proof building is needed when there are several provers
+-- that create proof together. One of the provers is designated as
+-- main prover and will drive process of creation proof. This process
+-- requires two rounds of communication.
+--
+-- Proof modelled as state machines. One for main prover and one for
+-- subordinate provers. Only transition functions are provided and
+-- implementer is expected to define necessary data types.
+--
+-- All messages in protocol are directed to owner of public key and
+-- generated by only single key. In case when prover possess several
+-- keys he has to generate separate message for each key,
+--
+-- Before starting proof creation all provers should agree on
+-- Σ-expression begin proven and message being signed by it. They will
+-- be used by both main and subordinate provers.
+--
+-- 1. Main prover computes list of public keys involved in the proof
+--    creation. Then he simulates some of nodes by calling
+--    'mainStartProof' and send request for commitments to each public
+--    key involved in proof. Request doesn't contain any information
+--    about proof so it could be done as part of earlier negotiations.
+--
+-- 2. Each subordinate prover generates commitments for every leaf
+--    proven by his key and keeps generated @r@ secret. Commitments
+--    @a@ are sent to the main prover.
+--
+-- 3. Main prover collects commitments from subordinate provers and
+--    once he has enough he generates challenges by calling
+--    'mainAdvanceToChallenge'.
+--
+-- 4. Each subordinate prover verifies that challenges are correct
+--    (generated from message and Σ-expression), computes response and
+--    sends it to main prover using ('proverProcessChallenge').
+--
+-- 5. After collecting all responses main prover generates final
+--    proof.
+--
+-- Note that merely observing such communication will reveal which
+-- nodes are real and which are simulated.
+
+
+-- | State of leaves for the main prover when we're collecting
+--   commitments from other provers.
+data DuringCommitment a
+  = BeforeCommitment (ProofInput a)
+    -- ^ We didn't get commitment yet
+  | AfterCommitment  (CommitedProof a)
+    -- ^ We got commit
+
+-- | State of leaves for the main prover when we're waiting for other
+--   provers' responses to challnges.
+data DuringChallenge a
+  = SentChallenge (CommitedProof a) -- ^ We've sent challenge to prover
+  | GotResponce   (AtomicProof   a) -- ^ We've got response from prover
+
+deriving instance EC a => Show (DuringChallenge  a)
+deriving instance EC a => Show (DuringCommitment a)
+
+instance HasPK DuringCommitment where
+  getPK = \case BeforeCommitment p -> getPK p
+                AfterCommitment  p -> getPK p
+
+instance HasPK DuringChallenge where
+  getPK = \case SentChallenge p -> getPK p
+                GotResponce   p -> getPK p
+
+$(makePrisms ''DuringCommitment)
+$(makePrisms ''DuringChallenge)
+
+
+----------------------------------------
+-- State machine for main prover
+
+-- | Main prover decides which nodes are simulated and which are real.
+--   Then he request commitments from subordinate provers.
+mainStartProof
+  :: (EC a, MonadIO m, Ord (PublicKey a))
+  => Set (PublicKey a)
+  -- ^ Set of public keys that are available for proof.
+  -> SigmaE () (ProofInput a)
+  -- ^ Expression to prove.
+  -> m (SigmaE (ProofSim a) (Partial DuringCommitment a))
+mainStartProof knownKeys expr = do
+  -- FIXME: Check provability
+  e <- simulateProofs $ markTree canProve expr
+  pure $ e & mapped . _Partial %~ BeforeCommitment
+  where
+    canProve input = getPK input `Set.member` knownKeys
+
+-- | Add commitment message from subordinate prover to proof. Function
+--   checks that commitments are correct and every key that should be
+--   proven got commitment. It's not idempotent.
+mainProcessCommitment
+  :: (EC a)
+  => PublicKey a
+  -- ^ Key from which we received message
+  -> SigmaE () (Maybe (CommitmentData a))
+  -- ^ Commitments from subordinate prover
+  -> SigmaE (ProofSim a) (Partial DuringCommitment a)
+  -- ^ Proof being built
+  -> Either Text (SigmaE (ProofSim a) (Partial DuringCommitment a))
+mainProcessCommitment pk resp proof =
+  case zipSigmaE merge proof resp of
+    Nothing -> throwError "Response shape is not correct"
+    Just e  -> sequence e
+  where
+    -- Leaves for different key shouldn't get a commitment
+    merge _ p Nothing
+      | pk /= getPK p = pure p
+      | otherwise     = throwError "No commitment for key"
+    -- All leaves for key in question should get commitment
+    merge s p (Just c)
+      | pk /= getPK p = throwError "Commitment for different key"
+      | otherwise = case s of
+          SimulatedS{} -> pure p
+          RealS        -> case p of
+            Complete _
+              -> throwError "Internal error: mismatched leaf and annotation"
+            Partial (BeforeCommitment q)
+              -> Partial . AfterCommitment <$> mergeCmt q c
+            Partial (AfterCommitment _)
+              -> throwError "Double commitment"
+    --
+    mergeCmt (InputDLog    k) (CommitmentDL a) = pure $ CommitedDLog   k  a
+    mergeCmt (InputDTuple dh) (CommitmentDT a) = pure $ CommitedDTuple dh a
+    mergeCmt _ _ = throwError "Mismatched commitment"
+
+
+-- | Attempt to advance to challenge phase. Function will succeed if
+--   all commitments are received.
+--
+--   It generates challenges for each node and generate message to be
+--   sent to each subordinate prover. They already made a commitment
+--   so they know which nodes should get a responses.
+--
+--   We have to send all commitments to each prover so they could
+--   compute challenges and ensure that they're proving correct
+--   transaction. If main prover only sends them challenges for leaf
+--   nodes he could coax rest provers to prove some other
+--   Σ-expression.
+mainAdvanceToChallenge
+  :: (EC a, ByteRepr msg)
+  => msg
+     -- ^ Message being signed
+  -> SigmaE (ProofSim a) (Partial DuringCommitment a)
+     -- ^ Proof under construction
+  -> Maybe ( SigmaE (Challenge a) (Partial DuringChallenge a)
+           , SigmaE (Challenge a) (CommitedProof a)
+           )
+     -- ^ Pair of new state of proof and message for other provers.
+mainAdvanceToChallenge (encodeToBS -> message) proof = do
+  expr <- (traverse . _Partial %%~ preview _AfterCommitment) proof
+  -- Compute challenges
+  let challenged = computeRealChallenges message expr
+  pure ( challenged & mapped . _Partial %~ SentChallenge
+       , challenged & mapped            %~ toCommitedProof
+       )
+
+-- | Process response to the challenge for some prover. it checks that
+--   response is given for all nodes that require it
+mainProcessChallengeResponse
+  :: (EC a)
+  => PublicKey a
+     -- ^ Key from which we received responses to challenge
+  -> SigmaE () (Maybe (ECScalar a))
+     -- ^ Responses to challenge
+  -> SigmaE (Challenge a) (Partial DuringChallenge a)
+     -- ^ Proof under construction
+  -> Either Text (SigmaE (Challenge a) (Partial DuringChallenge a))
+mainProcessChallengeResponse pk resp proof =
+  case zipSigmaE merge proof resp of
+    Nothing -> throwError "Wrong shape of response"
+    Just e  -> sequence e
+  where
+    -- No response is correct
+    merge _ leaf Nothing = case leaf of
+      Complete{}              -> pure leaf
+      Partial GotResponce{}   -> pure leaf
+      Partial SentChallenge{}
+        | getPK leaf /= pk    -> pure leaf
+        | otherwise           -> throwError "No response for key"
+    -- Response if correct
+    merge ch leaf (Just z) = case leaf of
+      Complete{}                -> throwError "Response to simulated node"
+      Partial GotResponce{}     -> throwError "Response to proven node"
+      Partial (SentChallenge p) -> pure $ Partial $ GotResponce $
+        case p of
+          CommitedDLog   k a -> ProofDL $ ProofDLog   k a ch z
+          CommitedDTuple k a -> ProofDT $ ProofDTuple k a z  ch
+
+-- | Check whether we collected all responses @z@ from each prover and
+--   produce complete proof.
+mainAdvanceToProof
+  :: SigmaE (Challenge a) (Partial DuringChallenge a)
+  -> Maybe (Proof a)
+mainAdvanceToProof expr = do
+  proof <- for expr $ \case
+               Complete p              -> Just p
+               Partial (GotResponce p) -> Just p
+               Partial SentChallenge{} -> Nothing
+  pure $ toProof proof
+
+
+----------------------------------------------------------------
+-- State machine for subordinate prover
+----------------------------------------------------------------
+
+-- | Proof as used by subordinate prover. It contain either plain
+--   'ProofInput' which is being proven elsewhere or 'PartialProof'
+--   which leaf that is being proven by that prover.
+data SubordinateProof a
+  = RemoteProof (ProofInput   a)
+  | LocalProof  (PartialProof a)
+  deriving (Generic)
+
+-- | Subordinate prover processes request for commitments. It produces
+--   new tree with partial proof. Former should be kept secret and
+--   latter is response to be sent to main prover
+proverGenerateCommitment
+  :: (EC a, MonadIO m)
+  => PublicKey a
+     -- ^ Public key of prover
+  -> SigmaE () (ProofInput a)
+     -- ^ Sigma expression being proven
+  -> m ( SigmaE () (SubordinateProof a)
+       , SigmaE () (Maybe (CommitmentData a))
+       )
+proverGenerateCommitment pk expr = do
+  commited <- traverse commit expr
+  pure ( commited
+       , commited <&> \case
+           RemoteProof _ -> Nothing
+           LocalProof  p -> Just $ toCommitedData p
+       )
+  where
+    commit p
+      | pk /= getPK p = pure $ RemoteProof p
+      | otherwise     = do r <- generatePrivKey
+                           pure $ LocalProof PartialProof
+                             { pproofInput = computeCommitments r p
+                             , pproofR     = r
+                             }
+
+
+-- | Now we process challenge. First we must ensure that we're signing
+--   transaction we agreed to sign.
+--
+--   Under no circumstances prover must respond to two different
+--   challenges to commitment since that will reveal private
+--   key. Correct way of handling this is to discard secret @r@ before
+--   sending reply to challenge.
+proverProcessChallenge
+  :: (EC a, ByteRepr msg)
+  => PrivKey a
+     -- ^ Private key of prover
+  -> msg
+     -- ^ Message being signed-
+  -> SigmaE () (SubordinateProof a)
+     -- ^ Sigma expression being proven
+  -> SigmaE (Challenge a) (CommitedProof a)
+     -- ^ Challenge from main prover
+  -> Either Text (SigmaE () (Maybe (ECScalar a)))
+proverProcessChallenge sk (encodeToBS -> message) commitments challenges = do
+  -- 1. We need to check whether we signing correct message.
+  unless (checkChallenges rootChallenge challenges)
+    $ Left "Invalid challenge"
+  -- 2. We need to check that message matches
+  e <- case zipSigmaE merge challenges commitments of
+    Nothing -> Left "Challenge shape mismatch"
+    Just e  -> sequence e
+  pure $ first (const ()) e
+  where
+    rootChallenge = computeRootChallenge challenges message
+    --
+    merge _  _ (RemoteProof _) = pure Nothing
+    merge ch commited (LocalProof p)
+      -- We must prove same expression
+      | toProofInput commited /= toProofInput p
+        = Left "Expressions don't match"
+      -- If commitments don't mach node is simulated and we don't need
+      -- to generate response
+      | toCommitedData commited /= toCommitedData p
+        = pure Nothing
+      | otherwise
+        = pure $ Just $ computeResponseForInput sk (pproofR p) ch
+
+
+-- | Check that all challenges are correct
+checkChallenges :: (EC a) => Challenge a -> SigmaE (Challenge a) b -> Bool
+checkChallenges ch0 = \case
+  Leaf ch _       -> ch0 == ch
+  OR   ch (e:|es) -> ch0 == ch
+                  && ch0 == xorChallengesOf (each . to sexprAnn) (sexprAnn e) es
+                  && and [ checkChallenges (sexprAnn a) a | a <- e:es ]
+  AND  ch es      -> ch0 == ch && all (checkChallenges ch) es
+
 
 ----------------------------------------------------------------
 -- Verification
@@ -378,7 +698,7 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
     go ch = \case
       ProvenLeaf z p         -> Leaf () $ computeLeafCommitments ch z p
       ProvenOr leftmost rest -> OR   () $  uncurry go
-                                       <$> getLeftmostOrChallenge ch leftmost rest : rest
+                                       <$> getLeftmostOrChallenge ch leftmost rest :| rest
       ProvenAnd es           -> AND  () $ go ch <$> es
     -- Compute commitments for each leaf
     computeLeafCommitments ch z = \case
@@ -387,7 +707,7 @@ completeProvenTree Proof{..} = go proof'rootChallenge proof'tree
     -- Challenge for leftmost children of OR node is computed as xor
     -- of parent challenge rest of challenges
     getLeftmostOrChallenge ch leftmost children =
-      ( orChallenge ch (fst <$> children)
+      ( xorChallengesOf (each . _1) ch children
       , leftmost
       )
 
@@ -403,3 +723,10 @@ instance (NFData (PublicKey a), NFData (Challenge a), NFData (PrivKey a), NFData
 instance (EC a, Serialise (f a)) => Serialise (Partial f a)
 instance (EC a, ToJSON    (f a)) => ToJSON    (Partial f a)
 instance (EC a, FromJSON  (f a)) => FromJSON  (Partial f a)
+
+deriving stock instance (EC a)  => Show (SubordinateProof a)
+deriving stock instance (EC a)  => Eq   (SubordinateProof a)
+instance (NFData (PublicKey a), NFData (PrivKey a)) => NFData    (SubordinateProof a)
+instance (EC a) => Serialise (SubordinateProof a)
+instance (EC a) => ToJSON    (SubordinateProof a)
+instance (EC a) => FromJSON  (SubordinateProof a)

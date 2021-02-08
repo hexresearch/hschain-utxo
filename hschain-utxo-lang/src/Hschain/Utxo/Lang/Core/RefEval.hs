@@ -18,6 +18,7 @@ import Data.ByteString (ByteString)
 import Data.Bool
 import Data.Text       (Text)
 import Data.Typeable
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Foldable (foldrM)
 import Data.Vector.Generic ((!?))
 import qualified Data.Vector          as V
@@ -183,8 +184,8 @@ evalPrimOp env = \case
   OpBoolNot -> pure $ lift1 not
   --
   OpSigBool   -> pure $ lift1 $ Leaf () . Left
-  OpSigAnd    -> pure $ lift2 $ \a b -> AND () [a,b]
-  OpSigOr     -> pure $ lift2 $ \a b -> OR  () [a,b]
+  OpSigAnd    -> pure $ lift2 $ \a b -> AND () (a :| [b])
+  OpSigOr     -> pure $ lift2 $ \a b -> OR  () (a :| [b])
   OpSigPK     -> pure $ evalLift1 $ \t -> fmap (sigmaPk . dlogInput) $ parsePublicKey t
   OpSigDTuple -> pure $ evalLift3 $ \genB keyA keyB ->
     liftA3 (\gB pkA pkB -> sigmaPk $ dtupleInput gB pkA pkB)
@@ -193,11 +194,11 @@ evalPrimOp env = \case
   OpSigListOr    -> pure $ lift1 $ OR  ()
   OpSigListAll _ -> pure $ Val2F $ \valF valXS -> fmap inj $ do
     f  <- match @(Val -> Eval Val) valF
-    xs <- match @[Val]        valXS
+    xs <- match @(NonEmpty Val)    valXS
     AND () <$> mapM (match <=< f) xs
   OpSigListAny _ -> pure $ Val2F $ \valF valXS -> fmap inj $ do
     f  <- match @(Val -> Eval Val) valF
-    xs <- match @[Val]        valXS
+    xs <- match @(NonEmpty Val)    valXS
     OR () <$> mapM (match <=< f) xs
   --
   OpCheckSig -> pure $ evalLift2 $ \bs sigIndex -> do
@@ -405,6 +406,11 @@ instance MatchPrim (Val -> Eval Val) where
 instance (Typeable a, MatchPrim a) => MatchPrim [a] where
   match (ValCon (ConNil _)  [])     = pure []
   match (ValCon (ConCons _) [x,xs]) = liftA2 (:) (match x) (match xs)
+  match p = throwError $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
+
+instance (Typeable a, MatchPrim a) => MatchPrim (NonEmpty a) where
+  match (ValCon (ConNil _)  [])     = throwError $ EvalErr $ "Empty list encountered"
+  match (ValCon (ConCons _) [x,xs]) = liftA2 (:|) (match x) (match xs)
   match p = throwError $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
 
 instance InjPrim Val           where inj = id
