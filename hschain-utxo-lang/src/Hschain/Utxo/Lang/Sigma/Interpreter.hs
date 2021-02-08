@@ -313,10 +313,12 @@ toProof tree = Proof (sexprAnn tree) $ getProvenTree tree
 -- Helpers
 ----------------------------------------------------------------
 
+-- | Compute root challenge for Σ-expression. It requires all
+--   commitments for every node.
 computeRootChallenge
   :: (EC a, HasCommitment f)
-  => SigmaE k (f a)
-  -> ByteString
+  => SigmaE k (f a) -- ^ Σ-expression
+  -> ByteString     -- ^ Message
   -> Challenge a
 computeRootChallenge expr message
   = randomOracle
