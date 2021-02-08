@@ -30,7 +30,6 @@ import Hschain.Utxo.Lang.Monad
 import Hschain.Utxo.Lang.Lib.Base (baseLibTypeContext)
 
 import qualified Data.Map as M
-import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import qualified Type.Check.HM as H
@@ -333,15 +332,8 @@ userTypesToTypeContext (UserTypeCtx m _ _ _ _) =
     con' VarName{..} = conT varName'loc varName'name
     var' VarName{..} = H.varT varName'loc varName'name
 
-selectorNameVar :: ConsName -> Int -> T.Text
-selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]
-
-recordUpdateVar :: VarName -> Text
-recordUpdateVar field = secretVar $ mconcat ["update_", varName'name field]
-
 ------------------------------------------------------------
 --
-
 
 caseToLet :: MonadLang m =>
   (ConsName -> Int -> Text) -> Loc -> Lang -> [CaseExpr Lang] -> m Lang

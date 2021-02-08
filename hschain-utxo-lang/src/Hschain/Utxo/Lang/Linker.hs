@@ -22,12 +22,14 @@ import Hschain.Utxo.Lang.Expr
 import Hschain.Utxo.Lang.Parser.Hask (parseModule)
 import Hschain.Utxo.Lang.Module
 import Hschain.Utxo.Lang.Exec.Module
+import Hschain.Utxo.Lang.UserType
 
 import qualified Data.Graph as G
 import qualified Data.List.Extra as L
 import qualified Control.Monad.Extra as E
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import qualified Type.Check.HM as H
 
 -- | All dependencies for main module.
@@ -58,7 +60,7 @@ evalImports ImportDeps{..} = fmap DepCtx $ foldM go M.empty importDeps'order
 importToTypeCtx :: DepCtx -> Import -> Either Error TypeContext
 importToTypeCtx (DepCtx depCtx) Import{..} = do
   ctx   <- getCtx
-  let names = getImportNames ctx
+  names <- getImportNames ctx
   return $ getSignatures names ctx
   where
     getCtx = maybeToEither (ImportError $ ModuleNotFound import'name) $ M.lookup (varName'name import'name) depCtx
@@ -68,10 +70,10 @@ importToTypeCtx (DepCtx depCtx) Import{..} = do
         H.Context allBinds -> H.Context $ M.intersection allBinds (M.fromList $ fmap (, ()) names)
 
     getImportNames ModuleCtx{..} = case import'list of
-      Nothing   -> exportBindNames
-      Just imps ->
-        let impBinds = importNames $ importList'items imps
-        in  if importList'hides imps
+      Nothing   -> pure exportBindNames
+      Just imps -> do
+        impBinds <- importNames $ importList'items imps
+        return $ if importList'hides imps
               then exportBindNames L.\\ impBinds
               else L.intersect exportBindNames impBinds
       where
@@ -83,11 +85,42 @@ importToTypeCtx (DepCtx depCtx) Import{..} = do
           ExportVar v -> [varName'name v]
           _           -> []
 
-        importNames impItems = getImportBind =<< impItems
+        importNames impItems = fmap concat $ mapM getImportBind impItems
 
+        getImportBind :: ImportItem -> Either Error [Name]
         getImportBind = \case
-          ImportVar v -> [varName'name v]
-          _           -> []
+          ImportVar      v       -> pure [varName'name v]
+          ImportTypeAll  ty      -> fmap getTypeNames $ getType ty
+          ImportTypeWith ty cons -> fmap (getTypeNames . restrictTypeToCons cons) $ getType ty
+          _                      -> pure []
+
+        getType ty = maybe err pure $ M.lookup ty (userTypeCtx'types $ inferCtx'types moduleCtx'types)
+          where
+            err = throwError $ ImportError $ ImportTypeNotFound ty
+
+        restrictTypeToCons cs ty = ty
+          { userType'cases = M.intersection (userType'cases ty) (M.fromList $ fmap ((, ()) . varToConsName) cs)
+          }
+
+        getTypeNames UserType{..} = uncurry fromCase =<< M.toList userType'cases
+          where
+            fromCase cons args = consName'name cons : (selectors ++ recFieldUpdates ++ recFieldSelectors)
+              where
+                selectors = fmap (selectorNameVar cons) $ [0 .. getConsDefArity args - 1]
+
+                onFields f = case args of
+                  ConsDef _         -> []
+                  RecordCons fields -> f fields
+
+                recFieldSelectors = onFields $ \fields ->
+                  V.toList $ fmap fromRecSelector fields
+
+                recFieldUpdates = onFields $ \fields ->
+                  V.toList $ fmap fromRecUpdate fields
+
+                fromRecSelector RecordField{..} = varName'name recordField'name
+                fromRecUpdate RecordField{..}   = recordUpdateVar recordField'name
+
 
 loadImportsFromFile :: [FilePath] -> FilePath -> IO (Either Error ImportDeps)
 loadImportsFromFile path file = do

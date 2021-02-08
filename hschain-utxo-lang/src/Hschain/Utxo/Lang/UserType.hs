@@ -11,6 +11,8 @@ module Hschain.Utxo.Lang.UserType(
   , RecordFieldOrder(..)
   , RecordField(..)
   , setupUserTypeInfo
+  , selectorNameVar
+  , recordUpdateVar
 ) where
 
 import Hex.Common.Text
@@ -34,6 +36,7 @@ import Hschain.Utxo.Lang.Core.Types         (Name)
 import qualified Type.Check.HM as H
 import qualified Data.Map.Strict as M
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Hschain.Utxo.Lang.Const as Const
 
@@ -264,6 +267,16 @@ setupRecFields ctx = ctx { userTypeCtx'recFields = recFields }
     getFieldMap cons fieldOrder@(RecordFieldOrder fields) = fmap (\field -> (field, (cons, fieldOrder))) fields
 
     recFields = M.fromList $ uncurry getFieldMap =<< (M.toList $ userTypeCtx'recConstrs ctx)
+
+--------------------------------------------------------------------------------
+-- names for type-checker to convert cases to simple lambda-calculus
+
+selectorNameVar :: ConsName -> Int -> T.Text
+selectorNameVar cons n = secretVar $ mconcat ["sel_", consName'name cons, "_", showt n]
+
+recordUpdateVar :: VarName -> Text
+recordUpdateVar field = secretVar $ mconcat ["update_", varName'name field]
+
 
 -----------------------------------------------------------
 -- instances

@@ -131,9 +131,11 @@ data KindError = KindError
 
 -- | Errors that happen on import of external modules
 data ImportError
-  = ModuleNotFound VarName
-  | CycleDependencies [VarName]
-  | ModuleNameNotMatchHeader Name VarName
+  = ModuleNotFound VarName                            -- ^ module with given name is not found on the path
+  | CycleDependencies [VarName]                       -- ^ modules form sycle imports
+  | ModuleNameNotMatchHeader Name VarName             -- ^ module name does not match header
+  | ImportTypeNotFound VarName                        -- ^ module does not export type
+  | ImportTypeConsNotFound VarName VarName            -- ^ module does not export for type given constructor
   deriving stock    (Show,Eq,Generic,Data)
 
 typeCoreMismatch :: MonadError TypeCoreError m => TypeCore -> TypeCore -> m a

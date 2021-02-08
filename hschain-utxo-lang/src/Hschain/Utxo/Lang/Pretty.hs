@@ -211,6 +211,8 @@ instance Pretty ImportError where
     ModuleNotFound v     -> hsep ["Error: Module not found", pretty v]
     CycleDependencies vs -> vcat ["Error: Module imports form cycle.", indent 4 $ vcat $ fmap pretty vs]
     ModuleNameNotMatchHeader name modName -> hsep ["Error: Module file name do not match module header name, expected", pretty name, "but got", pretty modName]
+    ImportTypeNotFound ty -> hsep ["Error: module does not export type ", pretty ty]
+    ImportTypeConsNotFound ty cons -> hsep ["Error: constructor", pretty cons, "is not declared in type", pretty ty]
 
 instance Pretty ExecError where
   pretty = \case
