@@ -107,7 +107,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import qualified Data.Set as Set
 
-import HSChain.Crypto (PublicKey,CryptoAsymmetric(..))
+import HSChain.Crypto (PublicKey,PrivKey,CryptoAsymmetric(..))
 import Hschain.Utxo.Lang.Sigma.EllipticCurve
 import Hschain.Utxo.Lang.Sigma.Protocol
 import Hschain.Utxo.Lang.Sigma.Interpreter

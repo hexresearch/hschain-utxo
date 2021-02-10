@@ -38,6 +38,7 @@ import Control.Monad.Except
 import Control.DeepSeq
 
 import Data.Aeson      (ToJSON,FromJSON)
+import HSChain.Crypto              (PublicKey,CryptoAsymmetric(..))
 import Data.ByteString (ByteString)
 import Data.Set        (Set)
 import Data.Text       (Text)

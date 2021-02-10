@@ -28,6 +28,7 @@ import qualified Crypto.Hash              as Hash
 import qualified Crypto.Random.Types      as RND
 import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
+import HSChain.Crypto
 import qualified Language.Haskell.TH.Syntax as TH
 import Instances.TH.Lift ()
 import HSChain.Crypto
@@ -53,10 +54,6 @@ class ( CryptoAsymmetric a
   generateChallenge :: IO (Challenge a)
   randomOracle      :: BS.ByteString -> Challenge a
   xorChallenge      :: Challenge a -> Challenge a -> Challenge a
-  -- ^ generates random scalar
-
-  -- ^ multiplies generator of the group N times (first argument)
-
   fromChallenge     :: Challenge a -> ECScalar a
 
   groupGenerator    :: ECPoint a
@@ -85,6 +82,10 @@ instance ByteRepr (Challenge a) => CBOR.Serialise (Challenge a) where
 instance (ByteRepr (Challenge a)) => Show (Challenge a) where
   show  = defaultShow
 
+
+----------------------------------------------------------------
+-- Ed25519 elliptic curve
+----------------------------------------------------------------
 
 ----------------------------------------------------------------
 -- Ed25519 elliptic curve
