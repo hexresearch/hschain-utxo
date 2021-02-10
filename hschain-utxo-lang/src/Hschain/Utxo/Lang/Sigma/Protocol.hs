@@ -4,6 +4,7 @@ module Hschain.Utxo.Lang.Sigma.Protocol(
     -- * Types
     -- ** Σ-expressions AST
     SigmaE(..)
+  , SigmaEF(..)
   , sexprAnn
   , mapSigmaE
   , traverseSigmaE
@@ -49,6 +50,7 @@ import Data.Maybe
 import Data.Functor.Identity
 import Data.Functor.Classes
 import Data.Bifunctor
+import Data.Functor.Foldable.TH
 import GHC.Generics (Generic)
 
 import HSChain.Crypto.Classes.Hash
@@ -530,3 +532,10 @@ instance HasCommitmentData AtomicProof where
     ProofDT ProofDTuple{..} -> CommitmentDT proofDTuple'commitmentA
 instance HasCommitmentData PartialProof where
   toCommitedData = toCommitedData . pproofInput
+
+
+----------------------------------------------------------------
+-- Recursion schemes stuff
+----------------------------------------------------------------
+
+$(makeBaseFunctor ''SigmaE)
