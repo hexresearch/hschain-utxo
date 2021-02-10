@@ -24,7 +24,7 @@ initTx = do
   aliceSecret <- newSecret
   let alicePubKey = toPublicKey aliceSecret
       aliceProofEnv = toProofEnv [getKeyPair aliceSecret]
-  resTx <- newProofTx aliceProofEnv $ tx alicePubKey
+  Right resTx <- newProofTx aliceProofEnv $ tx alicePubKey
   return (resTx, tx alicePubKey)
   where
     tx pubKey = Tx

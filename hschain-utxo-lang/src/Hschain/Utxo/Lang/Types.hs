@@ -26,7 +26,6 @@ module Hschain.Utxo.Lang.Types
   , PostBox(..)
     -- * Functions
   , newProofTx
-  , newProofTxOrFail
   , hashScript
   , getInputEnv
   , txPreservesValue
@@ -408,18 +407,6 @@ isStartEpoch TxArg{..} = env'height txArg'env == 0
 ---------------------------------------------------------------------
 -- smartconstructors to create boxes and transactions
 
-makeInput
-  :: GTx (SigmaE () ProofInput) Box
-  -> ProofEnv
-  -> BoxInputRef (SigmaE () ProofInput)
-  -> IO (BoxInputRef Proof)
-makeInput tx proofEnv BoxInputRef{..} = do
-  let message = getSigMessage boxInputRef'sigMask tx
-  mProof <- mapM (\sigma -> newProof proofEnv sigma message) boxInputRef'proof
-  return BoxInputRef{ boxInputRef'proof = either (const Nothing) Just =<< mProof
-                    , ..
-                    }
-
 makeInputOrFail
   :: GTx (SigmaE () ProofInput) Box
   -> ProofEnv
@@ -432,23 +419,10 @@ makeInputOrFail tx proofEnv ref@BoxInputRef{..}
 
     message = getSigMessage boxInputRef'sigMask tx
 
-
 -- | Expectation of the result of the box. We use it when we know to
 -- what sigma expression input box script is going to be executed.
 -- Then we can generate proofs with function @newProofTx@.
 type ExpectedBox = BoxInputRef (SigmaE () ProofInput)
-
--- | If we know the expected sigma expressions for the inputs
--- we can create transaction with all proofs supplied.
---
--- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
--- over API.
---
--- Note: If it can not produce the proof (user don't have corresponding private key)
--- it produces @Nothing@ in the @boxInputRef'proof@.
-newProofTx :: MonadIO io => ProofEnv -> GTx (SigmaE () ProofInput) Box -> io Tx
-newProofTx proofEnv tx
-  = liftIO $ traverseOf (tx'inputsL . each) (makeInput tx proofEnv) tx
 
 -- | If we now the expected sigma expressions for the inputs
 -- we can create transaction with all proofs supplied.
@@ -456,8 +430,8 @@ newProofTx proofEnv tx
 --
 -- Otherwise we can create TX with empty proof and query the expected results of sigma-expressions
 -- over API.
-newProofTxOrFail :: MonadIO io => ProofEnv -> GTx (SigmaE () ProofInput) Box -> io (Either Text Tx)
-newProofTxOrFail proofEnv tx
+newProofTx :: MonadIO io => ProofEnv -> GTx (SigmaE () ProofInput) Box -> io (Either Text Tx)
+newProofTx proofEnv tx
   = liftIO $ runExceptT $ traverseOf (tx'inputsL . each) (makeInputOrFail tx proofEnv) tx
 
 

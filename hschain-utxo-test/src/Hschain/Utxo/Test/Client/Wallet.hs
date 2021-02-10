@@ -129,7 +129,7 @@ singleOwnerSigmaExpr wallet = Leaf () $ dlogInput $ getWalletPublicKey wallet
 -- returns tripple: (tx, box address for change if needed, receiver output result)
 toSendTx :: Wallet -> Send -> SendBack -> App (Either Text (Tx, Maybe BoxId, BoxId))
 toSendTx wallet Send{..} SendBack{..} =
-  fmap (fmap appendSenderReceiverIds) $ newProofTxOrFail (getProofEnv wallet) preTx
+  fmap (fmap appendSenderReceiverIds) $ newProofTx (getProofEnv wallet) preTx
   where
     preTx = Tx
       { tx'inputs     = V.fromList [inputBox]

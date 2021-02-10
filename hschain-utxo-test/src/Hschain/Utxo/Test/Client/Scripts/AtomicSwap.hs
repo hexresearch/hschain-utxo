@@ -134,7 +134,8 @@ aliceInitSwapScript spec = [utxo|
 aliceInitSwapTx :: ProofEnv -> BoxId -> SwapSpec -> App Tx
 aliceInitSwapTx aliceKeys inputId spec = do
   Just totalValue <- getBoxBalance inputId
-  newProofTx aliceKeys $ preTx totalValue
+  Right tx <- newProofTx aliceKeys $ preTx totalValue
+  pure tx
   where
     swapHash = swapSpec'hash spec
 
@@ -158,7 +159,9 @@ aliceInitSwapTx aliceKeys inputId spec = do
 -- | Alice grabs the Bob's funds and reveals the secret.
 -- She can not double spend her funds because of deadline of the script for her returns.
 aliceGrabTx :: ProofEnv -> BoxId -> SwapSpec -> App Tx
-aliceGrabTx aliceKeys inputId spec = newProofTx aliceKeys preTx
+aliceGrabTx aliceKeys inputId spec = do
+  Right tx <- newProofTx aliceKeys preTx
+  pure tx
   where
     preTx = Tx
       { tx'inputs     = pure $ addSecret $ singleOwnerInput inputId alicePubKey
@@ -175,7 +178,9 @@ aliceGrabTx aliceKeys inputId spec = newProofTx aliceKeys preTx
 
 -- | Attempt to doublespend (It should fail).
 aliceDoubleSpendTx :: ProofEnv -> BoxId -> SwapSpec -> App Tx
-aliceDoubleSpendTx aliceKeys inputId spec = newProofTx aliceKeys preTx
+aliceDoubleSpendTx aliceKeys inputId spec = do
+  Right tx <- newProofTx aliceKeys preTx
+  pure tx
   where
     preTx = Tx
       { tx'inputs     = [ singleOwnerInput inputId alicePubKey ]
@@ -211,7 +216,8 @@ bobInitSwapScript swapHash spec = [utxo|
 bobInitSwapTx :: ProofEnv -> SwapHash -> BoxId -> SwapSpec -> App Tx
 bobInitSwapTx bobKeys swapHash inputId spec = do
   Just totalValue <- getBoxBalance inputId
-  newProofTx bobKeys $ preTx totalValue
+  Right tx <- newProofTx bobKeys $ preTx totalValue
+  pure tx
   where
     preTx totalValue = Tx
       { tx'inputs     = [ singleOwnerInput inputId bobPubKey ]
@@ -231,7 +237,9 @@ bobInitSwapTx bobKeys swapHash inputId spec = do
       }
 
 bobGrabTx :: ProofEnv -> SwapSecret -> BoxId -> SwapSpec -> App Tx
-bobGrabTx bobKeys aliceSecret inputId spec = newProofTx bobKeys preTx
+bobGrabTx bobKeys aliceSecret inputId spec = do
+  Right tx <- newProofTx bobKeys preTx
+  pure tx
   where
     preTx = Tx
       { tx'inputs     = [addSecret $ singleOwnerInput inputId bobPubKey]

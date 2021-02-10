@@ -45,11 +45,13 @@ verifyDtupleTx = do
 
 
 dtupleTx :: PublicKey -> KeyPair -> IO Tx
-dtupleTx gx keys = newProofTx (toProofEnv [keys]) $ Tx
-  { tx'inputs     = [inBox]
-  , tx'outputs    = [outBox]
-  , tx'dataInputs = []
-  }
+dtupleTx gx keys = do
+  Right tx <- newProofTx (toProofEnv [keys]) $ Tx
+    { tx'inputs     = [inBox]
+    , tx'outputs    = [outBox]
+    , tx'dataInputs = []
+    }
+  pure tx
   where
     gy  = getPublicKey keys
     y   = getSecretKey keys

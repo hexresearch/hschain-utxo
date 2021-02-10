@@ -36,7 +36,7 @@ noDoubleTx = do
   -- H=1. Alice mines block
   bidAlice <- mineBlock (Just pkAlice) []
   -- H=2. Alice spends mining reward
-  txAlice <- newProofTx sigmaEnv $ Tx
+  Right txAlice <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
     , tx'outputs = [ burnBox 100 ]
     , tx'dataInputs = []
@@ -80,7 +80,7 @@ simpleTransfers = do
     , tx'dataInputs = []
     }
   -- Now Alice may spend mined block and pay 10 coin in fees
-  txAlice <- newProofTx sigmaEnv $ Tx
+  Right txAlice <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidAlice pkAlice ]
     , tx'outputs =
       [ Box { box'value  = 60
@@ -99,18 +99,18 @@ simpleTransfers = do
   -- H=3
   --
   --  * Bob burns new coinbase with fee
-  txBob1 <- newProofTx sigmaEnv $ Tx
+  Right txBob1 <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef bidBob pkBob ]
     , tx'outputs = [ burnBox 110 ]
     , tx'dataInputs = []
     }
   --  * Bob and Charlie burn money received from Alice
-  txBob2 <- newProofTx sigmaEnv $ Tx
+  Right txBob2 <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef (computeBoxId (computeTxId txAlice) 0) pkBob ]
     , tx'outputs = [ burnBox 60 ]
     , tx'dataInputs = []
     }
-  txCharlie <- newProofTx sigmaEnv $ Tx
+  Right txCharlie <- newProofTx sigmaEnv $ Tx
     { tx'inputs  = [ simpleInputRef (computeBoxId (computeTxId txAlice) 1) pkCharlie ]
     , tx'outputs = [ burnBox 30 ]
     , tx'dataInputs = []

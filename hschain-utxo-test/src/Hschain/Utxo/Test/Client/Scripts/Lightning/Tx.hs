@@ -22,11 +22,13 @@ type Balance = (Money, Money)
 
 -- | Funding TX
 fundingTx :: MonadIO io => Wallet -> (Money, Money) -> [BoxId] -> PublicKey -> io Tx
-fundingTx wallet (value, change) inputIds otherPubKey = newProofTx  (getProofEnv wallet) $ Tx
-  { tx'inputs     = V.fromList $ fmap (singleOwnerBoxRef wallet) inputIds
-  , tx'outputs    = V.fromList $ catMaybes [Just fundBox, changeBox]
-  , tx'dataInputs = []
-  }
+fundingTx wallet (value, change) inputIds otherPubKey = liftIO $ do
+  Right tx <- newProofTx  (getProofEnv wallet) $ Tx
+    { tx'inputs     = V.fromList $ fmap (singleOwnerBoxRef wallet) inputIds
+    , tx'outputs    = V.fromList $ catMaybes [Just fundBox, changeBox]
+    , tx'dataInputs = []
+    }
+  pure tx
   where
     fundBox = Box
       { box'value  = value

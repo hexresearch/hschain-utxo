@@ -154,7 +154,7 @@ simpleSpendTo isSuccess message wallet fromId toPubKey value = do
 
 simpleSpendToTx :: Wallet -> BoxId -> PublicKey -> Int64 -> App (Either Text Tx)
 simpleSpendToTx wallet fromId toPubKey value =
-  newProofTxOrFail (getProofEnv wallet) preTx
+  newProofTx (getProofEnv wallet) preTx
   where
     preTx = Tx
       { tx'inputs     = [inputRef]

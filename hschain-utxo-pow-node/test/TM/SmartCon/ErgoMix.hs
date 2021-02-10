@@ -45,7 +45,7 @@ ergoMixTest = do
 
 alicePostToPool :: ProofEnv -> PublicKey -> BoxId -> Mine BoxId
 alicePostToPool env pkAlice bidAlice = do
-  tx <- newProofTx env $ Tx
+  Right tx <- newProofTx env $ Tx
         { tx'inputs  = [ singleOwnerInput bidAlice pkAlice ]
         , tx'outputs =
             [ Box { box'value  = 100
@@ -60,7 +60,7 @@ alicePostToPool env pkAlice bidAlice = do
 
 bobJoinMix :: Bool -> ProofEnv -> KeyPair -> PublicKey -> BoxId -> BoxId -> Mine (BoxId, BoxId)
 bobJoinMix bobGuess env bob pkAlice bidBob bidAlicePool = do
-  tx <- newProofTx env $ Tx
+  Right tx <- newProofTx env $ Tx
         { tx'inputs =
             [ singleOwnerInput bidBob pkBob
             , BoxInputRef
@@ -101,7 +101,7 @@ bobJoinMix bobGuess env bob pkAlice bidBob bidAlicePool = do
 
 aliceSpends :: BoxId -> KeyPair -> PublicKey -> Mine ()
 aliceSpends bid alice pkBob = do
-  tx <- newProofTx (toProofEnv [alice]) $ Tx
+  Right tx <- newProofTx (toProofEnv [alice]) $ Tx
         { tx'inputs  = [spendInput ]
         , tx'outputs = [ burnBox 100 ]
         , tx'dataInputs = []
@@ -125,7 +125,7 @@ aliceSpends bid alice pkBob = do
 
 bobSpends :: BoxId -> KeyPair -> PublicKey -> Mine ()
 bobSpends bid bob pkAlice = do
-  tx <- newProofTx (toProofEnv [bob]) $ Tx
+  Right tx <- newProofTx (toProofEnv [bob]) $ Tx
         { tx'inputs  = [spendInput ]
         , tx'outputs = [ burnBox 100 ]
         , tx'dataInputs = []
