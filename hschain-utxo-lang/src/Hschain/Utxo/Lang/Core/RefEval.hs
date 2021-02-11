@@ -224,13 +224,13 @@ evalPrimOp env = \case
   OpBytesAppend -> pure $ lift2 ((<>) @ByteString)
   OpSHA256      -> pure $ lift1 (hashBlob @SHA256)
   --
-  OpShow _ -> pure $ liftTerm1 (PrimVal . PrimText . renderText)
+  OpShow _ -> pure $ lift1 (PrimVal . PrimText . renderText @TermVal)
   --
-  OpToBytes   _ -> pure $ liftTerm1 (PrimVal . PrimBytes . LB.toStrict . serialise)
+  OpToBytes   _ -> pure $ lift1 $ PrimVal . PrimBytes . LB.toStrict . serialise @TermVal
   OpFromBytes _  -> let getBS = \case
                          PrimVal (PrimBytes bs) -> pure $ LB.fromStrict bs
                          _                      -> throwError "Not a bytestring"
-                   in  pure $ evalLiftTerm1 $ (decode <=< getBS)
+                   in  pure $ evalLift1 $ decode @TermVal <=< getBS
   --
   OpArgs _ -> fmap (inj @TermVal) $ decode $ LB.fromStrict bs
     where
@@ -335,7 +335,7 @@ evalPrimOp env = \case
     lookAt (_:xs) n = lookAt xs (n-1)
 
 opComparison :: (TermVal -> TermVal -> Bool) -> Val
-opComparison f = liftTerm2 (\a b -> PrimVal $ PrimBool $ f a b)
+opComparison f = lift2 (\a b -> PrimVal $ PrimBool $ f a b)
 
 parsePublicKey :: ByteString -> Eval PublicKey
 parsePublicKey = parseBS "Can't parse public key"
@@ -479,22 +479,3 @@ evalLift3 :: (MatchPrim a, MatchPrim b, MatchPrim c, InjPrim d) => (a -> b -> c 
 evalLift3 f = Val3F $ \a b c -> go a b c
   where
     go a b c = fmap inj $ join $ f <$> match a <*> match b <*>  match c
-
--------------------------------------------
--- match terms
-
-liftTerm1 :: (TermVal -> TermVal) -> Val
-liftTerm1 f = ValF $ go
-  where
-    go a = inj . f <$> match a
-
-liftTerm2 :: (TermVal -> TermVal -> TermVal) -> Val
-liftTerm2 f = Val2F $ \a b -> go a b
-  where
-    go a b = fmap inj $ f <$> match a <*> match b
-
-evalLiftTerm1 :: (TermVal -> Eval TermVal) -> Val
-evalLiftTerm1 f = ValF $ go
-  where
-    go a = fmap inj $ f =<< match a
-
