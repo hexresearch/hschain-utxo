@@ -161,13 +161,9 @@ evalPrimOp env = \case
   OpAdd -> pure $ lift2 ((+) @Int64)
   OpSub -> pure $ lift2 ((-) @Int64)
   OpMul -> pure $ lift2 ((*) @Int64)
-  OpDiv -> pure $ ValF $ \x -> pure $ ValF $ \y -> do
-    valY <- match @Int64 y
-    if valY == 0
-      then throwError "divide by zero"
-      else do
-        valX <- match x
-        pure $ inj $ div valX valY
+  OpDiv -> pure $ evalLift2 $ \(x :: Int64) (y :: Int64) -> case y of
+    0 -> throwError "divide by zero"
+    _ -> pure $ x `div` y
   OpNeg -> pure $ lift1 (negate @Int64)
   --
   OpBoolAnd -> pure $ ValF $ \x -> pure $ ValF $ \y -> do
@@ -253,7 +249,7 @@ evalPrimOp env = \case
     ValCon _ [_,_,_,_,b] -> pure $ b
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
   --
-  OpEnvGetHeight     -> pure $ ValP $ PrimInt $ inputEnv'height env
+  OpEnvGetHeight     -> pure $ inj $ inputEnv'height env
   OpEnvGetSelf       -> pure $ inj $ inputEnv'self env
   OpEnvGetInputs     -> pure $ inj $ inputEnv'inputs  env
   OpEnvGetOutputs    -> pure $ inj $ inputEnv'outputs env
