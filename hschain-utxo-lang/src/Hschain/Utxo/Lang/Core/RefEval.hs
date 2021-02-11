@@ -367,6 +367,10 @@ instance MatchPrim Val where
 instance MatchPrim Prim where
   match (ValP p) = pure p
   match _        = throwError "Expecting primitive"
+instance MatchPrim TermVal where
+  match (ValP p)          = pure $ PrimVal p
+  match (ValCon con args) = ConVal con . V.fromList <$> mapM match args
+  match _                 = throwError "It is not a term"
 instance MatchPrim Int64 where
   match (ValP (PrimInt a)) = pure a
   match _                  = throwError "Expecting Int"
@@ -476,12 +480,6 @@ evalLift3 f = Val3F $ \a b c -> go a b c
 -------------------------------------------
 -- match terms
 
-matchTerm :: Val -> Eval TermVal
-matchTerm = \case
-  ValP p          -> pure $ PrimVal p
-  ValCon con args -> fmap (ConVal con . V.fromList) $ mapM matchTerm args
-  _               -> throwError "It is not a term"
-
 injTerm :: TermVal -> Val
 injTerm = \case
   PrimVal p       -> ValP p
@@ -490,15 +488,15 @@ injTerm = \case
 liftTerm1 :: (TermVal -> TermVal) -> Val
 liftTerm1 f = ValF $ go
   where
-    go a = injTerm . f <$> matchTerm a
+    go a = injTerm . f <$> match a
 
 liftTerm2 :: (TermVal -> TermVal -> TermVal) -> Val
 liftTerm2 f = Val2F $ \a b -> go a b
   where
-    go a b = fmap injTerm $ f <$> matchTerm a <*> matchTerm b
+    go a b = fmap injTerm $ f <$> match a <*> match b
 
 evalLiftTerm1 :: (TermVal -> Eval TermVal) -> Val
 evalLiftTerm1 f = ValF $ go
   where
-    go a = fmap injTerm $ f =<< matchTerm a
+    go a = fmap injTerm $ f =<< match a
 
