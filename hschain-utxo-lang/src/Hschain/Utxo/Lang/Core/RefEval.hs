@@ -232,7 +232,7 @@ evalPrimOp env = \case
                          _                      -> throwError "Not a bytestring"
                    in  pure $ evalLiftTerm1 $ (decode <=< getBS)
   --
-  OpArgs _ -> fmap injTerm $ decode $ LB.fromStrict bs
+  OpArgs _ -> fmap (inj @TermVal) $ decode $ LB.fromStrict bs
     where
       Args bs = boxInput'args $ inputEnv'self env
 
@@ -247,7 +247,7 @@ evalPrimOp env = \case
     ValCon _ [_,_,i,_,_] -> pure $ i
     x                    -> throwError $ EvalErr $ "Box expected, got" ++ show x
   OpGetBoxArgs _ -> pure $ ValF $ \x -> case x of
-    ValCon _ [_,_,_, ValP (PrimBytes bs), _] -> fmap injTerm $ decode $ LB.fromStrict bs
+    ValCon _ [_,_,_, ValP (PrimBytes bs), _] -> fmap (inj @TermVal) $ decode $ LB.fromStrict bs
     p -> throwError $ EvalErr $ "Not a box. Got " ++ show p
   OpGetBoxPostHeight -> pure $ evalLift1 $ \case
     ValCon _ [_,_,_,_,b] -> pure $ b
@@ -412,6 +412,9 @@ instance (Typeable a, MatchPrim a) => MatchPrim [a] where
   match p = throwError $ EvalErr $ "Expecting list of " ++ show (typeRep (Proxy @a)) ++ " got " ++ show p
 
 instance InjPrim Val           where inj = id
+instance InjPrim TermVal       where
+  inj (PrimVal p      ) = ValP p
+  inj (ConVal con args) = ValCon con $ V.toList $ fmap inj args
 instance InjPrim Int64         where inj = ValP . PrimInt
 instance InjPrim Bool          where inj = ValP . PrimBool
 instance InjPrim Text          where inj = ValP . PrimText
@@ -480,23 +483,18 @@ evalLift3 f = Val3F $ \a b c -> go a b c
 -------------------------------------------
 -- match terms
 
-injTerm :: TermVal -> Val
-injTerm = \case
-  PrimVal p       -> ValP p
-  ConVal con args -> ValCon con $ V.toList $ fmap injTerm args
-
 liftTerm1 :: (TermVal -> TermVal) -> Val
 liftTerm1 f = ValF $ go
   where
-    go a = injTerm . f <$> match a
+    go a = inj . f <$> match a
 
 liftTerm2 :: (TermVal -> TermVal -> TermVal) -> Val
 liftTerm2 f = Val2F $ \a b -> go a b
   where
-    go a b = fmap injTerm $ f <$> match a <*> match b
+    go a b = fmap inj $ f <$> match a <*> match b
 
 evalLiftTerm1 :: (TermVal -> Eval TermVal) -> Val
 evalLiftTerm1 f = ValF $ go
   where
-    go a = fmap injTerm $ f =<< match a
+    go a = fmap inj $ f =<< match a
 
