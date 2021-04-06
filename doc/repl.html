@@ -1,17 +1,18 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17: http://docutils.sourceforge.net/" />
+
     <title>Interpreter for the language &#8212; hschain-utxo  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Hschain-utxo node" href="service.html" />
@@ -32,13 +33,13 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="interpreter-for-the-language">
+  <section id="interpreter-for-the-language">
 <h1>Interpreter for the language<a class="headerlink" href="#interpreter-for-the-language" title="Permalink to this headline">¶</a></h1>
 <p>We can use REPL to quickly test ideas and language features:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">repl</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">repl</span>
 </pre></div>
 </div>
-<div class="section" id="repl-options">
+<section id="repl-options">
 <h2>REPL options<a class="headerlink" href="#repl-options" title="Permalink to this headline">¶</a></h2>
 <p>We can type <code class="docutils literal notranslate"><span class="pre">:help</span></code> to see complete list of options.
 Most useful are</p>
@@ -52,8 +53,8 @@ Most useful are</p>
 <dt><code class="docutils literal notranslate"><span class="pre">:t</span></code> or <code class="docutils literal notranslate"><span class="pre">:type</span></code></dt><dd><p>show type of the expression</p>
 </dd>
 </dl>
-</div>
-<div class="section" id="environment">
+</section>
+<section id="environment">
 <h2>Environment<a class="headerlink" href="#environment" title="Permalink to this headline">¶</a></h2>
 <p>Every script works within the context of transaction.
 By default no TX is loaded and blockchain height is set 0.
@@ -61,12 +62,12 @@ But we can load concrete TX and test expressions within context of TX.</p>
 <p>Note that in case of REPL we have to use not <code class="docutils literal notranslate"><span class="pre">BoxId</span></code>’s as inputs
 but the full structure for Boxes. Because we don’t have access to the real blockchain.</p>
 <div class="topic">
-<p class="topic-title first">TODO</p>
+<p class="topic-title">TODO</p>
 <p>Maybe it’s worth to create REPL that can connect to the blockchain
 real or test one?</p>
 </div>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -85,7 +86,7 @@ real or test one?</p>
 
 
 <h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents:</span></p>
+<p><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="lang-quick-start.html">Quick start guide for language</a></li>
@@ -118,7 +119,7 @@ real or test one?</p>
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>$('#searchbox').show(0);</script>
 
 
 
@@ -132,10 +133,10 @@ real or test one?</p>
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;1970, HXR.
+      &copy;2019, HXR.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.3</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

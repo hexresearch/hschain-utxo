@@ -1,17 +1,18 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17: http://docutils.sourceforge.net/" />
+
     <title>Language of smart contracts &#8212; hschain-utxo  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Interpreter for the language" href="repl.html" />
@@ -32,7 +33,7 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="language-of-smart-contracts">
+  <section id="language-of-smart-contracts">
 <h1>Language of smart contracts<a class="headerlink" href="#language-of-smart-contracts" title="Permalink to this headline">¶</a></h1>
 <p>The smart contract is a script that evaluates to boolean.
 It is used to protect the value of UTXOs from illegal spending.</p>
@@ -42,76 +43,76 @@ that user owns the secret key without exposure of the private data.</p>
 <p>Let’s look at the language in details.
 It’s very simple and minimalistic.</p>
 <p>We can start interpreter to test expressions:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">repl</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">repl</span>
 </pre></div>
 </div>
-<div class="section" id="basic-building-blocks">
+<section id="basic-building-blocks">
 <h2>Basic building blocks<a class="headerlink" href="#basic-building-blocks" title="Permalink to this headline">¶</a></h2>
 <p>Script is a sequence of defenition with last expression being boolean expression:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">one</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="n">two</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="n">condition</span> <span class="n">x</span> <span class="n">y</span> <span class="o">=</span> <span class="n">x</span> <span class="o">&lt;=</span> <span class="n">y</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">one</span> <span class="ow">=</span> <span class="mi">1</span>
+<span class="nf">two</span> <span class="ow">=</span> <span class="mi">2</span>
+<span class="nf">condition</span> <span class="n">x</span> <span class="n">y</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">&lt;=</span> <span class="n">y</span>
 
-<span class="n">condition</span> <span class="n">one</span> <span class="n">two</span> <span class="o">&amp;&amp;</span> <span class="n">pk</span> <span class="s2">&quot;alice-key&quot;</span>
+<span class="nf">condition</span> <span class="n">one</span> <span class="n">two</span> <span class="o">&amp;&amp;</span> <span class="n">pk</span> <span class="s">&quot;alice-key&quot;</span>
 </pre></div>
 </div>
-<div class="section" id="definitions">
+<section id="definitions">
 <h3>Definitions<a class="headerlink" href="#definitions" title="Permalink to this headline">¶</a></h3>
 <p>We can define constants:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">greet</span> <span class="o">=</span> <span class="s2">&quot;Hello&quot;</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">greet</span> <span class="ow">=</span> <span class="s">&quot;Hello&quot;</span>
 </pre></div>
 </div>
 <p>And we can define functions:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">addWorld</span> <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">&lt;&gt;</span> <span class="s2">&quot; World&quot;</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">addWorld</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">&lt;&gt;</span> <span class="s">&quot; World&quot;</span>
 </pre></div>
 </div>
 <p>Also we can define synonyms with <code class="docutils literal notranslate"><span class="pre">let</span></code> construct:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">let</span> <span class="n">greet</span> <span class="o">=</span> <span class="s2">&quot;Hello&quot;</span>
-<span class="ow">in</span>  <span class="n">addWorld</span> <span class="n">greet</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">let</span> <span class="n">greet</span> <span class="ow">=</span> <span class="s">&quot;Hello&quot;</span>
+<span class="kr">in</span>  <span class="n">addWorld</span> <span class="n">greet</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="functional-application">
+</section>
+<section id="functional-application">
 <h3>Functional application<a class="headerlink" href="#functional-application" title="Permalink to this headline">¶</a></h3>
 <p>Functions are applied with space. Function namegoes first and then arguments follow:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">addTwo</span> <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">addTwo</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
 <span class="o">&gt;</span> <span class="n">addTwo</span> <span class="mi">1</span>
   <span class="mi">3</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="branching">
+</section>
+<section id="branching">
 <h3>Branching<a class="headerlink" href="#branching" title="Permalink to this headline">¶</a></h3>
 <p>We can branch with if-then-else:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">=</span> <span class="k">if</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">10</span>
-  <span class="n">then</span> <span class="n">a</span>
-  <span class="k">else</span> <span class="n">b</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span> <span class="ow">=</span> <span class="kr">if</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">10</span>
+  <span class="kr">then</span> <span class="n">a</span>
+  <span class="kr">else</span> <span class="n">b</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="ownership">
+</section>
+<section id="ownership">
 <h3>Ownership<a class="headerlink" href="#ownership" title="Permalink to this headline">¶</a></h3>
 <p>We can test for ownership with function <code class="docutils literal notranslate"><span class="pre">pk</span></code></p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">pk :: Text -&gt; Bool</code></dt>
+<code class="sig-name descname"><span class="pre">pk</span> <span class="pre">::</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">Bool</span></code></dt>
 <dd><p>It evaluates to true if the owner of the key is proven in the transaction field <code class="docutils literal notranslate"><span class="pre">proof</span></code>
 of the transaction.</p>
 </dd></dl>
 
 <p>Transaction has special field <code class="docutils literal notranslate"><span class="pre">proof</span></code> where it contains provement of the ownership.</p>
-</div>
-<div class="section" id="type-signatures">
+</section>
+<section id="type-signatures">
 <h3>Type signatures<a class="headerlink" href="#type-signatures" title="Permalink to this headline">¶</a></h3>
 <p>We can give signature with double colon:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">1</span> <span class="p">::</span> <span class="n">Int</span><span class="p">)</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">1</span> <span class="ow">::</span> <span class="kt">Int</span><span class="p">)</span>
 
-<span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Hello&quot;</span><span class="p">)</span> <span class="p">::</span> <span class="p">(</span><span class="n">Double</span><span class="p">,</span> <span class="n">Text</span><span class="p">))</span>
+<span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="s">&quot;Hello&quot;</span><span class="p">)</span> <span class="ow">::</span> <span class="p">(</span><span class="kt">Double</span><span class="p">,</span> <span class="kt">Text</span><span class="p">))</span>
 </pre></div>
 </div>
-</div>
-</div>
-<div class="section" id="primitive-types">
+</section>
+</section>
+<section id="primitive-types">
 <h2>Primitive types<a class="headerlink" href="#primitive-types" title="Permalink to this headline">¶</a></h2>
 <p>Language has following primitives:</p>
 <dl class="simple">
@@ -128,284 +129,284 @@ Box can be input or output boxes. We spend values from input boxes and create ou
 when script is true.</p>
 </dd>
 </dl>
-<div class="section" id="boolean-operators">
+<section id="boolean-operators">
 <h3>Boolean operators<a class="headerlink" href="#boolean-operators" title="Permalink to this headline">¶</a></h3>
 <p>We have usual boolean operations:  <code class="docutils literal notranslate"><span class="pre">not</span></code>, <code class="docutils literal notranslate"><span class="pre">||</span></code>, <code class="docutils literal notranslate"><span class="pre">&amp;&amp;</span></code>.
 Also we have conditions defined for all primitive types like: <code class="docutils literal notranslate"><span class="pre">==</span></code>, <code class="docutils literal notranslate"><span class="pre">/=</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;=</span></code> etc.</p>
 <p>We have if-then-else:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">=</span> <span class="k">if</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">10</span>
-  <span class="n">then</span> <span class="n">a</span>
-  <span class="k">else</span> <span class="n">b</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span> <span class="ow">=</span> <span class="kr">if</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">10</span>
+  <span class="kr">then</span> <span class="n">a</span>
+  <span class="kr">else</span> <span class="n">b</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="numeric-operators">
+</section>
+<section id="numeric-operators">
 <h3>Numeric operators<a class="headerlink" href="#numeric-operators" title="Permalink to this headline">¶</a></h3>
 <p>We have numeric operators: <code class="docutils literal notranslate"><span class="pre">negate</span></code>, <code class="docutils literal notranslate"><span class="pre">+</span></code>, <code class="docutils literal notranslate"><span class="pre">*</span></code>, <code class="docutils literal notranslate"><span class="pre">/</span></code>.
 They work on all numeric types.</p>
-</div>
-<div class="section" id="text-operators">
+</section>
+<section id="text-operators">
 <h3>Text operators<a class="headerlink" href="#text-operators" title="Permalink to this headline">¶</a></h3>
 <p>Text are lists of chars. We have following functions:</p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">lengthText :: Text -&gt; Int</code></dt>
+<code class="sig-name descname"><span class="pre">lengthText</span> <span class="pre">::</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">Int</span></code></dt>
 <dd><p>Return the size of text</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">(&lt;&gt;) :: Text -&gt; Text -&gt; Text</code></dt>
+<code class="sig-name descname"><span class="pre">(&lt;&gt;)</span> <span class="pre">::</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">Text</span></code></dt>
 <dd><p>Text concatenation.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">showBool, showInt, showMoney, shwoDouble, showScript</code></dt>
+<code class="sig-name descname"><span class="pre">showBool,</span> <span class="pre">showInt,</span> <span class="pre">showMoney,</span> <span class="pre">shwoDouble,</span> <span class="pre">showScript</span></code></dt>
 <dd><p>Converts various primitives to text.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">sha256, blake2b256 :: Text -&gt; Text</code></dt>
+<code class="sig-name descname"><span class="pre">sha256,</span> <span class="pre">blake2b256</span> <span class="pre">::</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">Text</span></code></dt>
 <dd><p>Compute hash of the text.</p>
 </dd></dl>
 
 <p>Also we can check texts for equality and compare it.</p>
-</div>
-<div class="section" id="script-operators">
+</section>
+<section id="script-operators">
 <h3>Script operators<a class="headerlink" href="#script-operators" title="Permalink to this headline">¶</a></h3>
 <p>The only thing we can do with script is to check for equality and convert it to text with function</p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">showScript :: Script -&gt; Text</code></dt>
+<code class="sig-name descname"><span class="pre">showScript</span> <span class="pre">::</span> <span class="pre">Script</span> <span class="pre">-&gt;</span> <span class="pre">Text</span></code></dt>
 <dd><p>Converts script to text.</p>
 </dd></dl>
 
-</div>
-</div>
-<div class="section" id="compound-types">
+</section>
+</section>
+<section id="compound-types">
 <h2>Compound types<a class="headerlink" href="#compound-types" title="Permalink to this headline">¶</a></h2>
 <p>For compound types we have functions, tuples, vectors and boxes.</p>
-<div class="section" id="functions">
+<section id="functions">
 <h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
 <p>We can create function with lambda expression:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">addTwo</span> <span class="o">=</span> \<span class="n">x</span> <span class="o">-&gt;</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">addTwo</span> <span class="ow">=</span> <span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
 
-<span class="n">square</span> <span class="o">=</span> \<span class="n">x</span> <span class="o">-&gt;</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
+<span class="nf">square</span> <span class="ow">=</span> <span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
 
-<span class="n">mul</span> <span class="o">=</span> \<span class="n">x</span> <span class="n">y</span> <span class="o">-&gt;</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span>
+<span class="nf">mul</span> <span class="ow">=</span> <span class="nf">\</span><span class="n">x</span> <span class="n">y</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span>
 </pre></div>
 </div>
 <p>Also we can define them in this way:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">addTwo</span> <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">addTwo</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
 
-<span class="n">square</span> <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
+<span class="nf">square</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
 
-<span class="n">mul</span> <span class="n">x</span> <span class="n">y</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span>
+<span class="nf">mul</span> <span class="n">x</span> <span class="n">y</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span>
 </pre></div>
 </div>
 <p>We have usual function combinators: <code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">const</span></code>. We can use partial application.</p>
 <p>Functions can have guards:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">signum</span> <span class="n">x</span>
-  <span class="o">|</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span>  <span class="o">=</span> <span class="mi">1</span>
-  <span class="o">|</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">=</span> <span class="mi">0</span>
-  <span class="o">|</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span>  <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">signum</span> <span class="n">x</span>
+  <span class="o">|</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span>  <span class="ow">=</span> <span class="mi">1</span>
+  <span class="o">|</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">=</span> <span class="mi">0</span>
+  <span class="o">|</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span>  <span class="ow">=</span> <span class="o">-</span><span class="mi">1</span>
 </pre></div>
 </div>
 <p>Functions can contain pattern-matching cases:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">xor</span> <span class="kc">True</span>  <span class="kc">False</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="n">xor</span> <span class="kc">False</span> <span class="kc">True</span>  <span class="o">=</span> <span class="kc">True</span>
-<span class="n">xor</span> <span class="n">_</span>     <span class="n">_</span>     <span class="o">=</span> <span class="kc">False</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">xor</span> <span class="kt">True</span>  <span class="kt">False</span> <span class="ow">=</span> <span class="kt">True</span>
+<span class="nf">xor</span> <span class="kt">False</span> <span class="kt">True</span>  <span class="ow">=</span> <span class="kt">True</span>
+<span class="nf">xor</span> <span class="kr">_</span>     <span class="kr">_</span>     <span class="ow">=</span> <span class="kt">False</span>
 </pre></div>
 </div>
 <p>Also functions can contain local definitions that are defined with <code class="docutils literal notranslate"><span class="pre">where</span></code>-clause:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sumSquares</span> <span class="p">::</span> <span class="n">Int</span> <span class="o">-&gt;</span> <span class="n">Int</span> <span class="o">-&gt;</span> <span class="n">Int</span>
-<span class="n">sumSquares</span> <span class="n">x</span> <span class="n">y</span> <span class="o">=</span> <span class="n">square</span> <span class="n">x</span> <span class="o">+</span> <span class="n">square</span> <span class="n">y</span>
-  <span class="n">where</span>
-    <span class="n">square</span> <span class="n">a</span> <span class="o">=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">a</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">sumSquares</span> <span class="ow">::</span> <span class="kt">Int</span> <span class="ow">-&gt;</span> <span class="kt">Int</span> <span class="ow">-&gt;</span> <span class="kt">Int</span>
+<span class="nf">sumSquares</span> <span class="n">x</span> <span class="n">y</span> <span class="ow">=</span> <span class="n">square</span> <span class="n">x</span> <span class="o">+</span> <span class="n">square</span> <span class="n">y</span>
+  <span class="kr">where</span>
+    <span class="n">square</span> <span class="n">a</span> <span class="ow">=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">a</span>
 </pre></div>
 </div>
 <p>It’s equivalent to the following definition with let-expression:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sumSquares</span> <span class="n">x</span> <span class="n">y</span> <span class="o">=</span>
-  <span class="n">let</span> <span class="n">square</span> <span class="n">a</span> <span class="o">=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">a</span>
-  <span class="ow">in</span>  <span class="n">square</span> <span class="n">x</span> <span class="o">+</span> <span class="n">square</span> <span class="n">y</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">sumSquares</span> <span class="n">x</span> <span class="n">y</span> <span class="ow">=</span>
+  <span class="kr">let</span> <span class="n">square</span> <span class="n">a</span> <span class="ow">=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">a</span>
+  <span class="kr">in</span>  <span class="n">square</span> <span class="n">x</span> <span class="o">+</span> <span class="n">square</span> <span class="n">y</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="user-defined-types">
+</section>
+<section id="user-defined-types">
 <h3>User-defined types<a class="headerlink" href="#user-defined-types" title="Permalink to this headline">¶</a></h3>
 <p>User can define a type. the style is borrowed from Haskell:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">Color</span> <span class="o">=</span> <span class="n">Red</span> <span class="o">|</span> <span class="n">Blue</span> <span class="o">|</span> <span class="n">Green</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">data</span> <span class="kt">Color</span> <span class="ow">=</span> <span class="kt">Red</span> <span class="o">|</span> <span class="kt">Blue</span> <span class="o">|</span> <span class="kt">Green</span>
 </pre></div>
 </div>
 <p>We define a color with three alternative cases represented with type-constructors.
 Also type-constructors can hold values. Let’s define type for users with name and age:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">User</span> <span class="o">=</span> <span class="n">User</span> <span class="n">Text</span> <span class="n">Int</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">data</span> <span class="kt">User</span> <span class="ow">=</span> <span class="kt">User</span> <span class="kt">Text</span> <span class="kt">Int</span>
 
-<span class="n">john</span> <span class="p">::</span> <span class="n">User</span>
-<span class="n">john</span> <span class="o">=</span> <span class="n">User</span> <span class="s2">&quot;John&quot;</span> <span class="mi">23</span>
+<span class="nf">john</span> <span class="ow">::</span> <span class="kt">User</span>
+<span class="nf">john</span> <span class="ow">=</span> <span class="kt">User</span> <span class="s">&quot;John&quot;</span> <span class="mi">23</span>
 </pre></div>
 </div>
 <p>Types can have parameters. This way we can define Haskell type <code class="docutils literal notranslate"><span class="pre">Maybe</span></code> for optional values:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">Maybe</span> <span class="n">a</span> <span class="o">=</span> <span class="n">Nothing</span> <span class="o">|</span> <span class="n">Just</span> <span class="n">a</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">data</span> <span class="kt">Maybe</span> <span class="n">a</span> <span class="ow">=</span> <span class="kt">Nothing</span> <span class="o">|</span> <span class="kt">Just</span> <span class="n">a</span>
 </pre></div>
 </div>
 <p>We can construct the values of our own type with constructors. To deconstruct them we use case-expressions.</p>
 <p>Note that recursive types are prohibited. We can not construct recursive types.
 It is deliberate restriction of our language since we do not support recursion.</p>
-</div>
-<div class="section" id="case-expressions">
+</section>
+<section id="case-expressions">
 <h3>case-expressions<a class="headerlink" href="#case-expressions" title="Permalink to this headline">¶</a></h3>
 <p>Case-expression deconstruct values from our own types:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">getName</span> <span class="p">::</span> <span class="n">User</span> <span class="o">-&gt;</span> <span class="n">Text</span>
-<span class="n">getName</span> <span class="n">user</span> <span class="o">=</span> <span class="n">case</span> <span class="n">user</span> <span class="n">of</span>
-   <span class="n">User</span> <span class="n">name</span> <span class="n">_</span> <span class="o">-&gt;</span> <span class="n">name</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">getName</span> <span class="ow">::</span> <span class="kt">User</span> <span class="ow">-&gt;</span> <span class="kt">Text</span>
+<span class="nf">getName</span> <span class="n">user</span> <span class="ow">=</span> <span class="kr">case</span> <span class="n">user</span> <span class="kr">of</span>
+   <span class="kt">User</span> <span class="n">name</span> <span class="kr">_</span> <span class="ow">-&gt;</span> <span class="n">name</span>
 
-<span class="n">colorIsRed</span> <span class="p">::</span> <span class="n">Color</span> <span class="o">-&gt;</span> <span class="n">Bool</span>
-<span class="n">colorIsRed</span> <span class="n">color</span> <span class="o">=</span> <span class="n">case</span> <span class="n">color</span> <span class="n">of</span>
-   <span class="n">Red</span> <span class="o">-&gt;</span> <span class="kc">True</span>
-   <span class="n">_</span>   <span class="o">-&gt;</span> <span class="kc">False</span>
+<span class="nf">colorIsRed</span> <span class="ow">::</span> <span class="kt">Color</span> <span class="ow">-&gt;</span> <span class="kt">Bool</span>
+<span class="nf">colorIsRed</span> <span class="n">color</span> <span class="ow">=</span> <span class="kr">case</span> <span class="n">color</span> <span class="kr">of</span>
+   <span class="kt">Red</span> <span class="ow">-&gt;</span> <span class="kt">True</span>
+   <span class="kr">_</span>   <span class="ow">-&gt;</span> <span class="kt">False</span>
 
-<span class="n">happyBirthday</span> <span class="p">::</span> <span class="n">User</span> <span class="o">-&gt;</span> <span class="n">User</span>
-<span class="n">happyBirthday</span> <span class="n">user</span> <span class="o">=</span> <span class="n">case</span> <span class="n">user</span> <span class="n">of</span>
-   <span class="n">User</span> <span class="n">name</span> <span class="n">age</span> <span class="o">-&gt;</span> <span class="n">User</span> <span class="n">name</span> <span class="p">(</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+<span class="nf">happyBirthday</span> <span class="ow">::</span> <span class="kt">User</span> <span class="ow">-&gt;</span> <span class="kt">User</span>
+<span class="nf">happyBirthday</span> <span class="n">user</span> <span class="ow">=</span> <span class="kr">case</span> <span class="n">user</span> <span class="kr">of</span>
+   <span class="kt">User</span> <span class="n">name</span> <span class="n">age</span> <span class="ow">-&gt;</span> <span class="kt">User</span> <span class="n">name</span> <span class="p">(</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="pattern-matching-for-function-arguments">
+</section>
+<section id="pattern-matching-for-function-arguments">
 <h3>pattern-matching for function arguments<a class="headerlink" href="#pattern-matching-for-function-arguments" title="Permalink to this headline">¶</a></h3>
 <p>We can also deconstruct the value in the arguments of the functions with pattern-matching.
 Let’s rewrite the functions with pattern-matching:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">getName</span> <span class="p">(</span><span class="n">User</span> <span class="n">name</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">name</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">getName</span> <span class="p">(</span><span class="kt">User</span> <span class="n">name</span> <span class="kr">_</span><span class="p">)</span> <span class="ow">=</span> <span class="n">name</span>
 
-<span class="n">happyBirthday</span> <span class="p">(</span><span class="n">User</span> <span class="n">name</span> <span class="n">age</span><span class="p">)</span> <span class="o">=</span> <span class="n">User</span> <span class="n">name</span> <span class="p">(</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+<span class="nf">happyBirthday</span> <span class="p">(</span><span class="kt">User</span> <span class="n">name</span> <span class="n">age</span><span class="p">)</span> <span class="ow">=</span> <span class="kt">User</span> <span class="n">name</span> <span class="p">(</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
 
-<span class="n">colorIsRed</span> <span class="n">Red</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="n">colorIsRed</span> <span class="n">_</span>   <span class="o">=</span> <span class="kc">False</span>
+<span class="nf">colorIsRed</span> <span class="kt">Red</span> <span class="ow">=</span> <span class="kt">True</span>
+<span class="nf">colorIsRed</span> <span class="kr">_</span>   <span class="ow">=</span> <span class="kt">False</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="records">
+</section>
+<section id="records">
 <h3>Records<a class="headerlink" href="#records" title="Permalink to this headline">¶</a></h3>
 <p>Sometimes it’s useful to have named fields in the type-constructors.
 This part of the language is also inspired by Haskell and we can create named-fields
 and update them just like in Haskell:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">User</span> <span class="o">=</span> <span class="n">User</span>
-   <span class="p">{</span> <span class="n">user</span><span class="s1">&#39;name :: Text</span>
-   <span class="p">,</span> <span class="n">user</span><span class="s1">&#39;age  :: Int</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">data</span> <span class="kt">User</span> <span class="ow">=</span> <span class="kt">User</span>
+   <span class="p">{</span> <span class="n">user&#39;name</span> <span class="ow">::</span> <span class="kt">Text</span>
+   <span class="p">,</span> <span class="n">user&#39;age</span>  <span class="ow">::</span> <span class="kt">Int</span>
    <span class="p">}</span>
 </pre></div>
 </div>
 <p>Note that just like in Haskell names of the fields have to be unique across the whole global
 scope of the program.</p>
 <p>Now we can create users and supply information about the fields:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">john</span> <span class="o">=</span> <span class="n">User</span>
-   <span class="p">{</span> <span class="n">user</span><span class="s1">&#39;name = &quot;John&quot;</span>
-   <span class="p">,</span> <span class="n">user</span><span class="s1">&#39;age  = 23</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">john</span> <span class="ow">=</span> <span class="kt">User</span>
+   <span class="p">{</span> <span class="n">user&#39;name</span> <span class="ow">=</span> <span class="s">&quot;John&quot;</span>
+   <span class="p">,</span> <span class="n">user&#39;age</span>  <span class="ow">=</span> <span class="mi">23</span>
    <span class="p">}</span>
 </pre></div>
 </div>
 <p>We can update the fields:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">happyBirthday</span> <span class="n">user</span> <span class="o">=</span> <span class="n">user</span> <span class="p">{</span> <span class="n">user</span><span class="s1">&#39;age = 1 + user&#39;</span><span class="n">age</span> <span class="n">user</span> <span class="p">}</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">happyBirthday</span> <span class="n">user</span> <span class="ow">=</span> <span class="n">user</span> <span class="p">{</span> <span class="n">user&#39;age</span> <span class="ow">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">user&#39;age</span> <span class="n">user</span> <span class="p">}</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="tuples">
+</section>
+<section id="tuples">
 <h3>Tuples<a class="headerlink" href="#tuples" title="Permalink to this headline">¶</a></h3>
 <p>Tuples represent sets of heterogeneous values. We use parenthesis to denote them <cite>(True, 1)</cite>
 We construct tuples with parens and destruct them pattern-matching or case-expressions or pattern-matching:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span> <span class="ow">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="kt">True</span><span class="p">)</span>
 
-<span class="n">y</span> <span class="o">=</span> <span class="n">case</span> <span class="n">x</span> <span class="n">of</span>
- <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">a</span>
+<span class="nf">y</span> <span class="ow">=</span> <span class="kr">case</span> <span class="n">x</span> <span class="kr">of</span>
+ <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="kr">_</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="n">a</span>
 
-<span class="n">fst</span> <span class="p">::</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">a</span>
-<span class="n">fst</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">a</span>
+<span class="nf">fst</span> <span class="ow">::</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="n">a</span>
+<span class="nf">fst</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="kr">_</span><span class="p">)</span> <span class="ow">=</span> <span class="n">a</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="vectors">
+</section>
+<section id="vectors">
 <h3>Vectors<a class="headerlink" href="#vectors" title="Permalink to this headline">¶</a></h3>
 <p>Vectors represent a row of values of the same type.
 We use brackets to denote constant vectors: <cite>[1,2,3]</cite>.
 To get vector values we use operator <code class="docutils literal notranslate"><span class="pre">!</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>&gt; x = [1, 2, 3]
-&gt; x ! 1
-  2
-&gt; map (\n -&gt; n * n) x
-  [1, 4, 9]
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">x</span> <span class="ow">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+<span class="o">&gt;</span> <span class="n">x</span> <span class="o">!</span> <span class="mi">1</span>
+  <span class="mi">2</span>
+<span class="o">&gt;</span> <span class="n">map</span> <span class="p">(</span><span class="nf">\</span><span class="n">n</span> <span class="ow">-&gt;</span> <span class="n">n</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span> <span class="n">x</span>
+  <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">9</span><span class="p">]</span>
 </pre></div>
 </div>
 <p>We have operations for vectors</p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">(!) :: Vector a -&gt; Int -&gt; a</code></dt>
+<code class="sig-name descname"><span class="pre">(!)</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">a</span> <span class="pre">-&gt;</span> <span class="pre">Int</span> <span class="pre">-&gt;</span> <span class="pre">a</span></code></dt>
 <dd><p>Get vector value by index.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">length :: Vector a -&gt; Int</code></dt>
+<code class="sig-name descname"><span class="pre">length</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">a</span> <span class="pre">-&gt;</span> <span class="pre">Int</span></code></dt>
 <dd><p>Return the length of the vector.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">(++) :: Vector a -&gt; Vector a -&gt; Vector a</code></dt>
+<code class="sig-name descname"><span class="pre">(++)</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">a</span> <span class="pre">-&gt;</span> <span class="pre">Vector</span> <span class="pre">a</span> <span class="pre">-&gt;</span> <span class="pre">Vector</span> <span class="pre">a</span></code></dt>
 <dd><p>Concatenation of the vectors.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">map :: (a -&gt; b) -&gt; Vector a -&gt; Vector b</code></dt>
+<code class="sig-name descname"><span class="pre">map</span> <span class="pre">::</span> <span class="pre">(a</span> <span class="pre">-&gt;</span> <span class="pre">b)</span> <span class="pre">-&gt;</span> <span class="pre">Vector</span> <span class="pre">a</span> <span class="pre">-&gt;</span> <span class="pre">Vector</span> <span class="pre">b</span></code></dt>
 <dd><p>Maps over values of the vector</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">fold :: (a -&gt; b -&gt; a) -&gt; a -&gt; Vector b -&gt; a</code></dt>
+<code class="sig-name descname"><span class="pre">fold</span> <span class="pre">::</span> <span class="pre">(a</span> <span class="pre">-&gt;</span> <span class="pre">b</span> <span class="pre">-&gt;</span> <span class="pre">a)</span> <span class="pre">-&gt;</span> <span class="pre">a</span> <span class="pre">-&gt;</span> <span class="pre">Vector</span> <span class="pre">b</span> <span class="pre">-&gt;</span> <span class="pre">a</span></code></dt>
 <dd><p>Left fold for the vector</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">sum :: Vector Int -&gt; Int</code></dt>
+<code class="sig-name descname"><span class="pre">sum</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">Int</span> <span class="pre">-&gt;</span> <span class="pre">Int</span></code></dt>
 <dd><p>Sum of numeric values</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">product :: Vector Int -&gt; Int</code></dt>
+<code class="sig-name descname"><span class="pre">product</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">Int</span> <span class="pre">-&gt;</span> <span class="pre">Int</span></code></dt>
 <dd><p>Product of numeric values</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">any :: Vector Bool -&gt; Bool</code></dt>
+<code class="sig-name descname"><span class="pre">any</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">Bool</span> <span class="pre">-&gt;</span> <span class="pre">Bool</span></code></dt>
 <dd><p>Any of values is true</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">all :: Vecotr Bool -&gt; Bool</code></dt>
+<code class="sig-name descname"><span class="pre">all</span> <span class="pre">::</span> <span class="pre">Vecotr</span> <span class="pre">Bool</span> <span class="pre">-&gt;</span> <span class="pre">Bool</span></code></dt>
 <dd><p>All values should be true</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getInputs :: Vector Box</code></dt>
+<code class="sig-name descname"><span class="pre">getInputs</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">Box</span></code></dt>
 <dd><p>Read vector of transaction inputs</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getOutputs :: Vector Box</code></dt>
+<code class="sig-name descname"><span class="pre">getOutputs</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">Box</span></code></dt>
 <dd><p>Read vector of transaction outputs</p>
 </dd></dl>
 
-</div>
-<div class="section" id="boxes">
+</section>
+<section id="boxes">
 <h3>Boxes<a class="headerlink" href="#boxes" title="Permalink to this headline">¶</a></h3>
 <p>Box represent UTXO. It has</p>
 <ul class="simple">
@@ -422,117 +423,117 @@ to be spent with transaction. Ouput boxes are produced with transaction that is 
 <p>So smart contracts can use condition based on the values that are stoed in
 the input and output boxes. Let’s look at how we can do that. Let’s consider first
 the funcitions to read the boxes:</p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getSelf :: Box</code></dt>
+<code class="sig-name descname"><span class="pre">getSelf</span> <span class="pre">::</span> <span class="pre">Box</span></code></dt>
 <dd><p>Reads the self box. The box of the current input.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getInputs :: Vector Box</code></dt>
+<code class="sig-name descname"><span class="pre">getInputs</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">Box</span></code></dt>
 <dd><p>Reads the vector of all input boxes.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getOutputs :: Vector Box</code></dt>
+<code class="sig-name descname"><span class="pre">getOutputs</span> <span class="pre">::</span> <span class="pre">Vector</span> <span class="pre">Box</span></code></dt>
 <dd><p>Reads the vector of all output boxes.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getInput :: Int -&gt; Box</code></dt>
+<code class="sig-name descname"><span class="pre">getInput</span> <span class="pre">::</span> <span class="pre">Int</span> <span class="pre">-&gt;</span> <span class="pre">Box</span></code></dt>
 <dd><p>Reads input box by index</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getOutput :: Int -&gt; Box</code></dt>
+<code class="sig-name descname"><span class="pre">getOutput</span> <span class="pre">::</span> <span class="pre">Int</span> <span class="pre">-&gt;</span> <span class="pre">Box</span></code></dt>
 <dd><p>Reads output box by index</p>
 </dd></dl>
 
 <p>Now we know how to read the boxes. Let’s look at how to process the values.
 We can check the values stored in the boxes if we read the them.
 Let’s look at the extractors:</p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getBoxId :: Box -&gt; Text</code></dt>
+<code class="sig-name descname"><span class="pre">getBoxId</span> <span class="pre">::</span> <span class="pre">Box</span> <span class="pre">-&gt;</span> <span class="pre">Text</span></code></dt>
 <dd><p>Return box identifier.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getBoxValue :: Box -&gt; Money</code></dt>
+<code class="sig-name descname"><span class="pre">getBoxValue</span> <span class="pre">::</span> <span class="pre">Box</span> <span class="pre">-&gt;</span> <span class="pre">Money</span></code></dt>
 <dd><p>Return box value</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getBoxScript :: Box -&gt; Script</code></dt>
+<code class="sig-name descname"><span class="pre">getBoxScript</span> <span class="pre">::</span> <span class="pre">Box</span> <span class="pre">-&gt;</span> <span class="pre">Script</span></code></dt>
 <dd><p>Return box script</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getBoxArg :: Box -&gt; Text -&gt; a</code></dt>
+<code class="sig-name descname"><span class="pre">getBoxArg</span> <span class="pre">::</span> <span class="pre">Box</span> <span class="pre">-&gt;</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">a</span></code></dt>
 <dd><p>Return box argument by name. It access the storage of key value pairs.</p>
 </dd></dl>
 
 <p>For example we can check that total value of the inputs is greater than 100:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">sum</span> <span class="p">(</span><span class="nb">map</span> <span class="n">getBoxValue</span> <span class="n">getInputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">sum</span> <span class="p">(</span><span class="n">map</span> <span class="n">getBoxValue</span> <span class="n">getInputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span>
 </pre></div>
 </div>
 <p>Or we can check that all inputs have value greater than 100:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">all</span> <span class="p">(</span><span class="nb">map</span> <span class="p">(</span>\<span class="n">x</span> <span class="o">-&gt;</span> <span class="n">getBoxValue</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span> <span class="n">getInputs</span><span class="p">)</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">all</span> <span class="p">(</span><span class="n">map</span> <span class="p">(</span><span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">getBoxValue</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span> <span class="n">getInputs</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-</div>
-<div class="section" id="environment">
+</section>
+</section>
+<section id="environment">
 <h2>Environment<a class="headerlink" href="#environment" title="Permalink to this headline">¶</a></h2>
 <p>We have already discussed how to read input and output boxes.
 But there are also some global variables that we can read.</p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getHeight :: Int</code></dt>
+<code class="sig-name descname"><span class="pre">getHeight</span> <span class="pre">::</span> <span class="pre">Int</span></code></dt>
 <dd><p>Height of the blockchain at the time of execution of transaction.</p>
 </dd></dl>
 
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">getVar :: Text -&gt; a</code></dt>
+<code class="sig-name descname"><span class="pre">getVar</span> <span class="pre">::</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">a</span></code></dt>
 <dt>
-<code class="sig-name descname">getVar argumentKey</code></dt>
+<code class="sig-name descname"><span class="pre">getVar</span> <span class="pre">argumentKey</span></code></dt>
 <dd><p>Reads primitive value from the argument list of key-value pairs that is provided with transaction.
 Some scripts can require user to supply additional values with transaction.</p>
 </dd></dl>
 
-</div>
-<div class="section" id="debugging">
+</section>
+<section id="debugging">
 <h2>Debugging<a class="headerlink" href="#debugging" title="Permalink to this headline">¶</a></h2>
 <p>Sometimes it is useful to trace the execution of the values in the script.
 We can use the function <code class="docutils literal notranslate"><span class="pre">trace</span></code></p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">trace :: Text -&gt; a -&gt; a</code></dt>
+<code class="sig-name descname"><span class="pre">trace</span> <span class="pre">::</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">a</span> <span class="pre">-&gt;</span> <span class="pre">a</span></code></dt>
 <dd><p>Adds text to debug output when second argument is executed.</p>
 </dd></dl>
 
 <p>We can read the debug information in REPL-console. Also the debug is returned with
 API call that posts transaction.</p>
-</div>
-<div class="section" id="compilation">
+</section>
+<section id="compilation">
 <h2>Compilation<a class="headerlink" href="#compilation" title="Permalink to this headline">¶</a></h2>
 <p>To use script in transaction JSON-object we have to compile it. To do it we invoke
 compailer <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="nb">compile</span> <span class="o">--</span><span class="nb">input</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">--</span><span class="n">output</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="c1">-- compile --input script.hs --output out.txt</span>
 </pre></div>
 </div>
 <p>If flag <code class="docutils literal notranslate"><span class="pre">output</span></code> (<code class="docutils literal notranslate"><span class="pre">-o</span></code> for short) is omitted the result is dumped to stdout.
 See flag <code class="docutils literal notranslate"><span class="pre">--help</span></code> for all options of the compiler.</p>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -551,7 +552,7 @@ See flag <code class="docutils literal notranslate"><span class="pre">--help</sp
 
 
 <h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents:</span></p>
+<p><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="lang-quick-start.html">Quick start guide for language</a></li>
@@ -588,7 +589,7 @@ See flag <code class="docutils literal notranslate"><span class="pre">--help</sp
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>$('#searchbox').show(0);</script>
 
 
 
@@ -602,10 +603,10 @@ See flag <code class="docutils literal notranslate"><span class="pre">--help</sp
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;1970, HXR.
+      &copy;2019, HXR.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.3</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

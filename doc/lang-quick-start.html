@@ -1,17 +1,18 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17: http://docutils.sourceforge.net/" />
+
     <title>Quick start guide for language &#8212; hschain-utxo  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Language of smart contracts" href="lang.html" />
@@ -32,61 +33,71 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="quick-start-guide-for-language">
+  <section id="quick-start-guide-for-language">
 <h1>Quick start guide for language<a class="headerlink" href="#quick-start-guide-for-language" title="Permalink to this headline">¶</a></h1>
 <p>The language for smart contracts is heavily insired with ErgoScript and Haskell.
-So we can use our haskell intuition in many circumstances.</p>
-<p>Functions behave like Haskell functions. They are applied with space defined with equal sign
+So regarding the syntax we can use our haskell intuition in many circumstances.</p>
+<p>Functions look like Haskell functions, but we use strict execution. They are applied with space defined with equal sign
 or slash-lambda. Like in haskell we have <code class="docutils literal notranslate"><span class="pre">if-then-else</span></code> and <code class="docutils literal notranslate"><span class="pre">let-in</span></code> expressions.:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">addTwo</span> <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">addTwo</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
 <span class="o">&gt;</span> <span class="n">addTwo</span> <span class="mi">2</span>
  <span class="mi">4</span>
 </pre></div>
 </div>
 <p>Like in Haskell we have tuples. They are accessed with case-expressions:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">getThird</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">third</span><span class="p">)</span> <span class="o">=</span> <span class="n">third</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">getThird</span> <span class="p">(</span><span class="kr">_</span><span class="p">,</span> <span class="kr">_</span><span class="p">,</span> <span class="n">third</span><span class="p">)</span> <span class="ow">=</span> <span class="n">third</span>
 
-<span class="n">case</span> <span class="n">pair</span> <span class="n">of</span>
-   <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+<span class="kr">case</span> <span class="n">pair</span> <span class="kr">of</span>
+   <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
 </pre></div>
 </div>
-<p>Also we have vectors with usual operators <code class="docutils literal notranslate"><span class="pre">map</span></code> (map over), <code class="docutils literal notranslate"><span class="pre">fold</span></code> (left fold), <code class="docutils literal notranslate"><span class="pre">length</span></code> (size of the vector),
-<code class="docutils literal notranslate"><span class="pre">++</span></code> (concatenation).</p>
+<p>Also we have lists with usual operators <code class="docutils literal notranslate"><span class="pre">map</span></code> (map over), <code class="docutils literal notranslate"><span class="pre">fold</span></code> (left fold), <code class="docutils literal notranslate"><span class="pre">length</span></code> (size of the vector),
+<code class="docutils literal notranslate"><span class="pre">++</span></code> (concatenation) and many other handy functions.</p>
 <p>the script is a list of defenitions. It should contain
-the function with name <code class="docutils literal notranslate"><span class="pre">main</span></code> which has type <code class="docutils literal notranslate"><span class="pre">Bool</span></code>. It is the result of the script.:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">one</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="n">two</span> <span class="o">=</span> <span class="mi">2</span>
+the function with name <code class="docutils literal notranslate"><span class="pre">main</span></code> which has type <code class="docutils literal notranslate"><span class="pre">SigmaBool</span></code>. It is the result of the script.:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">one</span> <span class="ow">=</span> <span class="mi">1</span>
+<span class="nf">two</span> <span class="ow">=</span> <span class="mi">2</span>
 
-<span class="n">check</span> <span class="n">x</span> <span class="o">=</span> <span class="n">one</span> <span class="o">+</span> <span class="n">two</span> <span class="o">==</span> <span class="n">x</span>
+<span class="nf">check</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">one</span> <span class="o">+</span> <span class="n">two</span> <span class="o">==</span> <span class="n">x</span>
 
-<span class="n">main</span> <span class="o">=</span> <span class="n">check</span> <span class="mi">3</span>
+<span class="nf">main</span> <span class="ow">=</span> <span class="n">toSigma</span> <span class="p">(</span><span class="n">check</span> <span class="mi">3</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>The <code class="docutils literal notranslate"><span class="pre">SigmaBool</span></code> is a special type that uses Sigma-protocols as proof of the ownership.
+Soon we are going to see some examples of them. In this script we use converter functions
+<code class="docutils literal notranslate"><span class="pre">toSigma</span> <span class="pre">::</span> <span class="pre">Bool</span> <span class="pre">-&gt;</span> <span class="pre">SigmaBool</span></code>. It converts plain old booleans to sigma-expressions.</p>
 <div class="topic">
-<p class="topic-title first">No recursion</p>
+<p class="topic-title">No recursion</p>
 <p>The termination of execution should be guaranteed for our language.
 So the recursive functions are not allowed.</p>
 </div>
-<div class="section" id="ownership-check-the-heart-of-the-language">
+<section id="ownership-check-the-heart-of-the-language">
 <h2>Ownership check - the heart of the language<a class="headerlink" href="#ownership-check-the-heart-of-the-language" title="Permalink to this headline">¶</a></h2>
 <p>The heart of the language is a function <code class="docutils literal notranslate"><span class="pre">pk</span></code> that checks for ownership:</p>
-<dl class="function">
+<dl class="py function">
 <dt>
-<code class="sig-name descname">pk :: Text -&gt; Bool</code></dt>
+<code class="sig-name descname"><span class="pre">pk</span> <span class="pre">::</span> <span class="pre">Bytes</span> <span class="pre">-&gt;</span> <span class="pre">SigmaBool</span></code></dt>
 <dd><p>Check for ownership of private key.</p>
 </dd></dl>
 
 <p>It implements sigma-protocol. The transaction should have the field <code class="docutils literal notranslate"><span class="pre">proof</span></code>
-that lists all rproofs for ownership of the keys.</p>
+that lists all proofs for ownership of the keys.</p>
 <p>Here is the simple script to protect Bob’s values:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="s2">&quot;bob-key&quot;</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">pk</span> <span class="p">(</span><span class="n">bytes</span> <span class="s">&quot;bob-key&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>In this line <code class="docutils literal notranslate"><span class="pre">bob-key</span></code> is a public key of the user. It protects the funds
+<p>In this line <code class="docutils literal notranslate"><span class="pre">bob-key</span></code> is a public key of the user. We convert text representation to bytestring
+with built-in function <code class="docutils literal notranslate"><span class="pre">bytes</span></code>. It protects the funds
 from spending by other parties. But where do we get our keys?
 We get public key from secret key.</p>
-</div>
-<div class="section" id="secret-and-public-keys">
+<dl class="py function">
+<dt>
+<code class="sig-name descname"><span class="pre">bytes</span> <span class="pre">::</span> <span class="pre">Text</span> <span class="pre">-&gt;</span> <span class="pre">Bytes</span></code></dt>
+<dd><p>Special built-in word that let us write bytestring as plain text.</p>
+</dd></dl>
+
+</section>
+<section id="secret-and-public-keys">
 <h2>Secret and public keys<a class="headerlink" href="#secret-and-public-keys" title="Permalink to this headline">¶</a></h2>
 <p>We can create the secret and public keys in two ways. One involves knowledge
 of Haskell and another is lanuage agnostic.
@@ -95,46 +106,83 @@ To create new secret key in Haskell we can use the function <code class="docutil
 function <code class="docutils literal notranslate"><span class="pre">getPublicKey</span> <span class="pre">::</span> <span class="pre">Secret</span> <span class="pre">-&gt;</span> <span class="pre">PublicKey</span></code>.</p>
 <p>Also we can create secret key with utility <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code> and it’s command <code class="docutils literal notranslate"><span class="pre">secret</span></code>.
 We can use it like this:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">secret</span> <span class="o">--</span><span class="n">output</span> <span class="n">bob</span><span class="o">-</span><span class="n">secret</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">secret</span> <span class="c1">--output bob-secret.txt</span>
 </pre></div>
 </div>
 <p>It creates new secret key and dumps it to the file <code class="docutils literal notranslate"><span class="pre">bob-secret.txt</span></code>.
 Then we can get the public key with command <code class="docutils literal notranslate"><span class="pre">public-key</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">secret</span> <span class="o">--</span><span class="nb">input</span> <span class="n">bob</span><span class="o">-</span><span class="n">secret</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">output</span> <span class="n">bob</span><span class="o">-</span><span class="n">public</span><span class="o">-</span><span class="n">key</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">secret</span> <span class="c1">--input bob-secret.txt --output bob-public-key.txt</span>
 </pre></div>
 </div>
 <p>It transforms secret key to public. If we ommit the option output it will dump public key
 to stdout. This string we can use as the argument of the function <code class="docutils literal notranslate"><span class="pre">pk</span></code> to protect our funds.</p>
 <p>If we want to receive funds from another user we can give public key to her so that
 she can submit transaction with the script:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="s2">&quot;our-public-key&quot;</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">pk</span> <span class="p">(</span><span class="n">bytes</span> <span class="s">&quot;our-public-key&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="conditional-ownershhip">
+</section>
+<section id="conditional-ownershhip">
 <h2>Conditional ownershhip<a class="headerlink" href="#conditional-ownershhip" title="Permalink to this headline">¶</a></h2>
 <p>Also we can give money to Alice until certain time and later
 give it to Bob excluding Alice:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">time</span> <span class="o">=</span> <span class="mi">100</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">time</span> <span class="ow">=</span> <span class="mi">100</span>
 
-<span class="n">main</span> <span class="o">=</span>
-      <span class="p">(</span><span class="n">pk</span> <span class="n">alice</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&lt;=</span> <span class="n">time</span><span class="p">)</span>
-   <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span>   <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span>  <span class="n">time</span><span class="p">)</span>
+<span class="nf">main</span> <span class="ow">=</span>
+      <span class="p">(</span><span class="n">pk</span> <span class="n">alice</span> <span class="o">&amp;&amp;*</span> <span class="p">(</span><span class="n">getHeight</span> <span class="o">&lt;=*</span> <span class="n">time</span><span class="p">)</span>
+   <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span>   <span class="o">&amp;&amp;*</span> <span class="p">(</span><span class="n">getHeight</span> <span class="o">&gt;*</span>  <span class="n">time</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>Operators with stars at the end like <code class="docutils literal notranslate"><span class="pre">&amp;&amp;*</span></code> or <code class="docutils literal notranslate"><span class="pre">&lt;*</span></code> are lifted versions of
+ordinary boolean operators to work with <code class="docutils literal notranslate"><span class="pre">SigmaBool</span></code> instead of <code class="docutils literal notranslate"><span class="pre">Bool</span></code>.
+For example let’s look at the signatures:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="o">&amp;&amp;*</span><span class="p">)</span> <span class="ow">::</span> <span class="kt">SigmaBool</span> <span class="ow">-&gt;</span> <span class="kt">SigmaBool</span> <span class="ow">-&gt;</span> <span class="kt">SigmaBool</span>
+
+<span class="p">(</span><span class="o">&lt;*</span><span class="p">)</span>  <span class="ow">::</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">SigmaBool</span>
+
+<span class="p">(</span><span class="o">==*</span><span class="p">)</span>  <span class="ow">::</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">SigmaBool</span>
+</pre></div>
 </div>
-<div class="section" id="transaction-execution">
+<p>We can find out the signature in <code class="docutils literal notranslate"><span class="pre">hschain-utxo-repl</span></code> just like in ghci repl with command <code class="docutils literal notranslate"><span class="pre">:type</span></code> or <code class="docutils literal notranslate"><span class="pre">:t</span></code> for short:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kt">:</span><span class="n">t</span> <span class="p">(</span><span class="o">&lt;=*</span><span class="p">)</span>
+
+<span class="p">(</span><span class="o">&lt;=*</span><span class="p">)</span> <span class="ow">::</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="n">a</span> <span class="ow">-&gt;</span> <span class="kt">SigmaBool</span>
+</pre></div>
+</div>
+<p>Comparision operators are defined for all types (including user-types).
+Derivation of comparision operators is built in the language.</p>
+</section>
+<section id="transaction-execution">
 <h2>Transaction execution<a class="headerlink" href="#transaction-execution" title="Permalink to this headline">¶</a></h2>
 <p>Let’s look at how transaction is executed. Transaction has several components:</p>
 <dl class="simple">
-<dt><strong>Inputs</strong></dt><dd><p>List of identifiers for exisiting UTXOs in the blockchain</p>
+<dt><strong>Inputs</strong></dt><dd><p>List of identifiers for exisiting UTXOs in the blockchain with metadata on how to prove
+the ownership of the input/</p>
 </dd>
 <dt><strong>Outputs</strong></dt><dd><p>List of produced UTXOs. They are added to blockchain if TX is valid.
 The input boxes are destroyed.</p>
 </dd>
+<dt><strong>Data-inputs</strong></dt><dd><p>List of identifiers for existing UTXOs that are used as global scope constants
+for execution of the transaction. They are not destroyed after TX-execution
+and values of them can not be spent to outputs. This is the main difference
+between inputs and data-inputs.</p>
+</dd>
+</dl>
+<p>Inputs contain useful information for TX-execution:</p>
+<dl class="simple">
+<dt><strong>Identifier of the input box</strong></dt><dd><p>Reference to box that we want to spend. Identifier of the box in the blockchain.
+Note that we can sign TX with reference to the box that is not yet present in the
+block chain and sign it. This scenario can be useful in the omplementation of lightning networks.</p>
+</dd>
+<dt><strong>Arguments</strong></dt><dd><p>Arguments for box script. It is represented as bytestring that can hold any serialised value
+of the language (including user types). Serialisation is built-in the language for all types.</p>
+</dd>
 <dt><strong>Proof</strong></dt><dd><p>Signed sigma-expression that proofs the ownership.</p>
 </dd>
-<dt><strong>Args</strong></dt><dd><p>Key-value pairs of primitive values.</p>
+<dt><strong>Signaiures</strong></dt><dd><p>Vector of signatures. This is used with bitcoin-style signatures.</p>
+</dd>
+<dt><strong>Signature mask</strong></dt><dd><p>Mask of which inputs and outputs are signed. We can sign all inputs and outputs but also
+we can leave some iputs or outputs open for change.</p>
 </dd>
 </dl>
 <p>User posts transaction in three steps.</p>
@@ -155,92 +203,111 @@ blockchain.</p>
 <ul class="simple">
 <li><p>The sum of inputs should equal to the sum of outputs.</p></li>
 <li><dl class="simple">
-<dt>Outputs should contain valid scripts, that are evaluated to <code class="docutils literal notranslate"><span class="pre">Bool</span></code>.</dt><dd><p>They have function main with no arguments that is produces <code class="docutils literal notranslate"><span class="pre">Bool</span></code>.</p>
+<dt>Outputs should contain valid scripts, that are evaluated to <code class="docutils literal notranslate"><span class="pre">SigmaBool</span></code>.</dt><dd><p>They have function main with no arguments that produces <code class="docutils literal notranslate"><span class="pre">SigmaBool</span></code>.</p>
 </dd>
 </dl>
 </li>
 </ul>
 <p>In the following sections we are going to look at several examples.</p>
-</div>
-<div class="section" id="simple-money-exchange-script">
+</section>
+<section id="simple-money-exchange-script">
 <h2>Simple money exchange script<a class="headerlink" href="#simple-money-exchange-script" title="Permalink to this headline">¶</a></h2>
 <p>Let’s look at the very simple scenario. Alice gives 2 coins to Bob.
 And Bob gives 5 to Alice. Let’s see how it can be implemented.</p>
 <a class="reference internal image-reference" href="../_images/alice-tx.png"><img alt="Alice Tx" src="../_images/alice-tx.png" style="width: 700px;" /></a>
 <p>Suppose that Alice has UTXO with 10 coins named <code class="docutils literal notranslate"><span class="pre">alice-utxo-1</span></code> that is protected by the script:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">pk</span> <span class="n">alice</span>
 </pre></div>
 </div>
 <p>To send 2 coins to Bob she creates a TX that includes her UTXO as input,
 provides proof of her ownership and creates two UTXOs.
 The first UTXO gives money to Bob. It has 2 coins of value and contains script:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">bob</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">pk</span> <span class="n">bob</span>
 </pre></div>
 </div>
 <p>The second UTXOs is cashback for Alice, she gives change of 8 coins to herself:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">pk</span> <span class="n">alice</span>
 </pre></div>
 </div>
 <p>In the UTXO model we have to spend all values of the inputs, because inputs would be destroyed
 after TX confirmation. So we have TX such as:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-   <span class="s2">&quot;inputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;alice-utxo-1&quot;</span><span class="p">],</span>
-   <span class="s2">&quot;outputs&quot;</span><span class="p">:</span>
-      <span class="p">[</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;bob-utxo-1&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk bob&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+   <span class="s">&quot;inputs&quot;</span><span class="kt">:</span>
+      <span class="p">[</span> <span class="p">{</span> <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;alice-utxo-1&quot;</span>
+        <span class="p">,</span> <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{}</span>
+        <span class="p">,</span> <span class="s">&quot;proof&quot;</span><span class="kt">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span>
+        <span class="p">,</span> <span class="s">&quot;sigs&quot;</span><span class="kt">:</span> <span class="kt">[]</span>
+        <span class="p">,</span> <span class="s">&quot;sigMask&quot;</span><span class="kt">:</span> <span class="p">{</span><span class="s">&quot;SigAll&quot;</span><span class="kt">:</span> <span class="kt">[]</span><span class="p">}</span>
         <span class="p">}</span>
-      <span class="p">,</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;alice-utxo-2&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk alice&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
+      <span class="p">],</span>
+   <span class="s">&quot;outputs&quot;</span><span class="kt">:</span>
+      <span class="p">[</span> <span class="p">{</span> <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;bob-utxo-1&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;value&quot;</span><span class="kt">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;script&quot;</span><span class="kt">:</span> <span class="s">&quot;pk (bytes bob-pub-key)&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{}</span>
+        <span class="p">}</span>
+      <span class="p">,</span> <span class="p">{</span> <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;alice-utxo-2&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;value&quot;</span><span class="kt">:</span> <span class="mi">8</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;script&quot;</span><span class="kt">:</span> <span class="s">&quot;pk (bytes alice-pub-key)&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{}</span>
         <span class="p">}</span>
       <span class="p">];</span>
-   <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span><span class="p">,</span>
-   <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
+   <span class="s">&quot;data-inputs&quot;</span><span class="kt">:</span> <span class="kt">[]</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p>This is slightly simplified version of TX. But we can get the idea.
-TX is a json-object that contains the fields: “inputs”, “outputs”, “proof” and “args”.
+TX is a json-object that contains the fields: “inputs”, “outputs”, “proof”, “args”, “sigs” and “sigMask”.
+Value “SigAll” means that we sign all inputs and outputs.
 The outputs is a list of UTXOs, each of them has fields “id”, “value”, “script” and “args”.</p>
 <p>To make real transaction we also need to compile the script. But here for simplicity of
-explanation it’s written in stright form.</p>
+explanation it’s written in stright format.</p>
 <p>Now suppose that Bob has UTXO with 4 coins. And he wants to give 5 coins back to Alice.
 But also alice just gave him 2 coins, so he can use two UTXOs as inputs and create
 2 UTXOs as outputs for Alice and cashback for himself:</p>
 <a class="reference internal image-reference" href="../_images/bob-tx.png"><img alt="Bob Tx" src="../_images/bob-tx.png" style="width: 700px;" /></a>
 <p>Let’s look at the code for transaction:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-   <span class="s2">&quot;inputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;bob-utxo-0&quot;</span><span class="p">,</span> <span class="s2">&quot;bob-utxo-1&quot;</span><span class="p">],</span>
-   <span class="s2">&quot;outputs&quot;</span><span class="p">:</span>
-      <span class="p">[</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;bob-utxo-2&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk bob&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+   <span class="s">&quot;inputs&quot;</span><span class="kt">:</span>
+     <span class="p">[</span> <span class="p">{</span> <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;bob-utxo-0&quot;</span>
+       <span class="p">,</span> <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{}</span>
+       <span class="p">,</span> <span class="s">&quot;proof&quot;</span><span class="kt">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span>
+       <span class="p">,</span> <span class="s">&quot;sigs&quot;</span><span class="kt">:</span> <span class="kt">[]</span>
+       <span class="p">,</span> <span class="s">&quot;sigMask&quot;</span><span class="kt">:</span> <span class="p">{</span><span class="s">&quot;SigAll&quot;</span><span class="kt">:</span> <span class="kt">[]</span><span class="p">}</span>
+       <span class="p">}</span>
+     <span class="p">,</span> <span class="p">{</span> <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;bob-utxo-1&quot;</span>
+       <span class="p">,</span> <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{}</span>
+       <span class="p">,</span> <span class="s">&quot;proof&quot;</span><span class="kt">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span>
+       <span class="p">,</span> <span class="s">&quot;sigMask&quot;</span><span class="kt">:</span> <span class="p">{</span><span class="s">&quot;SigAll&quot;</span><span class="kt">:</span> <span class="kt">[]</span><span class="p">}</span>
+       <span class="p">}</span>
+     <span class="p">],</span>
+   <span class="s">&quot;outputs&quot;</span><span class="kt">:</span>
+      <span class="p">[</span> <span class="p">{</span> <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;bob-utxo-2&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;value&quot;</span><span class="kt">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;script&quot;</span><span class="kt">:</span> <span class="s">&quot;pk bob&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{}</span>
         <span class="p">}</span>
-      <span class="p">,</span> <span class="p">{</span> <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;alice-utxo-3&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;pk alice&quot;</span><span class="p">,</span>
-        <span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
+      <span class="p">,</span> <span class="p">{</span> <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;alice-utxo-3&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;value&quot;</span><span class="kt">:</span> <span class="mi">5</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;script&quot;</span><span class="kt">:</span> <span class="s">&quot;pk alice&quot;</span><span class="p">,</span>
+        <span class="p">,</span> <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{}</span>
         <span class="p">}</span>
       <span class="p">];</span>
-   <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expresision</span><span class="p">,</span>
-   <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{}</span>
+   <span class="s">&quot;proof&quot;</span><span class="kt">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expresision</span><span class="p">,</span>
+   <span class="s">&quot;data-inputs&quot;</span><span class="kt">:</span> <span class="kt">[]</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p>It is enforced by the blockchain that sum of input values should be equal to sum of output values.</p>
-</div>
-<div class="section" id="how-to-sign-sigma-expression">
+</section>
+<section id="how-to-sign-sigma-expression">
 <h2>How to sign sigma-expression<a class="headerlink" href="#how-to-sign-sigma-expression" title="Permalink to this headline">¶</a></h2>
 <p>To sign sigma expression first we need to get it. Sigma expression is kind of
 boolean expression that can contain AND and OR operators in the nodes and ownership
 pk-statements with public keys in the leafs. To get this expression we first need to
 call the API method <code class="docutils literal notranslate"><span class="pre">api/tx-sigma/get</span></code> with our transaction but we omit proof.</p>
 <p>Once we get the expression. We can sign it with compiler command <code class="docutils literal notranslate"><span class="pre">sign</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">sign</span> <span class="o">--</span><span class="n">secret</span> <span class="n">secret</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">expression</span> <span class="n">sigma</span><span class="o">-</span><span class="n">expr</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">tx</span> <span class="n">tx</span><span class="o">.</span><span class="n">txt</span> <span class="o">--</span><span class="n">output</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="n">sign</span> <span class="c1">--secret secret.txt --expression sigma-expr.txt --tx tx.txt --output signed-sigma.txt</span>
 </pre></div>
 </div>
 <p>This command expects three inputs:</p>
@@ -251,22 +318,22 @@ call the API method <code class="docutils literal notranslate"><span class="pre"
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--signed-sigma.txt</span></code> the file to dump the output, i.e. signed sigma expression or proof of the ownership.</p></li>
 </ul>
-</div>
-<div class="section" id="pay-for-cofee-delayed-exchange">
+</section>
+<section id="pay-for-cofee-delayed-exchange">
 <h2>Pay for Cofee - delayed exchange<a class="headerlink" href="#pay-for-cofee-delayed-exchange" title="Permalink to this headline">¶</a></h2>
 <p>Imagine that Alice wants to buy cofee from Bob and she wants to pay with our blockchain.
 But she wants to be able to get the money back until certain amount of time from now.
 So Alice wants to give the money to Bob. But bob can collect the money only after 20 steps
 of blockchain. Up until that time Alice can get her money back.</p>
 <p>To do it Alice can create UTXO with following script:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">timeBound</span> <span class="o">=</span> <span class="o">...</span> <span class="o">--</span> <span class="n">some</span> <span class="n">number</span> <span class="n">ahead</span> <span class="n">of</span> <span class="n">current</span> <span class="n">height</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">timeBound</span> <span class="ow">=</span> <span class="o">...</span> <span class="c1">-- some number ahead of current height</span>
 
-   <span class="p">(</span><span class="n">pk</span> <span class="n">alice</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&lt;</span> <span class="n">timeBound</span><span class="p">)</span>
-<span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span>   <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;=</span> <span class="n">timeBound</span><span class="p">)</span>
+<span class="nf">main</span> <span class="ow">=</span> <span class="p">(</span><span class="n">pk</span> <span class="n">alice</span> <span class="o">&amp;&amp;*</span> <span class="n">getHeight</span> <span class="o">&lt;*</span> <span class="n">timeBound</span><span class="p">)</span>
+    <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span>   <span class="o">&amp;&amp;*</span> <span class="n">getHeight</span> <span class="o">&gt;=*</span> <span class="n">timeBound</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="xor-game">
+</section>
+<section id="xor-game">
 <h2>XOR-game<a class="headerlink" href="#xor-game" title="Permalink to this headline">¶</a></h2>
 <p>For XOR-game we have two players: Alice and Bob.
 Players guess numers 0 or 1. And if numers are the same alice wins
@@ -294,32 +361,33 @@ to store Bob’s bit b, Bob’s public key (stored as a proveDlog proposition) a
 automatic win respectively. The context variables with id 0 and 1 (provided at the time of spending
 the full-game box) contain s and a required to open Alice’s commitnent k, which alongwith Alice’s
 public key alice is used to compute <code class="docutils literal notranslate"><span class="pre">fullGameScriptHash</span></code>, the hash of the below script:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">s</span> <span class="o">=</span> <span class="n">getVar</span> <span class="s2">&quot;s&quot;</span>
-<span class="n">a</span> <span class="o">=</span> <span class="n">getVar</span> <span class="s2">&quot;a&quot;</span>
-<span class="n">b</span> <span class="o">=</span> <span class="n">getArg</span> <span class="n">getSelf</span> <span class="s2">&quot;guess&quot;</span>
-<span class="n">bobKey</span> <span class="o">=</span> <span class="n">getArg</span> <span class="n">getSelf</span> <span class="s2">&quot;publicKey&quot;</span>
-<span class="n">bobDeadline</span> <span class="o">=</span> <span class="n">getArg</span> <span class="n">getSelf</span> <span class="s2">&quot;deadline&quot;</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="ow">=</span> <span class="n">getArgs</span>
+<span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">bobDeadline</span><span class="p">,</span> <span class="n">bob</span><span class="p">)</span> <span class="ow">=</span> <span class="n">getBoxArgs</span> <span class="n">getSelf</span>
 
-   <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="n">bobDeadline</span><span class="p">)</span>
-<span class="o">||</span> <span class="p">(</span>   <span class="n">blake2b256</span><span class="p">(</span><span class="n">s</span> <span class="o">&lt;&gt;</span> <span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="n">k</span>
-    <span class="o">&amp;&amp;</span>    <span class="p">((</span><span class="n">pk</span> <span class="n">alice</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="n">a</span> <span class="o">==</span> <span class="n">b</span>
-       <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">b</span><span class="p">))</span>
+<span class="nf">main</span> <span class="ow">=</span>  <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span> <span class="o">&amp;&amp;*</span> <span class="p">(</span><span class="n">getHeight</span> <span class="o">&gt;*</span> <span class="n">bobDeadline</span><span class="p">))</span>
+    <span class="o">||*</span> <span class="p">(</span>   <span class="p">(</span><span class="n">sha256</span> <span class="p">(</span><span class="n">appendBytes</span> <span class="n">s</span> <span class="p">(</span><span class="n">serialise</span> <span class="p">(</span><span class="n">a</span> <span class="ow">::</span> <span class="kt">Int</span><span class="p">)))</span> <span class="o">==*</span> <span class="o">$</span><span class="p">(</span><span class="n">commitmentHash</span><span class="p">))</span>
+        <span class="o">&amp;&amp;*</span> <span class="p">(</span>   <span class="p">(</span><span class="n">pk</span> <span class="o">$</span><span class="p">(</span><span class="n">alice</span><span class="p">)</span> <span class="o">&amp;&amp;*</span> <span class="p">(</span><span class="n">a</span> <span class="o">==*</span> <span class="n">b</span><span class="p">))</span>
+            <span class="o">||*</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span>      <span class="o">&amp;&amp;*</span> <span class="p">(</span><span class="n">a</span> <span class="o">/=*</span> <span class="n">b</span><span class="p">))</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
 </pre></div>
 </div>
 <p>The above constants are used to create <code class="docutils literal notranslate"><span class="pre">halfGameScript</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">out</span> <span class="o">=</span> <span class="n">getOutput</span> <span class="mi">0</span>
-<span class="n">b</span>   <span class="o">=</span> <span class="n">getBoxArg</span> <span class="n">out</span> <span class="s2">&quot;guess&quot;</span>
-<span class="n">bobDeadline</span> <span class="o">=</span> <span class="n">getBoxArg</span> <span class="n">out</span> <span class="s2">&quot;deadline&quot;</span>
-<span class="n">validBobInput</span> <span class="o">=</span> <span class="n">b</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="n">b</span> <span class="o">==</span> <span class="mi">1</span>
-   <span class="n">validBobInput</span>
-<span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">blake2b256</span> <span class="p">(</span><span class="n">shwoScript</span> <span class="p">(</span><span class="n">getBoxScript</span> <span class="n">out</span><span class="p">))</span> <span class="o">==</span> <span class="n">fullGameScriptHash</span><span class="p">)</span>
-<span class="o">&amp;&amp;</span> <span class="p">(</span><span class="n">length</span> <span class="n">getOutputs</span> <span class="o">==</span> <span class="mi">1</span> <span class="o">||</span> <span class="n">length</span> <span class="n">getOutputs</span> <span class="o">==</span> <span class="mi">2</span><span class="p">)</span>
-<span class="o">&amp;&amp;</span> <span class="n">bobDeadline</span> <span class="o">&gt;=</span> <span class="n">getHeight</span> <span class="o">+</span> <span class="mi">30</span>
-<span class="o">&amp;&amp;</span> <span class="n">getBoxValue</span> <span class="n">out</span> <span class="o">&gt;=</span> <span class="n">getBoxValue</span> <span class="n">getSelf</span> <span class="o">*</span> <span class="mi">2</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">validBobInput</span> <span class="n">b</span> <span class="ow">=</span> <span class="p">(</span><span class="n">b</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">||</span> <span class="p">(</span><span class="n">b</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="nf">main</span> <span class="ow">=</span> <span class="n">andSigma</span>
+      <span class="p">[</span> <span class="n">toSigma</span> <span class="p">(</span><span class="n">validBobInput</span> <span class="n">bobGuess</span><span class="p">)</span>
+      <span class="p">,</span> <span class="n">sha256</span> <span class="p">(</span><span class="n">getBoxScript</span> <span class="n">out</span><span class="p">)</span> <span class="o">==*</span> <span class="o">$</span><span class="p">(</span><span class="n">fullGameScriptHash</span><span class="p">)</span>
+      <span class="p">,</span> <span class="p">(</span><span class="n">length</span> <span class="n">getOutputs</span> <span class="o">==*</span> <span class="mi">1</span><span class="p">)</span> <span class="o">||*</span> <span class="p">(</span><span class="n">length</span> <span class="n">getOutputs</span> <span class="o">==*</span> <span class="mi">2</span><span class="p">)</span>
+      <span class="p">,</span> <span class="n">bobDeadline</span> <span class="o">&gt;=*</span> <span class="p">(</span><span class="n">getHeight</span> <span class="o">+</span> <span class="mi">30</span><span class="p">)</span>
+      <span class="p">,</span> <span class="n">getBoxValue</span> <span class="n">out</span> <span class="o">&gt;=*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">getBoxValue</span> <span class="n">getSelf</span><span class="p">)</span> <span class="p">]</span>
+  <span class="kr">where</span>
+    <span class="n">out</span> <span class="ow">=</span> <span class="n">getOutput</span> <span class="mi">0</span>
+    <span class="p">(</span><span class="n">bobGuess</span><span class="p">,</span> <span class="n">bobDeadline</span><span class="p">)</span> <span class="ow">=</span> <span class="n">getBoxArgs</span> <span class="n">out</span>
 </pre></div>
 </div>
-<p>Alice creates her half-game box protected by halfGameScript, which requires that the transac-
-tion spending the half-game box must generate exactly one output box with the following properties:</p>
+<p>Alice creates her half-game box protected by halfGameScript, which requires that the transaction
+spending the half-game box must generate exactly one output box with the following properties:</p>
 <ol class="arabic simple">
 <li><p>Its value must be at least twice that of the half-game box.</p></li>
 <li><p>Its argument “guess” must contain a byte that is either 0 or 1. This encodes Bob’s choice b.</p></li>
@@ -331,21 +399,18 @@ he creates the full-game output, he does not have any advantage in selecting b. 
 guaranteed to lose if she commits to a value other than 0 or 1 because she can win only if a = b.
 Thus, the rational strategy for Alice is to commit to a correct value. Finally, if Alice refuses to
 open her commitment, then Bob is sure to win after the deadline expires.</p>
-</div>
-<div class="section" id="create-transaction-and-send-it-with-api">
+</section>
+<section id="create-transaction-and-send-it-with-api">
 <h2>Create transaction and send it with API<a class="headerlink" href="#create-transaction-and-send-it-with-api" title="Permalink to this headline">¶</a></h2>
 <p>We can post the transaction over API. To do it we have to create TX as JSON object.
 Every TX  is a JSON-object that contains following fields:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span> <span class="s2">&quot;inputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;utxo-input-id-1&quot;</span><span class="p">,</span> <span class="s2">&quot;utxo-input-id-2&quot;</span><span class="p">]</span>
-<span class="p">,</span> <span class="s2">&quot;outputs&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">box1</span><span class="p">,</span> <span class="n">box2</span><span class="p">]</span>
-<span class="p">,</span> <span class="s2">&quot;proof&quot;</span><span class="p">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span>
-<span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{</span> <span class="s2">&quot;arg1&quot;</span><span class="p">:</span> <span class="n">val1</span><span class="p">,</span>
-          <span class="p">,</span> <span class="s2">&quot;arg2&quot;</span><span class="p">:</span> <span class="n">val2</span>
-          <span class="p">}</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">{</span> <span class="s">&quot;inputs&quot;</span><span class="kt">:</span> <span class="p">[</span><span class="n">inBox1</span><span class="p">,</span> <span class="n">inBox2</span><span class="p">]</span>
+<span class="p">,</span> <span class="s">&quot;outputs&quot;</span><span class="kt">:</span> <span class="p">[</span><span class="n">box1</span><span class="p">,</span> <span class="n">box2</span><span class="p">]</span>
+<span class="p">,</span> <span class="s">&quot;data-inputs&quot;</span><span class="kt">:</span> <span class="p">[</span><span class="n">dataBox1</span><span class="p">,</span> <span class="n">dataBox2</span><span class="p">]</span>
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>Inputs  contain the list of Box identifiers that are used as inputs.
+<p>Inputs  contain the list of references to input boxes.
 Ouptuts contain boxes that are going to be produced after TX is validated.
 Proof contains the signed sigma expression that we can get with compiler (see previous section).
 First we send the transaction to method <code class="docutils literal notranslate"><span class="pre">api/tx-sigma/get</span></code> then we receive
@@ -354,80 +419,129 @@ Args contains the map of key-value. It can be empty.</p>
 <p>The sum of values of inputs should be equal to sum of values of outputs.
 For TX to be valid all conditions for scripts of the inputs should evalueate to true.
 List of inputs should be non-empty.</p>
+<p>Let’s look at the value of the input box. It’s JSON-object:</p>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;utxo&quot;</span><span class="p">,</span>
+    <span class="s">&quot;proof&quot;</span><span class="kt">:</span> <span class="n">signed</span><span class="o">-</span><span class="n">sigma</span><span class="o">-</span><span class="n">expression</span>
+    <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{},</span>
+    <span class="s">&quot;sigs&quot;</span><span class="kt">:</span> <span class="kt">[]</span><span class="p">,</span>
+    <span class="s">&quot;sigMask&quot;</span><span class="kt">:</span> <span class="p">{</span> <span class="s">&quot;SigAll&quot;</span><span class="kt">:</span> <span class="kt">[]</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 <p>Let’s look at the value of output box. It’s JSON-object:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-   <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;utxo&quot;</span><span class="p">,</span>
-   <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
-   <span class="s2">&quot;script&quot;</span><span class="p">:</span> <span class="s2">&quot;string with compiled script&quot;</span><span class="p">,</span>
-   <span class="s2">&quot;args&quot;</span><span class="p">:</span> <span class="p">{},</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+   <span class="s">&quot;id&quot;</span><span class="kt">:</span> <span class="s">&quot;utxo&quot;</span><span class="p">,</span>
+   <span class="s">&quot;value&quot;</span><span class="kt">:</span> <span class="mi">10</span><span class="p">,</span>
+   <span class="s">&quot;script&quot;</span><span class="kt">:</span> <span class="s">&quot;string with compiled script&quot;</span><span class="p">,</span>
+   <span class="s">&quot;args&quot;</span><span class="kt">:</span> <span class="p">{},</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p>It contains UTXO identifier, amount of maney as a value, script and arguments.
 The script is written in our language. But to get the final string for transaction we need
 to compile it with compiler <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="o">--</span> <span class="nb">compile</span> <span class="o">-</span><span class="n">i</span> <span class="n">script</span><span class="o">.</span><span class="n">hs</span> <span class="o">-</span><span class="n">o</span> <span class="n">out</span><span class="o">.</span><span class="n">txt</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">compiler</span> <span class="c1">-- compile -i script.hs -o out.txt</span>
 </pre></div>
 </div>
 <p>if flag <code class="docutils literal notranslate"><span class="pre">-o</span></code> is omitted then the result is dumped to stdout.
 Then paste the output to the output box script field. We can save the TX to file <code class="docutils literal notranslate"><span class="pre">tx.json</span></code>
 and post the TX with following curl:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="o">-</span><span class="n">H</span> <span class="s2">&quot;Content-Type: application/json&quot;</span>  <span class="o">--</span><span class="n">data</span> <span class="nd">@config</span><span class="o">/</span><span class="n">tx</span><span class="o">-</span><span class="n">example</span><span class="o">.</span><span class="n">json</span>  <span class="n">localhost</span><span class="p">:</span><span class="mi">8181</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">tx</span><span class="o">/</span><span class="n">post</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">curl</span> <span class="o">-</span><span class="kt">H</span> <span class="s">&quot;Content-Type: application/json&quot;</span>  <span class="c1">--data @config/tx-example.json  localhost:8181/api/tx/post</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="send-with-api-in-haskell">
+</section>
+<section id="send-with-api-in-haskell">
 <h2>Send with API in Haskell<a class="headerlink" href="#send-with-api-in-haskell" title="Permalink to this headline">¶</a></h2>
 <p>With Haskell we can create transactions and post them with easy to use library.
 We need libriaries <code class="docutils literal notranslate"><span class="pre">hschain-utxo-lang</span></code> to create value for transaction
 and library <code class="docutils literal notranslate"><span class="pre">hschain-utxo-api-client</span></code> to post the transaction.</p>
 <p>Let’s create a transaction and post it.
 The transaction has type:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">Tx</span> <span class="o">=</span> <span class="n">Tx</span>
-   <span class="p">{</span> <span class="n">tx</span><span class="s1">&#39;inputs  :: !(Vector BoxId)</span>
-   <span class="p">,</span> <span class="n">tx</span><span class="s1">&#39;outputs :: !(Vector Box)</span>
-   <span class="p">,</span> <span class="n">tx</span><span class="s1">&#39;proof   :: !Proof</span>
-   <span class="p">,</span> <span class="n">tx</span><span class="s1">&#39;args    :: !Args</span>
-   <span class="p">}</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="c1">-- | Type for transaction. It spends values from the input boxes and</span>
+<span class="c1">--   create output boxes.</span>
+<span class="c1">--</span>
+<span class="c1">--   Each input references another box and contains proof for complete</span>
+<span class="c1">--   transaction or sigma expression that should be proven when we</span>
+<span class="c1">--   assemble transaction. Proof will be missing if spend script</span>
+<span class="c1">--   evaluated to boolean.</span>
+<span class="kr">data</span> <span class="kt">GTx</span> <span class="n">i</span> <span class="n">o</span> <span class="ow">=</span> <span class="kt">Tx</span>
+  <span class="p">{</span> <span class="n">tx&#39;inputs</span>  <span class="ow">::</span> <span class="o">!</span><span class="p">(</span><span class="kt">Vector</span> <span class="p">(</span><span class="kt">BoxInputRef</span> <span class="n">i</span><span class="p">))</span>
+    <span class="c1">-- ^ List of inputs</span>
+  <span class="p">,</span> <span class="n">tx&#39;outputs</span> <span class="ow">::</span> <span class="o">!</span><span class="p">(</span><span class="kt">Vector</span> <span class="n">o</span><span class="p">)</span>
+    <span class="c1">-- ^ List of outputs</span>
+  <span class="p">,</span> <span class="n">tx&#39;dataInputs</span> <span class="ow">::</span> <span class="o">!</span><span class="p">(</span><span class="kt">Vector</span> <span class="kt">BoxId</span><span class="p">)</span>
+    <span class="c1">-- ^ List of inputs that we do not spend and use as constants in scope</span>
+  <span class="p">}</span>
 
-<span class="n">data</span> <span class="n">Box</span> <span class="o">=</span> <span class="n">Box</span>
-   <span class="p">{</span> <span class="n">box</span><span class="s1">&#39;id     :: !BoxId</span>
-   <span class="p">,</span> <span class="n">box</span><span class="s1">&#39;value  :: !Money</span>
-   <span class="p">,</span> <span class="n">box</span><span class="s1">&#39;script :: !Script</span>
-   <span class="p">,</span> <span class="n">box</span><span class="s1">&#39;args   :: !Args</span>
-   <span class="p">}</span>
+<span class="kr">type</span> <span class="kt">Tx</span> <span class="ow">=</span> <span class="kt">GTx</span> <span class="kt">Proof</span> <span class="kt">Box</span>
 
-<span class="n">newtype</span> <span class="n">BoxId</span> <span class="o">=</span> <span class="n">BoxId</span> <span class="p">{</span> <span class="n">unBoxId</span> <span class="p">::</span> <span class="n">Text</span> <span class="p">}</span>
+ <span class="kr">data</span> <span class="kt">Box</span> <span class="ow">=</span> <span class="kt">Box</span>
+    <span class="p">{</span> <span class="n">box&#39;id</span>     <span class="ow">::</span> <span class="o">!</span><span class="kt">BoxId</span>
+    <span class="p">,</span> <span class="n">box&#39;value</span>  <span class="ow">::</span> <span class="o">!</span><span class="kt">Money</span>
+    <span class="p">,</span> <span class="n">box&#39;script</span> <span class="ow">::</span> <span class="o">!</span><span class="kt">Script</span>
+    <span class="p">,</span> <span class="n">box&#39;args</span>   <span class="ow">::</span> <span class="o">!</span><span class="kt">Args</span>
+    <span class="p">}</span>
 
-<span class="n">newtype</span> <span class="n">Script</span> <span class="o">=</span> <span class="n">Script</span> <span class="p">{</span> <span class="n">unScript</span> <span class="p">::</span> <span class="n">Text</span> <span class="p">}</span>
+<span class="c1">-- | Input is an unspent Box that exists in blockchain.</span>
+<span class="c1">-- To spend the input we need to provide right arguments and proof</span>
+<span class="c1">-- of reulting sigma expression.</span>
+<span class="kr">data</span> <span class="kt">BoxInputRef</span> <span class="n">a</span> <span class="ow">=</span> <span class="kt">BoxInputRef</span>
+  <span class="p">{</span> <span class="n">boxInputRef&#39;id</span>       <span class="ow">::</span> <span class="kt">BoxId</span>
+  <span class="c1">-- ^ identifier of the box to spend</span>
+  <span class="p">,</span> <span class="n">boxInputRef&#39;args</span>     <span class="ow">::</span> <span class="kt">Args</span>
+  <span class="c1">-- ^ arguments for box script</span>
+  <span class="p">,</span> <span class="n">boxInputRef&#39;proof</span>    <span class="ow">::</span> <span class="kt">Maybe</span> <span class="n">a</span>
+  <span class="c1">-- ^ proof for the script</span>
+  <span class="p">,</span> <span class="n">boxInputRef&#39;sigs</span>     <span class="ow">::</span> <span class="kt">Vector</span> <span class="kt">Signature</span>
+  <span class="c1">-- ^ signatures for the script. We have to exclude this field on computing TxId and on computing SigMessage</span>
+  <span class="p">,</span> <span class="n">boxInputRef&#39;sigMask</span>  <span class="ow">::</span> <span class="kt">SigMask</span>
+  <span class="c1">-- ^ mask of TX which defines the filter of inputs and outputs that we sign</span>
+  <span class="p">}</span>
+
+<span class="kr">newtype</span> <span class="kt">BoxId</span> <span class="ow">=</span> <span class="kt">BoxId</span> <span class="p">{</span> <span class="n">unBoxId</span> <span class="ow">::</span> <span class="kt">Hash</span> <span class="kt">SHA256</span> <span class="p">}</span>
+
+<span class="kr">newtype</span> <span class="kt">Script</span> <span class="ow">=</span> <span class="kt">Script</span> <span class="p">{</span> <span class="n">unScript</span> <span class="ow">::</span> <span class="kt">ByteString</span> <span class="p">}</span>
+
+<span class="c1">-- | Signature mask. It defines what inputs and outputs</span>
+<span class="c1">-- are included in the message to sign.</span>
+<span class="c1">--</span>
+<span class="c1">-- Empty SigMask means sign all inputs and outputs.</span>
+<span class="kr">data</span> <span class="kt">SigMask</span> <span class="ow">=</span> <span class="kt">SigMask</span>
+  <span class="p">{</span> <span class="n">sigMask&#39;inputs</span>     <span class="ow">::</span> <span class="kt">Vector</span> <span class="kt">Bool</span>
+  <span class="p">,</span> <span class="n">sigMask&#39;outputs</span>    <span class="ow">::</span> <span class="kt">Vector</span> <span class="kt">Bool</span>
+  <span class="p">,</span> <span class="n">sigMask&#39;dataInputs</span> <span class="ow">::</span> <span class="kt">Vector</span> <span class="kt">Bool</span>
+  <span class="p">}</span> <span class="c1">-- ^ Specify what inputs and outputs to sign</span>
+  <span class="o">|</span> <span class="kt">SigAll</span>
+  <span class="c1">-- ^ Signs whole transaction (all inputs and outputs)</span>
 </pre></div>
 </div>
 <p>We need to create the value of type <code class="docutils literal notranslate"><span class="pre">Tx</span></code>.
-For creation of script we can use the module <code class="docutils literal notranslate"><span class="pre">Hschain.Utxo.Lang.Build</span></code>
-from the library <code class="docutils literal notranslate"><span class="pre">hschain-utxo-lang</span></code> or we can compile to string with
+For creation of script we can use the module <code class="docutils literal notranslate"><span class="pre">Hschain.Utxo.Lang.Compile</span></code>
+(see function <code class="docutils literal notranslate"><span class="pre">toCoreScript</span></code>) from the library <code class="docutils literal notranslate"><span class="pre">hschain-utxo-lang</span></code> or we can compile to string with
 <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code> as in previous section and wrap result with <code class="docutils literal notranslate"><span class="pre">Script</span></code>
 constructor. In the latter case we can write script in text file.</p>
 <p>Let’s post it with the client. We can use the library <code class="docutils literal notranslate"><span class="pre">hschain-utxo-api-client</span></code>.
 We need method <code class="docutils literal notranslate"><span class="pre">postTx</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">Hschain.Utxo.API.Client</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span> <span class="nn">Hschain.Utxo.API.Client</span>
 
-<span class="n">spec</span> <span class="o">=</span> <span class="n">ClientSpec</span>
-            <span class="p">{</span> <span class="n">clientSpec</span><span class="s1">&#39;host     = &quot;127.0.0.1&quot;</span>
-            <span class="p">,</span> <span class="n">clientSpec</span><span class="s1">&#39;port     = 8181</span>
-            <span class="p">,</span> <span class="n">clientSpec</span><span class="s1">&#39;https    = False</span>
+<span class="nf">spec</span> <span class="ow">=</span> <span class="kt">ClientSpec</span>
+            <span class="p">{</span> <span class="n">clientSpec&#39;host</span>     <span class="ow">=</span> <span class="s">&quot;127.0.0.1&quot;</span>
+            <span class="p">,</span> <span class="n">clientSpec&#39;port</span>     <span class="ow">=</span> <span class="mi">8181</span>
+            <span class="p">,</span> <span class="n">clientSpec&#39;https</span>    <span class="ow">=</span> <span class="kt">False</span>
             <span class="p">}</span>
 
-<span class="n">call</span> <span class="n">spec</span> <span class="p">(</span><span class="n">postTx</span> <span class="n">tx</span><span class="p">)</span>
+<span class="nf">call</span> <span class="n">spec</span> <span class="p">(</span><span class="n">postTx</span> <span class="n">tx</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>The answer is either error or structure with TX hash and debug-message:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="n">PostTxResponse</span> <span class="o">=</span> <span class="n">PostTxResponse</span>
-   <span class="p">{</span> <span class="n">postTxResponse</span><span class="s1">&#39;value :: !(Either Text TxHash )</span>
-   <span class="p">,</span> <span class="n">postTxResponse</span><span class="s1">&#39;debug :: !Text }</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">data</span> <span class="kt">PostTxResponse</span> <span class="ow">=</span> <span class="kt">PostTxResponse</span>
+   <span class="p">{</span> <span class="n">postTxResponse&#39;value</span> <span class="ow">::</span> <span class="o">!</span><span class="p">(</span><span class="kt">Either</span> <span class="kt">Text</span> <span class="kt">TxHash</span> <span class="p">)</span>
+   <span class="p">,</span> <span class="n">postTxResponse&#39;debug</span> <span class="ow">::</span> <span class="o">!</span><span class="kt">Text</span> <span class="p">}</span>
 </pre></div>
 </div>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -446,7 +560,7 @@ We need method <code class="docutils literal notranslate"><span class="pre">post
 
 
 <h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents:</span></p>
+<p><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Quick start guide for language</a><ul>
@@ -487,7 +601,7 @@ We need method <code class="docutils literal notranslate"><span class="pre">post
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>$('#searchbox').show(0);</script>
 
 
 
@@ -501,10 +615,10 @@ We need method <code class="docutils literal notranslate"><span class="pre">post
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;1970, HXR.
+      &copy;2019, HXR.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.3</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

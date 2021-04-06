@@ -1,17 +1,18 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17: http://docutils.sourceforge.net/" />
+
     <title>API for hschain-utxo &#8212; hschain-utxo  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Tests for hschain-utxo" href="test.html" />
@@ -32,38 +33,38 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="api-for-hschain-utxo">
+  <section id="api-for-hschain-utxo">
 <h1>API for hschain-utxo<a class="headerlink" href="#api-for-hschain-utxo" title="Permalink to this headline">¶</a></h1>
 <p>With API we can post transactions and query useful information about
 current state of the blockchain.</p>
-<div class="section" id="post-transaction">
+<section id="post-transaction">
 <h2>Post transaction<a class="headerlink" href="#post-transaction" title="Permalink to this headline">¶</a></h2>
 <p>To post transaction use the method <code class="docutils literal notranslate"><span class="pre">api/tx/post</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="o">-</span><span class="n">H</span> <span class="s2">&quot;Content-Type: application/json&quot;</span> \
-    <span class="o">--</span><span class="n">data</span> <span class="nd">@config</span><span class="o">/</span><span class="n">tx</span><span class="o">-</span><span class="n">example</span><span class="o">.</span><span class="n">json</span> \
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">curl</span> <span class="o">-</span><span class="kt">H</span> <span class="s">&quot;Content-Type: application/json&quot;</span> <span class="nf">\</span>
+    <span class="c1">--data @config/tx-example.json \</span>
     <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">host</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">tx</span><span class="o">/</span><span class="n">post</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="query-state">
+</section>
+<section id="query-state">
 <h2>Query state<a class="headerlink" href="#query-state" title="Permalink to this headline">¶</a></h2>
 <p>We can read the current state of blockchain:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">host</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">debug</span><span class="o">/</span><span class="n">state</span><span class="o">/</span><span class="n">get</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">curl</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">host</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">debug</span><span class="o">/</span><span class="n">state</span><span class="o">/</span><span class="n">get</span>
 </pre></div>
 </div>
 <p>We can query environment parameters of blockchain:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="n">localhost</span><span class="p">:</span><span class="mi">8181</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">env</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">curl</span> <span class="n">localhost</span><span class="kt">:</span><span class="mi">8181</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">env</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="query-box-balance">
+</section>
+<section id="query-box-balance">
 <h2>Query box balance<a class="headerlink" href="#query-box-balance" title="Permalink to this headline">¶</a></h2>
 <p>We can query the balance of the box by its identifier:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">curl</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">host</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">box</span><span class="o">-</span><span class="n">balance</span><span class="o">/</span><span class="n">get</span><span class="o">/</span><span class="p">{</span><span class="n">box</span><span class="o">-</span><span class="nb">id</span><span class="p">}</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">curl</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">host</span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">box</span><span class="o">-</span><span class="n">balance</span><span class="o">/</span><span class="n">get</span><span class="o">/</span><span class="p">{</span><span class="n">box</span><span class="o">-</span><span class="n">id</span><span class="p">}</span>
 </pre></div>
 </div>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -82,7 +83,7 @@ current state of the blockchain.</p>
 
 
 <h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents:</span></p>
+<p><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="lang-quick-start.html">Quick start guide for language</a></li>
@@ -116,7 +117,7 @@ current state of the blockchain.</p>
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>$('#searchbox').show(0);</script>
 
 
 
@@ -130,10 +131,10 @@ current state of the blockchain.</p>
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;1970, HXR.
+      &copy;2019, HXR.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.3</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |

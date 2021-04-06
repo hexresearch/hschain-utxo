@@ -1,17 +1,18 @@
 
 <!DOCTYPE html>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17: http://docutils.sourceforge.net/" />
+
     <title>Introduction &#8212; hschain-utxo  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Quick start guide for language" href="lang-quick-start.html" />
@@ -32,7 +33,7 @@
 
           <div class="body" role="main">
             
-  <div class="section" id="introduction">
+  <section id="introduction">
 <h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
 <p>Hschain-utxo is a framework to create blockchains based on UTXO-model
 with rules that are defined with smartcontracts.
@@ -45,11 +46,11 @@ The framework consists of several parts:</p>
 <li><p>service to run blockchain</p></li>
 <li><p>client to post transactions and query useful information with API</p></li>
 </ul>
-<div class="section" id="language-of-smart-contracts">
+<section id="language-of-smart-contracts">
 <h2>Language of smart contracts<a class="headerlink" href="#language-of-smart-contracts" title="Permalink to this headline">¶</a></h2>
 <p>Language of smartcontracts is staticly typed higher-order functional programming language
 with predictable time of exectuion and zero-knowledge prooves of the ownership
-of the values. It adapts powerful functional programming paradigm to the reuirements of the safe, fast and predictable
+of the values. It adapts powerful functional programming paradigm to the requirements of the safe, fast and predictable
 execution of the scripts on the blockchain.</p>
 <p>Main features of the language:</p>
 <ul class="simple">
@@ -61,6 +62,8 @@ user to create intricate conditional rules for proving the ownership. Instead
 of fixed model of ownership we can devise our own rules. Rules are arbitrary boolean expresisons.
 It makes system flexible and provides the user with tools to create rules suitable
 for a specific task.</p></li>
+<li><p>Alongside with Sigma-protocols we can use Bitcoin-like signatures. There are primitives
+for single ownership and multi-signatures.</p></li>
 <li><p>Rules of the ownership are zero-knowledge prooves of the private-key ownership.
 The proove validation does not compromise the owner of the key and the key itself.</p></li>
 <li><p>Ownership prooves can depend on the current state of the blockchain. It provides the
@@ -83,19 +86,19 @@ support for sigma-protocols. Sigma-protocols define a way to protect the values
 with cryptographic algorithms. Sigma-protocols let us prove that user owns private key
 without exposure of the private key itself.</p>
 <p>Let’s look at example of the simplest script:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">pk</span> <span class="n">alice</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">pk</span></code> is a function that evaluates to true only if user can prove that he or she
 is owner of the alice secret key.</p>
 <p>Also we can use conditions and boolean operators:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pk</span> <span class="n">alice</span> <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">pk</span> <span class="n">alice</span> <span class="o">||</span> <span class="p">(</span><span class="n">pk</span> <span class="n">bob</span> <span class="o">&amp;&amp;</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>In this transaction Alice can grab the value or Bob can have it if
 the height of the blockchain is greater than 100.</p>
-</div>
-<div class="section" id="utxo-model-and-smartcontracts">
+</section>
+<section id="utxo-model-and-smartcontracts">
 <h2>UTXO-model and smartcontracts<a class="headerlink" href="#utxo-model-and-smartcontracts" title="Permalink to this headline">¶</a></h2>
 <p>Unspent Transaction Output (UTXO) model describes exchange of values.
 It was invented for Bitcoin blockchain
@@ -125,11 +128,11 @@ otherwise transaction is considered to be invalid. Let’s look at the Alice’s
 validated and commited and as a result it destroys the Box <code class="docutils literal notranslate"><span class="pre">Y</span></code> and creates
 two new Boxes <code class="docutils literal notranslate"><span class="pre">F</span></code> and <code class="docutils literal notranslate"><span class="pre">G</span></code> that now can be used as inputs to other transactions.
 Alice sends the identifier of the box <code class="docutils literal notranslate"><span class="pre">F</span></code> to Bob so that he can use it.
-Also Bob prior to transaction can send this identifier to Alice, so that she nows
-how to name the Bob’s box. In this example scripts are very simple but they
+Identifier of the box is determined as a hash of content of the box and metadata (TX that
+originated the Box and the identifier of the TX-output which references the box).
+In this example scripts are very simple but they
 can be programs on their own to encode more complex scenarios.
 Let’s look at the state of blockchain after TX was approved:</p>
-<a class="reference internal image-reference" href="../_images/intro-after-tx.png"><img alt="Blockchain state after transaction" src="../_images/intro-after-tx.png" style="width: 700px;" /></a>
 <p>Once UTXO is spent it is destroyed and in place of it we have new UTXOs.
 That’s how smartcontracts work. We use UTXOs in the blockchain as inputs
 check conditions in the smartcontract and if it holds true we destroy
@@ -154,8 +157,8 @@ said to be <em>commited</em>.</p>
 of execution which corresponds to the number of commited blocks.</p>
 </dd>
 </dl>
-</div>
-<div class="section" id="the-structure-of-the-project">
+</section>
+<section id="the-structure-of-the-project">
 <h2>The structure of the project<a class="headerlink" href="#the-structure-of-the-project" title="Permalink to this headline">¶</a></h2>
 <p>The modules are separated for the parts:</p>
 <ul class="simple">
@@ -165,7 +168,8 @@ of execution which corresponds to the number of commited blocks.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo-service</span></code> is service to run a node</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo-api</span></code> is API to interact with blockchain</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo-repl</span></code> interpreter for the language</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo-test</span></code> test scripts to verify that everything works fine.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo-test</span></code> test scripts to verify that everything works fine</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo-pow-node</span></code> POW-node for blockchain</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">hschain-utxo</span></code> main application and utility tools (to generate genesis for instance)</p></li>
 </ul>
 <p>Let’s look at the scheme of project structure</p>
@@ -175,24 +179,24 @@ in the package hschain-utxo-lang. He can use repl (hschain-utxo-repl) to try out
 User sends transactions to web-service (hschain-utxo-service) over API (hschain-utxo-api).
 The service runs on top of hschain which handles transactions and manages state transactions.
 State itself and the way to react to TXs is described in the package hschain-utxo-state.</p>
-</div>
-<div class="section" id="blockchain-node">
+</section>
+<section id="blockchain-node">
 <h2>Blockchain node<a class="headerlink" href="#blockchain-node" title="Permalink to this headline">¶</a></h2>
 <p>Blockchain node runs a service that accepts postage of blocks by REST API.
 It uses hschain as aconsensus algorithm to make commits consistent accross the
 network. We can run the node like this:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">service</span>
+<div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">service</span>
 </pre></div>
 </div>
 <p>It accepts config and genesis see corresponding section for details.</p>
-</div>
-<div class="section" id="api">
+</section>
+<section id="api">
 <h2>API<a class="headerlink" href="#api" title="Permalink to this headline">¶</a></h2>
 <p>We can use REST API to post transactions and query useful information.
 The clinets are defined in the module <code class="docutils literal notranslate"><span class="pre">hschain-utxo-api</span></code> see the corresponding section
 for details.</p>
-</div>
-</div>
+</section>
+</section>
 
 
           </div>
@@ -211,7 +215,7 @@ for details.</p>
 
 
 <h3>Navigation</h3>
-<p class="caption"><span class="caption-text">Contents:</span></p>
+<p><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#language-of-smart-contracts">Language of smart contracts</a></li>
@@ -247,7 +251,7 @@ for details.</p>
     </form>
     </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
+<script>$('#searchbox').show(0);</script>
 
 
 
@@ -261,10 +265,10 @@ for details.</p>
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;1970, HXR.
+      &copy;2019, HXR.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.1.2</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.3</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
       |
