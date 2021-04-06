@@ -1,39 +1,197 @@
 
+
 <!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <title>Language of smart contracts &mdash; hschain-utxo  documentation</title>
+  
 
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17: http://docutils.sourceforge.net/" />
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
 
-    <title>Language of smart contracts &#8212; hschain-utxo  documentation</title>
-    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
-    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script src="../_static/jquery.js"></script>
-    <script src="../_static/underscore.js"></script>
-    <script src="../_static/doctools.js"></script>
+  
+  
+
+  
+  
+
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Interpreter for the language" href="repl.html" />
-    <link rel="prev" title="Quick start guide for language" href="lang-quick-start.html" />
+    <link rel="prev" title="Quick start guide for language" href="lang-quick-start.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
    
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-  
-  
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
-
-  </head><body>
-  
-
-    <div class="document">
-      <div class="documentwrapper">
-        <div class="bodywrapper">
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
           
 
-          <div class="body" role="main">
+          
+            <a href="../index.html" class="icon icon-home"> hschain-utxo
+          
+
+          
+          </a>
+
+          
             
-  <section id="language-of-smart-contracts">
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lang-quick-start.html">Quick start guide for language</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Language of smart contracts</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#basic-building-blocks">Basic building blocks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#definitions">Definitions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#functional-application">Functional application</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branching">Branching</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ownership">Ownership</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#type-signatures">Type signatures</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#primitive-types">Primitive types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#boolean-operators">Boolean operators</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#numeric-operators">Numeric operators</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#text-operators">Text operators</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#script-operators">Script operators</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#compound-types">Compound types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#functions">Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#user-defined-types">User-defined types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#case-expressions">case-expressions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-matching-for-function-arguments">pattern-matching for function arguments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#records">Records</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tuples">Tuples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#vectors">Vectors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#boxes">Boxes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#environment">Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#debugging">Debugging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compilation">Compilation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="repl.html">Interpreter for the language</a></li>
+<li class="toctree-l1"><a class="reference internal" href="service.html">Hschain-utxo node</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API for hschain-utxo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="test.html">Tests for hschain-utxo</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">hschain-utxo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Language of smart contracts</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+          
+            <a href="../_sources/doc/lang.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="language-of-smart-contracts">
 <h1>Language of smart contracts<a class="headerlink" href="#language-of-smart-contracts" title="Permalink to this headline">¶</a></h1>
 <p>The smart contract is a script that evaluates to boolean.
 It is used to protect the value of UTXOs from illegal spending.</p>
@@ -46,7 +204,7 @@ It’s very simple and minimalistic.</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">cabal</span> <span class="n">new</span><span class="o">-</span><span class="n">run</span> <span class="n">hschain</span><span class="o">-</span><span class="n">utxo</span><span class="o">-</span><span class="n">repl</span>
 </pre></div>
 </div>
-<section id="basic-building-blocks">
+<div class="section" id="basic-building-blocks">
 <h2>Basic building blocks<a class="headerlink" href="#basic-building-blocks" title="Permalink to this headline">¶</a></h2>
 <p>Script is a sequence of defenition with last expression being boolean expression:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">one</span> <span class="ow">=</span> <span class="mi">1</span>
@@ -56,7 +214,7 @@ It’s very simple and minimalistic.</p>
 <span class="nf">condition</span> <span class="n">one</span> <span class="n">two</span> <span class="o">&amp;&amp;</span> <span class="n">pk</span> <span class="s">&quot;alice-key&quot;</span>
 </pre></div>
 </div>
-<section id="definitions">
+<div class="section" id="definitions">
 <h3>Definitions<a class="headerlink" href="#definitions" title="Permalink to this headline">¶</a></h3>
 <p>We can define constants:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">greet</span> <span class="ow">=</span> <span class="s">&quot;Hello&quot;</span>
@@ -71,8 +229,8 @@ It’s very simple and minimalistic.</p>
 <span class="kr">in</span>  <span class="n">addWorld</span> <span class="n">greet</span>
 </pre></div>
 </div>
-</section>
-<section id="functional-application">
+</div>
+<div class="section" id="functional-application">
 <h3>Functional application<a class="headerlink" href="#functional-application" title="Permalink to this headline">¶</a></h3>
 <p>Functions are applied with space. Function namegoes first and then arguments follow:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="n">addTwo</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
@@ -80,8 +238,8 @@ It’s very simple and minimalistic.</p>
   <span class="mi">3</span>
 </pre></div>
 </div>
-</section>
-<section id="branching">
+</div>
+<div class="section" id="branching">
 <h3>Branching<a class="headerlink" href="#branching" title="Permalink to this headline">¶</a></h3>
 <p>We can branch with if-then-else:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">x</span> <span class="ow">=</span> <span class="kr">if</span> <span class="n">getHeight</span> <span class="o">&gt;</span> <span class="mi">10</span>
@@ -89,8 +247,8 @@ It’s very simple and minimalistic.</p>
   <span class="kr">else</span> <span class="n">b</span>
 </pre></div>
 </div>
-</section>
-<section id="ownership">
+</div>
+<div class="section" id="ownership">
 <h3>Ownership<a class="headerlink" href="#ownership" title="Permalink to this headline">¶</a></h3>
 <p>We can test for ownership with function <code class="docutils literal notranslate"><span class="pre">pk</span></code></p>
 <dl class="py function">
@@ -101,8 +259,8 @@ of the transaction.</p>
 </dd></dl>
 
 <p>Transaction has special field <code class="docutils literal notranslate"><span class="pre">proof</span></code> where it contains provement of the ownership.</p>
-</section>
-<section id="type-signatures">
+</div>
+<div class="section" id="type-signatures">
 <h3>Type signatures<a class="headerlink" href="#type-signatures" title="Permalink to this headline">¶</a></h3>
 <p>We can give signature with double colon:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="mi">1</span> <span class="ow">::</span> <span class="kt">Int</span><span class="p">)</span>
@@ -110,9 +268,9 @@ of the transaction.</p>
 <span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="s">&quot;Hello&quot;</span><span class="p">)</span> <span class="ow">::</span> <span class="p">(</span><span class="kt">Double</span><span class="p">,</span> <span class="kt">Text</span><span class="p">))</span>
 </pre></div>
 </div>
-</section>
-</section>
-<section id="primitive-types">
+</div>
+</div>
+<div class="section" id="primitive-types">
 <h2>Primitive types<a class="headerlink" href="#primitive-types" title="Permalink to this headline">¶</a></h2>
 <p>Language has following primitives:</p>
 <dl class="simple">
@@ -129,7 +287,7 @@ Box can be input or output boxes. We spend values from input boxes and create ou
 when script is true.</p>
 </dd>
 </dl>
-<section id="boolean-operators">
+<div class="section" id="boolean-operators">
 <h3>Boolean operators<a class="headerlink" href="#boolean-operators" title="Permalink to this headline">¶</a></h3>
 <p>We have usual boolean operations:  <code class="docutils literal notranslate"><span class="pre">not</span></code>, <code class="docutils literal notranslate"><span class="pre">||</span></code>, <code class="docutils literal notranslate"><span class="pre">&amp;&amp;</span></code>.
 Also we have conditions defined for all primitive types like: <code class="docutils literal notranslate"><span class="pre">==</span></code>, <code class="docutils literal notranslate"><span class="pre">/=</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;=</span></code> etc.</p>
@@ -139,13 +297,13 @@ Also we have conditions defined for all primitive types like: <code class="docut
   <span class="kr">else</span> <span class="n">b</span>
 </pre></div>
 </div>
-</section>
-<section id="numeric-operators">
+</div>
+<div class="section" id="numeric-operators">
 <h3>Numeric operators<a class="headerlink" href="#numeric-operators" title="Permalink to this headline">¶</a></h3>
 <p>We have numeric operators: <code class="docutils literal notranslate"><span class="pre">negate</span></code>, <code class="docutils literal notranslate"><span class="pre">+</span></code>, <code class="docutils literal notranslate"><span class="pre">*</span></code>, <code class="docutils literal notranslate"><span class="pre">/</span></code>.
 They work on all numeric types.</p>
-</section>
-<section id="text-operators">
+</div>
+<div class="section" id="text-operators">
 <h3>Text operators<a class="headerlink" href="#text-operators" title="Permalink to this headline">¶</a></h3>
 <p>Text are lists of chars. We have following functions:</p>
 <dl class="py function">
@@ -173,8 +331,8 @@ They work on all numeric types.</p>
 </dd></dl>
 
 <p>Also we can check texts for equality and compare it.</p>
-</section>
-<section id="script-operators">
+</div>
+<div class="section" id="script-operators">
 <h3>Script operators<a class="headerlink" href="#script-operators" title="Permalink to this headline">¶</a></h3>
 <p>The only thing we can do with script is to check for equality and convert it to text with function</p>
 <dl class="py function">
@@ -183,12 +341,12 @@ They work on all numeric types.</p>
 <dd><p>Converts script to text.</p>
 </dd></dl>
 
-</section>
-</section>
-<section id="compound-types">
+</div>
+</div>
+<div class="section" id="compound-types">
 <h2>Compound types<a class="headerlink" href="#compound-types" title="Permalink to this headline">¶</a></h2>
 <p>For compound types we have functions, tuples, vectors and boxes.</p>
-<section id="functions">
+<div class="section" id="functions">
 <h3>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h3>
 <p>We can create function with lambda expression:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">addTwo</span> <span class="ow">=</span> <span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">2</span>
@@ -233,8 +391,8 @@ They work on all numeric types.</p>
   <span class="kr">in</span>  <span class="n">square</span> <span class="n">x</span> <span class="o">+</span> <span class="n">square</span> <span class="n">y</span>
 </pre></div>
 </div>
-</section>
-<section id="user-defined-types">
+</div>
+<div class="section" id="user-defined-types">
 <h3>User-defined types<a class="headerlink" href="#user-defined-types" title="Permalink to this headline">¶</a></h3>
 <p>User can define a type. the style is borrowed from Haskell:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="kr">data</span> <span class="kt">Color</span> <span class="ow">=</span> <span class="kt">Red</span> <span class="o">|</span> <span class="kt">Blue</span> <span class="o">|</span> <span class="kt">Green</span>
@@ -255,8 +413,8 @@ Also type-constructors can hold values. Let’s define type for users with name 
 <p>We can construct the values of our own type with constructors. To deconstruct them we use case-expressions.</p>
 <p>Note that recursive types are prohibited. We can not construct recursive types.
 It is deliberate restriction of our language since we do not support recursion.</p>
-</section>
-<section id="case-expressions">
+</div>
+<div class="section" id="case-expressions">
 <h3>case-expressions<a class="headerlink" href="#case-expressions" title="Permalink to this headline">¶</a></h3>
 <p>Case-expression deconstruct values from our own types:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">getName</span> <span class="ow">::</span> <span class="kt">User</span> <span class="ow">-&gt;</span> <span class="kt">Text</span>
@@ -273,8 +431,8 @@ It is deliberate restriction of our language since we do not support recursion.<
    <span class="kt">User</span> <span class="n">name</span> <span class="n">age</span> <span class="ow">-&gt;</span> <span class="kt">User</span> <span class="n">name</span> <span class="p">(</span><span class="n">age</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
 </pre></div>
 </div>
-</section>
-<section id="pattern-matching-for-function-arguments">
+</div>
+<div class="section" id="pattern-matching-for-function-arguments">
 <h3>pattern-matching for function arguments<a class="headerlink" href="#pattern-matching-for-function-arguments" title="Permalink to this headline">¶</a></h3>
 <p>We can also deconstruct the value in the arguments of the functions with pattern-matching.
 Let’s rewrite the functions with pattern-matching:</p>
@@ -286,8 +444,8 @@ Let’s rewrite the functions with pattern-matching:</p>
 <span class="nf">colorIsRed</span> <span class="kr">_</span>   <span class="ow">=</span> <span class="kt">False</span>
 </pre></div>
 </div>
-</section>
-<section id="records">
+</div>
+<div class="section" id="records">
 <h3>Records<a class="headerlink" href="#records" title="Permalink to this headline">¶</a></h3>
 <p>Sometimes it’s useful to have named fields in the type-constructors.
 This part of the language is also inspired by Haskell and we can create named-fields
@@ -311,8 +469,8 @@ scope of the program.</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">happyBirthday</span> <span class="n">user</span> <span class="ow">=</span> <span class="n">user</span> <span class="p">{</span> <span class="n">user&#39;age</span> <span class="ow">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">user&#39;age</span> <span class="n">user</span> <span class="p">}</span>
 </pre></div>
 </div>
-</section>
-<section id="tuples">
+</div>
+<div class="section" id="tuples">
 <h3>Tuples<a class="headerlink" href="#tuples" title="Permalink to this headline">¶</a></h3>
 <p>Tuples represent sets of heterogeneous values. We use parenthesis to denote them <cite>(True, 1)</cite>
 We construct tuples with parens and destruct them pattern-matching or case-expressions or pattern-matching:</p>
@@ -325,8 +483,8 @@ We construct tuples with parens and destruct them pattern-matching or case-expre
 <span class="nf">fst</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="kr">_</span><span class="p">)</span> <span class="ow">=</span> <span class="n">a</span>
 </pre></div>
 </div>
-</section>
-<section id="vectors">
+</div>
+<div class="section" id="vectors">
 <h3>Vectors<a class="headerlink" href="#vectors" title="Permalink to this headline">¶</a></h3>
 <p>Vectors represent a row of values of the same type.
 We use brackets to denote constant vectors: <cite>[1,2,3]</cite>.
@@ -405,8 +563,8 @@ To get vector values we use operator <code class="docutils literal notranslate">
 <dd><p>Read vector of transaction outputs</p>
 </dd></dl>
 
-</section>
-<section id="boxes">
+</div>
+<div class="section" id="boxes">
 <h3>Boxes<a class="headerlink" href="#boxes" title="Permalink to this headline">¶</a></h3>
 <p>Box represent UTXO. It has</p>
 <ul class="simple">
@@ -488,9 +646,9 @@ Let’s look at the extractors:</p>
 <div class="highlight-haskell notranslate"><div class="highlight"><pre><span></span><span class="nf">all</span> <span class="p">(</span><span class="n">map</span> <span class="p">(</span><span class="nf">\</span><span class="n">x</span> <span class="ow">-&gt;</span> <span class="n">getBoxValue</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span> <span class="n">getInputs</span><span class="p">)</span>
 </pre></div>
 </div>
-</section>
-</section>
-<section id="environment">
+</div>
+</div>
+<div class="section" id="environment">
 <h2>Environment<a class="headerlink" href="#environment" title="Permalink to this headline">¶</a></h2>
 <p>We have already discussed how to read input and output boxes.
 But there are also some global variables that we can read.</p>
@@ -509,8 +667,8 @@ But there are also some global variables that we can read.</p>
 Some scripts can require user to supply additional values with transaction.</p>
 </dd></dl>
 
-</section>
-<section id="debugging">
+</div>
+<div class="section" id="debugging">
 <h2>Debugging<a class="headerlink" href="#debugging" title="Permalink to this headline">¶</a></h2>
 <p>Sometimes it is useful to trace the execution of the values in the script.
 We can use the function <code class="docutils literal notranslate"><span class="pre">trace</span></code></p>
@@ -522,8 +680,8 @@ We can use the function <code class="docutils literal notranslate"><span class="
 
 <p>We can read the debug information in REPL-console. Also the debug is returned with
 API call that posts transaction.</p>
-</section>
-<section id="compilation">
+</div>
+<div class="section" id="compilation">
 <h2>Compilation<a class="headerlink" href="#compilation" title="Permalink to this headline">¶</a></h2>
 <p>To use script in transaction JSON-object we have to compile it. To do it we invoke
 compailer <code class="docutils literal notranslate"><span class="pre">hschain-utxo-compiler</span></code>:</p>
@@ -532,90 +690,55 @@ compailer <code class="docutils literal notranslate"><span class="pre">hschain-u
 </div>
 <p>If flag <code class="docutils literal notranslate"><span class="pre">output</span></code> (<code class="docutils literal notranslate"><span class="pre">-o</span></code> for short) is omitted the result is dumped to stdout.
 See flag <code class="docutils literal notranslate"><span class="pre">--help</span></code> for all options of the compiler.</p>
-</section>
-</section>
+</div>
+</div>
 
 
+           </div>
+           
           </div>
-          
+          <footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+        <a href="repl.html" class="btn btn-neutral float-right" title="Interpreter for the language" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="lang-quick-start.html" class="btn btn-neutral float-left" title="Quick start guide for language" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &#169; Copyright 2019, HXR.
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
         </div>
       </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper">
-<h1 class="logo"><a href="../index.html">hschain-utxo</a></h1>
 
+    </section>
 
+  </div>
+  
 
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
 
-
-
-
-
-<h3>Navigation</h3>
-<p><span class="caption-text">Contents:</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="lang-quick-start.html">Quick start guide for language</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Language of smart contracts</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#basic-building-blocks">Basic building blocks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#primitive-types">Primitive types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#compound-types">Compound types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#environment">Environment</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#debugging">Debugging</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#compilation">Compilation</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="repl.html">Interpreter for the language</a></li>
-<li class="toctree-l1"><a class="reference internal" href="service.html">Hschain-utxo node</a></li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API for hschain-utxo</a></li>
-<li class="toctree-l1"><a class="reference internal" href="test.html">Tests for hschain-utxo</a></li>
-</ul>
-
-<div class="relations">
-<h3>Related Topics</h3>
-<ul>
-  <li><a href="../index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="lang-quick-start.html" title="previous chapter">Quick start guide for language</a></li>
-      <li>Next: <a href="repl.html" title="next chapter">Interpreter for the language</a></li>
-  </ul></li>
-</ul>
-</div>
-<div id="searchbox" style="display: none" role="search">
-  <h3 id="searchlabel">Quick search</h3>
-    <div class="searchformwrapper">
-    <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" aria-labelledby="searchlabel" />
-      <input type="submit" value="Go" />
-    </form>
-    </div>
-</div>
-<script>$('#searchbox').show(0);</script>
-
-
-
-
-
-
-
-
-        </div>
-      </div>
-      <div class="clearer"></div>
-    </div>
-    <div class="footer">
-      &copy;2019, HXR.
-      
-      |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.3</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
-      
-      |
-      <a href="../_sources/doc/lang.rst.txt"
-          rel="nofollow">Page source</a>
-    </div>
-
+  
+  
     
+   
 
-    
-  </body>
+</body>
 </html>
