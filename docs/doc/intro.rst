@@ -18,7 +18,7 @@ Language of smart contracts
 
 Language of smartcontracts is staticly typed higher-order functional programming language
 with predictable time of exectuion and zero-knowledge prooves of the ownership
-of the values. It adapts powerful functional programming paradigm to the reuirements of the safe, fast and predictable
+of the values. It adapts powerful functional programming paradigm to the requirements of the safe, fast and predictable
 execution of the scripts on the blockchain. 
 
 Main features of the language:
@@ -32,6 +32,9 @@ Main features of the language:
   of fixed model of ownership we can devise our own rules. Rules are arbitrary boolean expresisons.
   It makes system flexible and provides the user with tools to create rules suitable 
   for a specific task.
+
+* Alongside with Sigma-protocols we can use Bitcoin-like signatures. There are primitives
+  for single ownership and multi-signatures.
 
 * Rules of the ownership are zero-knowledge prooves of the private-key ownership. 
   The proove validation does not compromise the owner of the key and the key itself.
@@ -117,13 +120,14 @@ After that Alice prooves with her key that she holds the Box ``Y``. The TX is
 validated and commited and as a result it destroys the Box ``Y`` and creates
 two new Boxes ``F`` and ``G`` that now can be used as inputs to other transactions.
 Alice sends the identifier of the box ``F`` to Bob so that he can use it.
-Also Bob prior to transaction can send this identifier to Alice, so that she nows
-how to name the Bob's box. In this example scripts are very simple but they 
+Identifier of the box is determined as a hash of content of the box and metadata (TX that
+originated the Box and the identifier of the TX-output which references the box).
+In this example scripts are very simple but they 
 can be programs on their own to encode more complex scenarios. 
 Let's look at the state of blockchain after TX was approved:
 
 .. image:: ../images/intro/intro-after-tx.png
-   :width: 700
+   :width: 700\
    :alt: Blockchain state after transaction
 
 
@@ -167,7 +171,8 @@ The modules are separated for the parts:
 * ``hschain-utxo-service`` is service to run a node
 * ``hschain-utxo-api`` is API to interact with blockchain
 * ``hschain-utxo-repl`` interpreter for the language 
-* ``hschain-utxo-test`` test scripts to verify that everything works fine. 
+* ``hschain-utxo-test`` test scripts to verify that everything works fine
+* ``hschain-utxo-pow-node`` POW-node for blockchain
 * ``hschain-utxo`` main application and utility tools (to generate genesis for instance)
 
 Let's look at the scheme of project structure
