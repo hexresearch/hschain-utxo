@@ -3,9 +3,9 @@ Quick start guide for language
 ========================================
 
 The language for smart contracts is heavily insired with ErgoScript and Haskell.
-So regarding the syntax we can use our haskell intuition in many circumstances.
+So we can use our haskell intuition in many circumstances.
 
-Functions look like Haskell functions, but we use strict execution. They are applied with space defined with equal sign
+Functions behave like Haskell functions. They are applied with space defined with equal sign
 or slash-lambda. Like in haskell we have ``if-then-else`` and ``let-in`` expressions.::
 
   > addTwo x = x + 2
@@ -19,22 +19,18 @@ Like in Haskell we have tuples. They are accessed with case-expressions::
    case pair of
       (a, b) -> a + b
 
-Also we have lists with usual operators ``map`` (map over), ``fold`` (left fold), ``length`` (size of the vector), 
-``++`` (concatenation) and many other handy functions. 
+Also we have vectors with usual operators ``map`` (map over), ``fold`` (left fold), ``length`` (size of the vector), 
+``++`` (concatenation). 
 
 the script is a list of defenitions. It should contain
-the function with name ``main`` which has type ``SigmaBool``. It is the result of the script.::
+the function with name ``main`` which has type ``Bool``. It is the result of the script.::
 
   one = 1
   two = 2
 
   check x = one + two == x
 
-  main = toSigma (check 3)
-
-The ``SigmaBool`` is a special type that uses Sigma-protocols as proof of the ownership.
-Soon we are going to see some examples of them. In this script we use converter functions
-``toSigma :: Bool -> SigmaBool``. It converts plain old booleans to sigma-expressions.
+  main = check 3
 
 .. topic:: No recursion
 
@@ -47,25 +43,20 @@ Ownership check - the heart of the language
 
 The heart of the language is a function ``pk`` that checks for ownership:
 
-.. function:: pk :: Bytes -> SigmaBool
+.. function:: pk :: Text -> Bool
 
    Check for ownership of private key.
 
 It implements sigma-protocol. The transaction should have the field ``proof``
-that lists all proofs for ownership of the keys. 
+that lists all rproofs for ownership of the keys. 
 
 Here is the simple script to protect Bob's values::
 
-  pk (bytes "bob-key")
+  pk "bob-key"
 
-In this line ``bob-key`` is a public key of the user. We convert text representation to bytestring
-with built-in function ``bytes``. It protects the funds
+In this line ``bob-key`` is a public key of the user. It protects the funds
 from spending by other parties. But where do we get our keys?
 We get public key from secret key. 
-
-.. function:: bytes :: Text -> Bytes
-
-   Special built-in word that let us write bytestring as plain text.
 
 Secret and public keys
 ----------------------------------------------------
@@ -92,7 +83,7 @@ to stdout. This string we can use as the argument of the function ``pk`` to prot
 If we want to receive funds from another user we can give public key to her so that
 she can submit transaction with the script::
 
-  pk (bytes "our-public-key")
+  pk "our-public-key"
 
 Conditional ownershhip
 ----------------------------------------------------
@@ -103,29 +94,8 @@ give it to Bob excluding Alice::
    time = 100
 
    main = 
-         (pk alice &&* (getHeight <=* time) 
-      || (pk bob   &&* (getHeight >*  time)
-
-
-Operators with stars at the end like ``&&*`` or ``<*`` are lifted versions of
-ordinary boolean operators to work with ``SigmaBool`` instead of ``Bool``.
-For example let's look at the signatures::
-
-  (&&*) :: SigmaBool -> SigmaBool -> SigmaBool
-
-  (<*)  :: a -> a -> SigmaBool
-
-  (==*)  :: a -> a -> SigmaBool
-
-
-We can find out the signature in ``hschain-utxo-repl`` just like in ghci repl with command ``:type`` or ``:t`` for short::
-
-  :t (<=*)
-
-  (<=*) :: a -> a -> SigmaBool
-
-Comparision operators are defined for all types (including user-types). 
-Derivation of comparision operators is built in the language.
+         (pk alice && getHeight <= time) 
+      || (pk bob   && getHeight >  time)
 
 Transaction execution
 -------------------------------------------
@@ -133,39 +103,17 @@ Transaction execution
 Let's look at how transaction is executed. Transaction has several components:
 
 **Inputs**
-   List of identifiers for exisiting UTXOs in the blockchain with metadata on how to prove
-   the ownership of the input/
+   List of identifiers for exisiting UTXOs in the blockchain
 
 **Outputs**
    List of produced UTXOs. They are added to blockchain if TX is valid.
    The input boxes are destroyed.
 
-**Data-inputs**
-   List of identifiers for existing UTXOs that are used as global scope constants
-   for execution of the transaction. They are not destroyed after TX-execution
-   and values of them can not be spent to outputs. This is the main difference
-   between inputs and data-inputs.
-
-Inputs contain useful information for TX-execution:
-
-**Identifier of the input box**
-  Reference to box that we want to spend. Identifier of the box in the blockchain.
-  Note that we can sign TX with reference to the box that is not yet present in the 
-  block chain and sign it. This scenario can be useful in the omplementation of lightning networks.
-
-**Arguments**
-  Arguments for box script. It is represented as bytestring that can hold any serialised value
-  of the language (including user types). Serialisation is built-in the language for all types. 
-
 **Proof**
-  Signed sigma-expression that proofs the ownership.
+   Signed sigma-expression that proofs the ownership.
 
-**Signaiures**
-  Vector of signatures. This is used with bitcoin-style signatures. 
-
-**Signature mask**
-  Mask of which inputs and outputs are signed. We can sign all inputs and outputs but also
-  we can leave some iputs or outputs open for change.
+**Args**
+   Key-value pairs of primitive values. 
 
 User posts transaction in three steps. 
 
@@ -188,8 +136,8 @@ Beside the check of proof there are other conditions:
 
 * The sum of inputs should equal to the sum of outputs.
 
-* Outputs should contain valid scripts, that are evaluated to ``SigmaBool``.
-   They have function main with no arguments that produces ``SigmaBool``. 
+* Outputs should contain valid scripts, that are evaluated to ``Bool``.
+   They have function main with no arguments that is produces ``Bool``. 
 
 In the following sections we are going to look at several examples. 
 
@@ -221,36 +169,29 @@ In the UTXO model we have to spend all values of the inputs, because inputs woul
 after TX confirmation. So we have TX such as::
 
    {
-      "inputs": 
-         [ { "id": "alice-utxo-1"                    
-           , "args": {}
-           , "proof": signed-sigma-expression
-           , "sigs": []
-           , "sigMask": {"SigAll": []}
-           }
-         ],
+      "inputs": ["alice-utxo-1"],
       "outputs": 
          [ { "id": "bob-utxo-1",
            , "value": 2,
-           , "script": "pk (bytes bob-pub-key)",
+           , "script": "pk bob",
            , "args": {} 
            }
          , { "id": "alice-utxo-2",
            , "value": 8,
-           , "script": "pk (bytes alice-pub-key)",
+           , "script": "pk alice",
            , "args": {}
            }
          ];
-      "data-inputs": []
+      "proof": signed-sigma-expression,
+      "args": {}
    }
 
 This is slightly simplified version of TX. But we can get the idea.
-TX is a json-object that contains the fields: "inputs", "outputs", "proof", "args", "sigs" and "sigMask". 
-Value "SigAll" means that we sign all inputs and outputs.
+TX is a json-object that contains the fields: "inputs", "outputs", "proof" and "args".
 The outputs is a list of UTXOs, each of them has fields "id", "value", "script" and "args".
 
 To make real transaction we also need to compile the script. But here for simplicity of
-explanation it's written in stright format.
+explanation it's written in stright form.
 
 Now suppose that Bob has UTXO with 4 coins. And he wants to give 5 coins back to Alice.
 But also alice just gave him 2 coins, so he can use two UTXOs as inputs and create
@@ -263,19 +204,7 @@ But also alice just gave him 2 coins, so he can use two UTXOs as inputs and crea
 Let's look at the code for transaction::
 
    {
-      "inputs": 
-        [ { "id": "bob-utxo-0"
-          , "args": {}
-          , "proof": signed-sigma-expression
-          , "sigs": []
-          , "sigMask": {"SigAll": []}
-          }
-        , { "id": "bob-utxo-1"
-          , "args": {}
-          , "proof": signed-sigma-expression
-          , "sigMask": {"SigAll": []}
-          }
-        ],
+      "inputs": ["bob-utxo-0", "bob-utxo-1"],
       "outputs": 
          [ { "id": "bob-utxo-2",
            , "value": 1,
@@ -289,7 +218,7 @@ Let's look at the code for transaction::
            }
          ];
       "proof": signed-sigma-expresision,
-      "data-inputs": []
+      "args": {}
    }
 
 It is enforced by the blockchain that sum of input values should be equal to sum of output values.
@@ -329,9 +258,9 @@ of blockchain. Up until that time Alice can get her money back.
 To do it Alice can create UTXO with following script::
 
    timeBound = ... -- some number ahead of current height
-
-   main = (pk alice &&* getHeight <* timeBound) 
-       || (pk bob   &&* getHeight >=* timeBound)
+   
+      (pk alice && getHeight < timeBound) 
+   || (pk bob   && getHeight >= timeBound)
 
 
 XOR-game
@@ -368,33 +297,32 @@ to store Bob’s bit b, Bob’s public key (stored as a proveDlog proposition) a
 automatic win respectively. The context variables with id 0 and 1 (provided at the time of spending
 the full-game box) contain s and a required to open Alice’s commitnent k, which alongwith Alice’s
 public key alice is used to compute ``fullGameScriptHash``, the hash of the below script::
-  
-  (s, a) = getArgs
-  (b, bobDeadline, bob) = getBoxArgs getSelf
 
-  main =  (pk bob &&* (getHeight >* bobDeadline))
-      ||* (   (sha256 (appendBytes s (serialise (a :: Int))) ==* $(commitmentHash))
-          &&* (   (pk $(alice) &&* (a ==* b))
-              ||* (pk bob      &&* (a /=* b))
-              )
-          )
+   s = getVar "s"
+   a = getVar "a"
+   b = getArg getSelf "guess"
+   bobKey = getArg getSelf "publicKey"
+   bobDeadline = getArg getSelf "deadline"
+
+      (pk bob && getHeight > bobDeadline) 
+   || (   blake2b256(s <> a) == k 
+       &&    ((pk alice) && a == b 
+          || (pk bob) && a != b))
 
 The above constants are used to create ``halfGameScript``::
 
-  validBobInput b = (b == 0) || (b == 1)
+  out = getOutput 0
+  b   = getBoxArg out "guess"
+  bobDeadline = getBoxArg out "deadline"
+  validBobInput = b == 0 || b == 1
+     validBobInput
+  && (blake2b256 (shwoScript (getBoxScript out)) == fullGameScriptHash)
+  && (length getOutputs == 1 || length getOutputs == 2) 
+  && bobDeadline >= getHeight + 30
+  && getBoxValue out >= getBoxValue getSelf * 2
 
-  main = andSigma
-        [ toSigma (validBobInput bobGuess)
-        , sha256 (getBoxScript out) ==* $(fullGameScriptHash)
-        , (length getOutputs ==* 1) ||* (length getOutputs ==* 2)
-        , bobDeadline >=* (getHeight + 30)
-        , getBoxValue out >=* (2 * getBoxValue getSelf) ]
-    where
-      out = getOutput 0
-      (bobGuess, bobDeadline) = getBoxArgs out
-
-Alice creates her half-game box protected by halfGameScript, which requires that the transaction 
-spending the half-game box must generate exactly one output box with the following properties:
+Alice creates her half-game box protected by halfGameScript, which requires that the transac-
+tion spending the half-game box must generate exactly one output box with the following properties:
    
 1. Its value must be at least twice that of the half-game box.
 
@@ -416,12 +344,17 @@ Create transaction and send it with API
 We can post the transaction over API. To do it we have to create TX as JSON object.
 Every TX  is a JSON-object that contains following fields::
 
-  { "inputs": [inBox1, inBox2]
+  { "inputs": ["utxo-input-id-1", "utxo-input-id-2"]
   , "outputs": [box1, box2]
-  , "data-inputs": [dataBox1, dataBox2]
+  , "proof": signed-sigma-expression
+  , "args": { "arg1": val1,
+            , "arg2": val2
+            }
   }
 
-Inputs  contain the list of references to input boxes. 
+
+
+Inputs  contain the list of Box identifiers that are used as inputs.
 Ouptuts contain boxes that are going to be produced after TX is validated.
 Proof contains the signed sigma expression that we can get with compiler (see previous section). 
 First we send the transaction to method ``api/tx-sigma/get`` then we receive
@@ -431,16 +364,6 @@ Args contains the map of key-value. It can be empty.
 The sum of values of inputs should be equal to sum of values of outputs. 
 For TX to be valid all conditions for scripts of the inputs should evalueate to true.
 List of inputs should be non-empty.
-
-Let's look at the value of the input box. It's JSON-object::
-
-  {
-      "id": "utxo",
-      "proof": signed-sigma-expression
-      "args": {},
-      "sigs": [],
-      "sigMask": { "SigAll": []}
-  }
 
 Let's look at the value of output box. It's JSON-object::
 
@@ -467,30 +390,20 @@ and post the TX with following curl::
 Send with API in Haskell
 ---------------------------------------------------
 
+
 With Haskell we can create transactions and post them with easy to use library.
 We need libriaries ``hschain-utxo-lang`` to create value for transaction 
 and library ``hschain-utxo-api-client`` to post the transaction.
 
 Let's create a transaction and post it.
 The transaction has type::
-  
-  -- | Type for transaction. It spends values from the input boxes and
-  --   create output boxes.
-  --
-  --   Each input references another box and contains proof for complete
-  --   transaction or sigma expression that should be proven when we
-  --   assemble transaction. Proof will be missing if spend script
-  --   evaluated to boolean.
-  data GTx i o = Tx
-    { tx'inputs  :: !(Vector (BoxInputRef i))
-      -- ^ List of inputs
-    , tx'outputs :: !(Vector o)
-      -- ^ List of outputs
-    , tx'dataInputs :: !(Vector BoxId)
-      -- ^ List of inputs that we do not spend and use as constants in scope
-    }
 
-  type Tx = GTx Proof Box
+   data Tx = Tx
+      { tx'inputs  :: !(Vector BoxId)
+      , tx'outputs :: !(Vector Box)
+      , tx'proof   :: !Proof
+      , tx'args    :: !Args
+      }
 
    data Box = Box
       { box'id     :: !BoxId
@@ -499,41 +412,13 @@ The transaction has type::
       , box'args   :: !Args
       }
 
-  -- | Input is an unspent Box that exists in blockchain.
-  -- To spend the input we need to provide right arguments and proof
-  -- of reulting sigma expression.
-  data BoxInputRef a = BoxInputRef
-    { boxInputRef'id       :: BoxId
-    -- ^ identifier of the box to spend
-    , boxInputRef'args     :: Args
-    -- ^ arguments for box script
-    , boxInputRef'proof    :: Maybe a
-    -- ^ proof for the script
-    , boxInputRef'sigs     :: Vector Signature
-    -- ^ signatures for the script. We have to exclude this field on computing TxId and on computing SigMessage
-    , boxInputRef'sigMask  :: SigMask
-    -- ^ mask of TX which defines the filter of inputs and outputs that we sign
-    }
-   
-  newtype BoxId = BoxId { unBoxId :: Hash SHA256 }
+   newtype BoxId = BoxId { unBoxId :: Text }
 
-  newtype Script = Script { unScript :: ByteString }
-
-  -- | Signature mask. It defines what inputs and outputs
-  -- are included in the message to sign.
-  --
-  -- Empty SigMask means sign all inputs and outputs.
-  data SigMask = SigMask
-    { sigMask'inputs     :: Vector Bool
-    , sigMask'outputs    :: Vector Bool
-    , sigMask'dataInputs :: Vector Bool
-    } -- ^ Specify what inputs and outputs to sign
-    | SigAll
-    -- ^ Signs whole transaction (all inputs and outputs)
+   newtype Script = Script { unScript :: Text }
 
 We need to create the value of type ``Tx``.
-For creation of script we can use the module ``Hschain.Utxo.Lang.Compile`` 
-(see function ``toCoreScript``) from the library ``hschain-utxo-lang`` or we can compile to string with
+For creation of script we can use the module ``Hschain.Utxo.Lang.Build``
+from the library ``hschain-utxo-lang`` or we can compile to string with
 ``hschain-utxo-compiler`` as in previous section and wrap result with ``Script``
 constructor. In the latter case we can write script in text file.
 
@@ -556,5 +441,6 @@ The answer is either error or structure with TX hash and debug-message::
    data PostTxResponse = PostTxResponse
       { postTxResponse'value :: !(Either Text TxHash )
       , postTxResponse'debug :: !Text }
+
 
 
